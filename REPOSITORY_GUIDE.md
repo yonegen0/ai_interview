@@ -1,20 +1,25 @@
 # リポジトリ案内
 
-このリポジトリは、転職者向け「隙間時間特化型・一問一答AI面接練習Webアプリ」のMVP設計資料をまとめたものです。
+このリポジトリは、転職者向け「隙間時間特化型・一問一答AI面接練習Webアプリ」のMVP設計資料とFrontend初期実装をまとめたものです。
 
-現時点では、アプリケーションの実装コードではなく、プロジェクト計画・基本設計・詳細設計が中心です。最初に全体像をつかむ場合は、[README](README.md) → [プロジェクト計画](01_project_plan/01_project_plan.md) → [全体基本設計](02_basic_design/01_overall_basic_design.md) の順で読むと把握しやすくなります。
+現時点では設計資料が中心ですが、`frontend/` にNext.jsの仮トップ画面と共通UIがあります。最初に全体像をつかむ場合は、[README](README.md) → [プロジェクト計画](01_project_plan/01_project_plan.md) → [全体基本設計](02_basic_design/01_overall_basic_design.md) の順で読むと把握しやすくなります。
 
 ## ディレクトリ構成
 
 ```text
 ai_interview_mvp_design/
 ├── README.md                    # プロジェクト概要、主要方針、未確定事項
-├── FILE_INDEX.md                # 設計書ファイルの簡易一覧
 ├── REPOSITORY_GUIDE.md          # この案内
 ├── 01_project_plan/             # 目的、スコープ、体制、工程、品質方針
 ├── 02_basic_design/             # システム全体と各領域の基本設計
 ├── 03_detailed_design/          # Frontend／Backend／Infrastructureの詳細設計
 └── frontend/
+    ├── package.json             # Frontendの依存関係とnpm scripts
+    ├── src/
+    │   ├── app/                 # App RouterのLayoutと仮トップ画面
+    │   ├── components/          # 共通UIコンポーネント
+    │   └── lib/theme.ts         # MUI共通テーマ
+    ├── stories/                 # Storybook Story
     ├── AGENTS.md                # frontend配下で作業するAI向け指示（要注意）
     └── skills/                  # AI作業用のレビュー・記述スタイル手順
 ```
@@ -30,6 +35,38 @@ ai_interview_mvp_design/
 | API・データ・AI処理 | [Backend基本設計](02_basic_design/03_backend_basic_design.md) | API、認可、DynamoDB、Bedrock、Question Bankの基本方針です |
 | AWS構成・運用 | [Infrastructure基本設計](02_basic_design/04_infrastructure_basic_design.md) | 配信、認証、API、DB、監視、コスト、復旧の基本方針です |
 | 実装時の具体的な仕様 | [詳細設計](03_detailed_design/) | Frontend／Backend／Infrastructureに分かれています |
+| 現在のFrontend実装 | [frontend/src](frontend/src/) | 仮トップ画面、共通UI、MUIテーマがあります |
+| Frontendの起動・依存関係 | [frontend/package.json](frontend/package.json) | npm scriptsと利用ライブラリを確認できます |
+
+## Frontend実装マップ
+
+### アプリ本体
+
+- [layout.tsx](frontend/src/app/layout.tsx): メタデータ、Viewport、MUI ThemeProvider、CssBaselineを設定するルートレイアウト。
+- [page.tsx](frontend/src/app/page.tsx): カテゴリを選択して練習を始める仮トップ画面。現在は表示とローカルの選択操作のみです。
+- [theme.ts](frontend/src/lib/theme.ts): 色、Typography、角丸、ShadowなどのMUI共通テーマ。
+
+### 共通コンポーネント
+
+- [Button.tsx](frontend/src/components/atoms/Button.tsx): MUI Buttonをラップした共通ボタン。
+- [Input.tsx](frontend/src/components/atoms/Input.tsx): MUI TextFieldをラップした共通入力欄。
+- [Select.tsx](frontend/src/components/atoms/Select.tsx): ラベル、選択肢、エラー表示を内包する共通Select。
+- [Header.tsx](frontend/src/components/molecules/Header.tsx): Eyebrow、Title、Descriptionで構成される共通ヘッダー。
+- [Dialog.tsx](frontend/src/components/organisms/Dialog.tsx): Title、Content、Actionsを受け取る共通ダイアログ。
+
+### 開発・確認
+
+`frontend/` を作業ディレクトリにして実行します。
+
+```bash
+npm install
+npm run dev        # http://localhost:3000
+npm run lint
+npm run build
+npm run storybook  # http://localhost:6006
+```
+
+FrontendはNext.js 16、React 19、MUI 9、TypeScriptを利用しています。依存バージョンの正確な情報は[package.json](frontend/package.json)を参照してください。
 
 ## 設計書マップ
 
@@ -97,9 +134,11 @@ ai_interview_mvp_design/
 
 ## 現状の注意点
 
-- READMEと[FILE_INDEX.md](FILE_INDEX.md)には `CHANGELOG_v1.1.md` が記載されていますが、現在の作業ツリーには存在しません。
-- `frontend/` 配下にアプリのソースコードや `package.json` はなく、現在あるのはAI向け指示とスキル定義だけです。
-- [frontend/AGENTS.md](frontend/AGENTS.md) は「汎用受付・順番管理システム」を前提としており、このAI面接練習アプリの設計資料とは内容が一致していません。今後 `frontend/` に実装を置く場合は、適用前に更新または削除の判断が必要です。
+- Frontendは仮トップ画面と共通UIまでです。認証、API接続、質問・回答、AIフィードバック、履歴、お気に入りは未実装です。
+- BackendおよびInfrastructureは設計資料のみで、実装コードはまだありません。
+- `next.config.ts` には、設計書が前提とするStatic Exportの設定がまだありません。
+- `npm run lint` は成功しますが、`npm run build` は既存の `AppShell.stories.tsx` が存在しない `AppShell` やStorybookモックを参照しているため、型検査で停止します。
+- [frontend/AGENTS.md](frontend/AGENTS.md) は「汎用受付・順番管理システム」を前提としており、このAI面接練習アプリの設計資料とは内容が一致していません。Frontend作業ルールとして利用する前に更新が必要です。
 - `frontend/skills/` の各 `SKILL.md` も、存在しない実装ファイルや別プロダクト固有の規約を参照しているものがあります。現時点では設計仕様そのものではなく、AI作業補助資料として扱ってください。
 - ADR専用ディレクトリや変更記録は、現在の作業ツリーにはありません。設計判断を追加する際は、保存場所と命名規則を決める必要があります。
 
@@ -107,5 +146,5 @@ ai_interview_mvp_design/
 
 - 基本設計を変更した場合、対応するFrontend／Backend／Infrastructureの詳細設計も確認する。
 - API、認証、データモデルは複数領域にまたがるため、片方だけを更新しない。
-- ファイルを追加・削除した場合は、READMEの構成図、[FILE_INDEX.md](FILE_INDEX.md)、この案内を合わせて更新する。
+- ファイルを追加・削除した場合は、READMEの構成図とこの案内を合わせて更新する。
 - 未確定値を決めた場合は、READMEの「設計上の未確定事項」と該当設計書を更新する。

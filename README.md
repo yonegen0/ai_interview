@@ -1,4 +1,4 @@
-# AI面接練習Webアプリ MVP 設計ドキュメント
+# AI面接練習Webアプリ MVP
 
 更新日: 2026-09-08  
 版: 1.1
@@ -11,8 +11,9 @@
 
 ## このフォルダについて
 
-転職者向け「隙間時間特化型・一問一答AI面接練習Webアプリ」のMVP開発に使用する
-プロジェクト計画書・基本設計書・詳細設計書一式です。
+転職者向け「隙間時間特化型・一問一答AI面接練習Webアプリ」のMVPプロジェクトです。
+
+プロジェクト計画・基本設計・詳細設計に加え、`frontend/` にNext.jsによるFrontendの初期実装があります。目的の資料やコードを探す場合は、[リポジトリ案内](REPOSITORY_GUIDE.md)を参照してください。
 
 設計方針は以下です。
 
@@ -42,12 +43,43 @@
 - IndexedDBのユーザー分離、30日キャッシュ期限、起動時クリーンアップ、手動削除を追加
 - AWS Budgets / API Gateway throttling / DynamoDB Maximum ThroughputをHard Cost Capとみなさないことを明記
 
-## ドキュメント構成
+## 現在の実装状況
+
+- `frontend/src/app/layout.tsx`: MUIテーマ、メタデータ、Viewportを設定したルートレイアウト
+- `frontend/src/app/page.tsx`: 練習カテゴリを選択する仮トップ画面
+- `frontend/src/components/`: Button、Input、Select、Header、Dialogの共通UI
+- `frontend/src/lib/theme.ts`: セージグリーンを基調としたMUI共通テーマ
+- `frontend/stories/`: 共通UIのStorybook Story（一部に未実装ファイルへの参照あり）
+- BackendおよびInfrastructureは設計段階で、実装コードはまだありません
+
+トップ画面は仮実装です。認証、API接続、質問表示、回答送信、AIフィードバック、履歴、お気に入りは未接続です。
+
+## Frontendの起動
+
+Node.jsとnpmを用意し、`frontend/` で実行します。
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+ブラウザで <http://localhost:3000> を開きます。
+
+```bash
+npm run lint       # ESLint
+npm run build      # Production build
+npm run storybook  # Storybook（port 6006）
+```
+
+現状の `npm run build` は、既存のStorybookファイルが未実装の `AppShell` やモックを参照しているため、プロジェクト全体の型検査で停止します。
+
+## リポジトリ構成
 
 ```text
 ai_interview_mvp_design/
 ├── README.md
-├── CHANGELOG_v1.1.md
+├── REPOSITORY_GUIDE.md
 ├── 01_project_plan/
 │   └── 01_project_plan.md
 ├── 02_basic_design/
@@ -55,7 +87,7 @@ ai_interview_mvp_design/
 │   ├── 02_frontend_basic_design.md
 │   ├── 03_backend_basic_design.md
 │   └── 04_infrastructure_basic_design.md
-└── 03_detailed_design/
+├── 03_detailed_design/
     ├── frontend/
     │   ├── FE01_architecture_component_design.md
     │   ├── FE02_screen_ui_ux_design.md
@@ -75,7 +107,15 @@ ai_interview_mvp_design/
         ├── INF03_api_gateway_lambda_iam_design.md
         ├── INF04_cognito_ses_design.md
         ├── INF05_dynamodb_bedrock_design.md
-        └── INF06_monitoring_cost_security_operations.md
+│       └── INF06_monitoring_cost_security_operations.md
+└── frontend/
+    ├── package.json
+    ├── src/
+    │   ├── app/                 # App RouterのLayoutと仮トップ画面
+    │   ├── components/          # 共通UIコンポーネント
+    │   └── lib/theme.ts         # MUIテーマ
+    ├── stories/                 # Storybook Story
+    └── skills/                  # AI作業用の補助手順
 ```
 
 ## 設計上の未確定事項
@@ -83,7 +123,7 @@ ai_interview_mvp_design/
 次の値は実装を止めないため設計上パラメータ化し、運用開始前までに確定します。
 
 | 項目 | 状態 | 設計上の扱い |
-|---|---|---|
+| --- | --- | --- |
 | 1ユーザー1日のAI上限 | TBD | `DAILY_FEEDBACK_LIMIT` |
 | 本番独自ドメイン | TBD | CloudFront/APIの設定値として差し替え可能 |
 | データ保存期間 | TBD | TTL/削除運用を後付け可能にする |
