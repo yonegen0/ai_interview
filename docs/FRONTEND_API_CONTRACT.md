@@ -1,14 +1,15 @@
 # Frontend単体MVP API契約
 
-更新日: 2026-09-08。ユーザー承認済み実装計画v2に対応。
+更新日: 2026-09-11。設計書v2.1／[ADR-002](ADR-002-frontend-contract-alignment.md)に対応。
 
 ## 対象と正本
 
-これはFrontend単体MVPが実Backendへ要求する契約です。旧BE01の `/v1/practices` とは互換ではありません。
+これは現Frontendと実Backendが共有する採用契約です。旧同期API案は不採用です。Request／Responseの型・制約はZod、HTTP・冪等性・復旧の動作は本書を正本とします。
 Schemaの正本は [schemas/index.ts](../frontend/src/lib/api/schemas/index.ts)。MSWとAPI Clientが共用し、TypeScript型をZodから導出します。
 
 Base URLは `NEXT_PUBLIC_API_BASE_URL`。Mockは `/api`。認証Headerの実装はBackend接続工程で追加します。
-Request/ResponseはJSON、IDはUUID、日時はUTC ISO 8601です。質問番号は1始まりです。
+Request/ResponseはJSON、質問IDを含むIDはUUID、日時はUTC ISO 8601です。質問番号は1始まりです。
+FrontendはPOSTのIdempotency-Keyを生成し、BackendはsessionId・attemptId・evaluationIdを生成します。
 
 ## エンドポイント
 
@@ -40,28 +41,36 @@ Scoreは0〜100の整数。配列0件、回答例なしを許容します。HTML
 |---|---|
 | 400 | VALIDATION_ERROR |
 | 401 | UNAUTHORIZED |
+| 403 | FORBIDDEN |
 | 404 | SESSION_NOT_FOUND / ATTEMPT_NOT_FOUND |
 | 409 | SESSION_STATE_CONFLICT / IDEMPOTENCY_CONFLICT / EVALUATION_NOT_COMPLETED |
+| 429 | RATE_LIMITED |
 | 500 | INTERNAL_SERVER_ERROR |
+| 502 | AI_UPSTREAM_ERROR |
+| 504 | AI_TIMEOUT |
 
-評価失敗は評価GETの `status=failed` と `error` で通知します。通信異常と区別します。
+評価失敗はHTTP 200の評価GETの `status=failed` と `error` で通知します（例: EVALUATION_FAILED）。通信異常と区別し、既存の評価失敗画面を表示します。error.messageを画面へ直接表示しません。
+502/504はHTTPリクエスト自体が失敗した場合の応答です。これだけでは受付済み要求の評価失敗を確定しません。未知コードは汎用表示にします。
 Client内のcodeは NETWORK_ERROR / TIMEOUT / ABORTED / INVALID_RESPONSEです。
 
 ## 冪等性・競合
 
-すべてのPOSTにUUIDの `Idempotency-Key` を必須とします。同一キー・同一路径・同一の検証済みPayloadは保存済みResponseを返します。内容が異なる場合は409です。
+すべてのPOSTにUUIDの `Idempotency-Key` を必須とします。実BackendではJWT subでユーザーを確定し、ユーザー単位でキーを識別します。同一キー・同一Method・同一Path・同一の検証済みPayloadは保存済みHTTP StatusとResponseを返します。内容や操作先が異なる同一キーは409です。evaluationIdはリソースの識別子であり、冪等キーではありません。
 応答消失後の再送は同じキーとPayloadで行い、新しいAttemptを作りません。確定失敗後の再挑戦は新しいキーを発行します。
 処理中に異なるキーで回答を送った場合は409。次問操作は現在のcompleted Attemptからのみ許可し、古い結果から巻き戻しません。GETは質問を進めません。
+回答POSTは要求とAttempt／Evaluationの関連を永続化して202を返し、評価を継続して結果または失敗を保存します。実BackendのGETは保存済み状態を参照し、評価処理を進める契機にしません。
 実Backendでは原子的なキー予約・結果保存が必要です。MSW StoreはFrontendテスト用で、本番の排他制御実装ではありません。
 
 ## 通信と復旧
 
 - API Client: 15秒Timeout、呼び出し元AbortSignal、JSONとZod検証。
 - 通常GET: 通信失敗・5xxだけ最大1回Retry。POST: 自動Retryなし。
-- 評価: 2秒間隔。30秒で待機案内、120秒で自動確認停止。停止は評価失敗を意味しません。
-- 非表示タブ・オフライン・終端状態・画面離脱時はポーリング停止。
+- 評価GET: 自動Retryなし、2秒間隔。30秒で待機案内、120秒で自動確認停止。停止は評価失敗を意味しません。
+- 非表示タブ・オフライン・通信エラー・終端状態・画面離脱時はポーリング停止。
 - sessionStorageにバージョン付き下書き・未確定要求を保存。現在の質問と再挑戦コンテキストが一致するものだけ復元。
 - Reload後はactiveAttemptで評価再開。未確定要求は同じキーで手動確認。保存不可なら画面内操作を継続し、復元不可の案内を表示。
+- 古いcompleted／processing Attemptがあっても保存済み未確定要求を優先します。古いfailed Attemptで再入力下書きを消しません。
+- 終端後・アンマウント後に経過時間タイマーを止め、新しい評価IDで経過時間と監視を再開します。
 - タブを閉じた後の保存は保証しません。
 
 ## Mock
@@ -75,6 +84,8 @@ Storyはparameters.mockで同じWorkerを起動でき、parameters.handlersで�
 ## 実Backend接続の条件
 
 本契約のエンドポイント、冪等性、評価状態に対応したBackendと認証方式が必要です。MSWを無効にしBase URLを設定しただけでは旧APIと接続できません。
-認証トークンの付与、CORS、運用上の評価期限・保存期限・利用制限はFE-014で決定・実装し、同じE2Eシナリオを実Backendでも検証します。
+認証トークンの付与・更新、認証切れ、ログアウト時のQuery Cache／保存情報の分離・破棄を次工程で決定・実装します。
+CORSは許可Originを明示し、Authorization／Content-Type／Idempotency-Keyを許可します。
+非同期起動・受付保存と起動の整合・重複防止・期限切れ回復・物理データ設計は[次工程の必須事項](../設計書一覧/04_横断仕様/06_決定事項_未確定事項.md)を参照します。同じ練習・復旧E2Eを実Backendでも検証します。
 
 参照: [MSW Browser integration](https://mswjs.io/docs/integrations/browser/)、[Next.js Static Exports](https://nextjs.org/docs/app/guides/static-exports)、[Storybook Next.js Vite](https://storybook.js.org/docs/get-started/frameworks/nextjs-vite)。

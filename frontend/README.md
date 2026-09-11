@@ -43,7 +43,9 @@ ErrorViewの本文は`error.dark`を10%暗くし、AppShellの背景グラデー
 
 `src/components/atoms/MascotCharacter.tsx` が6種類の装飾画像を表示します。開始画面はwelcome、送信・評価中はthinking、結果見出しはsuccess、有効な再挑戦リンクはretry、共通エラーと評価失敗はerrorです。通常の回答入力中には表示しません。
 
-元画像は `public/images/mascot/mascot-*.png`（1254×1254px、透過付き）に保存し、配信には同名のWebP（512×512px、品質90、アルファ品質100）を使います。元PNGは変更しません。WebPは約48〜62KBで、元PNGより約97%軽量です。静的書き出しに対応するため `next/image` に `unoptimized` を指定し、画像変換サーバーは使用しません。画像読み込み失敗時は装飾だけを隠し、寸法・説明・操作を維持します。
+以下は配信用の設計目標です。現WebP実体は1254×1254px・約1.7〜1.9MBであり、512pxを期待するE2Eと不一致があります。今回の契約整合では画像を変更しません。導入時の成功記録は現在の成功保証ではありません。
+
+元画像は `public/images/mascot/mascot-*.png`（1254×1254px、透過付き）に保存し、配信には同名のWebP（512×512px、品質90、アルファ品質100）を使う設計です。元PNGは変更しません。512pxで再生成した際の目安は約48〜62KB（元PNG比約97%軽量）です。静的書き出しに対応するため `next/image` に `unoptimized` を指定し、画像変換サーバーは使用しません。画像読み込み失敗時は装飾だけを隠し、寸法・説明・操作を維持します。
 
 再生成は `frontend` で以下を実行します。既存のNext.js依存に含まれるSharpを使用し、通常のビルド中には画像変換しません。生成したWebPもリポジトリへ含めます。
 
@@ -75,6 +77,8 @@ Storybookの `Components/Atoms/MascotCharacter` で表情・サイズ・取得�
 
 ## 資料
 
+- [設計書一覧](../設計書一覧/00_管理/00_設計書一覧.md)
+- [現Frontend契約の採用ADR](../docs/ADR-002-frontend-contract-alignment.md)
 - [API契約](../docs/FRONTEND_API_CONTRACT.md)
 - [設計差分ADR](../docs/ADR-001-frontend-standalone-v2.md)
 - [リポジトリ案内](../REPOSITORY_GUIDE.md)
@@ -84,3 +88,12 @@ Mockのシナリオ切替・実Backendに必要な実装はAPI契約を参照し
 ## Component構成
 
 共通UIは`src/components/`、Feature固有UIは`src/features/<feature>/components/`でAtomic Design階層へ分けています。トップ画面は`src/features/home/components/pages/HomePage.tsx`にあり、Route Entryから描画します。画面遷移には下線付きリンクとブランド用テキスト型を備えた共通`Link` Atomを利用します。依存方向は`Page → Template → Organism → Molecule → Atom`です。下位層から上位層への参照、共通ComponentからFeatureへの参照、Feature間の内部Component参照は行いません。
+
+## 実API接続準備（設計書v2.1）
+
+今回の実行結果と既知失敗は[検証記録](../docs/FRONTEND_ALIGNMENT_VERIFICATION.md)を参照してください。
+
+現API・復旧・画面を維持し、FORBIDDEN／RATE_LIMITED／AI_TIMEOUT／AI_UPSTREAM_ERRORの日本語表示を追加します。
+型・制約はsrc/lib/api/schemas、HTTP・冪等性・復旧はdocs/FRONTEND_API_CONTRACT.mdを正本とします。
+認証SDK・Token付与・更新・ログアウト処理、非同期Backend、AWS構築は次工程です。
+[Backend着手前の必須事項](../設計書一覧/04_横断仕様/06_決定事項_未確定事項.md)を参照してください。

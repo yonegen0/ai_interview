@@ -1,59 +1,45 @@
 # AI面接練習Webアプリ MVP
 
-更新日: 2026-09-08  
-版: 1.1
+更新日: 2026-09-11。設計書v2.1対応。Markdown本文はUTF-8です。
 
-## 文字コード・ZIP互換性
+転職者がスマートフォンで一問ずつ面接練習するWebアプリです。
+現Frontendは認証なしのMSW単体MVPとして、回答・評価待機・結果・再挑戦・次問・再読み込み復旧まで実装しています。
 
-- Markdown本文はUTF-8です。
-- ZIP内のファイル名はWindows標準展開でも文字化けしにくいASCII英数字へ統一しています。
-- 文書本文・見出しは日本語のままです。
+## 資料と正本
 
-## このフォルダについて
+- [設計書一覧](設計書一覧/00_管理/00_設計書一覧.md)：現行の計画・基本・詳細・横断・テスト設計。
+- [リポジトリ案内](REPOSITORY_GUIDE.md)：構成と実装への入口。
+- [ADR-002](docs/ADR-002-frontend-contract-alignment.md)：現Frontend契約を採用する判断。
+- [API契約](docs/FRONTEND_API_CONTRACT.md)：HTTP・冪等性・復旧の正本。
+- [Zod Schema](frontend/src/lib/api/schemas/index.ts)：Request／Responseの型・制約の正本。
+- [次工程の必須事項](設計書一覧/04_横断仕様/06_決定事項_未確定事項.md)：未確定事項と完了条件。
 
-転職者向け「隙間時間特化型・一問一答AI面接練習Webアプリ」のMVPプロジェクトです。
+最新の承認済みADRを判断の根拠とし、契約・Schema・設計書を連動して更新します。
+旧同期API等の履歴は[ADR-001](docs/ADR-001-frontend-standalone-v2.md)に残しています。
+外部サービスの仕様は実装時に最新の公式ドキュメントで確認します。
 
-プロジェクト計画・基本設計・詳細設計に加え、`frontend/` にNext.jsによるFrontend単体MVPがあります。目的の資料やコードを探す場合は、[リポジトリ案内](REPOSITORY_GUIDE.md)を参照してください。
+## 現在の実装と将来構成
 
-以下は将来の全体構想です。今回のFrontend単体MVPは認証なし・MSWによる固定サンプル評価で動作します。v2採用の変更点は[ADR-001](docs/ADR-001-frontend-standalone-v2.md)、接続契約は[Frontend API契約](docs/FRONTEND_API_CONTRACT.md)を参照してください。
+実装済みは7カテゴリ・21問、Session／Attempt／Evaluationの6 Routeを使うMock練習、
+100点評価とフィードバック、同一キーでの手動再確認、sessionStorage復旧、
+Storybook・Vitest・Playwright・Frontend GitHub Actionsです。
 
-- スマートフォン・電車内・1問約3分を最優先
-- 一般公開せず、管理者が登録した求職者だけ利用
-- Passwordless Email OTP
-- Next.js App RouterをStatic Exportし、S3 + CloudFrontから配信
-- API Gateway HTTP API + Lambda + DynamoDB
-- Amazon Bedrock / Amazon Nova 2 Liteを第一候補
-- Question Bank方式。質問の都度AI生成はしない
-- Question BankはGit上の単一Canonical SourceからFrontend/Backend配布物をbuild生成する
-- 回答本文等の個人情報をログへ不用意に出さない
-- Bedrock二重呼び出し・利用量暴走を多層で防止
-- Access TokenはLambdaで`token_use=access` / `client_id` / Group / `PROFILE.status`まで検証する
-- 認証TokenはAmplify公式Token Provider + `sessionStorage`をMVP標準とする
-- 外部仕様は最新の公式ドキュメントを最優先
+将来構成はCognito Email OTP（管理者登録、USER／ADMIN）、
+API Gateway HTTP API＋JWT Authorizer、Python Lambdaの3責務、
+DynamoDB On-Demand 1 Table、OpenAI Responses API、
+Terraform、Private S3＋CloudFront OACです。
+モデルと本番OpenAI認証は候補段階で、Backend工程で検証します。
 
-## v1.1 主要修正
+認証・実AI・実Backend・履歴・お気に入り・PWA・AWS公開は未実装です。
+回答受付の202と評価GETは契約として採用済みですが、非同期起動方式・受付と起動の整合・
+重複／期限切れ回復・物理データ設計はBackend着手前に確定します。
+接続準備は実API接続完了を意味しません。
 
-- API Gateway JWT Authorizerに加え、Lambda共通Auth Guardで`token_use=access`、`client_id`、`sub`、`cognito:groups`、`PROFILE.status=ACTIVE`を確認
-- ユーザー停止は`PROFILE.status=DISABLED`を先に反映し、`AdminDisableUser` + `AdminUserGlobalSignOut`へ収束
-- `REQUEST`作成と`USAGE.aiInvocationCount`加算を`TransactWriteItems`で原子的に開始
-- 通信再送は同一`practiceId`、新しい練習だけ新`practiceId`
-- Nova Tool Use応答は`stopReason=tool_use`、期待Toolが1件のみであることまで検証
-- Static Export + MUIのCSP制約を明記し、MVPではnonce方式を採用しない
-- `useSearchParams()`を利用するStatic Routeでは`Suspense`境界を必須化
-- IndexedDBのユーザー分離、30日キャッシュ期限、起動時クリーンアップ、手動削除を追加
-- AWS Budgets / API Gateway throttling / DynamoDB Maximum ThroughputをHard Cost Capとみなさないことを明記
+## 起動・検証
 
-## 現在の実装状況
+[v2.1検証記録](docs/FRONTEND_ALIGNMENT_VERIFICATION.md)に今回のテスト・ビルド結果と既知失敗を記載しています。
 
-- 7カテゴリ・21問の練習開始、回答入力、非同期評価待機、結果表示。
-- 同じ質問への再挑戦、次の質問、通信失敗時の同一要求再確認。
-- Zod API契約、TanStack Query、React Hook Form、MSW、sessionStorageによる下書き・処理復旧。
-- 共通テーマ、170 StoryのStorybook（Components／PagesのAtomic Design階層）、単体・統合・静的成果物上のE2E、GitHub Actions。
-- 認証、実AI評価、実Backend、履歴、PWA、AWS公開は今回の対象外です。
-
-## Frontendの起動
-
-Node.js 22以上を使用します。
+Node.js 22以上。CIも22を使用します。
 
 ```bash
 cd frontend
@@ -61,71 +47,27 @@ npm ci
 npm run dev:mock
 ```
 
-ブラウザで <http://localhost:3000> を開きます。評価は固定サンプルです。
+[Frontend README](frontend/README.md)にStorybook・検証方法と画像仕様を記載しています。
+通常のdevはMockを強制有効化しません。[環境変数例](frontend/.env.example)を参照してください。
 
 ```bash
 npm run lint
 npm run typecheck
-npm test
-npm run build           # 本番用 out/。Mock Workerを除去
-npm run build:mock      # 検証用 out-mock/
-npm run test:e2e        # out-mock/をローカル配信して検証
-npm run storybook       # port 6006
+npm test -- --testTimeout=15000
+npm run build
+npm run build:mock
 npm run build-storybook
+npm run test:e2e
 ```
 
-通常の `npm run dev` はMockを強制有効化しません。環境設定は[frontend/.env.example](frontend/.env.example)を参照してください。
-実Backend接続には新API契約への対応と認証実装が必要です。
+本番成果物はout/、Mock検証用はout-mock/。Mock成果物は公開用ではありません。
+WebP実寸法とE2Eの512px期待値に既知の不一致があります。過去の成功件数は現在の成功保証ではありません。
 
 ## リポジトリ構成
 
-```text
-ai_interview_mvp_design/
-├── README.md / REPOSITORY_GUIDE.md
-├── docs/                        # v2 API契約、採用ADR
-├── 01_project_plan/             # プロジェクト計画
-├── 02_basic_design/             # 全体・各領域の基本設計
-├── 03_detailed_design/          # frontend / backend / infrastructure
-├── .github/workflows/           # Frontend CI
-└── frontend/
-    ├── src/
-    │   ├── app/                # 静的ルート
-    │   ├── features/           # interview / feedbackとFeature内Atomic Component
-    │   ├── lib/                # API契約・Client・復旧保存
-    │   ├── mocks/              # Handler・21問・Mock Repository
-    │   ├── providers/          # Theme・Query・Mock起動
-    │   ├── components/         # 共通Atoms／Molecules／Organisms／Templates
-    │   └── theme/              # MUIテーマ
-    ├── stories/                # Components／PagesのAtomic Design Story
-    │   ├── fixtures/           # Zod検証済み固定Fixture
-    │   └── test-utils/         # Query・MSW・Storage・Router隔離
-    ├── tests/                  # 単体・統合・E2E
-    ├── scripts/                # ビルド・静的配信
-    └── skills/                 # AI作業補助資料
-```
+- 設計書一覧/：現行設計書体系。
+- docs/：採用ADR・API契約・検証記録。
+- frontend/：Next.js単体MVPとテスト。
+- .github/workflows/：Frontend CI。
 
-## 設計上の未確定事項
-
-次の値は実装を止めないため設計上パラメータ化し、運用開始前までに確定します。
-
-| 項目 | 状態 | 設計上の扱い |
-| --- | --- | --- |
-| 1ユーザー1日のAI上限 | TBD | `DAILY_FEEDBACK_LIMIT` |
-| 本番独自ドメイン | TBD | CloudFront/APIの設定値として差し替え可能 |
-| データ保存期間 | TBD | TTL/削除運用を後付け可能にする |
-| AWS Budget閾値 | TBD | 環境別パラメータ |
-| IndexedDB保持件数 | 初期値確定 | 直近50件を上限目安。PIIを含むキャッシュは最終アクセスから30日で期限切れ |
-| Lambda Reserved Concurrency | TBD | 負荷・Bedrock制限を見て決定 |
-| 認証トークンの永続化方式 | v1.1で確定 | Amplify Authの`sessionStorage`。Strict nonce CSPが必要になった場合はStatic Exportを含めBFF/Runtime構成をADRで再設計 |
-
-## ドキュメント優先順位
-
-矛盾がある場合は、以下の順に新しい判断を正とします。
-
-1. 最新の承認済みADR・変更記録
-2. 詳細設計書
-3. 基本設計書
-4. プロジェクト計画書
-5. 過去の会話・検討メモ
-
-外部サービス・ライブラリの仕様は、常に最新公式ドキュメントを優先します。
+旧設計書の整理による作業ツリー上の削除状態はそのまま保持します。

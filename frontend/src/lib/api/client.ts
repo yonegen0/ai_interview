@@ -5,6 +5,12 @@ import { errorSchema } from "./schemas";
 const messages: Record<string, string> = {
   VALIDATION_ERROR: "入力内容を確認してください。",
   UNAUTHORIZED: "この操作には認証が必要です。",
+  FORBIDDEN: "この操作を行う権限がありません。",
+  RATE_LIMITED:
+    "利用が制限されています。時間をおいて再度お試しください。",
+  AI_TIMEOUT:
+    "評価処理に時間がかかっています。結果を再確認してください。",
+  AI_UPSTREAM_ERROR: "評価サービスで問題が発生しました。",
   SESSION_NOT_FOUND: "練習が見つかりません。",
   ATTEMPT_NOT_FOUND: "回答が見つかりません。",
   SESSION_STATE_CONFLICT:

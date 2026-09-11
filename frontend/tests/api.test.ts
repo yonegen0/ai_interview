@@ -13,7 +13,8 @@ import {
   nextQuestion,
 } from "@/lib/api/interview";
 import { getFeedback } from "@/lib/api/feedback";
-import { request } from "@/lib/api/client";
+import { request, uncertain } from "@/lib/api/client";
+import { createAppQueryClient } from "@/providers/AppProviders";
 const repository = createRepository();
 let scenario: Scenario = "success";
 const server = setupServer(
@@ -36,6 +37,88 @@ const start = async () => {
   const created = await createSession("career", crypto.randomUUID());
   return getQuestion(created.sessionId);
 };
+it.each([
+  ["FORBIDDEN", 403, "この操作を行う権限がありません。", false],
+  [
+    "RATE_LIMITED",
+    429,
+    "利用が制限されています。時間をおいて再度お試しください。",
+    false,
+  ],
+  [
+    "AI_TIMEOUT",
+    504,
+    "評価処理に時間がかかっています。結果を再確認してください。",
+    true,
+  ],
+  ["AI_UPSTREAM_ERROR", 502, "評価サービスで問題が発生しました。", true],
+  ["UNKNOWN_BACKEND_CODE", 400, "処理を完了できませんでした。", false],
+] as const)(
+  "maps %s without leaking the backend message or retrying the mutation",
+  async (code, status, message, isUncertain) => {
+    const session = await start();
+    const handler = vi.fn(() =>
+      HttpResponse.json(
+        { code, message: "private backend detail: 回答全文" },
+        { status },
+      ),
+    );
+    server.use(
+      http.post("http://localhost/api/sessions/:id/answers", handler),
+    );
+    const client = createAppQueryClient();
+    try {
+      const mutation = client.getMutationCache().build(client, {
+        mutationFn: () =>
+          submitAnswer(
+            session.sessionId,
+            { questionId: session.question.id, answer: "回答" },
+            crypto.randomUUID(),
+          ),
+      });
+      await expect(mutation.execute(undefined)).rejects.toMatchObject({
+        code,
+        status,
+        message,
+      });
+      expect(handler).toHaveBeenCalledTimes(1);
+      expect(uncertain(mutation.state.error)).toBe(isUncertain);
+      expect(Object.keys(repository.read().attempts)).toHaveLength(0);
+    } finally {
+      client.clear();
+    }
+  },
+);
+it.each([
+  ["AI_TIMEOUT", 504],
+  ["AI_UPSTREAM_ERROR", 502],
+] as const)("manually confirms the same request after %s", async (code, status) => {
+  const session = await start();
+  const key = crypto.randomUUID();
+  const body = { questionId: session.question.id, answer: "再確認する回答" };
+  const requests: Array<{ key: string | null; body: unknown }> = [];
+  server.use(
+    http.post("http://localhost/api/sessions/:id/answers", async ({ request }) => {
+      requests.push({
+        key: request.headers.get("Idempotency-Key"),
+        body: await request.clone().json(),
+      });
+      if (requests.length === 1)
+        return HttpResponse.json({ code, message: "private detail" }, { status });
+      // 再確認は既存Handlerへ渡して実際の冪等性を検証する。
+      return undefined;
+    }),
+  );
+  await expect(submitAnswer(session.sessionId, body, key)).rejects.toMatchObject({
+    code,
+    status,
+  });
+  expect(requests).toHaveLength(1);
+  const attempt = await submitAnswer(session.sessionId, body, key);
+  expect(await submitAnswer(session.sessionId, body, key)).toEqual(attempt);
+  expect(requests).toEqual([{ key, body }, { key, body }, { key, body }]);
+  expect(Object.keys(repository.read().attempts)).toHaveLength(1);
+});
 it("runs session, answer, three polls, feedback, retry and next", async () => {
   const session = await start();
   const key = crypto.randomUUID();
