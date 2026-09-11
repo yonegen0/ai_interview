@@ -38,6 +38,7 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
+!.env.example
 next-env.d.ts
 
 *storybook.log
@@ -50,3 +51,10 @@ node_modules/
 /blob-report/
 /playwright/.cache/
 /playwright/.auth/
+# Frontend standalone generated artifacts
+/.next-mock/
+/out-mock/
+/storybook-static/
+/test-results/
+/playwright-report/
+*.tsbuildinfo

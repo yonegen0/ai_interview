@@ -1,66 +1,36 @@
-/**
- * @file Select.stories.tsx
- * @description Select コンポーネントの代表状態（全幅 / 小 / エラー / 非活性）を確認するストーリー
- */
+/** @file Select.stories.tsx @description 面接カテゴリSelectの代表状態。 */
 import { useState } from "react";
-import type { Meta, StoryObj } from "@storybook/react-vite";
+import type { Meta, StoryObj } from "@storybook/nextjs-vite";
+import { expect, userEvent, within } from "storybook/test";
 import { Select } from "@/components/atoms/Select";
+import { categories, type Category } from "@/lib/api/schemas";
+import { assertNoHorizontalOverflow } from "../../test-utils/storyEnvironment";
 
-const OPTIONS = [
-  { value: "all", label: "すべて" },
-  { value: "owner", label: "オーナー" },
-  { value: "staff", label: "スタッフ" },
-] as const;
-
-const meta: Meta<typeof Select> = {
-  title: "Components/Atoms/Select",
-  component: Select,
-  parameters: { layout: "padded" },
+const options = Object.entries(categories).map(([value, label]) => ({ value: value as Category, label }));
+const SelectHarness = (props: { initial?: Category; disabled?: boolean; error?: string; size?: "small" | "medium" }) => {
+  const [value, setValue] = useState<Category>(props.initial ?? "job_change");
+  return <Select label="面接カテゴリ" value={value} onChange={setValue} options={options} fullWidth disabled={props.disabled} error={props.error} size={props.size} />;
 };
-
+const meta = { title: "Components/Atoms/Select", component: Select, parameters: { layout: "padded" } } satisfies Meta<typeof Select>;
 export default meta;
-type Story = StoryObj<typeof Select>;
+type Story = StoryObj;
 
-/** 内部 state で双方向動作を確認するラッパ */
-const Interactive = (props: {
-  fullWidth?: boolean;
-  minWidth?: number;
-  size?: "small" | "medium";
-  disabled?: boolean;
-  error?: string;
-}) => {
-  const [value, setValue] = useState<string>("all");
-  return (
-    <div style={{ width: 360 }}>
-      <Select<string>
-        label="実行者"
-        value={value}
-        onChange={setValue}
-        options={OPTIONS}
-        fullWidth={props.fullWidth}
-        minWidth={props.minWidth}
-        size={props.size}
-        disabled={props.disabled}
-        error={props.error}
-      />
-    </div>
-  );
+export const Default: Story = { render: () => <SelectHarness /> };
+export const Selected: Story = { render: () => <SelectHarness initial="motivation" /> };
+export const FullWidth: Story = { render: () => <SelectHarness /> };
+export const Small: Story = { render: () => <SelectHarness size="small" /> };
+export const WithError: Story = { render: () => <SelectHarness error="カテゴリを選択してください" /> };
+export const Disabled: Story = { render: () => <SelectHarness disabled /> };
+export const KeyboardSelection: Story = {
+  render: () => <SelectHarness />,
+  play: async ({ canvasElement }) => {
+    await userEvent.tab();
+    await userEvent.keyboard("{Enter}{ArrowDown}{Enter}");
+    await expect(within(canvasElement).getByRole("combobox")).toHaveFocus();
+  },
 };
-
-/** FullWidth: 全幅（settings 系） */
-export const FullWidth: Story = { render: () => <Interactive fullWidth /> };
-
-/** Small: size=small + minWidth（filter 系） */
-export const Small: Story = {
-  render: () => <Interactive size="small" minWidth={160} />,
-};
-
-/** WithError: バリデーションエラー文言表示 */
-export const WithError: Story = {
-  render: () => <Interactive fullWidth error="選択してください" />,
-};
-
-/** Disabled: 非活性 */
-export const Disabled: Story = {
-  render: () => <Interactive fullWidth disabled />,
+export const Mobile: Story = {
+  render: () => <SelectHarness />,
+  globals: { viewport: { value: "iphoneSe" } },
+  play: ({ canvasElement }) => assertNoHorizontalOverflow(canvasElement),
 };

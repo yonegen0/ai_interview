@@ -1,101 +1,29 @@
-/**
- * @file AppShell.stories.tsx
- * @description AppShell コンポーネントの表示確認用ストーリー。ロール別ナビ表示とパス別分岐を検証する。
- */
-import type { Meta, StoryObj } from "@storybook/react-vite";
+/** @file AppShell.stories.tsx @description アプリ共通画面枠のLandmarkとResponsive表示。 */
+import type { Meta, StoryObj } from "@storybook/nextjs-vite";
+import { expect, userEvent, within } from "storybook/test";
+import Alert from "@mui/material/Alert";
+import { Panel } from "@/components/atoms/Panel";
 import { AppShell } from "@/components/templates/AppShell";
-import { __setMockAuthClaims } from "../../../.storybook/mocks/auth-guard.stub";
-import { __setMockPathname } from "../../../.storybook/mocks/next-navigation.stub";
-import { assertNoHorizontalOverflow } from "../../test-utils/assertNoHorizontalOverflow";
+import { Button } from "@/components/atoms/Button";
+import { storyTexts } from "../../fixtures";
+import { assertNoHorizontalOverflow } from "../../test-utils/storyEnvironment";
 
-const meta: Meta<typeof AppShell> = {
-  title: "Components/Templates/AppShell",
-  component: AppShell,
-  parameters: {
-    layout: "fullscreen",
-  },
-  args: {
-    children: (
-      <div>
-        <h2>メインエリアのサンプル</h2>
-        <p>ここに各画面の本文が表示されます。</p>
-      </div>
-    ),
-  },
-};
-
+const content = <><h1>面接練習</h1><Panel><p>一問ずつ、自信を育てる。</p><Button>回答を送信</Button></Panel></>;
+const meta = { title: "Components/Templates/AppShell", component: AppShell, parameters: { layout: "fullscreen" }, args: { children: content } } satisfies Meta<typeof AppShell>;
 export default meta;
-type Story = StoryObj<typeof AppShell>;
-
-/**
- * OwnerNav: role="owner"
- * 経営者ロールで表示される 4 項目（ダッシュボード／取込／レポート／比較）を確認する。
- */
-export const OwnerNav: Story = {
-  beforeEach: () => {
-    __setMockPathname("/dashboard");
-    __setMockAuthClaims({
-      role: "owner",
-      email: "owner@example.com",
-      storeId: "store-001",
-    });
+type Story = StoryObj<typeof meta>;
+export const Default: Story = {};
+export const LongContent: Story = { args: { children: <><h1>フィードバック</h1><Panel><p>{storyTexts.text1000}</p></Panel></> } };
+export const WithErrorAlert: Story = { args: { children: <><Alert severity="error">通信できませんでした。</Alert>{content}</> } };
+export const Mobile: Story = { globals: { viewport: { value: "iphoneSe" } } };
+export const Tablet: Story = { globals: { viewport: { value: "ipad" } } };
+export const Desktop: Story = { globals: { viewport: { value: "desktop" } } };
+export const KeyboardNavigation: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByRole("main")).toBeInTheDocument();
+    await userEvent.tab();
+    await expect(canvas.getByRole("link", { name: /Interview Pocket/i })).toHaveFocus();
   },
 };
-
-/**
- * StaffNav: role="staff"
- * 従業員ロールで設定・処理ログが非表示になることを確認する。
- */
-export const StaffNav: Story = {
-  beforeEach: () => {
-    __setMockPathname("/reports");
-    __setMockAuthClaims({
-      role: "staff",
-      email: "staff@example.com",
-      storeId: "store-001",
-    });
-  },
-};
-
-/**
- * AdminNav: role="admin"
- * 管理者ロールで全 6 項目（店舗設定・処理ログを含む）が表示されることを確認する。
- */
-export const AdminNav: Story = {
-  beforeEach: () => {
-    __setMockPathname("/settings");
-    __setMockAuthClaims({
-      role: "admin",
-      email: "admin@example.com",
-      storeId: "store-001",
-    });
-  },
-};
-
-/**
- * LoginRoute: pathname="/login"
- * ログイン画面ではナビ・ヘッダーをバイパスし children のみ表示することを確認する。
- */
-export const LoginRoute: Story = {
-  beforeEach: () => {
-    __setMockPathname("/login");
-    __setMockAuthClaims({
-      role: "owner",
-      email: "owner@example.com",
-      storeId: "store-001",
-    });
-  },
-};
-
-/**
- * Mobile: 375px 幅で永続 Drawer が一時 Drawer（オーバーレイ）へ切り替わり、
- * 本体が押し潰されず横スクロールが発生しないことを検証する。
- */
-export const Mobile: Story = {
-  ...OwnerNav,
-  parameters: {
-    ...OwnerNav.parameters,
-    viewport: { defaultViewport: "iphoneSe" },
-  },
-  play: assertNoHorizontalOverflow,
-};
+export const NoHorizontalOverflow: Story = { ...LongContent, globals: { viewport: { value: "iphoneSe" } }, play: ({ canvasElement }) => assertNoHorizontalOverflow(canvasElement) };

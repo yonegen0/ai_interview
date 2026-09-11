@@ -13,9 +13,9 @@
 
 転職者向け「隙間時間特化型・一問一答AI面接練習Webアプリ」のMVPプロジェクトです。
 
-プロジェクト計画・基本設計・詳細設計に加え、`frontend/` にNext.jsによるFrontendの初期実装があります。目的の資料やコードを探す場合は、[リポジトリ案内](REPOSITORY_GUIDE.md)を参照してください。
+プロジェクト計画・基本設計・詳細設計に加え、`frontend/` にNext.jsによるFrontend単体MVPがあります。目的の資料やコードを探す場合は、[リポジトリ案内](REPOSITORY_GUIDE.md)を参照してください。
 
-設計方針は以下です。
+以下は将来の全体構想です。今回のFrontend単体MVPは認証なし・MSWによる固定サンプル評価で動作します。v2採用の変更点は[ADR-001](docs/ADR-001-frontend-standalone-v2.md)、接続契約は[Frontend API契約](docs/FRONTEND_API_CONTRACT.md)を参照してください。
 
 - スマートフォン・電車内・1問約3分を最優先
 - 一般公開せず、管理者が登録した求職者だけ利用
@@ -45,77 +45,63 @@
 
 ## 現在の実装状況
 
-- `frontend/src/app/layout.tsx`: MUIテーマ、メタデータ、Viewportを設定したルートレイアウト
-- `frontend/src/app/page.tsx`: 練習カテゴリを選択する仮トップ画面
-- `frontend/src/components/`: Button、Input、Select、Header、Dialogの共通UI
-- `frontend/src/lib/theme.ts`: セージグリーンを基調としたMUI共通テーマ
-- `frontend/stories/`: 共通UIのStorybook Story（一部に未実装ファイルへの参照あり）
-- BackendおよびInfrastructureは設計段階で、実装コードはまだありません
-
-トップ画面は仮実装です。認証、API接続、質問表示、回答送信、AIフィードバック、履歴、お気に入りは未接続です。
+- 7カテゴリ・21問の練習開始、回答入力、非同期評価待機、結果表示。
+- 同じ質問への再挑戦、次の質問、通信失敗時の同一要求再確認。
+- Zod API契約、TanStack Query、React Hook Form、MSW、sessionStorageによる下書き・処理復旧。
+- 共通テーマ、170 StoryのStorybook（Components／PagesのAtomic Design階層）、単体・統合・静的成果物上のE2E、GitHub Actions。
+- 認証、実AI評価、実Backend、履歴、PWA、AWS公開は今回の対象外です。
 
 ## Frontendの起動
 
-Node.jsとnpmを用意し、`frontend/` で実行します。
+Node.js 22以上を使用します。
 
 ```bash
 cd frontend
-npm install
-npm run dev
+npm ci
+npm run dev:mock
 ```
 
-ブラウザで <http://localhost:3000> を開きます。
+ブラウザで <http://localhost:3000> を開きます。評価は固定サンプルです。
 
 ```bash
-npm run lint       # ESLint
-npm run build      # Production build
-npm run storybook  # Storybook（port 6006）
+npm run lint
+npm run typecheck
+npm test
+npm run build           # 本番用 out/。Mock Workerを除去
+npm run build:mock      # 検証用 out-mock/
+npm run test:e2e        # out-mock/をローカル配信して検証
+npm run storybook       # port 6006
+npm run build-storybook
 ```
 
-現状の `npm run build` は、既存のStorybookファイルが未実装の `AppShell` やモックを参照しているため、プロジェクト全体の型検査で停止します。
+通常の `npm run dev` はMockを強制有効化しません。環境設定は[frontend/.env.example](frontend/.env.example)を参照してください。
+実Backend接続には新API契約への対応と認証実装が必要です。
 
 ## リポジトリ構成
 
 ```text
 ai_interview_mvp_design/
-├── README.md
-├── REPOSITORY_GUIDE.md
-├── 01_project_plan/
-│   └── 01_project_plan.md
-├── 02_basic_design/
-│   ├── 01_overall_basic_design.md
-│   ├── 02_frontend_basic_design.md
-│   ├── 03_backend_basic_design.md
-│   └── 04_infrastructure_basic_design.md
-├── 03_detailed_design/
-    ├── frontend/
-    │   ├── FE01_architecture_component_design.md
-    │   ├── FE02_screen_ui_ux_design.md
-    │   ├── FE03_auth_api_tanstack_query_design.md
-    │   ├── FE04_pwa_offline_cache_design.md
-    │   └── FE05_storybook_test_accessibility_design.md
-    ├── backend/
-    │   ├── BE01_api_detailed_design.md
-    │   ├── BE02_dynamodb_data_model_design.md
-    │   ├── BE03_cognito_auth_authorization_user_management.md
-    │   ├── BE04_bedrock_ai_feedback_design.md
-    │   ├── BE05_idempotency_usage_limit_error_log_design.md
-    │   └── BE06_question_bank_logic_design.md
-    └── infrastructure/
-        ├── INF01_cdk_stack_environment_design.md
-        ├── INF02_s3_cloudfront_web_delivery_design.md
-        ├── INF03_api_gateway_lambda_iam_design.md
-        ├── INF04_cognito_ses_design.md
-        ├── INF05_dynamodb_bedrock_design.md
-│       └── INF06_monitoring_cost_security_operations.md
+├── README.md / REPOSITORY_GUIDE.md
+├── docs/                        # v2 API契約、採用ADR
+├── 01_project_plan/             # プロジェクト計画
+├── 02_basic_design/             # 全体・各領域の基本設計
+├── 03_detailed_design/          # frontend / backend / infrastructure
+├── .github/workflows/           # Frontend CI
 └── frontend/
-    ├── package.json
     ├── src/
-    │   ├── app/                 # App RouterのLayoutと仮トップ画面
-    │   ├── components/          # 共通UIコンポーネント
-    │   └── lib/theme.ts         # MUIテーマ
-    ├── stories/                 # Storybook Story
-    └── skills/                  # AI作業用の補助手順
+    │   ├── app/                # 静的ルート
+    │   ├── features/           # interview / feedbackとFeature内Atomic Component
+    │   ├── lib/                # API契約・Client・復旧保存
+    │   ├── mocks/              # Handler・21問・Mock Repository
+    │   ├── providers/          # Theme・Query・Mock起動
+    │   ├── components/         # 共通Atoms／Molecules／Organisms／Templates
+    │   └── theme/              # MUIテーマ
+    ├── stories/                # Components／PagesのAtomic Design Story
+    │   ├── fixtures/           # Zod検証済み固定Fixture
+    │   └── test-utils/         # Query・MSW・Storage・Router隔離
+    ├── tests/                  # 単体・統合・E2E
+    ├── scripts/                # ビルド・静的配信
+    └── skills/                 # AI作業補助資料
 ```
 
 ## 設計上の未確定事項

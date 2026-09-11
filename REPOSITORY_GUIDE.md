@@ -1,8 +1,8 @@
 # リポジトリ案内
 
-このリポジトリは、転職者向け「隙間時間特化型・一問一答AI面接練習Webアプリ」のMVP設計資料とFrontend初期実装をまとめたものです。
+このリポジトリは、転職者向け「隙間時間特化型・一問一答AI面接練習Webアプリ」のMVP設計資料とFrontend単体MVPをまとめたものです。
 
-現時点では設計資料が中心ですが、`frontend/` にNext.jsの仮トップ画面と共通UIがあります。最初に全体像をつかむ場合は、[README](README.md) → [プロジェクト計画](01_project_plan/01_project_plan.md) → [全体基本設計](02_basic_design/01_overall_basic_design.md) の順で読むと把握しやすくなります。
+`frontend/` にMSWで練習開始から結果・再挑戦まで動作する実装があります。v2採用に関する差分は[ADR](docs/ADR-001-frontend-standalone-v2.md)、実装の通信仕様は[API契約](docs/FRONTEND_API_CONTRACT.md)が入口です。最初に全体像をつかむ場合は、[README](README.md) → [プロジェクト計画](01_project_plan/01_project_plan.md) → [全体基本設計](02_basic_design/01_overall_basic_design.md) の順で読むと把握しやすくなります。
 
 ## ディレクトリ構成
 
@@ -10,17 +10,23 @@
 ai_interview_mvp_design/
 ├── README.md                    # プロジェクト概要、主要方針、未確定事項
 ├── REPOSITORY_GUIDE.md          # この案内
+├── docs/                       # v2 API契約・設計差分ADR
+├── .github/workflows/           # Frontend CI
 ├── 01_project_plan/             # 目的、スコープ、体制、工程、品質方針
 ├── 02_basic_design/             # システム全体と各領域の基本設計
 ├── 03_detailed_design/          # Frontend／Backend／Infrastructureの詳細設計
 └── frontend/
     ├── package.json             # Frontendの依存関係とnpm scripts
     ├── src/
-    │   ├── app/                 # App RouterのLayoutと仮トップ画面
-    │   ├── components/          # 共通UIコンポーネント
-    │   └── lib/theme.ts         # MUI共通テーマ
-    ├── stories/                 # Storybook Story
-    ├── AGENTS.md                # frontend配下で作業するAI向け指示（要注意）
+    │   ├── app/                 # Static Exportのルート
+    │   ├── components/          # 共通Atomic Designコンポーネント
+    │   ├── features/            # home / interview / feedbackとFeature内Atomic階層
+    │   ├── lib/                 # API・Schema・復旧保存
+    │   ├── mocks/               # MSW・質問・Repository
+    │   ├── providers/           # Query・Theme・Mock起動
+    │   └── theme/theme.ts       # MUI共通テーマ
+    ├── stories/                 # Components／PagesのAtomic Design Story
+    ├── AGENTS.md                # Frontend作業ルール
     └── skills/                  # AI作業用のレビュー・記述スタイル手順
 ```
 
@@ -35,7 +41,7 @@ ai_interview_mvp_design/
 | API・データ・AI処理 | [Backend基本設計](02_basic_design/03_backend_basic_design.md) | API、認可、DynamoDB、Bedrock、Question Bankの基本方針です |
 | AWS構成・運用 | [Infrastructure基本設計](02_basic_design/04_infrastructure_basic_design.md) | 配信、認証、API、DB、監視、コスト、復旧の基本方針です |
 | 実装時の具体的な仕様 | [詳細設計](03_detailed_design/) | Frontend／Backend／Infrastructureに分かれています |
-| 現在のFrontend実装 | [frontend/src](frontend/src/) | 仮トップ画面、共通UI、MUIテーマがあります |
+| 現在のFrontend実装 | [frontend/src](frontend/src/) | 練習・結果・API・MSW・共通UIがあります |
 | Frontendの起動・依存関係 | [frontend/package.json](frontend/package.json) | npm scriptsと利用ライブラリを確認できます |
 
 ## Frontend実装マップ
@@ -43,27 +49,51 @@ ai_interview_mvp_design/
 ### アプリ本体
 
 - [layout.tsx](frontend/src/app/layout.tsx): メタデータ、Viewport、MUI ThemeProvider、CssBaselineを設定するルートレイアウト。
-- [page.tsx](frontend/src/app/page.tsx): カテゴリを選択して練習を始める仮トップ画面。現在は表示とローカルの選択操作のみです。
-- [theme.ts](frontend/src/lib/theme.ts): 色、Typography、角丸、ShadowなどのMUI共通テーマ。
+- [page.tsx](frontend/src/app/page.tsx): Home Feature Pageを描画するRoute Entryです。
+- [theme.ts](frontend/src/theme/theme.ts): 色、Typography、角丸、ShadowなどのMUI共通テーマ。
+
+### 機能と通信
+
+- [home](frontend/src/features/home/): ヒーローと3ステップでアプリの目的と使い方を伝えるトップ画面。
+- [interview](frontend/src/features/interview/): Molecules／Organisms／Templates／Pagesに分けた開始・質問・入力・送信・評価・復旧。
+- [feedback](frontend/src/features/feedback/): Organisms／Pagesに分けた結果・再挑戦・次の質問。
+- [API](frontend/src/lib/api/): Zod Schema、fetch、Timeout、エラー変換。
+- [復旧保存](frontend/src/lib/storage/recovery.ts): 下書きと未確定要求のsessionStorage。
+- [MSW](frontend/src/mocks/): 21問、Handler、タブ内／メモリRepository。
+- [Provider](frontend/src/providers/AppProviders.tsx): Theme・Query・Mock起動待ち。
+- [テスト](frontend/tests/): Logic・Integration・静的成果物のE2E。
+- [Storybook](frontend/stories/): 175 Story。ComponentsはAtoms／Molecules／Organisms／Templates、画面ContainerはPagesに分類。
+- [Story Fixture](frontend/stories/fixtures/index.ts): UUID・日時・Session・Evaluation・Feedback・100〜2001文字の決定的Fixture。
+- [Story環境](frontend/stories/test-utils/storyEnvironment.tsx): StoryごとのQuery Client、Mock Repository、`pocket:*` Storage、Router初期化。
+- [CI](.github/workflows/frontend.yml): lint・型・テスト・ビルド。
 
 ### 共通コンポーネント
 
 - [Button.tsx](frontend/src/components/atoms/Button.tsx): MUI Buttonをラップした共通ボタン。
+- [Link.tsx](frontend/src/components/atoms/Link.tsx): 下線付きリンクとブランド用テキスト型を備えた共通画面遷移リンク。
 - [Input.tsx](frontend/src/components/atoms/Input.tsx): MUI TextFieldをラップした共通入力欄。
 - [Select.tsx](frontend/src/components/atoms/Select.tsx): ラベル、選択肢、エラー表示を内包する共通Select。
 - [Header.tsx](frontend/src/components/molecules/Header.tsx): Eyebrow、Title、Descriptionで構成される共通ヘッダー。
 - [Dialog.tsx](frontend/src/components/organisms/Dialog.tsx): Title、Content、Actionsを受け取る共通ダイアログ。
+- [AppShell.tsx](frontend/src/components/templates/AppShell.tsx): ブランドHeaderとPageContainerを構成する共通Template。
+
+Atomic Designの依存方向は`Page → Template → Organism → Molecule → Atom`です。Feature固有ComponentはFeature境界を維持し、下位層から上位層を参照しません。
 
 ### 開発・確認
 
 `frontend/` を作業ディレクトリにして実行します。
 
 ```bash
-npm install
-npm run dev        # http://localhost:3000
+npm ci
+npm run dev:mock   # http://localhost:3000
 npm run lint
+npm run typecheck
+npm test
 npm run build
+npm run build:mock
+npm run test:e2e
 npm run storybook  # http://localhost:6006
+npm run build-storybook
 ```
 
 FrontendはNext.js 16、React 19、MUI 9、TypeScriptを利用しています。依存バージョンの正確な情報は[package.json](frontend/package.json)を参照してください。
@@ -134,13 +164,12 @@ FrontendはNext.js 16、React 19、MUI 9、TypeScriptを利用しています。
 
 ## 現状の注意点
 
-- Frontendは仮トップ画面と共通UIまでです。認証、API接続、質問・回答、AIフィードバック、履歴、お気に入りは未実装です。
-- BackendおよびInfrastructureは設計資料のみで、実装コードはまだありません。
-- `next.config.ts` には、設計書が前提とするStatic Exportの設定がまだありません。
-- `npm run lint` は成功しますが、`npm run build` は既存の `AppShell.stories.tsx` が存在しない `AppShell` やStorybookモックを参照しているため、型検査で停止します。
-- [frontend/AGENTS.md](frontend/AGENTS.md) は「汎用受付・順番管理システム」を前提としており、このAI面接練習アプリの設計資料とは内容が一致していません。Frontend作業ルールとして利用する前に更新が必要です。
-- `frontend/skills/` の各 `SKILL.md` も、存在しない実装ファイルや別プロダクト固有の規約を参照しているものがあります。現時点では設計仕様そのものではなく、AI作業補助資料として扱ってください。
-- ADR専用ディレクトリや変更記録は、現在の作業ツリーにはありません。設計判断を追加する際は、保存場所と命名規則を決める必要があります。
+- FrontendはMSWによる単体MVPです。実AI・認証・実Backend・履歴・PWAは未実装です。
+- 旧BE01の同期APIとv2は互換ではありません。[API契約](docs/FRONTEND_API_CONTRACT.md)と[ADR](docs/ADR-001-frontend-standalone-v2.md)を優先してください。
+- 本番成果物は `out/`、Mock検証用は `out-mock/`。Mock成果物は公開用ではありません。
+- Storybookは公式Next.js Navigation Mockを利用し、旧独自Aliasと重複Preview Setupは使用しません。
+- `frontend/skills/` は補助資料で、一部に他プロダクトの例が残っています。現在の作業規則は[AGENTS.md](frontend/AGENTS.md)です。
+- データはタブ内保存で、タブを閉じた後の復元は保証しません。
 
 ## 更新時のチェック
 

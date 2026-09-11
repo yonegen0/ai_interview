@@ -15,8 +15,16 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    ".next-mock/**",
+    "out-mock/**",
+    "storybook-static/**",
+    "public/mockServiceWorker.js",
+    "test-results/**",
+    "playwright-report/**",
   ]),
-  ...storybook.configs["flat/recommended"]
+  ...storybook.configs["flat/recommended"],
+  // Reducer hydration and external async evaluation events intentionally update state in effects.
+  { rules: { "react-hooks/set-state-in-effect": "off" } },
 ]);
 
 export default eslintConfig;

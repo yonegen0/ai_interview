@@ -7,7 +7,7 @@ import { createTheme } from "@mui/material/styles";
 export const theme = createTheme({
   palette: {
     primary: {
-      main: "#5f7d5a", // セージグリーン（落ち着いたアースカラー）
+      main: "#415739", // セージグリーン（文字としても十分なコントラスト）
       light: "#8aa784",
       dark: "#415739",
       contrastText: "#ffffff",
@@ -25,7 +25,7 @@ export const theme = createTheme({
       contrastText: "#ffffff",
     },
     error: {
-      main: "#d32f2f",
+      main: "#b3261e",
       light: "#ef5350",
       dark: "#c62828",
       contrastText: "#ffffff",
@@ -122,6 +122,13 @@ export const theme = createTheme({
     },
   },
   components: {
+    MuiFormHelperText: {
+      styleOverrides: {
+        root: ({ theme }) => ({
+          "&.Mui-disabled": { color: theme.palette.text.secondary },
+        }),
+      },
+    },
     // 横スクロール症状の最後の砦＋画像はみ出し防止（原因は個別 styled() で解消する）
     MuiCssBaseline: {
       styleOverrides: {

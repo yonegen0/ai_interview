@@ -5,9 +5,8 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { AppRouterCacheProvider } from "@mui/material-nextjs/v15-appRouter";
-import CssBaseline from "@mui/material/CssBaseline";
-import { ThemeProvider } from "@mui/material/styles";
-import { theme } from "@/lib/theme";
+import { AppProviders } from "@/providers/AppProviders";
+import { AppShell } from "@/components/templates/AppShell";
 
 export const metadata: Metadata = {
   title: "Interview Pocket | 3分でできるAI面接練習",
@@ -35,10 +34,9 @@ export default function RootLayout(props: RootLayoutProps) {
     <html lang="ja">
       <body>
         <AppRouterCacheProvider>
-          <ThemeProvider theme={theme}>
-            <CssBaseline />
-            {props.children}
-          </ThemeProvider>
+          <AppProviders>
+            <AppShell>{props.children}</AppShell>
+          </AppProviders>
         </AppRouterCacheProvider>
       </body>
     </html>

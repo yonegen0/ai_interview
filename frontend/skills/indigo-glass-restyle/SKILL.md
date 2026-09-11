@@ -1,6 +1,6 @@
 ---
 name: indigo-glass-restyle
-description: 既存のコンポーネントを biz-karte の Indigo × Glassmorphism デザイン言語に揃える。styled() と src/lib/theme.ts のパレットだけを使い、半透明背景・backdrop-filter ぼかし・primary 色のグロー・borderRadius 12〜20px の柔らかい角丸を統一する。ユーザーが「スタイリッシュにして」「デザインを統一して」と要求したとき、または既存パーツが平板で他画面と浮いているときに使う。
+description: 既存のコンポーネントを biz-karte の Indigo × Glassmorphism デザイン言語に揃える。styled() と src/theme/theme.ts のパレットだけを使い、半透明背景・backdrop-filter ぼかし・primary 色のグロー・borderRadius 12〜20px の柔らかい角丸を統一する。ユーザーが「スタイリッシュにして」「デザインを統一して」と要求したとき、または既存パーツが平板で他画面と浮いているときに使う。
 ---
 
 # Indigo × Glassmorphism Restyle Skill
@@ -15,7 +15,7 @@ description: 既存のコンポーネントを biz-karte の Indigo × Glassmorp
 - 既存の JSDoc・型・公開 API・アクセシビリティ（`useId` / `htmlFor` など）は壊さない。
 - デザイン以外（ロジック・props 名・イベントハンドラ）は変更しない。
 
-## パレット早見表（`src/lib/theme.ts`）
+## パレット早見表（`src/theme/theme.ts`）
 
 - **Indigo（主役・ボタン枠・フォーカスグロー）**
   - `primary.main`: `#3f51b5`（アクセント・グロー基色）
@@ -99,7 +99,7 @@ DataGrid は未導入。テーブルが必要な場合は MUI の `Table` を `s
 ## 適用フロー（このスキルを呼ばれたとき）
 
 1. 対象ファイルを Read し、`styled()` ブロックを洗い出す。
-2. `src/lib/theme.ts` を Read（記憶よりも現状を信用する）。
+2. `src/theme/theme.ts` を Read（記憶よりも現状を信用する）。
 3. `Panel.tsx` / `Input.tsx` / `Button.tsx` のうち、対象に近い既存パターンを参照する。
 4. 修正計画を箇条書きで提示する：
    - 各 `styled()` の何を、なぜ変えるか
@@ -120,7 +120,7 @@ DataGrid は未導入。テーブルが必要な場合は MUI の `Table` を `s
 
 ## 参照すべき既存実装
 
-- `src/lib/theme.ts` — パレットの単一の真実。
+- `src/theme/theme.ts` — パレットの単一の真実。
 - `src/components/atoms/Panel.tsx` — glassmorphism パネルの基盤。
 - `src/components/atoms/Button.tsx` — グローボタンの基盤。
 - `src/components/atoms/Input.tsx` — グラス入力フィールドの基盤。

@@ -1,68 +1,43 @@
-/**
- * @file Button.stories.tsx
- * @description Button コンポーネントの表示確認用ストーリー。
- */
-import type { Meta, StoryObj } from "@storybook/react-vite";
+/** @file Button.stories.tsx @description 共通Buttonの状態、キーボード操作、狭幅表示。 */
+import type { Meta, StoryObj } from "@storybook/nextjs-vite";
+import { expect, fn, userEvent, within } from "storybook/test";
 import { Button } from "@/components/atoms/Button";
+import { assertNoHorizontalOverflow } from "../../test-utils/storyEnvironment";
 
-const meta: Meta<typeof Button> = {
+const meta = {
   title: "Components/Atoms/Button",
   component: Button,
-  parameters: {
-    layout: "padded",
-  },
-  args: {
-    children: "ボタン",
-  },
-};
-
+  parameters: { layout: "padded" },
+  args: { children: "回答を送信", onClick: fn() },
+} satisfies Meta<typeof Button>;
 export default meta;
-type Story = StoryObj<typeof Button>;
+type Story = StoryObj<typeof meta>;
 
-/**
- * Primary: 既定の color="primary"
- * 通常操作（送信・確定など）に使う基本ボタンの表示を確認する。
- */
-export const Primary: Story = {
-  args: { variant: "contained", color: "primary" },
-};
-
-/**
- * Secondary: color="secondary"
- * セカンダリ操作の配色を確認する。
- */
-export const Secondary: Story = {
-  args: { variant: "contained", color: "secondary" },
-};
-
-/**
- * Success: color="success"
- * 完了系操作（確定など）の配色を確認する。
- */
-export const Success: Story = {
-  args: { variant: "contained", color: "success", children: "確定する" },
-};
-
-/**
- * Error: color="error"
- * 破壊的操作（削除など）の配色を確認する。
- */
-export const Error: Story = {
-  args: { variant: "contained", color: "error", children: "削除" },
-};
-
-/**
- * Outlined: variant="outlined"
- * 補助的操作で使うアウトライン表示を確認する。
- */
-export const Outlined: Story = {
-  args: { variant: "outlined", color: "primary" },
-};
-
-/**
- * Disabled: disabled=true
- * 非活性時の表示を確認する。
- */
+export const Primary: Story = { args: { variant: "contained", color: "primary" } };
+export const Secondary: Story = { args: { variant: "contained", color: "secondary" } };
+export const Success: Story = { args: { color: "success", children: "次の質問へ" } };
+export const Destructive: Story = { args: { color: "error", children: "終了する" } };
+export const Outlined: Story = { args: { variant: "outlined" } };
 export const Disabled: Story = {
-  args: { variant: "contained", color: "primary", disabled: true },
+  args: { disabled: true },
+  play: async ({ args, canvasElement }) => {
+    within(canvasElement).getByRole("button").click();
+    await expect(args.onClick).not.toHaveBeenCalled();
+  },
+};
+export const KeyboardActivation: Story = {
+  play: async ({ args, canvasElement }) => {
+    await userEvent.tab();
+    await userEvent.keyboard("{Enter}");
+    await expect(args.onClick).toHaveBeenCalledOnce();
+    await expect(within(canvasElement).getByRole("button")).toHaveFocus();
+  },
+};
+export const LongLabel: Story = {
+  args: { children: "送信済みの回答について評価結果をもう一度確認する" },
+  play: ({ canvasElement }) => assertNoHorizontalOverflow(canvasElement),
+};
+export const Mobile: Story = {
+  ...LongLabel,
+  globals: { viewport: { value: "iphoneSe" } },
 };
