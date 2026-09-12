@@ -1,6 +1,6 @@
 # リポジトリ案内
 
-更新日: 2026-09-11。設計書v2.1対応。
+更新日: 2026-09-12。設計書v2.3対応。
 
 ## 最初に読む資料
 
@@ -16,6 +16,8 @@
 | 全体構成 | [全体基本設計](設計書一覧/02_基本設計/01_全体基本設計書.md) |
 | Frontend | [Frontend基本設計](設計書一覧/02_基本設計/02_Frontend基本設計書.md) |
 | API・データ・評価 | [Backend基本設計](設計書一覧/02_基本設計/03_Backend基本設計書.md) |
+| ローカルBackend | [Backend README](backend/README.md)・[ADR-003](docs/ADR-003-local-backend-foundation.md) |
+| P0〜P7実装工程 | [実装計画](AI面接練習Webアプリ｜実装計画.md)・[P1検証記録](docs/BACKEND_P1_VERIFICATION.md) |
 | Terraform・AWS | [Infrastructure基本設計](設計書一覧/02_基本設計/04_Infrastructure基本設計書.md) |
 | 次工程の判断 | [決定事項・未確定事項](設計書一覧/04_横断仕様/06_決定事項_未確定事項.md) |
 
@@ -41,7 +43,7 @@
 - [Provider](frontend/src/providers/AppProviders.tsx): Theme・Query・Mock起動待ち。
 - [テスト](frontend/tests/): Logic・Integration・静的成果物のE2E。
 - [Storybook](frontend/stories/): ComponentsはAtoms／Molecules／Organisms／Templates、画面ContainerはPagesに分類。
-- [Story Fixture](frontend/stories/fixtures/index.ts): UUID・日時・Session・Evaluation・Feedback・100〜2001文字の決定的Fixture。
+- [Story Fixture](frontend/stories/fixtures/index.ts): UUID・日時・Session・Evaluation・Feedback・回答100／500／501文字と一般表示用長文の決定的Fixture。
 - [Story環境](frontend/stories/test-utils/storyEnvironment.tsx): StoryごとのQuery Client、Mock Repository、`pocket:*` Storage、Router初期化。
 - [CI](.github/workflows/frontend.yml): lint・型・テスト・ビルド。
 
@@ -79,9 +81,12 @@ FrontendはNext.js 16、React 19、MUI 9、TypeScriptを利用しています。
 
 ## 現在地・更新時の確認
 
-- 現在は認証なしMSW単体MVP。認証・実AI・Backend・履歴・PWA・AWS公開は次工程です。
+- Frontendは認証なしMSW単体MVP。ローカルBackend（メモリ＋Fake）は追加済みで、Frontendとは未接続です。
+- backend/src/interview_backend/にapi・application・models・repositories・evaluation・assetsを配置しています。
+- contracts/backend-fixtures.jsonをPython HandlerとFrontend Zodの双方で検証します。
+- 認証・実AI・永続化Backend・履歴・PWA・AWS公開は次工程です。
 - 接続準備完了は実API接続完了ではありません。非同期起動・障害回復・物理設計を先に確定します。
-- Frontend GitHub Actionsは実装済み。Backend・Terraformを含む全体CI/CDは未確定です。
+- Frontend／Backend GitHub Actionsの検証workflowは実装済み。Terraformを含む全体CI/CD・デプロイは未確定です。
 - WebPの実寸法と512px期待値に既知の不一致があります。期待値変更・除外で隠しません。
 - frontend/skills/は補助資料。一部に他プロダクトの例があり、[AGENTS.md](frontend/AGENTS.md)を優先します。
 - API変更時はSchema・API契約・設計書・テストを合わせて確認します。

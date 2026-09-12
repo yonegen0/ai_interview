@@ -1,7 +1,7 @@
 # API契約一覧
 
-> 文書バージョン: 2.1\
-> 更新日: 2026-09-11  
+> 文書バージョン: 2.3\
+> 更新日: 2026-09-12
 > 対象フェーズ: Backend実装・Terraform構築・実API接続  
 > 情報源方針: 実装時は最新の公式ドキュメントを最優先で再確認する。
 
@@ -25,7 +25,9 @@
 - 質問IDを含むIDはUUID。全POSTでFrontend生成Idempotency-Keyを送る。
 - sessionId／attemptId／evaluationIdはBackend生成。状態はprocessing／completed／failed。
 - Feedbackはscore（0〜100整数）、summary、strengths、improvements、任意exampleAnswerと管理情報。詳細は正本を参照。
-- 回答はJavaScript文字列長で1〜2000、空白のみ禁止。100〜300文字は推奨。
+- 回答はJavaScript文字列長で1〜500、空白のみ禁止。100〜300文字は推奨。
+- UTF-16単位（通常の絵文字は2単位）で数え、本文は非加工。scoreは有限整数値のJSON表現も受理し、Backendは整数で返す。
+- P1ルーティング層の405・METHOD_NOT_ALLOWEDは対応MethodのAllowヘッダーを含む。未認証は401を先に判定する。
 - カテゴリは現行7カテゴリを維持。カテゴリ取得APIは追加しない。
 - Error Bodyは{ code, message }。HTTPとコードの対応は[エラー一覧](04_エラーコード一覧.md)。
 - GETで質問や評価処理を進めない。次問POSTは現在のcompleted Attemptからのみ受け付ける。

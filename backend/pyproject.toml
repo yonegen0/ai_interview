@@ -1,0 +1,26 @@
+[project]
+name = "interview-backend"
+version = "0.1.0"
+description = "Local, single-process backend for the existing frontend contract"
+requires-python = ">=3.13,<3.14"
+dependencies = ["pydantic>=2.11,<3"]
+
+[dependency-groups]
+dev = ["pytest>=8,<10", "ruff>=0.11,<1"]
+
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[project.scripts]
+interview-demo = "interview_backend.demo:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

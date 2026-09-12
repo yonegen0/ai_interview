@@ -21,10 +21,10 @@ export const OneCharacter: Story = { render: () => <AnswerFieldHarness initialVa
 export const ShortAnswer99: Story = { render: () => <AnswerFieldHarness initialValue={"あ".repeat(99)} /> };
 export const Recommended100: Story = { render: () => <AnswerFieldHarness initialValue={storyTexts.text100} /> };
 export const Recommended300: Story = { render: () => <AnswerFieldHarness initialValue={"あ".repeat(300)} /> };
-export const Maximum2000: Story = { render: () => <AnswerFieldHarness initialValue={storyTexts.text2000} /> };
-export const TooLong2001: Story = { render: () => <AnswerFieldHarness initialValue={storyTexts.text2001} />, play: async ({ canvasElement }) => { await userEvent.click(within(canvasElement).getByRole("button", { name: "検証する" })); await expect(await within(canvasElement).findByText(/2000文字以内/)).toBeInTheDocument(); } };
+export const Maximum500: Story = { render: () => <AnswerFieldHarness initialValue={storyTexts.text500} /> };
+export const TooLong501: Story = { render: () => <AnswerFieldHarness initialValue={storyTexts.text501} />, play: async ({ canvasElement }) => { await userEvent.click(within(canvasElement).getByRole("button", { name: "検証する" })); await expect(await within(canvasElement).findByText(/500文字以内/)).toBeInTheDocument(); } };
 export const WhitespaceOnly: Story = { render: () => <AnswerFieldHarness initialValue="   " />, play: async ({ canvasElement }) => { await userEvent.click(within(canvasElement).getByRole("button", { name: "検証する" })); await expect(await within(canvasElement).findByText(/空白以外/)).toBeInTheDocument(); } };
 export const Multiline: Story = { render: () => <AnswerFieldHarness initialValue={"結論です。\n具体例です。\n成果です。"} /> };
 export const Disabled: Story = { render: () => <AnswerFieldHarness initialValue="送信中です" disabled /> };
-export const TypingInteraction: Story = { render: () => <AnswerFieldHarness />, play: async ({ canvasElement }) => { const canvas = within(canvasElement); await userEvent.type(canvas.getByLabelText("あなたの回答"), "回答です"); await expect(canvas.getByText(/4 \/ 2000文字/)).toBeInTheDocument(); } };
-export const Mobile: Story = { render: () => <AnswerFieldHarness initialValue={storyTexts.text1000} />, globals: { viewport: { value: "iphoneSe" } }, play: ({ canvasElement }) => assertNoHorizontalOverflow(canvasElement) };
+export const TypingInteraction: Story = { render: () => <AnswerFieldHarness />, play: async ({ canvasElement }) => { const canvas = within(canvasElement); await userEvent.type(canvas.getByLabelText("あなたの回答"), "回答です"); await expect(canvas.getByText(/4 \/ 500文字/)).toBeInTheDocument(); } };
+export const Mobile: Story = { render: () => <AnswerFieldHarness initialValue={storyTexts.text500} />, globals: { viewport: { value: "iphoneSe" } }, play: ({ canvasElement }) => assertNoHorizontalOverflow(canvasElement) };

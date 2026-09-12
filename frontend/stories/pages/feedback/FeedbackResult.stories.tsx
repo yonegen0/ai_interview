@@ -244,7 +244,7 @@ export const MobileLongResult: Story = {
     seed: createStoryState({
       session: completed.sessions[storyIds.session],
       feedback: createFeedbackFixture({
-        answer: storyTexts.text1000,
+        answer: storyTexts.text500,
         summary: storyTexts.text500,
       }),
       evaluation: completed.attempts[storyIds.currentAttempt].evaluation,

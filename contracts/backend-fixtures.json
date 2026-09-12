@@ -1,0 +1,1459 @@
+{
+  "steps": [
+    {
+      "method": "POST",
+      "path": "/sessions",
+      "key": "10000000-0000-4000-8000-000000000101",
+      "request": {
+        "category": "job_change",
+        "difficulty": "standard"
+      },
+      "status": 201,
+      "schema": "created",
+      "body": {
+        "sessionId": "10000000-0000-4000-8000-000000000001"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/sessions/10000000-0000-4000-8000-000000000001/question",
+      "status": 200,
+      "schema": "session",
+      "body": {
+        "sessionId": "10000000-0000-4000-8000-000000000001",
+        "question": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "category": "job_change",
+          "difficulty": "standard",
+          "question": "\u8ee2\u8077\u3092\u8003\u3048\u305f\u7406\u7531\u3092\u6559\u3048\u3066\u304f\u3060\u3055\u3044\u3002"
+        },
+        "questionNumber": 1,
+        "activeAttempt": null
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/sessions/10000000-0000-4000-8000-000000000001/answers",
+      "key": "10000000-0000-4000-8000-000000000102",
+      "request": {
+        "questionId": "00000000-0000-4000-8000-000000000001",
+        "answer": "\u7d4c\u9a13\u3092\u6d3b\u304b\u3057\u3001\u65b0\u3057\u3044\u696d\u52d9\u306b\u6311\u6226\u3057\u305f\u3044\u3067\u3059\u3002"
+      },
+      "status": 202,
+      "schema": "attempt",
+      "body": {
+        "attemptId": "10000000-0000-4000-8000-000000000002",
+        "evaluationId": "10000000-0000-4000-8000-000000000003",
+        "status": "processing"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/sessions/10000000-0000-4000-8000-000000000001/question",
+      "status": 200,
+      "schema": "session",
+      "body": {
+        "sessionId": "10000000-0000-4000-8000-000000000001",
+        "question": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "category": "job_change",
+          "difficulty": "standard",
+          "question": "\u8ee2\u8077\u3092\u8003\u3048\u305f\u7406\u7531\u3092\u6559\u3048\u3066\u304f\u3060\u3055\u3044\u3002"
+        },
+        "questionNumber": 1,
+        "activeAttempt": {
+          "attemptId": "10000000-0000-4000-8000-000000000002",
+          "evaluationId": "10000000-0000-4000-8000-000000000003",
+          "status": "processing"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/evaluations/10000000-0000-4000-8000-000000000003",
+      "status": 200,
+      "schema": "evaluation",
+      "body": {
+        "evaluationId": "10000000-0000-4000-8000-000000000003",
+        "attemptId": "10000000-0000-4000-8000-000000000002",
+        "status": "processing"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/attempts/10000000-0000-4000-8000-000000000002/feedback",
+      "status": 409,
+      "schema": "error",
+      "body": {
+        "code": "EVALUATION_NOT_COMPLETED",
+        "message": "Evaluation is not completed."
+      }
+    },
+    {
+      "worker": "10000000-0000-4000-8000-000000000003"
+    },
+    {
+      "method": "GET",
+      "path": "/evaluations/10000000-0000-4000-8000-000000000003",
+      "status": 200,
+      "schema": "evaluation",
+      "body": {
+        "evaluationId": "10000000-0000-4000-8000-000000000003",
+        "attemptId": "10000000-0000-4000-8000-000000000002",
+        "status": "completed"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/attempts/10000000-0000-4000-8000-000000000002/feedback",
+      "status": 200,
+      "schema": "feedback",
+      "body": {
+        "score": 78,
+        "summary": "\u3053\u308c\u306f\u30ed\u30fc\u30ab\u30eb\u691c\u8a3c\u7528\u306e\u30b5\u30f3\u30d7\u30eb\u8a55\u4fa1\u3067\u3059\u3002",
+        "strengths": [
+          "\u56de\u7b54\u3092\u5165\u529b\u3067\u304d\u3066\u3044\u307e\u3059\u3002"
+        ],
+        "improvements": [
+          "\u5177\u4f53\u7684\u306a\u884c\u52d5\u3068\u7d50\u679c\u3092\u78ba\u8a8d\u3057\u3066\u304f\u3060\u3055\u3044\u3002"
+        ],
+        "attemptId": "10000000-0000-4000-8000-000000000002",
+        "sessionId": "10000000-0000-4000-8000-000000000001",
+        "question": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "category": "job_change",
+          "difficulty": "standard",
+          "question": "\u8ee2\u8077\u3092\u8003\u3048\u305f\u7406\u7531\u3092\u6559\u3048\u3066\u304f\u3060\u3055\u3044\u3002"
+        },
+        "questionNumber": 1,
+        "answer": "\u7d4c\u9a13\u3092\u6d3b\u304b\u3057\u3001\u65b0\u3057\u3044\u696d\u52d9\u306b\u6311\u6226\u3057\u305f\u3044\u3067\u3059\u3002",
+        "createdAt": "2026-09-11T00:00:00Z"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/sessions/10000000-0000-4000-8000-000000000001/answers",
+      "key": "10000000-0000-4000-8000-000000000102",
+      "request": {
+        "questionId": "00000000-0000-4000-8000-000000000001",
+        "answer": "\u7d4c\u9a13\u3092\u6d3b\u304b\u3057\u3001\u65b0\u3057\u3044\u696d\u52d9\u306b\u6311\u6226\u3057\u305f\u3044\u3067\u3059\u3002"
+      },
+      "status": 202,
+      "schema": "attempt",
+      "body": {
+        "attemptId": "10000000-0000-4000-8000-000000000002",
+        "evaluationId": "10000000-0000-4000-8000-000000000003",
+        "status": "processing"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/sessions/10000000-0000-4000-8000-000000000001/questions/next",
+      "key": "10000000-0000-4000-8000-000000000103",
+      "request": {
+        "fromAttemptId": "10000000-0000-4000-8000-000000000002"
+      },
+      "status": 200,
+      "schema": "session",
+      "body": {
+        "sessionId": "10000000-0000-4000-8000-000000000001",
+        "question": {
+          "id": "00000000-0000-4000-8000-000000000002",
+          "category": "job_change",
+          "difficulty": "standard",
+          "question": "\u6b21\u306e\u8077\u5834\u3067\u5b9f\u73fe\u3057\u305f\u3044\u3053\u3068\u306f\u4f55\u3067\u3059\u304b\uff1f"
+        },
+        "questionNumber": 2,
+        "activeAttempt": null
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/sessions/10000000-0000-4000-8000-000000000001/answers",
+      "key": "10000000-0000-4000-8000-000000000104",
+      "request": {
+        "questionId": "00000000-0000-4000-8000-000000000002",
+        "answer": "\u65b0\u3057\u3044\u4ed5\u4e8b\u306b\u6311\u6226\u3057\u307e\u3059\u3002"
+      },
+      "status": 202,
+      "schema": "attempt",
+      "body": {
+        "attemptId": "10000000-0000-4000-8000-000000000004",
+        "evaluationId": "10000000-0000-4000-8000-000000000005",
+        "status": "processing"
+      }
+    },
+    {
+      "worker": "10000000-0000-4000-8000-000000000005",
+      "fail": true
+    },
+    {
+      "method": "GET",
+      "path": "/evaluations/10000000-0000-4000-8000-000000000005",
+      "status": 200,
+      "schema": "evaluation",
+      "body": {
+        "evaluationId": "10000000-0000-4000-8000-000000000005",
+        "attemptId": "10000000-0000-4000-8000-000000000004",
+        "status": "failed",
+        "error": {
+          "code": "EVALUATION_FAILED",
+          "message": "Evaluation could not be completed."
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/sessions/10000000-0000-4000-8000-000000000001/question",
+      "status": 200,
+      "schema": "session",
+      "body": {
+        "sessionId": "10000000-0000-4000-8000-000000000001",
+        "question": {
+          "id": "00000000-0000-4000-8000-000000000002",
+          "category": "job_change",
+          "difficulty": "standard",
+          "question": "\u6b21\u306e\u8077\u5834\u3067\u5b9f\u73fe\u3057\u305f\u3044\u3053\u3068\u306f\u4f55\u3067\u3059\u304b\uff1f"
+        },
+        "questionNumber": 2,
+        "activeAttempt": {
+          "attemptId": "10000000-0000-4000-8000-000000000004",
+          "evaluationId": "10000000-0000-4000-8000-000000000005",
+          "status": "failed"
+        }
+      }
+    }
+  ],
+  "cases": [
+    {
+      "schema": "submit",
+      "value": {
+        "questionId": "00000000-0000-4000-8000-000000000001",
+        "answer": "a"
+      },
+      "valid": true,
+      "label": "one"
+    },
+    {
+      "schema": "submit",
+      "value": {
+        "questionId": "00000000-0000-4000-8000-000000000001",
+        "answer": "\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042"
+      },
+      "valid": true,
+      "label": "Japanese 500"
+    },
+    {
+      "schema": "submit",
+      "value": {
+        "questionId": "00000000-0000-4000-8000-000000000001",
+        "answer": "\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042"
+      },
+      "valid": false,
+      "label": "Japanese 501"
+    },
+    {
+      "schema": "submit",
+      "value": {
+        "questionId": "00000000-0000-4000-8000-000000000001",
+        "answer": "\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00"
+      },
+      "valid": true,
+      "label": "emoji 500 units"
+    },
+    {
+      "schema": "submit",
+      "value": {
+        "questionId": "00000000-0000-4000-8000-000000000001",
+        "answer": "\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\u3042"
+      },
+      "valid": false,
+      "label": "emoji over limit"
+    },
+    {
+      "schema": "submit",
+      "value": {
+        "questionId": "00000000-0000-4000-8000-000000000001",
+        "answer": ""
+      },
+      "valid": false,
+      "label": "empty"
+    },
+    {
+      "schema": "submit",
+      "value": {
+        "questionId": "00000000-0000-4000-8000-000000000001",
+        "answer": " \n\t\ufeff"
+      },
+      "valid": false,
+      "label": "JS whitespace"
+    },
+    {
+      "schema": "submit",
+      "value": {
+        "questionId": "00000000-0000-4000-8000-000000000001",
+        "answer": "\u0085"
+      },
+      "valid": true,
+      "label": "NEL is not JS whitespace"
+    },
+    {
+      "schema": "submit",
+      "value": {
+        "questionId": "00000000-0000-4000-8000-000000000001",
+        "answer": "\u001c"
+      },
+      "valid": true,
+      "label": "FS is not JS whitespace"
+    },
+    {
+      "schema": "submit",
+      "value": {
+        "questionId": "00000000-0000-4000-8000-000000000001",
+        "answer": "\u200b"
+      },
+      "valid": true,
+      "label": "zero width space"
+    },
+    {
+      "schema": "submit",
+      "value": {
+        "questionId": "00000000-0000-4000-8000-000000000001",
+        "answer": "\ud800"
+      },
+      "valid": true,
+      "label": "lone surrogate"
+    },
+    {
+      "schema": "submit",
+      "value": {
+        "questionId": "00000000-0000-4000-8000-000000000001",
+        "answer": "  \u672c\u6587\n"
+      },
+      "valid": true,
+      "label": "preserve answer"
+    },
+    {
+      "schema": "submit",
+      "value": {
+        "questionId": "00000000-0000-4000-8000-000000000001",
+        "answer": 1
+      },
+      "valid": false,
+      "label": "number"
+    },
+    {
+      "schema": "submit",
+      "value": {
+        "questionId": "00000000-0000-4000-8000-000000000001",
+        "answer": true
+      },
+      "valid": false,
+      "label": "boolean"
+    },
+    {
+      "schema": "submit",
+      "value": {
+        "questionId": "00000000-0000-4000-8000-000000000001",
+        "answer": null
+      },
+      "valid": false,
+      "label": "null"
+    },
+    {
+      "schema": "create",
+      "value": {
+        "category": "job_change",
+        "difficulty": "standard"
+      },
+      "valid": true,
+      "label": "job_change"
+    },
+    {
+      "schema": "create",
+      "value": {
+        "category": "motivation",
+        "difficulty": "standard"
+      },
+      "valid": true,
+      "label": "motivation"
+    },
+    {
+      "schema": "create",
+      "value": {
+        "category": "strengths",
+        "difficulty": "standard"
+      },
+      "valid": true,
+      "label": "strengths"
+    },
+    {
+      "schema": "create",
+      "value": {
+        "category": "experience",
+        "difficulty": "standard"
+      },
+      "valid": true,
+      "label": "experience"
+    },
+    {
+      "schema": "create",
+      "value": {
+        "category": "difficulty",
+        "difficulty": "standard"
+      },
+      "valid": true,
+      "label": "difficulty"
+    },
+    {
+      "schema": "create",
+      "value": {
+        "category": "career",
+        "difficulty": "standard"
+      },
+      "valid": true,
+      "label": "career"
+    },
+    {
+      "schema": "create",
+      "value": {
+        "category": "questions",
+        "difficulty": "standard"
+      },
+      "valid": true,
+      "label": "questions"
+    },
+    {
+      "schema": "create",
+      "value": {
+        "category": "job_change",
+        "difficulty": "standard",
+        "extra": "ignored"
+      },
+      "valid": true,
+      "label": "strip extra"
+    },
+    {
+      "schema": "create",
+      "value": {
+        "category": "other",
+        "difficulty": "standard"
+      },
+      "valid": false,
+      "label": "bad category"
+    },
+    {
+      "schema": "create",
+      "value": {
+        "category": "job_change",
+        "difficulty": "hard"
+      },
+      "valid": false,
+      "label": "bad difficulty"
+    },
+    {
+      "schema": "next",
+      "value": {
+        "fromAttemptId": "bad"
+      },
+      "valid": false,
+      "label": "bad UUID bad"
+    },
+    {
+      "schema": "next",
+      "value": {
+        "fromAttemptId": "00000000000040008000000000000001"
+      },
+      "valid": false,
+      "label": "bad UUID 00000000000040008000000000000001"
+    },
+    {
+      "schema": "next",
+      "value": {
+        "fromAttemptId": "00000000-0000-0000-0000-000000000001"
+      },
+      "valid": false,
+      "label": "bad UUID 00000000-0000-0000-0000-000000000001"
+    },
+    {
+      "schema": "next",
+      "value": {
+        "fromAttemptId": 12
+      },
+      "valid": false,
+      "label": "bad UUID 12"
+    },
+    {
+      "schema": "next",
+      "value": {
+        "fromAttemptId": null
+      },
+      "valid": false,
+      "label": "bad UUID null"
+    },
+    {
+      "schema": "next",
+      "value": {
+        "fromAttemptId": "00000000-0000-0000-0000-000000000000"
+      },
+      "valid": true,
+      "label": "valid UUID 00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "schema": "next",
+      "value": {
+        "fromAttemptId": "ffffffff-ffff-ffff-ffff-ffffffffffff"
+      },
+      "valid": true,
+      "label": "valid UUID ffffffff-ffff-ffff-ffff-ffffffffffff"
+    },
+    {
+      "schema": "next",
+      "value": {
+        "fromAttemptId": "10000000-0000-4000-8000-000000000001"
+      },
+      "valid": true,
+      "label": "valid UUID 10000000-0000-4000-8000-000000000001"
+    },
+    {
+      "schema": "feedback",
+      "value": {
+        "score": 78,
+        "summary": "\u3053\u308c\u306f\u30ed\u30fc\u30ab\u30eb\u691c\u8a3c\u7528\u306e\u30b5\u30f3\u30d7\u30eb\u8a55\u4fa1\u3067\u3059\u3002",
+        "strengths": [],
+        "improvements": [],
+        "attemptId": "10000000-0000-4000-8000-000000000002",
+        "sessionId": "10000000-0000-4000-8000-000000000001",
+        "question": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "category": "job_change",
+          "difficulty": "standard",
+          "question": "\u8ee2\u8077\u3092\u8003\u3048\u305f\u7406\u7531\u3092\u6559\u3048\u3066\u304f\u3060\u3055\u3044\u3002"
+        },
+        "questionNumber": 1,
+        "answer": "\u7d4c\u9a13\u3092\u6d3b\u304b\u3057\u3001\u65b0\u3057\u3044\u696d\u52d9\u306b\u6311\u6226\u3057\u305f\u3044\u3067\u3059\u3002",
+        "createdAt": "2026-09-11T00:00:00Z"
+      },
+      "valid": true,
+      "label": "empty arrays optional omitted"
+    },
+    {
+      "schema": "feedback",
+      "value": {
+        "score": 78,
+        "summary": "\u3053\u308c\u306f\u30ed\u30fc\u30ab\u30eb\u691c\u8a3c\u7528\u306e\u30b5\u30f3\u30d7\u30eb\u8a55\u4fa1\u3067\u3059\u3002",
+        "strengths": [
+          "\u56de\u7b54\u3092\u5165\u529b\u3067\u304d\u3066\u3044\u307e\u3059\u3002"
+        ],
+        "improvements": [
+          "\u5177\u4f53\u7684\u306a\u884c\u52d5\u3068\u7d50\u679c\u3092\u78ba\u8a8d\u3057\u3066\u304f\u3060\u3055\u3044\u3002"
+        ],
+        "attemptId": "10000000-0000-4000-8000-000000000002",
+        "sessionId": "10000000-0000-4000-8000-000000000001",
+        "question": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "category": "job_change",
+          "difficulty": "standard",
+          "question": "\u8ee2\u8077\u3092\u8003\u3048\u305f\u7406\u7531\u3092\u6559\u3048\u3066\u304f\u3060\u3055\u3044\u3002"
+        },
+        "questionNumber": 1,
+        "answer": "\u7d4c\u9a13\u3092\u6d3b\u304b\u3057\u3001\u65b0\u3057\u3044\u696d\u52d9\u306b\u6311\u6226\u3057\u305f\u3044\u3067\u3059\u3002",
+        "createdAt": "2026-09-11T00:00:00Z",
+        "exampleAnswer": "\u56de\u7b54\u4f8b"
+      },
+      "valid": true,
+      "label": "optional present"
+    },
+    {
+      "schema": "feedback",
+      "value": {
+        "score": -1,
+        "summary": "\u3053\u308c\u306f\u30ed\u30fc\u30ab\u30eb\u691c\u8a3c\u7528\u306e\u30b5\u30f3\u30d7\u30eb\u8a55\u4fa1\u3067\u3059\u3002",
+        "strengths": [
+          "\u56de\u7b54\u3092\u5165\u529b\u3067\u304d\u3066\u3044\u307e\u3059\u3002"
+        ],
+        "improvements": [
+          "\u5177\u4f53\u7684\u306a\u884c\u52d5\u3068\u7d50\u679c\u3092\u78ba\u8a8d\u3057\u3066\u304f\u3060\u3055\u3044\u3002"
+        ],
+        "attemptId": "10000000-0000-4000-8000-000000000002",
+        "sessionId": "10000000-0000-4000-8000-000000000001",
+        "question": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "category": "job_change",
+          "difficulty": "standard",
+          "question": "\u8ee2\u8077\u3092\u8003\u3048\u305f\u7406\u7531\u3092\u6559\u3048\u3066\u304f\u3060\u3055\u3044\u3002"
+        },
+        "questionNumber": 1,
+        "answer": "\u7d4c\u9a13\u3092\u6d3b\u304b\u3057\u3001\u65b0\u3057\u3044\u696d\u52d9\u306b\u6311\u6226\u3057\u305f\u3044\u3067\u3059\u3002",
+        "createdAt": "2026-09-11T00:00:00Z"
+      },
+      "valid": false,
+      "label": "bad score -1"
+    },
+    {
+      "schema": "feedback",
+      "value": {
+        "score": 101,
+        "summary": "\u3053\u308c\u306f\u30ed\u30fc\u30ab\u30eb\u691c\u8a3c\u7528\u306e\u30b5\u30f3\u30d7\u30eb\u8a55\u4fa1\u3067\u3059\u3002",
+        "strengths": [
+          "\u56de\u7b54\u3092\u5165\u529b\u3067\u304d\u3066\u3044\u307e\u3059\u3002"
+        ],
+        "improvements": [
+          "\u5177\u4f53\u7684\u306a\u884c\u52d5\u3068\u7d50\u679c\u3092\u78ba\u8a8d\u3057\u3066\u304f\u3060\u3055\u3044\u3002"
+        ],
+        "attemptId": "10000000-0000-4000-8000-000000000002",
+        "sessionId": "10000000-0000-4000-8000-000000000001",
+        "question": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "category": "job_change",
+          "difficulty": "standard",
+          "question": "\u8ee2\u8077\u3092\u8003\u3048\u305f\u7406\u7531\u3092\u6559\u3048\u3066\u304f\u3060\u3055\u3044\u3002"
+        },
+        "questionNumber": 1,
+        "answer": "\u7d4c\u9a13\u3092\u6d3b\u304b\u3057\u3001\u65b0\u3057\u3044\u696d\u52d9\u306b\u6311\u6226\u3057\u305f\u3044\u3067\u3059\u3002",
+        "createdAt": "2026-09-11T00:00:00Z"
+      },
+      "valid": false,
+      "label": "bad score 101"
+    },
+    {
+      "schema": "feedback",
+      "value": {
+        "score": 1.5,
+        "summary": "\u3053\u308c\u306f\u30ed\u30fc\u30ab\u30eb\u691c\u8a3c\u7528\u306e\u30b5\u30f3\u30d7\u30eb\u8a55\u4fa1\u3067\u3059\u3002",
+        "strengths": [
+          "\u56de\u7b54\u3092\u5165\u529b\u3067\u304d\u3066\u3044\u307e\u3059\u3002"
+        ],
+        "improvements": [
+          "\u5177\u4f53\u7684\u306a\u884c\u52d5\u3068\u7d50\u679c\u3092\u78ba\u8a8d\u3057\u3066\u304f\u3060\u3055\u3044\u3002"
+        ],
+        "attemptId": "10000000-0000-4000-8000-000000000002",
+        "sessionId": "10000000-0000-4000-8000-000000000001",
+        "question": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "category": "job_change",
+          "difficulty": "standard",
+          "question": "\u8ee2\u8077\u3092\u8003\u3048\u305f\u7406\u7531\u3092\u6559\u3048\u3066\u304f\u3060\u3055\u3044\u3002"
+        },
+        "questionNumber": 1,
+        "answer": "\u7d4c\u9a13\u3092\u6d3b\u304b\u3057\u3001\u65b0\u3057\u3044\u696d\u52d9\u306b\u6311\u6226\u3057\u305f\u3044\u3067\u3059\u3002",
+        "createdAt": "2026-09-11T00:00:00Z"
+      },
+      "valid": false,
+      "label": "bad score 1.5"
+    },
+    {
+      "schema": "feedback",
+      "value": {
+        "score": true,
+        "summary": "\u3053\u308c\u306f\u30ed\u30fc\u30ab\u30eb\u691c\u8a3c\u7528\u306e\u30b5\u30f3\u30d7\u30eb\u8a55\u4fa1\u3067\u3059\u3002",
+        "strengths": [
+          "\u56de\u7b54\u3092\u5165\u529b\u3067\u304d\u3066\u3044\u307e\u3059\u3002"
+        ],
+        "improvements": [
+          "\u5177\u4f53\u7684\u306a\u884c\u52d5\u3068\u7d50\u679c\u3092\u78ba\u8a8d\u3057\u3066\u304f\u3060\u3055\u3044\u3002"
+        ],
+        "attemptId": "10000000-0000-4000-8000-000000000002",
+        "sessionId": "10000000-0000-4000-8000-000000000001",
+        "question": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "category": "job_change",
+          "difficulty": "standard",
+          "question": "\u8ee2\u8077\u3092\u8003\u3048\u305f\u7406\u7531\u3092\u6559\u3048\u3066\u304f\u3060\u3055\u3044\u3002"
+        },
+        "questionNumber": 1,
+        "answer": "\u7d4c\u9a13\u3092\u6d3b\u304b\u3057\u3001\u65b0\u3057\u3044\u696d\u52d9\u306b\u6311\u6226\u3057\u305f\u3044\u3067\u3059\u3002",
+        "createdAt": "2026-09-11T00:00:00Z"
+      },
+      "valid": false,
+      "label": "bad score true"
+    },
+    {
+      "schema": "feedback",
+      "value": {
+        "score": "78",
+        "summary": "\u3053\u308c\u306f\u30ed\u30fc\u30ab\u30eb\u691c\u8a3c\u7528\u306e\u30b5\u30f3\u30d7\u30eb\u8a55\u4fa1\u3067\u3059\u3002",
+        "strengths": [
+          "\u56de\u7b54\u3092\u5165\u529b\u3067\u304d\u3066\u3044\u307e\u3059\u3002"
+        ],
+        "improvements": [
+          "\u5177\u4f53\u7684\u306a\u884c\u52d5\u3068\u7d50\u679c\u3092\u78ba\u8a8d\u3057\u3066\u304f\u3060\u3055\u3044\u3002"
+        ],
+        "attemptId": "10000000-0000-4000-8000-000000000002",
+        "sessionId": "10000000-0000-4000-8000-000000000001",
+        "question": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "category": "job_change",
+          "difficulty": "standard",
+          "question": "\u8ee2\u8077\u3092\u8003\u3048\u305f\u7406\u7531\u3092\u6559\u3048\u3066\u304f\u3060\u3055\u3044\u3002"
+        },
+        "questionNumber": 1,
+        "answer": "\u7d4c\u9a13\u3092\u6d3b\u304b\u3057\u3001\u65b0\u3057\u3044\u696d\u52d9\u306b\u6311\u6226\u3057\u305f\u3044\u3067\u3059\u3002",
+        "createdAt": "2026-09-11T00:00:00Z"
+      },
+      "valid": false,
+      "label": "bad score 78"
+    },
+    {
+      "schema": "feedback",
+      "value": {
+        "score": null,
+        "summary": "\u3053\u308c\u306f\u30ed\u30fc\u30ab\u30eb\u691c\u8a3c\u7528\u306e\u30b5\u30f3\u30d7\u30eb\u8a55\u4fa1\u3067\u3059\u3002",
+        "strengths": [
+          "\u56de\u7b54\u3092\u5165\u529b\u3067\u304d\u3066\u3044\u307e\u3059\u3002"
+        ],
+        "improvements": [
+          "\u5177\u4f53\u7684\u306a\u884c\u52d5\u3068\u7d50\u679c\u3092\u78ba\u8a8d\u3057\u3066\u304f\u3060\u3055\u3044\u3002"
+        ],
+        "attemptId": "10000000-0000-4000-8000-000000000002",
+        "sessionId": "10000000-0000-4000-8000-000000000001",
+        "question": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "category": "job_change",
+          "difficulty": "standard",
+          "question": "\u8ee2\u8077\u3092\u8003\u3048\u305f\u7406\u7531\u3092\u6559\u3048\u3066\u304f\u3060\u3055\u3044\u3002"
+        },
+        "questionNumber": 1,
+        "answer": "\u7d4c\u9a13\u3092\u6d3b\u304b\u3057\u3001\u65b0\u3057\u3044\u696d\u52d9\u306b\u6311\u6226\u3057\u305f\u3044\u3067\u3059\u3002",
+        "createdAt": "2026-09-11T00:00:00Z"
+      },
+      "valid": false,
+      "label": "bad score null"
+    },
+    {
+      "schema": "feedback",
+      "value": {
+        "score": 0,
+        "summary": "\u3053\u308c\u306f\u30ed\u30fc\u30ab\u30eb\u691c\u8a3c\u7528\u306e\u30b5\u30f3\u30d7\u30eb\u8a55\u4fa1\u3067\u3059\u3002",
+        "strengths": [
+          "\u56de\u7b54\u3092\u5165\u529b\u3067\u304d\u3066\u3044\u307e\u3059\u3002"
+        ],
+        "improvements": [
+          "\u5177\u4f53\u7684\u306a\u884c\u52d5\u3068\u7d50\u679c\u3092\u78ba\u8a8d\u3057\u3066\u304f\u3060\u3055\u3044\u3002"
+        ],
+        "attemptId": "10000000-0000-4000-8000-000000000002",
+        "sessionId": "10000000-0000-4000-8000-000000000001",
+        "question": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "category": "job_change",
+          "difficulty": "standard",
+          "question": "\u8ee2\u8077\u3092\u8003\u3048\u305f\u7406\u7531\u3092\u6559\u3048\u3066\u304f\u3060\u3055\u3044\u3002"
+        },
+        "questionNumber": 1,
+        "answer": "\u7d4c\u9a13\u3092\u6d3b\u304b\u3057\u3001\u65b0\u3057\u3044\u696d\u52d9\u306b\u6311\u6226\u3057\u305f\u3044\u3067\u3059\u3002",
+        "createdAt": "2026-09-11T00:00:00Z"
+      },
+      "valid": true,
+      "label": "score boundary 0"
+    },
+    {
+      "schema": "feedback",
+      "value": {
+        "score": 100,
+        "summary": "\u3053\u308c\u306f\u30ed\u30fc\u30ab\u30eb\u691c\u8a3c\u7528\u306e\u30b5\u30f3\u30d7\u30eb\u8a55\u4fa1\u3067\u3059\u3002",
+        "strengths": [
+          "\u56de\u7b54\u3092\u5165\u529b\u3067\u304d\u3066\u3044\u307e\u3059\u3002"
+        ],
+        "improvements": [
+          "\u5177\u4f53\u7684\u306a\u884c\u52d5\u3068\u7d50\u679c\u3092\u78ba\u8a8d\u3057\u3066\u304f\u3060\u3055\u3044\u3002"
+        ],
+        "attemptId": "10000000-0000-4000-8000-000000000002",
+        "sessionId": "10000000-0000-4000-8000-000000000001",
+        "question": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "category": "job_change",
+          "difficulty": "standard",
+          "question": "\u8ee2\u8077\u3092\u8003\u3048\u305f\u7406\u7531\u3092\u6559\u3048\u3066\u304f\u3060\u3055\u3044\u3002"
+        },
+        "questionNumber": 1,
+        "answer": "\u7d4c\u9a13\u3092\u6d3b\u304b\u3057\u3001\u65b0\u3057\u3044\u696d\u52d9\u306b\u6311\u6226\u3057\u305f\u3044\u3067\u3059\u3002",
+        "createdAt": "2026-09-11T00:00:00Z"
+      },
+      "valid": true,
+      "label": "score boundary 100"
+    },
+    {
+      "schema": "feedback",
+      "value": {
+        "score": 78,
+        "summary": "\u3053\u308c\u306f\u30ed\u30fc\u30ab\u30eb\u691c\u8a3c\u7528\u306e\u30b5\u30f3\u30d7\u30eb\u8a55\u4fa1\u3067\u3059\u3002",
+        "strengths": [
+          "\u56de\u7b54\u3092\u5165\u529b\u3067\u304d\u3066\u3044\u307e\u3059\u3002"
+        ],
+        "improvements": [
+          "\u5177\u4f53\u7684\u306a\u884c\u52d5\u3068\u7d50\u679c\u3092\u78ba\u8a8d\u3057\u3066\u304f\u3060\u3055\u3044\u3002"
+        ],
+        "attemptId": "10000000-0000-4000-8000-000000000002",
+        "sessionId": "10000000-0000-4000-8000-000000000001",
+        "question": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "category": "job_change",
+          "difficulty": "standard",
+          "question": "\u8ee2\u8077\u3092\u8003\u3048\u305f\u7406\u7531\u3092\u6559\u3048\u3066\u304f\u3060\u3055\u3044\u3002"
+        },
+        "questionNumber": 1,
+        "answer": "\u7d4c\u9a13\u3092\u6d3b\u304b\u3057\u3001\u65b0\u3057\u3044\u696d\u52d9\u306b\u6311\u6226\u3057\u305f\u3044\u3067\u3059\u3002",
+        "createdAt": "2026-09-11T00:00:00Z",
+        "exampleAnswer": null
+      },
+      "valid": false,
+      "label": "optional not nullable"
+    },
+    {
+      "schema": "feedback",
+      "value": {
+        "score": 78,
+        "summary": "\u3053\u308c\u306f\u30ed\u30fc\u30ab\u30eb\u691c\u8a3c\u7528\u306e\u30b5\u30f3\u30d7\u30eb\u8a55\u4fa1\u3067\u3059\u3002",
+        "strengths": [
+          "\u56de\u7b54\u3092\u5165\u529b\u3067\u304d\u3066\u3044\u307e\u3059\u3002"
+        ],
+        "improvements": [
+          "\u5177\u4f53\u7684\u306a\u884c\u52d5\u3068\u7d50\u679c\u3092\u78ba\u8a8d\u3057\u3066\u304f\u3060\u3055\u3044\u3002"
+        ],
+        "attemptId": "10000000-0000-4000-8000-000000000002",
+        "sessionId": "10000000-0000-4000-8000-000000000001",
+        "question": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "category": "job_change",
+          "difficulty": "standard",
+          "question": "\u8ee2\u8077\u3092\u8003\u3048\u305f\u7406\u7531\u3092\u6559\u3048\u3066\u304f\u3060\u3055\u3044\u3002"
+        },
+        "questionNumber": 1,
+        "answer": "\u7d4c\u9a13\u3092\u6d3b\u304b\u3057\u3001\u65b0\u3057\u3044\u696d\u52d9\u306b\u6311\u6226\u3057\u305f\u3044\u3067\u3059\u3002",
+        "createdAt": "2026-09-11T00:00:00+00:00"
+      },
+      "valid": false,
+      "label": "UTC Z required"
+    },
+    {
+      "schema": "feedback",
+      "value": {
+        "score": 78,
+        "summary": "\u3053\u308c\u306f\u30ed\u30fc\u30ab\u30eb\u691c\u8a3c\u7528\u306e\u30b5\u30f3\u30d7\u30eb\u8a55\u4fa1\u3067\u3059\u3002",
+        "strengths": [
+          "\u56de\u7b54\u3092\u5165\u529b\u3067\u304d\u3066\u3044\u307e\u3059\u3002"
+        ],
+        "improvements": [
+          "\u5177\u4f53\u7684\u306a\u884c\u52d5\u3068\u7d50\u679c\u3092\u78ba\u8a8d\u3057\u3066\u304f\u3060\u3055\u3044\u3002"
+        ],
+        "attemptId": "10000000-0000-4000-8000-000000000002",
+        "sessionId": "10000000-0000-4000-8000-000000000001",
+        "question": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "category": "job_change",
+          "difficulty": "standard",
+          "question": "\u8ee2\u8077\u3092\u8003\u3048\u305f\u7406\u7531\u3092\u6559\u3048\u3066\u304f\u3060\u3055\u3044\u3002"
+        },
+        "questionNumber": 1,
+        "answer": "\u7d4c\u9a13\u3092\u6d3b\u304b\u3057\u3001\u65b0\u3057\u3044\u696d\u52d9\u306b\u6311\u6226\u3057\u305f\u3044\u3067\u3059\u3002",
+        "createdAt": "2026-02-30T00:00:00Z"
+      },
+      "valid": false,
+      "label": "invalid date"
+    },
+    {
+      "schema": "feedback",
+      "value": {
+        "score": 78,
+        "summary": "\u3053\u308c\u306f\u30ed\u30fc\u30ab\u30eb\u691c\u8a3c\u7528\u306e\u30b5\u30f3\u30d7\u30eb\u8a55\u4fa1\u3067\u3059\u3002",
+        "strengths": [
+          "\u56de\u7b54\u3092\u5165\u529b\u3067\u304d\u3066\u3044\u307e\u3059\u3002"
+        ],
+        "improvements": [
+          "\u5177\u4f53\u7684\u306a\u884c\u52d5\u3068\u7d50\u679c\u3092\u78ba\u8a8d\u3057\u3066\u304f\u3060\u3055\u3044\u3002"
+        ],
+        "attemptId": "10000000-0000-4000-8000-000000000002",
+        "sessionId": "10000000-0000-4000-8000-000000000001",
+        "question": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "category": "job_change",
+          "difficulty": "standard",
+          "question": "\u8ee2\u8077\u3092\u8003\u3048\u305f\u7406\u7531\u3092\u6559\u3048\u3066\u304f\u3060\u3055\u3044\u3002"
+        },
+        "questionNumber": 1,
+        "answer": "\u7d4c\u9a13\u3092\u6d3b\u304b\u3057\u3001\u65b0\u3057\u3044\u696d\u52d9\u306b\u6311\u6226\u3057\u305f\u3044\u3067\u3059\u3002",
+        "createdAt": "2026-09-11T00:00Z"
+      },
+      "valid": false,
+      "label": "ISO minutes"
+    },
+    {
+      "schema": "evaluation",
+      "value": {
+        "evaluationId": "10000000-0000-4000-8000-000000000003",
+        "attemptId": "10000000-0000-4000-8000-000000000002",
+        "status": "failed"
+      },
+      "valid": false,
+      "label": "failed needs error"
+    },
+    {
+      "schema": "evaluation",
+      "value": {
+        "evaluationId": "10000000-0000-4000-8000-000000000003",
+        "attemptId": "10000000-0000-4000-8000-000000000002",
+        "status": "COMPLETED"
+      },
+      "valid": false,
+      "label": "lowercase status only"
+    },
+    {
+      "schema": "session",
+      "value": {
+        "sessionId": "10000000-0000-4000-8000-000000000001",
+        "question": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "category": "job_change",
+          "difficulty": "standard",
+          "question": "\u8ee2\u8077\u3092\u8003\u3048\u305f\u7406\u7531\u3092\u6559\u3048\u3066\u304f\u3060\u3055\u3044\u3002"
+        },
+        "questionNumber": true,
+        "activeAttempt": null
+      },
+      "valid": false,
+      "label": "number not boolean"
+    },
+    {
+      "schema": "session",
+      "value": {
+        "sessionId": "10000000-0000-4000-8000-000000000001",
+        "question": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "category": "job_change",
+          "difficulty": "standard",
+          "question": "\u8ee2\u8077\u3092\u8003\u3048\u305f\u7406\u7531\u3092\u6559\u3048\u3066\u304f\u3060\u3055\u3044\u3002"
+        },
+        "questionNumber": 0,
+        "activeAttempt": null
+      },
+      "valid": false,
+      "label": "number positive"
+    },
+    {
+      "schema": "submit",
+      "label": "Japanese 499",
+      "value": {
+        "questionId": "00000000-0000-4000-8000-000000000001",
+        "answer": "\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042"
+      },
+      "valid": true
+    },
+    {
+      "schema": "submit",
+      "label": "mixed 500",
+      "value": {
+        "questionId": "00000000-0000-4000-8000-000000000001",
+        "answer": "\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\ud83d\ude00"
+      },
+      "valid": true
+    },
+    {
+      "schema": "submit",
+      "label": "mixed 501",
+      "value": {
+        "questionId": "00000000-0000-4000-8000-000000000001",
+        "answer": "\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\ud83d\ude00"
+      },
+      "valid": false
+    },
+    {
+      "schema": "submit",
+      "label": "newline only",
+      "value": {
+        "questionId": "00000000-0000-4000-8000-000000000001",
+        "answer": "\n"
+      },
+      "valid": false
+    },
+    {
+      "schema": "feedback",
+      "label": "answer one",
+      "value": {
+        "score": 78,
+        "summary": "\u3053\u308c\u306f\u30ed\u30fc\u30ab\u30eb\u691c\u8a3c\u7528\u306e\u30b5\u30f3\u30d7\u30eb\u8a55\u4fa1\u3067\u3059\u3002",
+        "strengths": [],
+        "improvements": [],
+        "attemptId": "10000000-0000-4000-8000-000000000002",
+        "sessionId": "10000000-0000-4000-8000-000000000001",
+        "question": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "category": "job_change",
+          "difficulty": "standard",
+          "question": "\u8ee2\u8077\u3092\u8003\u3048\u305f\u7406\u7531\u3092\u6559\u3048\u3066\u304f\u3060\u3055\u3044\u3002"
+        },
+        "questionNumber": 1,
+        "answer": "a",
+        "createdAt": "2026-09-11T00:00:00Z"
+      },
+      "valid": true
+    },
+    {
+      "schema": "feedback",
+      "label": "answer Japanese 500",
+      "value": {
+        "score": 78,
+        "summary": "\u3053\u308c\u306f\u30ed\u30fc\u30ab\u30eb\u691c\u8a3c\u7528\u306e\u30b5\u30f3\u30d7\u30eb\u8a55\u4fa1\u3067\u3059\u3002",
+        "strengths": [],
+        "improvements": [],
+        "attemptId": "10000000-0000-4000-8000-000000000002",
+        "sessionId": "10000000-0000-4000-8000-000000000001",
+        "question": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "category": "job_change",
+          "difficulty": "standard",
+          "question": "\u8ee2\u8077\u3092\u8003\u3048\u305f\u7406\u7531\u3092\u6559\u3048\u3066\u304f\u3060\u3055\u3044\u3002"
+        },
+        "questionNumber": 1,
+        "answer": "\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042",
+        "createdAt": "2026-09-11T00:00:00Z"
+      },
+      "valid": true
+    },
+    {
+      "schema": "feedback",
+      "label": "answer Japanese 501",
+      "value": {
+        "score": 78,
+        "summary": "\u3053\u308c\u306f\u30ed\u30fc\u30ab\u30eb\u691c\u8a3c\u7528\u306e\u30b5\u30f3\u30d7\u30eb\u8a55\u4fa1\u3067\u3059\u3002",
+        "strengths": [],
+        "improvements": [],
+        "attemptId": "10000000-0000-4000-8000-000000000002",
+        "sessionId": "10000000-0000-4000-8000-000000000001",
+        "question": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "category": "job_change",
+          "difficulty": "standard",
+          "question": "\u8ee2\u8077\u3092\u8003\u3048\u305f\u7406\u7531\u3092\u6559\u3048\u3066\u304f\u3060\u3055\u3044\u3002"
+        },
+        "questionNumber": 1,
+        "answer": "\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042",
+        "createdAt": "2026-09-11T00:00:00Z"
+      },
+      "valid": false
+    },
+    {
+      "schema": "feedback",
+      "label": "answer emoji 500 units",
+      "value": {
+        "score": 78,
+        "summary": "\u3053\u308c\u306f\u30ed\u30fc\u30ab\u30eb\u691c\u8a3c\u7528\u306e\u30b5\u30f3\u30d7\u30eb\u8a55\u4fa1\u3067\u3059\u3002",
+        "strengths": [],
+        "improvements": [],
+        "attemptId": "10000000-0000-4000-8000-000000000002",
+        "sessionId": "10000000-0000-4000-8000-000000000001",
+        "question": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "category": "job_change",
+          "difficulty": "standard",
+          "question": "\u8ee2\u8077\u3092\u8003\u3048\u305f\u7406\u7531\u3092\u6559\u3048\u3066\u304f\u3060\u3055\u3044\u3002"
+        },
+        "questionNumber": 1,
+        "answer": "\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00",
+        "createdAt": "2026-09-11T00:00:00Z"
+      },
+      "valid": true
+    },
+    {
+      "schema": "feedback",
+      "label": "answer emoji over limit",
+      "value": {
+        "score": 78,
+        "summary": "\u3053\u308c\u306f\u30ed\u30fc\u30ab\u30eb\u691c\u8a3c\u7528\u306e\u30b5\u30f3\u30d7\u30eb\u8a55\u4fa1\u3067\u3059\u3002",
+        "strengths": [],
+        "improvements": [],
+        "attemptId": "10000000-0000-4000-8000-000000000002",
+        "sessionId": "10000000-0000-4000-8000-000000000001",
+        "question": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "category": "job_change",
+          "difficulty": "standard",
+          "question": "\u8ee2\u8077\u3092\u8003\u3048\u305f\u7406\u7531\u3092\u6559\u3048\u3066\u304f\u3060\u3055\u3044\u3002"
+        },
+        "questionNumber": 1,
+        "answer": "\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\u3042",
+        "createdAt": "2026-09-11T00:00:00Z"
+      },
+      "valid": false
+    },
+    {
+      "schema": "feedback",
+      "label": "answer empty",
+      "value": {
+        "score": 78,
+        "summary": "\u3053\u308c\u306f\u30ed\u30fc\u30ab\u30eb\u691c\u8a3c\u7528\u306e\u30b5\u30f3\u30d7\u30eb\u8a55\u4fa1\u3067\u3059\u3002",
+        "strengths": [],
+        "improvements": [],
+        "attemptId": "10000000-0000-4000-8000-000000000002",
+        "sessionId": "10000000-0000-4000-8000-000000000001",
+        "question": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "category": "job_change",
+          "difficulty": "standard",
+          "question": "\u8ee2\u8077\u3092\u8003\u3048\u305f\u7406\u7531\u3092\u6559\u3048\u3066\u304f\u3060\u3055\u3044\u3002"
+        },
+        "questionNumber": 1,
+        "answer": "",
+        "createdAt": "2026-09-11T00:00:00Z"
+      },
+      "valid": false
+    },
+    {
+      "schema": "feedback",
+      "label": "answer JS whitespace",
+      "value": {
+        "score": 78,
+        "summary": "\u3053\u308c\u306f\u30ed\u30fc\u30ab\u30eb\u691c\u8a3c\u7528\u306e\u30b5\u30f3\u30d7\u30eb\u8a55\u4fa1\u3067\u3059\u3002",
+        "strengths": [],
+        "improvements": [],
+        "attemptId": "10000000-0000-4000-8000-000000000002",
+        "sessionId": "10000000-0000-4000-8000-000000000001",
+        "question": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "category": "job_change",
+          "difficulty": "standard",
+          "question": "\u8ee2\u8077\u3092\u8003\u3048\u305f\u7406\u7531\u3092\u6559\u3048\u3066\u304f\u3060\u3055\u3044\u3002"
+        },
+        "questionNumber": 1,
+        "answer": " \n\t\ufeff",
+        "createdAt": "2026-09-11T00:00:00Z"
+      },
+      "valid": false
+    },
+    {
+      "schema": "feedback",
+      "label": "answer NEL is not JS whitespace",
+      "value": {
+        "score": 78,
+        "summary": "\u3053\u308c\u306f\u30ed\u30fc\u30ab\u30eb\u691c\u8a3c\u7528\u306e\u30b5\u30f3\u30d7\u30eb\u8a55\u4fa1\u3067\u3059\u3002",
+        "strengths": [],
+        "improvements": [],
+        "attemptId": "10000000-0000-4000-8000-000000000002",
+        "sessionId": "10000000-0000-4000-8000-000000000001",
+        "question": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "category": "job_change",
+          "difficulty": "standard",
+          "question": "\u8ee2\u8077\u3092\u8003\u3048\u305f\u7406\u7531\u3092\u6559\u3048\u3066\u304f\u3060\u3055\u3044\u3002"
+        },
+        "questionNumber": 1,
+        "answer": "\u0085",
+        "createdAt": "2026-09-11T00:00:00Z"
+      },
+      "valid": true
+    },
+    {
+      "schema": "feedback",
+      "label": "answer FS is not JS whitespace",
+      "value": {
+        "score": 78,
+        "summary": "\u3053\u308c\u306f\u30ed\u30fc\u30ab\u30eb\u691c\u8a3c\u7528\u306e\u30b5\u30f3\u30d7\u30eb\u8a55\u4fa1\u3067\u3059\u3002",
+        "strengths": [],
+        "improvements": [],
+        "attemptId": "10000000-0000-4000-8000-000000000002",
+        "sessionId": "10000000-0000-4000-8000-000000000001",
+        "question": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "category": "job_change",
+          "difficulty": "standard",
+          "question": "\u8ee2\u8077\u3092\u8003\u3048\u305f\u7406\u7531\u3092\u6559\u3048\u3066\u304f\u3060\u3055\u3044\u3002"
+        },
+        "questionNumber": 1,
+        "answer": "\u001c",
+        "createdAt": "2026-09-11T00:00:00Z"
+      },
+      "valid": true
+    },
+    {
+      "schema": "feedback",
+      "label": "answer zero width space",
+      "value": {
+        "score": 78,
+        "summary": "\u3053\u308c\u306f\u30ed\u30fc\u30ab\u30eb\u691c\u8a3c\u7528\u306e\u30b5\u30f3\u30d7\u30eb\u8a55\u4fa1\u3067\u3059\u3002",
+        "strengths": [],
+        "improvements": [],
+        "attemptId": "10000000-0000-4000-8000-000000000002",
+        "sessionId": "10000000-0000-4000-8000-000000000001",
+        "question": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "category": "job_change",
+          "difficulty": "standard",
+          "question": "\u8ee2\u8077\u3092\u8003\u3048\u305f\u7406\u7531\u3092\u6559\u3048\u3066\u304f\u3060\u3055\u3044\u3002"
+        },
+        "questionNumber": 1,
+        "answer": "\u200b",
+        "createdAt": "2026-09-11T00:00:00Z"
+      },
+      "valid": true
+    },
+    {
+      "schema": "feedback",
+      "label": "answer lone surrogate",
+      "value": {
+        "score": 78,
+        "summary": "\u3053\u308c\u306f\u30ed\u30fc\u30ab\u30eb\u691c\u8a3c\u7528\u306e\u30b5\u30f3\u30d7\u30eb\u8a55\u4fa1\u3067\u3059\u3002",
+        "strengths": [],
+        "improvements": [],
+        "attemptId": "10000000-0000-4000-8000-000000000002",
+        "sessionId": "10000000-0000-4000-8000-000000000001",
+        "question": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "category": "job_change",
+          "difficulty": "standard",
+          "question": "\u8ee2\u8077\u3092\u8003\u3048\u305f\u7406\u7531\u3092\u6559\u3048\u3066\u304f\u3060\u3055\u3044\u3002"
+        },
+        "questionNumber": 1,
+        "answer": "\ud800",
+        "createdAt": "2026-09-11T00:00:00Z"
+      },
+      "valid": true
+    },
+    {
+      "schema": "feedback",
+      "label": "answer preserve answer",
+      "value": {
+        "score": 78,
+        "summary": "\u3053\u308c\u306f\u30ed\u30fc\u30ab\u30eb\u691c\u8a3c\u7528\u306e\u30b5\u30f3\u30d7\u30eb\u8a55\u4fa1\u3067\u3059\u3002",
+        "strengths": [],
+        "improvements": [],
+        "attemptId": "10000000-0000-4000-8000-000000000002",
+        "sessionId": "10000000-0000-4000-8000-000000000001",
+        "question": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "category": "job_change",
+          "difficulty": "standard",
+          "question": "\u8ee2\u8077\u3092\u8003\u3048\u305f\u7406\u7531\u3092\u6559\u3048\u3066\u304f\u3060\u3055\u3044\u3002"
+        },
+        "questionNumber": 1,
+        "answer": "  \u672c\u6587\n",
+        "createdAt": "2026-09-11T00:00:00Z"
+      },
+      "valid": true
+    },
+    {
+      "schema": "feedback",
+      "label": "answer number",
+      "value": {
+        "score": 78,
+        "summary": "\u3053\u308c\u306f\u30ed\u30fc\u30ab\u30eb\u691c\u8a3c\u7528\u306e\u30b5\u30f3\u30d7\u30eb\u8a55\u4fa1\u3067\u3059\u3002",
+        "strengths": [],
+        "improvements": [],
+        "attemptId": "10000000-0000-4000-8000-000000000002",
+        "sessionId": "10000000-0000-4000-8000-000000000001",
+        "question": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "category": "job_change",
+          "difficulty": "standard",
+          "question": "\u8ee2\u8077\u3092\u8003\u3048\u305f\u7406\u7531\u3092\u6559\u3048\u3066\u304f\u3060\u3055\u3044\u3002"
+        },
+        "questionNumber": 1,
+        "answer": 1,
+        "createdAt": "2026-09-11T00:00:00Z"
+      },
+      "valid": false
+    },
+    {
+      "schema": "feedback",
+      "label": "answer boolean",
+      "value": {
+        "score": 78,
+        "summary": "\u3053\u308c\u306f\u30ed\u30fc\u30ab\u30eb\u691c\u8a3c\u7528\u306e\u30b5\u30f3\u30d7\u30eb\u8a55\u4fa1\u3067\u3059\u3002",
+        "strengths": [],
+        "improvements": [],
+        "attemptId": "10000000-0000-4000-8000-000000000002",
+        "sessionId": "10000000-0000-4000-8000-000000000001",
+        "question": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "category": "job_change",
+          "difficulty": "standard",
+          "question": "\u8ee2\u8077\u3092\u8003\u3048\u305f\u7406\u7531\u3092\u6559\u3048\u3066\u304f\u3060\u3055\u3044\u3002"
+        },
+        "questionNumber": 1,
+        "answer": true,
+        "createdAt": "2026-09-11T00:00:00Z"
+      },
+      "valid": false
+    },
+    {
+      "schema": "feedback",
+      "label": "answer null",
+      "value": {
+        "score": 78,
+        "summary": "\u3053\u308c\u306f\u30ed\u30fc\u30ab\u30eb\u691c\u8a3c\u7528\u306e\u30b5\u30f3\u30d7\u30eb\u8a55\u4fa1\u3067\u3059\u3002",
+        "strengths": [],
+        "improvements": [],
+        "attemptId": "10000000-0000-4000-8000-000000000002",
+        "sessionId": "10000000-0000-4000-8000-000000000001",
+        "question": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "category": "job_change",
+          "difficulty": "standard",
+          "question": "\u8ee2\u8077\u3092\u8003\u3048\u305f\u7406\u7531\u3092\u6559\u3048\u3066\u304f\u3060\u3055\u3044\u3002"
+        },
+        "questionNumber": 1,
+        "answer": null,
+        "createdAt": "2026-09-11T00:00:00Z"
+      },
+      "valid": false
+    },
+    {
+      "schema": "feedback",
+      "label": "answer Japanese 499",
+      "value": {
+        "score": 78,
+        "summary": "\u3053\u308c\u306f\u30ed\u30fc\u30ab\u30eb\u691c\u8a3c\u7528\u306e\u30b5\u30f3\u30d7\u30eb\u8a55\u4fa1\u3067\u3059\u3002",
+        "strengths": [],
+        "improvements": [],
+        "attemptId": "10000000-0000-4000-8000-000000000002",
+        "sessionId": "10000000-0000-4000-8000-000000000001",
+        "question": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "category": "job_change",
+          "difficulty": "standard",
+          "question": "\u8ee2\u8077\u3092\u8003\u3048\u305f\u7406\u7531\u3092\u6559\u3048\u3066\u304f\u3060\u3055\u3044\u3002"
+        },
+        "questionNumber": 1,
+        "answer": "\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042",
+        "createdAt": "2026-09-11T00:00:00Z"
+      },
+      "valid": true
+    },
+    {
+      "schema": "feedback",
+      "label": "answer mixed 500",
+      "value": {
+        "score": 78,
+        "summary": "\u3053\u308c\u306f\u30ed\u30fc\u30ab\u30eb\u691c\u8a3c\u7528\u306e\u30b5\u30f3\u30d7\u30eb\u8a55\u4fa1\u3067\u3059\u3002",
+        "strengths": [],
+        "improvements": [],
+        "attemptId": "10000000-0000-4000-8000-000000000002",
+        "sessionId": "10000000-0000-4000-8000-000000000001",
+        "question": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "category": "job_change",
+          "difficulty": "standard",
+          "question": "\u8ee2\u8077\u3092\u8003\u3048\u305f\u7406\u7531\u3092\u6559\u3048\u3066\u304f\u3060\u3055\u3044\u3002"
+        },
+        "questionNumber": 1,
+        "answer": "\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\ud83d\ude00",
+        "createdAt": "2026-09-11T00:00:00Z"
+      },
+      "valid": true
+    },
+    {
+      "schema": "feedback",
+      "label": "answer mixed 501",
+      "value": {
+        "score": 78,
+        "summary": "\u3053\u308c\u306f\u30ed\u30fc\u30ab\u30eb\u691c\u8a3c\u7528\u306e\u30b5\u30f3\u30d7\u30eb\u8a55\u4fa1\u3067\u3059\u3002",
+        "strengths": [],
+        "improvements": [],
+        "attemptId": "10000000-0000-4000-8000-000000000002",
+        "sessionId": "10000000-0000-4000-8000-000000000001",
+        "question": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "category": "job_change",
+          "difficulty": "standard",
+          "question": "\u8ee2\u8077\u3092\u8003\u3048\u305f\u7406\u7531\u3092\u6559\u3048\u3066\u304f\u3060\u3055\u3044\u3002"
+        },
+        "questionNumber": 1,
+        "answer": "\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\u3042\ud83d\ude00",
+        "createdAt": "2026-09-11T00:00:00Z"
+      },
+      "valid": false
+    },
+    {
+      "schema": "feedback",
+      "label": "answer newline only",
+      "value": {
+        "score": 78,
+        "summary": "\u3053\u308c\u306f\u30ed\u30fc\u30ab\u30eb\u691c\u8a3c\u7528\u306e\u30b5\u30f3\u30d7\u30eb\u8a55\u4fa1\u3067\u3059\u3002",
+        "strengths": [],
+        "improvements": [],
+        "attemptId": "10000000-0000-4000-8000-000000000002",
+        "sessionId": "10000000-0000-4000-8000-000000000001",
+        "question": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "category": "job_change",
+          "difficulty": "standard",
+          "question": "\u8ee2\u8077\u3092\u8003\u3048\u305f\u7406\u7531\u3092\u6559\u3048\u3066\u304f\u3060\u3055\u3044\u3002"
+        },
+        "questionNumber": 1,
+        "answer": "\n",
+        "createdAt": "2026-09-11T00:00:00Z"
+      },
+      "valid": false
+    }
+  ],
+  "scoreCases": [
+    {
+      "label": "0",
+      "scoreJson": "0",
+      "valid": true
+    },
+    {
+      "label": "78",
+      "scoreJson": "78",
+      "valid": true
+    },
+    {
+      "label": "100",
+      "scoreJson": "100",
+      "valid": true
+    },
+    {
+      "label": "78.0",
+      "scoreJson": "78.0",
+      "valid": true
+    },
+    {
+      "label": "7.8e1",
+      "scoreJson": "7.8e1",
+      "valid": true
+    },
+    {
+      "label": "0.0",
+      "scoreJson": "0.0",
+      "valid": true
+    },
+    {
+      "label": "100.0",
+      "scoreJson": "100.0",
+      "valid": true
+    },
+    {
+      "label": "-1",
+      "scoreJson": "-1",
+      "valid": false
+    },
+    {
+      "label": "101",
+      "scoreJson": "101",
+      "valid": false
+    },
+    {
+      "label": "78.5",
+      "scoreJson": "78.5",
+      "valid": false
+    },
+    {
+      "label": "true",
+      "scoreJson": "true",
+      "valid": false
+    },
+    {
+      "label": "false",
+      "scoreJson": "false",
+      "valid": false
+    },
+    {
+      "label": "\"78\"",
+      "scoreJson": "\"78\"",
+      "valid": false
+    },
+    {
+      "label": "null",
+      "scoreJson": "null",
+      "valid": false
+    }
+  ]
+}

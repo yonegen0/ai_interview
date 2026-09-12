@@ -166,12 +166,22 @@ for (const width of [375, 768, 1280])
     await expectContentWithinViewport(page);
     await begin(page);
     await expect(page.locator("main img")).toHaveCount(0);
+    const field = page.getByLabel("あなたの回答");
+    await field.fill("😀".repeat(250));
+    await expect(page.getByText("500 / 500文字 · 100〜300文字がおすすめです")).toBeVisible();
+    await expectContentWithinViewport(page);
+    await field.fill("😀".repeat(250) + "あ");
+    await expect(page.getByText("500文字以内で入力してください。")).toBeVisible();
+    await expect(field).toHaveValue("😀".repeat(250) + "あ");
+    await expect(page.getByRole("button", { name: "回答を送信", exact: true })).toBeDisabled();
+    await expectContentWithinViewport(page);
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= window.innerWidth,
       ),
     ).toBe(true);
-    await answer(page);
+    await field.fill("あ".repeat(500));
+    await page.getByRole("button", { name: "回答を送信", exact: true }).click();
     await expect(
       page.getByRole("heading", { name: "回答を確認しています" }),
     ).toBeVisible();

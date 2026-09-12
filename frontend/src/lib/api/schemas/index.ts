@@ -17,10 +17,14 @@ export const categorySchema = z.enum(
   ],
 );
 export const idSchema = z.uuid();
+export const ANSWER_MAX_LENGTH = 500;
 export const answerSchema = z
   .string()
   .min(1, "回答を入力してください。")
-  .max(2000, "2000文字以内で入力してください。")
+  .refine(
+    (value) => value.length <= ANSWER_MAX_LENGTH,
+    `${ANSWER_MAX_LENGTH}文字以内で入力してください。`,
+  )
   .refine(
     (value) => value.trim().length > 0,
     "空白以外の回答を入力してください。",

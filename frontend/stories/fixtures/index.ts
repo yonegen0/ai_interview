@@ -35,9 +35,8 @@ export const exactText = (length: number): string => {
 export const storyTexts = {
   text100: exactText(100),
   text500: exactText(500),
+  text501: exactText(501),
   text1000: exactText(1000),
-  text2000: exactText(2000),
-  text2001: exactText(2001),
 } as const;
 
 export const createQuestionFixture = (

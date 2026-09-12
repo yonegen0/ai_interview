@@ -1,7 +1,7 @@
 # API詳細設計
 
-> 文書バージョン: 2.1\
-> 更新日: 2026-09-11  
+> 文書バージョン: 2.3\
+> 更新日: 2026-09-12
 > 対象フェーズ: Backend実装・Terraform構築・実API接続  
 > 情報源方針: 実装時は最新の公式ドキュメントを最優先で再確認する。
 
@@ -17,7 +17,10 @@ HTTP・冪等性・復旧は[API契約](../../../docs/FRONTEND_API_CONTRACT.md)�
 全保護RouteにJWT Authorizerを使用し、主体はJWT subから取得する。
 Session／Attempt／Evaluationを取得する際に所有者を検証する。
 質問IDを含むIDはUUID。正式な質問本文はBackendのQuestion Bankを正とする。
-回答はJavaScript文字列長で1〜2000、空白のみは禁止。Pydantic側との互換を検証する。
+回答はJavaScript文字列長で1〜500、空白のみは禁止。Pydantic側との互換を検証する。
+UTF-16単位で数え、本文は加工しない。scoreは有限の整数値78.0・7.8e1も受理し、整数として返す。
+bool・文字列・小数・非有限値・範囲外を拒否し、他のフィールドのStrict設定は維持する。
+P1ローカルHandlerは主体欠落を401、未知Routeを404とする。既知Pathの未対応Methodは405・METHOD_NOT_ALLOWEDと対応MethodのAllowヘッダーを返す。
 カテゴリは現行7種類。カテゴリ取得Routeは追加しない。
 
 ## 3. 受付と評価

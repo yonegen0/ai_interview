@@ -90,12 +90,6 @@ export const Answer100Characters: Story = {
 export const Answer500Characters: Story = {
   args: { feedback: createFeedbackFixture({ answer: storyTexts.text500 }) },
 };
-export const Answer1000Characters: Story = {
-  args: { feedback: createFeedbackFixture({ answer: storyTexts.text1000 }) },
-};
-export const Answer2000Characters: Story = {
-  args: { feedback: createFeedbackFixture({ answer: storyTexts.text2000 }) },
-};
 export const MultilineAnswer: Story = {
   args: {
     feedback: createFeedbackFixture({
@@ -131,7 +125,7 @@ export const UnsafeHtmlText: Story = {
   },
 };
 export const Mobile: Story = {
-  ...Answer1000Characters,
+  ...Answer500Characters,
   globals: { viewport: { value: "iphoneSe" } },
   play: ({ canvasElement }) => assertNoHorizontalOverflow(canvasElement),
 };

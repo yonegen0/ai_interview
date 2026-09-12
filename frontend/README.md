@@ -73,7 +73,7 @@ Storybookの `Components/Atoms/MascotCharacter` で表情・サイズ・取得�
 - /practice/session/?sessionId=UUID : 回答と評価待機
 - /result/?attemptId=UUID : 結果
 
-再挑戦時はmode=retryとfromAttemptIdを付けます。回答は1〜2000文字。評価GETは2秒間隔、120秒で手動確認に切り替わります。
+再挑戦時はmode=retryとfromAttemptIdを付けます。回答は1〜500文字。評価GETは2秒間隔、120秒で手動確認に切り替わります。
 
 ## 資料
 

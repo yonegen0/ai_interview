@@ -1,10 +1,28 @@
 # CHANGELOG
 
-> 文書バージョン: 2.1\
-> 更新日: 2026-09-11  
+> 文書バージョン: 2.3\
+> 更新日: 2026-09-12
 > 対象フェーズ: Backend実装・Terraform構築・実API接続  
 > 情報源方針: 実装時は最新の公式ドキュメントを最優先で再確認する。
 
+
+## v2.3 - 2026-09-12
+
+- 回答の上限をFrontend・Backend共通でUTF-16単位500文字へ変更。100〜300文字の推奨と本文非加工を維持。
+- カウンター・エラー・Story・契約fixtureを更新。旧長文pending／Mock結果は移行対象外、通常下書きは保持。
+- scoreの有限整数値表現を受理して整数出力。405にAllowヘッダーを追加。
+- 文字数境界、送信抑止、下書き復元、score、HTTPヘッダーの検証を追加。
+- 過去の2000文字仕様と失敗結果は[検証記録](../../docs/BACKEND_P1_VERIFICATION.md)に履歴として保持。
+
+## v2.2 - 2026-09-11
+
+- [ADR-003](../../docs/ADR-003-local-backend-foundation.md)によりP0・P1を実装。
+- 添付実装計画を6 API・21問・メモリRepository・Fake Workerの詳細計画へ置換。
+- Python 3.13・uv・Pydantic、本人スコープ、全POST冪等応答、ロック付き原子的更新を追加。
+- GETとは独立した評価Worker、失敗確定、CLIデモ、pytest・Zod共通fixture・Backend CIを追加。
+- ローカル業務検証と永続化・AWS実装前の必須判断を分け、P2〜P7の完了証拠を整理。
+- 本番認証・永続化・外部AI・AWS操作・公開は実施しない。
+- 詳細は[検証記録](../../docs/BACKEND_P1_VERIFICATION.md)を参照。
 
 ## v2.1 - 2026-09-11
 

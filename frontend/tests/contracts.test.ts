@@ -9,11 +9,11 @@ import { reducer } from "@/features/interview/model/machine";
 import { operationSchema, readSaved, save } from "@/lib/storage/recovery";
 import { questions } from "@/mocks/data/questions";
 describe("answer contract", () => {
-  it.each(["", "   ", "\n\t", "あ".repeat(2001)])(
+  it.each(["", "   ", "\n\t", "あ".repeat(501)])(
     "rejects invalid answer %s",
     (value) => expect(answerSchema.safeParse(value).success).toBe(false),
   );
-  it.each([1, 99, 100, 2000])("accepts %i characters", (size) =>
+  it.each([1, 99, 100, 499, 500])("accepts %i characters", (size) =>
     expect(answerSchema.safeParse("あ".repeat(size)).success).toBe(true),
   );
   it("validates question enums and required fields", () => {

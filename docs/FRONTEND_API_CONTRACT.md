@@ -1,6 +1,6 @@
 # Frontend単体MVP API契約
 
-更新日: 2026-09-11。設計書v2.1／[ADR-002](ADR-002-frontend-contract-alignment.md)に対応。
+更新日: 2026-09-12。設計書v2.3／[ADR-002](ADR-002-frontend-contract-alignment.md)に対応。
 
 ## 対象と正本
 
@@ -28,9 +28,14 @@ status: `processing | completed | failed`。
 
 Feedback: `attemptId`, `sessionId`, `question`, `questionNumber`, `answer`, `score`, `summary`, `strengths`, `improvements`, 任意の `exampleAnswer`, `createdAt`。
 Scoreは0〜100の整数。配列0件、回答例なしを許容します。HTMLとして描画しません。
+scoreは78.0・7.8e1など有限の整数値も受理し、Backendは整数78として返します。
+真偽値・文字列・null・小数・非有限値・範囲外は拒否します。他の型のStrict設定は変更しません。
 
 カテゴリは `job_change`, `motivation`, `strengths`, `experience`, `difficulty`, `career`, `questions`。
-回答は空白のみを禁止し、JavaScript文字列長で1〜2000。100〜300文字は推奨であり制限ではありません。
+回答は空白のみを禁止し、JavaScript文字列長（UTF-16 code unit）で1〜500。100〜300文字は推奨であり制限ではありません。
+通常の絵文字は2単位です。本文はtrim・正規化・切り詰めをせず保存・返却します。
+カウンターは「現在値 / 500文字 · 100〜300文字がおすすめです」、上限エラーは「500文字以内で入力してください。」です。
+500文字制限は回答POSTとFeedbackのanswerへ共通適用し、質問・要約・指摘・回答例には追加しません。
 
 ## エラー
 
@@ -52,6 +57,12 @@ Scoreは0〜100の整数。配列0件、回答例なしを許容します。HTML
 評価失敗はHTTP 200の評価GETの `status=failed` と `error` で通知します（例: EVALUATION_FAILED）。通信異常と区別し、既存の評価失敗画面を表示します。error.messageを画面へ直接表示しません。
 502/504はHTTPリクエスト自体が失敗した場合の応答です。これだけでは受付済み要求の評価失敗を確定しません。未知コードは汎用表示にします。
 Client内のcodeは NETWORK_ERROR / TIMEOUT / ABORTED / INVALID_RESPONSEです。
+
+P1ローカルHandlerのルーティング層は、未知Routeに404・NOT_FOUND、
+既知Pathの非対応Methodに405・METHOD_NOT_ALLOWEDを固定messageで返します。
+405にはパスに対応するMethodを重複除去・ソートしたAllowヘッダーを付けます（複数はカンマ＋空白区切り）。
+主体検証は先に行い、未認証は401です。HEAD／OPTIONSの自動処理は追加しません。
+採用済みリソースの404（SESSION_NOT_FOUND／ATTEMPT_NOT_FOUND）は置換しません。
 
 ## 冪等性・競合
 
@@ -75,6 +86,16 @@ Client内のcodeは NETWORK_ERROR / TIMEOUT / ABORTED / INVALID_RESPONSEです�
 
 ## Mock
 
+### 500文字への切替と旧保存データ
+
+- 質問・操作コンテキストが一致する通常の下書きは501文字以上でも復元します。本文は保持し、送信前に500文字以下への編集を求めます。
+- 500文字以下の有効な未確定要求は同じキー・同じ本文で手動確認します。
+- 旧501〜2000文字の未確定要求は移行対象外です。保存検証に失敗するとレコード全体が破棄され、同居する下書きも失われ得ます。キー・本文の自動変換や自動送信はしません。
+- 旧長文回答を含むMock結果も復元保証外です。Mock全体の保存検証が失敗すると他のMock状態も復元されない場合があります。
+- 保存versionは1のままです。互換Schema、移行、一括削除は追加しません。新しい練習・fixtureで動作を確認します。
+
+### Mock動作
+
 7カテゴリ×3問、標準難易度。通常は3回目の評価取得で完了。固定Scoreと文章を返し、画面にサンプル評価と明示します。
 開発者ツールで `sessionStorage.setItem('pocket:scenario', 'response_lost')` のように設定できます。
 利用可能な値: success / slow / never / validation / unauthorized / not_found / server_error / network_error / response_lost / invalid_response / evaluation_failed / state_conflict。
@@ -82,6 +103,10 @@ Client内のcodeは NETWORK_ERROR / TIMEOUT / ABORTED / INVALID_RESPONSEです�
 Storyはparameters.mockで同じWorkerを起動でき、parameters.handlersで上書きできます。Nodeテストは同じHandlerとメモリRepositoryを使います。
 
 ## 実Backend接続の条件
+
+[P1 Backend](../backend/README.md)は本契約をメモリ＋Fakeで検証するローカル実装です。
+202前の永続化、分散排他、JWT署名検証、非同期起動・停止回復は未実装で、Frontendは未接続です。
+[ADR-003](ADR-003-local-backend-foundation.md)と[検証記録](BACKEND_P1_VERIFICATION.md)を参照してください。
 
 本契約のエンドポイント、冪等性、評価状態に対応したBackendと認証方式が必要です。MSWを無効にしBase URLを設定しただけでは旧APIと接続できません。
 認証トークンの付与・更新、認証切れ、ログアウト時のQuery Cache／保存情報の分離・破棄を次工程で決定・実装します。
