@@ -44,10 +44,10 @@ def test_question_cycle_and_retry(runtime, category):
         assert current["questionNumber"] == number
         payload["questionId"] = current["question"]["id"]
         accepted = runtime.application.submit(OWNER, uid(200 + number), session_id, payload).body
-        runtime.worker.run(accepted["evaluationId"])
+        runtime.worker.run(OWNER, accepted["evaluationId"])
         retry = runtime.application.submit(OWNER, uid(300 + number), session_id, payload).body
         assert retry["attemptId"] != accepted["attemptId"]
-        runtime.worker.run(retry["evaluationId"])
+        runtime.worker.run(OWNER, retry["evaluationId"])
         feedback = runtime.application.feedback(OWNER, retry["attemptId"]).body
         assert feedback["questionNumber"] == number
         assert feedback["answer"] == payload["answer"]
@@ -62,7 +62,7 @@ def test_replay_after_completion_and_next_and_response_loss(runtime):
     session_id, payload, accepted = submit(runtime)
     for _ in range(3):
         assert runtime.application.submit(OWNER, uid(101), session_id, payload).body == accepted
-    runtime.worker.run(accepted["evaluationId"])
+    runtime.worker.run(OWNER, accepted["evaluationId"])
     next_payload = {"fromAttemptId": accepted["attemptId"]}
     next_reply = runtime.application.next_question(OWNER, uid(102), session_id, next_payload)
     assert runtime.application.submit(OWNER, uid(101), session_id, payload).body == accepted
@@ -142,7 +142,7 @@ def test_state_conflicts_and_unsuccessful_key_is_reusable(runtime):
             OWNER, uid(103), session_id, {"fromAttemptId": accepted["attemptId"]}
         ),
     )
-    runtime.worker.run(accepted["evaluationId"])
+    runtime.worker.run(OWNER, accepted["evaluationId"])
     assert runtime.application.submit(OWNER, uid(102), session_id, payload).status == 202
 
 
@@ -182,7 +182,7 @@ def test_concurrent_create_and_next(runtime):
     accepted = runtime.application.submit(
         OWNER, uid(101), session_id, {"questionId": question["id"], "answer": "回答"}
     ).body
-    runtime.worker.run(accepted["evaluationId"])
+    runtime.worker.run(OWNER, accepted["evaluationId"])
     with ThreadPoolExecutor(max_workers=4) as pool:
         replies = list(
             pool.map(
@@ -214,14 +214,14 @@ def test_gets_never_run_worker_and_duplicate_worker_is_noop(runtime):
 
     runtime.provider.behavior = held
     with ThreadPoolExecutor(max_workers=2) as pool:
-        running = pool.submit(runtime.worker.run, accepted["evaluationId"])
+        running = pool.submit(runtime.worker.run, OWNER, accepted["evaluationId"])
         try:
             assert entered.wait(timeout=5)
-            assert runtime.worker.run(accepted["evaluationId"]) is False
+            assert runtime.worker.run(OWNER, accepted["evaluationId"]) is False
         finally:
             release.set()
         assert running.result(timeout=5)
-    assert runtime.worker.run(accepted["evaluationId"]) is False
+    assert runtime.worker.run(OWNER, accepted["evaluationId"]) is False
     assert runtime.provider.calls == 1
     assert runtime.application.feedback(OWNER, accepted["attemptId"]).body["strengths"] == []
 
@@ -236,7 +236,7 @@ def test_failed_then_retry_without_leaking_provider_data(runtime, failure, capsy
         return {"score": True, "summary": "SECRET RAW PROVIDER ANSWER"}
 
     runtime.provider.behavior = fail
-    runtime.worker.run(accepted["evaluationId"])
+    runtime.worker.run(OWNER, accepted["evaluationId"])
     result = runtime.application.evaluation(OWNER, accepted["evaluationId"])
     assert result.body["status"] == "failed"
     assert result.body["error"]["code"] == "EVALUATION_FAILED"
@@ -248,7 +248,7 @@ def test_failed_then_retry_without_leaking_provider_data(runtime, failure, capsy
     )
     runtime.provider.behavior = None
     retry = runtime.application.submit(OWNER, uid(102), session_id, payload).body
-    runtime.worker.run(retry["evaluationId"])
+    runtime.worker.run(OWNER, retry["evaluationId"])
     assert (
         runtime.application.evaluation(OWNER, retry["evaluationId"]).body["status"] == "completed"
     )
@@ -260,9 +260,11 @@ def test_commit_failure_is_atomic(runtime, monkeypatch, operation):
     if operation in {"next", "claim", "finish"}:
         accepted = runtime.application.submit(OWNER, uid(101), session_id, payload).body
         if operation == "next":
-            runtime.worker.run(accepted["evaluationId"])
+            runtime.worker.run(OWNER, accepted["evaluationId"])
         if operation == "finish":
-            runtime.repository.claim(accepted["evaluationId"])
+            lease = runtime.repository.claim(
+                OWNER, accepted["evaluationId"], 1, uid(800), runtime.worker.config
+            ).lease
     before = runtime.repository.snapshot()
 
     def fail_commit(_):
@@ -281,9 +283,11 @@ def test_commit_failure_is_atomic(runtime, monkeypatch, operation):
                 OWNER, uid(200), session_id, {"fromAttemptId": accepted["attemptId"]}
             )
         elif operation == "claim":
-            runtime.repository.claim(accepted["evaluationId"])
+            runtime.repository.claim(
+                OWNER, accepted["evaluationId"], 1, uid(800), runtime.worker.config
+            )
         else:
-            runtime.repository.finish(accepted["evaluationId"], None, "test")
+            runtime.repository.finish(lease, reason="PREPARATION_FAILED")
     assert runtime.repository.snapshot() == before
 
 
@@ -309,7 +313,7 @@ def test_detached_reads_and_question_snapshot(runtime):
         runtime.application.question(OWNER, session_id).body["question"]["question"] != "modified"
     )
     assert runtime.application.question(OWNER, session_id).body["questionNumber"] == 1
-    runtime.worker.run(accepted["evaluationId"])
+    runtime.worker.run(OWNER, accepted["evaluationId"])
     result = runtime.application.feedback(OWNER, accepted["attemptId"])
     result.body["strengths"].append("modified")
     assert (
@@ -324,13 +328,15 @@ def test_detached_reads_and_question_snapshot(runtime):
 
 def test_old_worker_does_not_overwrite_new_active(runtime):
     session_id, _, accepted = submit(runtime)
-    runtime.repository.claim(accepted["evaluationId"])
+    lease = runtime.repository.claim(
+        OWNER, accepted["evaluationId"], 1, uid(800), runtime.worker.config
+    ).lease
     # Inject a later active pointer directly: this defensive state cannot be produced by P1 API.
     with runtime.repository._lock:
         runtime.repository._state.sessions[session_id].active = ActiveAttempt(
             attemptId=uid(900), evaluationId=uid(901), status="processing"
         )
-    runtime.repository.finish(accepted["evaluationId"], None, "test")
+    runtime.repository.finish(lease, reason="PREPARATION_FAILED")
     current = runtime.application.question(OWNER, session_id).body["activeAttempt"]
     assert current == {"attemptId": uid(900), "evaluationId": uid(901), "status": "processing"}
 
@@ -370,7 +376,7 @@ def test_nonfinite_provider_score_fails_safely(runtime, score):
         "strengths": [],
         "improvements": [],
     }
-    runtime.worker.run(accepted["evaluationId"])
+    runtime.worker.run(OWNER, accepted["evaluationId"])
     state = runtime.application.evaluation(OWNER, accepted["evaluationId"]).body
     assert state["status"] == "failed"
     assert state["error"]["code"] == "EVALUATION_FAILED"

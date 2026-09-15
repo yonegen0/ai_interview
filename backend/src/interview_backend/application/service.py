@@ -2,6 +2,7 @@
 
 import json
 from collections.abc import Callable
+from hashlib import sha256
 
 from pydantic import BaseModel, ValidationError
 
@@ -46,9 +47,10 @@ class Application:
 
     @staticmethod
     def _fingerprint(path: str, payload: dict) -> str:
-        return json.dumps(
+        canonical = json.dumps(
             ["POST", path, payload], sort_keys=True, ensure_ascii=True, separators=(",", ":")
         )
+        return sha256(canonical.encode("ascii")).hexdigest()
 
     def create(self, owner: str, key: str, payload: dict) -> Reply:
         self._owner(owner)

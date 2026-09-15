@@ -1,195 +1,170 @@
-"""Copy-on-write memory transactions. Not a distributed lock or persistence layer."""
+"""Copy-on-write Memory adapter for the same domain operations as DynamoDB."""
 
-from collections.abc import Callable
 from copy import deepcopy
 from threading import RLock
+from time import monotonic
 
 from interview_backend.models.internal import (
-    Attempt,
-    BusinessError,
-    Evaluation,
-    IdempotentReply,
-    Reply,
-    Session,
+    Candidate,
+    CandidatePage,
+    CorruptCandidate,
+    IntegrityError,
+    RetryExhausted,
     State,
+    StorageError,
 )
-from interview_backend.models.public import ActiveAttempt, Feedback, Question, SessionResponse
+from interview_backend.repositories.budget import remaining_budget
+from interview_backend.repositories.codec import (
+    PARTITIONS,
+    encode,
+    validate,
+    validate_cursor_key,
+    work,
+)
+from interview_backend.repositories.domain import DomainRepository, utc_ms
+
+COLLECTIONS = {
+    "Session": "sessions",
+    "Attempt": "attempts",
+    "Evaluation": "evaluations",
+    "Dispatch": "dispatches",
+    "IdempotencyRecord": "requests",
+    "RecoveryCursor": "cursors",
+}
 
 
-def session_body(session: Session) -> dict:
-    return SessionResponse(
-        sessionId=session.id,
-        question=session.question,
-        questionNumber=session.number,
-        activeAttempt=session.active,
-    ).wire()
+class MemoryUnit:
+    def __init__(self, state, revisions):
+        self.state, self.revisions = state, revisions
+        self.writes = {}
+        self.window = None
+
+    def location(self, reference):
+        kind, owner, identifier = reference
+        records = getattr(self.state, COLLECTIONS[kind])
+        if kind == "IdempotencyRecord":
+            return records, (owner, identifier)
+        if kind == "RecoveryCursor":
+            return records, identifier
+        existing = records.get(identifier)
+        return records, (
+            (owner, identifier) if existing is not None and existing.owner != owner else identifier
+        )
+
+    def get(self, reference):
+        records, identifier = self.location(reference)
+        record = deepcopy(records.get(identifier))
+        if record is not None:
+            validate(record)
+        return record
+
+    def many(self, references):
+        return [self.get(r) for r in references]
+
+    def refresh(self, reference):
+        return self.get(reference)
+
+    def ignore_dependency(self, reference):
+        pass  # One lock already protects the entire Memory snapshot.
+
+    def revision(self, reference):
+        return self.revisions.get(reference)
+
+    def put(self, reference, record):
+        encode(reference[0], record, (self.revision(reference) or 0) + 1)
+        records, identifier = self.location(reference)
+        records[identifier] = deepcopy(record)
+        self.writes[reference] = record
+
+    def new(self, reference, record):
+        if self.get(reference) is not None:
+            raise IntegrityError("id_collision")
+        self.put(reference, record)
 
 
-def owned(records: dict, resource_id: str, owner: str, code: str):
-    record = records.get(resource_id)
-    if record is None or record.owner != owner:
-        raise BusinessError(404, code)
-    return record
-
-
-class MemoryRepository:
-    def __init__(self):
+class MemoryRepository(DomainRepository):
+    def __init__(self, clock=utc_ms, monotonic_clock=monotonic):
+        super().__init__(clock)
         self._state = State()
+        self._revisions = {}
         self._lock = RLock()
+        self.monotonic = monotonic_clock
 
-    def snapshot(self) -> State:
-        """Detached diagnostic snapshot for tests; never a writable live reference."""
+    def snapshot(self):
         with self._lock:
             return deepcopy(self._state)
 
-    def _commit(self, candidate: State) -> None:
-        # All potentially failing preparation/copying happens before this assignment.
+    def _commit(self, candidate):
         self._state = candidate
 
-    def _once(
-        self, owner: str, key: str, fingerprint: str, operation: Callable[[State], Reply]
-    ) -> Reply:
+    def _atomic(self, operation, *, temporal=False, conflict_once=False):
+        deadline = self.monotonic() + 5
         with self._lock:
-            cached = self._state.requests.get((owner, key))
-            if cached is not None:
-                if cached.fingerprint != fingerprint:
-                    raise BusinessError(409, "IDEMPOTENCY_CONFLICT")
-                return deepcopy(cached.reply)
-            candidate = deepcopy(self._state)
-            reply = operation(candidate)
-            candidate.requests[(owner, key)] = IdempotentReply(fingerprint, deepcopy(reply))
-            detached = deepcopy(reply)
-            self._commit(candidate)
-            return detached
+            for _ in range(4):
+                unit = MemoryUnit(deepcopy(self._state), self._revisions)
+                result = deepcopy(operation(unit))
+                if not unit.writes:
+                    return result
+                remaining = remaining_budget.get()
+                if self.monotonic() >= deadline or (remaining is not None and remaining() < 400):
+                    raise RetryExhausted("storage_budget")
+                if unit.window is not None and not unit.window.valid(self.clock()):
+                    continue
+                self._commit(unit.state)
+                for reference in unit.writes:
+                    self._revisions[reference] = self._revisions.get(reference, -1) + 1
+                return result
+            raise RetryExhausted("storage_retry")
 
-    def create_once(
-        self,
-        owner: str,
-        key: str,
-        fingerprint: str,
-        questions: tuple[Question, ...],
-        new_id: Callable[[], str],
-    ) -> Reply:
-        def operation(state: State) -> Reply:
-            session_id = new_id()
-            if session_id in state.sessions:
-                raise RuntimeError("ID collision")
-            state.sessions[session_id] = Session(owner, session_id, deepcopy(questions))
-            return Reply(201, {"sessionId": session_id})
-
-        return self._once(owner, key, fingerprint, operation)
-
-    def accept_once(
-        self,
-        owner: str,
-        key: str,
-        fingerprint: str,
-        session_id: str,
-        question_id: str,
-        answer: str,
-        new_id: Callable[[], str],
-    ) -> Reply:
-        def operation(state: State) -> Reply:
-            session = owned(state.sessions, session_id, owner, "SESSION_NOT_FOUND")
-            if session.question.id != question_id or (
-                session.active and session.active.status == "processing"
+    def due_candidates(self, partition, cutoff, cursor=None, limit=100):
+        if partition not in PARTITIONS or limit != 100:
+            raise ValueError("query_parameters")
+        if cursor is not None:
+            validate_cursor_key(cursor, partition)
+        with self._lock:
+            candidates = []
+            for kind, records in (
+                ("Dispatch", self._state.dispatches),
+                ("Evaluation", self._state.evaluations),
             ):
-                raise BusinessError(409, "SESSION_STATE_CONFLICT")
-            attempt_id, evaluation_id = new_id(), new_id()
-            if attempt_id in state.attempts or evaluation_id in state.evaluations:
-                raise RuntimeError("ID collision")
-            state.attempts[attempt_id] = Attempt(
-                owner,
-                attempt_id,
-                session_id,
-                evaluation_id,
-                deepcopy(session.question),
-                session.number,
-                answer,
-            )
-            state.evaluations[evaluation_id] = Evaluation(owner, evaluation_id, attempt_id)
-            session.active = ActiveAttempt(
-                attemptId=attempt_id, evaluationId=evaluation_id, status="processing"
-            )
-            return Reply(202, session.active.wire())
+                for record in records.values():
+                    expected_partition = (
+                        PARTITIONS[2]
+                        if kind == "Evaluation" and record.worker_state == "running"
+                        else PARTITIONS[0]
+                        if kind == "Dispatch" and record.status == "PENDING"
+                        else PARTITIONS[1]
+                        if kind == "Dispatch" and record.status == "QUEUED"
+                        else None
+                    )
+                    if expected_partition != partition:
+                        continue
+                    try:
+                        index = work(record)
+                    except TypeError, ValueError:
+                        return CandidatePage((CorruptCandidate(None),), None)
+                    if index is None or index[0] != partition:
+                        continue
+                    candidate_key = {
+                        "PK": f"USER#{record.owner}",
+                        "SK": f"{kind.upper()}#{record.id}",
+                        "work_pk": index[0],
+                        "work_sk": f"{index[1]:013d}#{record.id}",
+                    }
+                    if candidate_key["work_sk"] > f"{cutoff:013d}#~":
+                        continue
+                    try:
+                        encode(kind, record, 0)
+                    except StorageError, ValueError, TypeError:
+                        candidates.append(CorruptCandidate(candidate_key))
+                    else:
+                        candidates.append(Candidate(record.owner, record.id, candidate_key))
 
-        return self._once(owner, key, fingerprint, operation)
+            def ordering(key):
+                return key["work_sk"], key["PK"], key["SK"]
 
-    def next_once(
-        self, owner: str, key: str, fingerprint: str, session_id: str, attempt_id: str
-    ) -> Reply:
-        def operation(state: State) -> Reply:
-            session = owned(state.sessions, session_id, owner, "SESSION_NOT_FOUND")
-            if (
-                not session.active
-                or session.active.attemptId != attempt_id
-                or (session.active.status != "completed")
-            ):
-                raise BusinessError(409, "SESSION_STATE_CONFLICT")
-            session.number += 1
-            session.active = None
-            return Reply(200, session_body(session))
-
-        return self._once(owner, key, fingerprint, operation)
-
-    def get_session(self, owner: str, resource_id: str) -> Reply:
-        with self._lock:
-            session = owned(self._state.sessions, resource_id, owner, "SESSION_NOT_FOUND")
-            return Reply(200, session_body(session))
-
-    def get_evaluation(self, owner: str, resource_id: str) -> Reply:
-        with self._lock:
-            evaluation = owned(self._state.evaluations, resource_id, owner, "ATTEMPT_NOT_FOUND")
-            body = {
-                "evaluationId": evaluation.id,
-                "attemptId": evaluation.attempt_id,
-                "status": evaluation.status,
-            }
-            if evaluation.error is not None:
-                body["error"] = deepcopy(evaluation.error)
-            return Reply(200, body)
-
-    def get_feedback(self, owner: str, resource_id: str) -> Reply:
-        with self._lock:
-            attempt = owned(self._state.attempts, resource_id, owner, "ATTEMPT_NOT_FOUND")
-            evaluation = self._state.evaluations[attempt.evaluation_id]
-            if evaluation.status != "completed" or evaluation.feedback is None:
-                raise BusinessError(409, "EVALUATION_NOT_COMPLETED")
-            return Reply(200, evaluation.feedback.wire())
-
-    def claim(self, evaluation_id: str) -> Attempt | None:
-        with self._lock:
-            evaluation = self._state.evaluations.get(evaluation_id)
-            if evaluation is None or evaluation.worker_state != "pending":
-                return None
-            candidate = deepcopy(self._state)
-            candidate.evaluations[evaluation_id].worker_state = "running"
-            attempt = deepcopy(candidate.attempts[evaluation.attempt_id])
-            self._commit(candidate)
-            return attempt
-
-    def finish(self, evaluation_id: str, feedback: Feedback | None, version: str) -> None:
-        with self._lock:
-            evaluation = self._state.evaluations.get(evaluation_id)
-            if evaluation is None or evaluation.worker_state != "running":
-                return
-            candidate = deepcopy(self._state)
-            result = candidate.evaluations[evaluation_id]
-            result.worker_state = "terminal"
-            result.status = "completed" if feedback is not None else "failed"
-            result.feedback = deepcopy(feedback)
-            result.prompt_version = version
-            result.error = (
-                None
-                if feedback is not None
-                else {"code": "EVALUATION_FAILED", "message": "Evaluation could not be completed."}
-            )
-            attempt = candidate.attempts[result.attempt_id]
-            session = candidate.sessions[attempt.session_id]
-            if (
-                session.active
-                and session.active.attemptId == result.attempt_id
-                and (session.active.evaluationId == evaluation_id)
-            ):
-                session.active = session.active.model_copy(update={"status": result.status})
-            self._commit(candidate)
+            candidates.sort(key=lambda c: ordering(c.key))
+            if cursor:
+                candidates = [c for c in candidates if ordering(c.key) > ordering(cursor)]
+            page = candidates[:limit]
+            return CandidatePage(tuple(page), page[-1].key if len(candidates) > limit else None)

@@ -2,8 +2,8 @@
 name = "interview-backend"
 version = "0.1.0"
 description = "Local, single-process backend for the existing frontend contract"
-requires-python = ">=3.13,<3.14"
-dependencies = ["pydantic>=2.11,<3"]
+requires-python = ">=3.14,<3.15"
+dependencies = ["pydantic>=2.11,<3", "boto3>=1.40,<2"]
 
 [dependency-groups]
 dev = ["pytest>=8,<10", "ruff>=0.11,<1"]
@@ -17,9 +17,14 @@ interview-demo = "interview_backend.demo:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "-m 'not dynamodb and not aws_e2e'"
+markers = [
+    "dynamodb: requires explicitly configured AWS dev table creation; P4 validation",
+    "aws_e2e: requires explicitly verified P4 AWS deployment; never a local test",
+]
 
 [tool.ruff]
-target-version = "py313"
+target-version = "py314"
 line-length = 100
 
 [tool.ruff.lint]

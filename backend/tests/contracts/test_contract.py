@@ -35,6 +35,11 @@ MODELS = {
 }
 
 
+@pytest.fixture
+def runtime(contract_runtime):
+    return contract_runtime
+
+
 def validate(schema, value):
     if schema == "evaluation":
         return evaluation_adapter.validate_python(value)
@@ -85,7 +90,7 @@ def test_score_json_compatibility(runtime, case):
     )
     accepted = json.loads(reply["body"])
     runtime.provider.behavior = lambda _: value
-    runtime.worker.run(accepted["evaluationId"])
+    runtime.worker.run("local-demo-user", accepted["evaluationId"])
     state = runtime.handler(demo_event("GET", f"/evaluations/{accepted['evaluationId']}"))
     assert json.loads(state["body"])["status"] == ("completed" if case["valid"] else "failed")
     if case["valid"]:
@@ -98,7 +103,7 @@ def test_handler_fixture_flow(runtime):
         if "worker" in step:
             if step.get("fail"):
                 runtime.provider.behavior = lambda _: {"score": True}
-            assert runtime.worker.run(step["worker"])
+            assert runtime.worker.run("local-demo-user", step["worker"])
             continue
         result = runtime.handler(
             demo_event(step["method"], step["path"], step.get("request"), step.get("key"))
@@ -142,7 +147,7 @@ def test_input_fixtures_through_json_handler(runtime, case):
         assert result["statusCode"] == 400
     elif case["schema"] == "submit":
         accepted = json.loads(result["body"])
-        runtime.worker.run(accepted["evaluationId"])
+        runtime.worker.run("local-demo-user", accepted["evaluationId"])
         feedback = runtime.handler(demo_event("GET", f"/attempts/{accepted['attemptId']}/feedback"))
         assert feedback["statusCode"] == 200
         assert json.loads(feedback["body"])["answer"] == case["value"]["answer"]

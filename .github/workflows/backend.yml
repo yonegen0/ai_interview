@@ -1,8 +1,8 @@
 name: Backend
 on:
+  workflow_call:
   pull_request:
   push:
-    branches: [main]
 permissions:
   contents: read
 jobs:
@@ -16,13 +16,13 @@ jobs:
       - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           version: "0.11.8"
-          python-version: "3.13"
+          python-version: "3.14"
           enable-cache: true
           cache-dependency-glob: backend/uv.lock
       - run: uv sync --locked
       - run: uv run --locked ruff check .
-      - run: uv run --locked ruff format --check .
-      - run: uv run --locked pytest -q
+      - run: uv run --locked ruff format --check src tests skills
+      - run: uv run --locked pytest -q -m "not dynamodb and not aws_e2e"
       - run: uv run --locked interview-demo
       - uses: actions/setup-node@v4
         with:

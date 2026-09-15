@@ -68,7 +68,9 @@ def main() -> None:
     evaluation_path = f"/evaluations/{accepted['evaluationId']}"
     if call(demo_event("GET", evaluation_path), 200)["status"] != "processing":
         raise RuntimeError("Worker must not have run")
-    runtime.worker.run(accepted["evaluationId"])
+    runtime.dispatcher.dispatch("local-demo-user", accepted["evaluationId"], 1)
+    for event in runtime.publisher.events:
+        runtime.worker.run(event["ownerSub"], event["evaluationId"], event["dispatchVersion"])
     if call(demo_event("GET", evaluation_path), 200)["status"] != "completed":
         raise RuntimeError("Worker did not complete")
     call(demo_event("GET", f"/attempts/{accepted['attemptId']}/feedback"), 200)
