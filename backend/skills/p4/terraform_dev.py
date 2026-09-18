@@ -108,12 +108,18 @@ def validate_inputs(values, account, region):
     )
     if result["artifact_bucket"] != f"ai-interview-artifacts-{account}-{region}":
         raise DeploymentError("ArtifactBucketMismatch")
-    if not re.fullmatch(r"lambda/[A-Za-z0-9/_-]+[.]zip", result["artifact_key"]):
+    if (
+        not isinstance(result["artifact_key"], str)
+        or not re.fullmatch(r"lambda/[A-Za-z0-9/_-]+[.]zip", result["artifact_key"])
+        or "REPLACE_ME" in result["artifact_key"]
+    ):
         raise DeploymentError("InvalidArtifactKey")
-    if not isinstance(result["artifact_version"], str) or result["artifact_version"] in {
-        "",
-        "null",
-    }:
+    if (
+        not isinstance(result["artifact_version"], str)
+        or result["artifact_version"] in {"", "null"}
+        or result["artifact_version"].strip() != result["artifact_version"]
+        or "REPLACE_ME" in result["artifact_version"]
+    ):
         raise DeploymentError("VersionedArtifactRequired")
     if not isinstance(result["artifact_sha256_base64"], str) or not re.fullmatch(
         r"[A-Za-z0-9+/]{43}=", result["artifact_sha256_base64"]

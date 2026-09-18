@@ -11,9 +11,15 @@ resource "aws_dynamodb_table" "main" {
     }
   }
   global_secondary_index {
-    name            = "WorkIndex"
-    hash_key        = "work_pk"
-    range_key       = "work_sk"
+    name = "WorkIndex"
+    key_schema {
+      attribute_name = "work_pk"
+      key_type       = "HASH"
+    }
+    key_schema {
+      attribute_name = "work_sk"
+      key_type       = "RANGE"
+    }
     projection_type = "KEYS_ONLY"
   }
   stream_enabled   = true

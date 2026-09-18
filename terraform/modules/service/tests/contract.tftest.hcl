@@ -18,6 +18,17 @@ variables {
 run "p2_fixed_configuration" {
   command = plan
   assert {
+    condition = (
+      aws_dynamodb_table.main.hash_key == "PK" && aws_dynamodb_table.main.range_key == "SK" &&
+      aws_dynamodb_table.main.billing_mode == "PAY_PER_REQUEST" && aws_dynamodb_table.main.stream_enabled &&
+      toset([for a in aws_dynamodb_table.main.attribute : "${a.name}:${a.type}"]) == toset(["PK:S", "SK:S", "work_pk:S", "work_sk:S"]) &&
+      one(aws_dynamodb_table.main.global_secondary_index).name == "WorkIndex" &&
+      length(one(aws_dynamodb_table.main.global_secondary_index).key_schema) == 2 &&
+      toset([for k in one(aws_dynamodb_table.main.global_secondary_index).key_schema : "${k.attribute_name}:${k.key_type}"]) == toset(["work_pk:HASH", "work_sk:RANGE"])
+    )
+    error_message = "Table keys, string attributes and WorkIndex key schema must retain the P2 contract."
+  }
+  assert {
     condition     = aws_dynamodb_table.main.stream_view_type == "NEW_AND_OLD_IMAGES" && length(aws_dynamodb_table.main.global_secondary_index) == 1
     error_message = "One WorkIndex and both stream images are required."
   }

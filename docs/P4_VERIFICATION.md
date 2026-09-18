@@ -1,5 +1,31 @@
 # P4 検証記録
 
+## 2026-09-18：dev設定・ZIP validation・WorkIndex記法の修正
+
+ローカル修正・offline検証完了。AWS配備・P4全体の完了を意味しない。
+以下は今回の追加検証であり、後続の539件等は過去の実行記録として保持する。
+
+- WorkIndexだけをkey_schemaへ変更。Provider 6.64.0/6.65.0ともテーブル本体には
+  key_schemaがなく、PK/SKのhash_key/range_keyを維持。非推奨警告はGSIの旧記法によるものだった。
+- ZIP key/VersionId/hashの未記入・不正形式をTerraform/Pythonで拒否。
+  検査は形式だけで、S3実在性やZIPとの一致を保証しない。
+- ローカルAccount IDを引用符付きに変更。dev予算は18.75 USD
+  （3,000円÷160円/USD、基準日2026-09-17）。その他の既存実値と閉鎖フラグを維持。
+- PowerShell引数の引用符、private保存plan、既存CIからのZIP情報確定手順をrunbookへ追記。
+- Python関連試験158成功（artifact inputs/tools/CI readiness/guard/bootstrap stages）。
+  最初のRuff検査で追加テストの行長を検出し、整形後にcheck成功。
+- Terraform service mockは6.64.0で23成功、6.65.0でも23成功。
+  6.65.0は既存Providerをplugin-dirから使うbackendなし隔離領域で検証し、依存取得・更新なし。
+  bootstrap mockは1成功。bootstrap/dev/test/service validate成功、対象非推奨警告なし。
+- PowerShellの引用符付き引数をPython argvで非通信確認。fmt check、Git除外、diff checkを確認。
+- devの最初のproviders schema取得は既存S3 backendがSTS接続を試み、sandboxのproxyで失敗。
+  再試行でAWS接続を許可せず、backendなし隔離領域へ切り替えてスキーマを確認した。
+  AWS上のplan/apply・GitHub操作は実行していない。dev既存lockfile変更6.65.0は保持。
+
+残作業：ZIP実値の確定、AWS資源照合、実Stateに対するplanとprivate review。
+テーブル置換・GSI再作成がないことはoffline mockでは証明していない。
+実planで該当差分が出た場合はapplyせず調査する。
+
 更新日: 2026-09-14。**閉鎖状態dev初回配備の実装・offline検証を追加。P4全体は未完了・AWS未実行**。
 前工程は **P3実装完了・Python検証完了・実DB検証待ち**。
 計画は [BACKEND_P4_PLAN.md](BACKEND_P4_PLAN.md)。

@@ -16,8 +16,88 @@ Linux ZIP importとAWS上のIAM許可・拒否、通知到達、OTPはローカ�
 - `TF_LOG`、`TF_LOG_PATH`、`TF_CLI_ARGS*`、外部`TF_DATA_DIR`、非default workspace、endpoint上書きを設定しない。
 - 保存plan、private review、Stateにはメールや資源識別情報がある。チャット・CIログ・公開artifactへ貼らない。
 
-以下のPowerShellコマンドは、リポジトリの`backend`ディレクトリから実行する。
+次の「Terraform CLIでの設定ファイル指定」節を除き、PowerShellコマンドはリポジトリの`backend`ディレクトリから実行する。
 パスやhashは実行者が確認した値に置き換える。実行ごとに終了コード0と期待するstatusを確認する。
+
+## Terraform CLIでの設定ファイル指定
+
+この節は**リポジトリルート**から実行する。bootstrapとdevにはコメント付きの
+`settings.example.tfvars`を用意している。実値はGit管理外の`settings.tfvars`へ記入する。
+別端末や新しいcloneでは次のようにコピーする。既存のローカル設定は上書きしない。
+
+```powershell
+foreach ($tfRoot in @('terraform/bootstrap', 'terraform/environments/dev')) {
+    $localSettings = Join-Path $tfRoot 'settings.tfvars'
+    if (-not (Test-Path -LiteralPath $localSettings)) {
+        Copy-Item -LiteralPath (Join-Path $tfRoot 'settings.example.tfvars') -Destination $localSettings
+    }
+}
+```
+
+1. 各`settings.tfvars`をエディタで開き、`REPLACE_ME`を実値へ置換する。
+   bootstrapは確認済みAccount・実OIDC Subject・承認済みSES方式と送信元を記入する。
+   devはbootstrapの確認済み出力、同一ZIPのS3 key・VersionId・Base64 SHA-256、送信元・通知先を記入する。
+2. devの`cors_origins`に実Frontend originを、`monthly_budget_usd`に承認済みの正のUSD額を記入する。
+   空のCORSはvalidationで拒否される。予算は3,000円÷160円/USD=18.75 USD（基準日2026-09-17）。Regionは東京、4つの有効化フラグはfalseを維持する。
+3. 既存手順に従って短期認証とTerraform初期化を準備し、対象AccountとStateを確認する。
+   devのS3 backend設定は`terraform -chdir=terraform/environments/dev init -input=false '-backend-config=<確認済みbackend設定ファイル>'`で別途指定する。
+   backend設定ファイルの相対パスはdevディレクトリ基準。既存Stateの移行にこのinit例を流用せず、後述の移行手順に従う。
+4. AWS操作の明示承認後、対象に応じて次のplanコマンドを実行する。
+
+```powershell
+terraform -chdir=terraform/bootstrap plan -input=false '-var-file=settings.tfvars'
+terraform -chdir=terraform/environments/dev plan -input=false '-var-file=settings.tfvars'
+```
+
+各対象ディレクトリへ移動済みなら、共通して次を使う。
+
+```powershell
+terraform plan -input=false '-var-file=settings.tfvars'
+```
+
+`-input=false`により必須変数が不足しても入力待ちにならずエラーで終了する。
+設定値の正しさやAWS接続成功を保証する指定ではない。追加の`-var`や複数の`-var-file`は使わず、
+このファイルで値を管理する。`terraform plan`だけではこのファイルは読み込まれない。
+tfvarsは資源変数用であり、S3 backend設定やAWS認証情報のファイルではない。
+Credential・Tokenを記入しない。Terraform CLIは`.env.local`を直接読み込まない。
+
+直接planはP4実行器の承認hash・journal・読戻しを生成しない。
+正式な配備・State移行は以下のP4手順を継続する。bootstrapの直接planは実行ディレクトリのStateを使用するため、
+P4作業ディレクトリのStateや移行済みS3 Stateと混同し、空のStateからの新規作成計画を適用しない。
+既存P4実行器・CIは従来のJSON入力と環境変数を使用し、`settings.tfvars`を取り込まない。
+自動読込される`terraform.tfvars`や`*.auto.tfvars`は既存Guardが拒否するため作成しない。
+
+### ZIPの確定と構成検証
+
+ZIPのkey・VersionId・Base64 SHA-256は、既存CIで固定ソース・依存からLinux ZIPを作成し、
+展開・import検証後、versioning付きBucketへuploadした同一成果物から取得する。
+ローカルで直接planするときだけ3値を同時に転記する。CI自体はこれらを自動生成するため手動設定は不要。
+プレースホルダーのままならplanのvalidationで停止するのが期待動作。
+形式検証はS3実在性・ZIPとのhash一致を保証しない。
+`terraform validate`は構成の検証であり、`settings.tfvars`の実値検証ではない。
+
+### 確認用planとprivate保存plan
+
+`-out`なしのNoteはエラーではない。後の通常applyでは再計画され、表示内容と異なる可能性がある。
+以下はリポジトリルートからの直接CLI用保存例。AWS操作の承認とZIP実値の確定後だけ実行する。
+保存ディレクトリは本人限定とし、共有フォルダ・junction・symlinkを使わない。
+
+```powershell
+$privateRoot = Join-Path (Get-Location).Path '.p4-artifacts'
+$planDirectory = Join-Path $privateRoot ('dev-plan-' + [guid]::NewGuid().ToString('N'))
+if (Test-Path -LiteralPath $planDirectory) { throw 'Plan directory already exists' }
+New-Item -ItemType Directory -Path $planDirectory -ErrorAction Stop | Out-Null
+$planPath = Join-Path (Resolve-Path -LiteralPath $planDirectory).Path 'dev.tfplan'
+if (Test-Path -LiteralPath $planPath) { throw 'Plan file already exists' }
+terraform -chdir=terraform/environments/dev plan -input=false '-var-file=settings.tfvars' "-out=$planPath"
+if ($LASTEXITCODE -ne 0) { throw 'Plan failed; do not review or apply its output file' }
+```
+
+保存planには入力値等が含まれる。Git・公開artifact・チャットへ掲載しない。
+このファイルはP4実行器のbinding・承認hash・journal付き成果物として流用しない。
+正式な配備は以下の既存手順で保存planをレビューして行う。
+WorkIndexの記法変更後の実planでテーブル置換やGSI再作成が出た場合はapplyせず調査する。
+offline mock成功は実Stateに対する無変更の証明ではない。
 
 ## 1. GitHub dev EnvironmentとOIDC Claim
 
@@ -145,8 +225,8 @@ remote不存在とbackup一致を再確認した場合だけ、途中で変化�
   "ses_email": "<承認済み送信元>",
   "ses_identity_arn": "arn:aws:ses:ap-northeast-1:<Account>:identity/<承認済みIdentity>",
   "alarm_email": "<承認済み通知先>",
-  "jpy_per_usd": "<承認済み換算値>",
-  "budget_rate_date": "<YYYY-MM-DD>",
+  "jpy_per_usd": "160",
+  "budget_rate_date": "2026-09-17",
   "worker_enabled": false,
   "streams_enabled": false,
   "scheduler_enabled": false,

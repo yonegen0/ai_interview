@@ -22,9 +22,27 @@ variable "run_id" {
 }
 variable "boundary_arn" { type = string }
 variable "artifact_bucket" { type = string }
-variable "artifact_key" { type = string }
-variable "artifact_version" { type = string }
-variable "artifact_sha256_base64" { type = string }
+variable "artifact_key" {
+  type = string
+  validation {
+    condition     = try(can(regex("^lambda/[A-Za-z0-9/_-]+[.]zip$", var.artifact_key)) && !strcontains(var.artifact_key, "REPLACE_ME"), false)
+    error_message = "A confirmed lambda/ ZIP key without placeholders is required."
+  }
+}
+variable "artifact_version" {
+  type = string
+  validation {
+    condition     = try(length(var.artifact_version) > 0 && trimspace(var.artifact_version) == var.artifact_version && var.artifact_version != "null" && !strcontains(var.artifact_version, "REPLACE_ME"), false)
+    error_message = "An explicit S3 VersionId without whitespace or placeholders is required."
+  }
+}
+variable "artifact_sha256_base64" {
+  type = string
+  validation {
+    condition     = can(regex("^[A-Za-z0-9+/]{43}=$", var.artifact_sha256_base64))
+    error_message = "A Base64 SHA-256 digest of the same ZIP is required."
+  }
+}
 variable "ses_email" { type = string }
 variable "ses_identity_arn" {
   type = string
