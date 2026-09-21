@@ -16,6 +16,15 @@ import sys
 from contextlib import contextmanager
 from pathlib import Path
 
+from bootstrap_diagnostics import (
+    ACTIVE,
+    BootstrapFailure,
+    Diagnostics,
+    public_failure,
+    safe_failure,
+    stage,
+)
+
 from interview_backend.deployment import (
     DeploymentError,
     account_settings,
@@ -48,6 +57,9 @@ def digest_bytes(value):
 
 
 def run(command, *, cwd, env):
+    context = ACTIVE.get()
+    if command[0] == "terraform" and context and context.get("diagnostics"):
+        return context["diagnostics"].run(command, cwd=cwd, env=env)
     result = subprocess.run(command, cwd=cwd, env=env, capture_output=True, check=False)
     if result.returncode:
         raise DeploymentError("TerraformOperationFailed")
@@ -449,11 +461,17 @@ def operation_allowed(directory, operation, *, records=None, resume=False):
     """Attempt records survive crashes and prevent blind reapplication."""
     directory = Path(directory)
     records = directory if records is None else Path(records)
-    if operation == "apply":
+    if operation in {"apply", "preflight"}:
         if (records / "apply-attempt.json").exists() or any(
             (directory / name).exists() for name in ("migration-attempt.json", "backend.tf")
         ):
             raise DeploymentError("BootstrapApplyAlreadyAttempted")
+        attempt = 1 if records == directory else int(records.name)
+        if any(
+            p.is_dir() and p.name.isdigit() and int(p.name) > attempt
+            for p in (directory / "attempts").glob("*")
+        ):
+            raise DeploymentError("BootstrapAttemptSuperseded")
     elif operation == "migrate":
         if not (records / "apply-completed.json").is_file():
             raise DeploymentError("BootstrapApplyConfirmationRequired")
@@ -551,24 +569,163 @@ def execute(
     approved_hash=None,
     attempt=1,
     resume=False,
+    previous_source_sha=None,
 ):
-    parent = dict(os.environ if environment is None else environment)
-    prerequisites(parent)
-    private = PROJECT / ".p4-artifacts"
-    if not private.is_dir() or private.is_symlink() or private.is_junction():
-        raise DeploymentError("PrivateBootstrapPathsRequired")
-    private_path(directory, private.resolve())
-    private_path(input_path, private.resolve())
-    with bootstrap_lock(private):
-        return execute_stage(
-            input_path,
-            directory,
-            parent,
-            operation=operation,
-            approved_hash=approved_hash,
-            attempt=attempt,
-            resume=resume,
+    context = {"stage": "prerequisites", "diagnostics": None}
+    token = ACTIVE.set(context)
+    try:
+        parent = dict(os.environ if environment is None else environment)
+        prerequisites(parent)
+        validate_operation(operation, attempt, resume, previous_source_sha)
+        if operation in {"apply", "preflight"} and not (
+            isinstance(approved_hash, str) and re.fullmatch(r"[0-9a-f]{64}", approved_hash)
+        ):
+            raise DeploymentError("ApprovedPlanHashRequired")
+        private = PROJECT / ".p4-artifacts"
+        if not private.is_dir() or private.is_symlink() or private.is_junction():
+            raise DeploymentError("PrivateBootstrapPathsRequired")
+        resolved = private_path(directory, private.resolve())
+        private_path(input_path, private.resolve())
+        if operation != "plan" and not resolved.is_dir():
+            raise DeploymentError("BootstrapRunRequired")
+        with bootstrap_lock(private):
+            result = execute_stage(
+                input_path,
+                directory,
+                parent,
+                operation=operation,
+                approved_hash=approved_hash,
+                attempt=attempt,
+                resume=resume,
+                previous_source_sha=previous_source_sha,
+            )
+        if context["diagnostics"]:
+            context["diagnostics"].record("outcome.json", {"status": "success"})
+        return result
+    except Exception as error:
+        failure = safe_failure(error, context)
+        if context["diagnostics"]:
+            try:
+                context["diagnostics"].record("outcome.json", public_failure(failure))
+            except BootstrapFailure as storage_error:
+                failure = safe_failure(storage_error, context)
+        raise failure from None
+    finally:
+        ACTIVE.reset(token)
+
+
+def validate_operation(operation, attempt, resume, previous_source_sha):
+    if operation not in {"plan", "apply", "preflight", "inspect", "replan", "migrate", "verify"}:
+        raise DeploymentError("InvalidBootstrapOperation")
+    if type(attempt) is not int or not 1 <= attempt <= 9999:
+        raise DeploymentError("InvalidBootstrapAttempt")
+    if resume and operation != "migrate" or operation == "plan" and attempt != 1:
+        raise DeploymentError("InvalidBootstrapOperation")
+    if previous_source_sha is not None and (
+        operation != "replan" or not re.fullmatch(r"[0-9a-f]{40}", previous_source_sha)
+    ):
+        raise DeploymentError("BootstrapSourceTransitionInvalid")
+
+
+def attempt_path(directory, attempt):
+    return directory if attempt == 1 else directory / "attempts" / f"{attempt:04d}"
+
+
+def predecessor(directory, attempt):
+    if attempt == 1:
+        return None
+    path = attempt_path(directory, attempt - 1) / "binding.json"
+    raw = path.read_bytes()
+    prior = json.loads(raw)
+    return {
+        "attempt": attempt - 1,
+        "source_sha": prior["source_sha"],
+        "binding_sha256": digest_bytes(raw),
+    }
+
+
+def check_binding(records, expected, directory):
+    """Strict v1/v2 comparison; existing bindings are never rewritten."""
+    try:
+        for name in ("binding.json", "bootstrap.tfplan", "review.private.json"):
+            private_path(records / name, (PROJECT / ".p4-artifacts").resolve())
+        actual = json.loads((records / "binding.json").read_bytes())
+        version = actual.get("schema_version")
+        if type(version) is not int or version not in {1, 2}:
+            raise DeploymentError("BootstrapPlanBindingMismatch")
+        if type(actual.get("attempt")) is not int:
+            raise DeploymentError("BootstrapPlanBindingMismatch")
+        if version == 2 and actual.get("predecessor") is not None:
+            item = actual["predecessor"]
+            if not isinstance(item, dict) or type(item.get("attempt")) is not int:
+                raise DeploymentError("BootstrapPlanBindingMismatch")
+        wanted = expected | {
+            "schema_version": version,
+            "plan_sha256": digest_bytes((records / "bootstrap.tfplan").read_bytes()),
+            "review_sha256": digest_bytes((records / "review.private.json").read_bytes()),
+        }
+        wanted.pop("predecessor", None)
+        if version == 2:
+            if wanted["attempt"] > 1:
+                private_path(
+                    attempt_path(directory, wanted["attempt"] - 1) / "binding.json",
+                    (PROJECT / ".p4-artifacts").resolve(),
+                )
+            wanted["predecessor"] = predecessor(directory, wanted["attempt"])
+        if actual != wanted:
+            raise DeploymentError("BootstrapPlanBindingMismatch")
+        return actual
+    except FileNotFoundError:
+        raise DeploymentError("BootstrapAttemptIncomplete") from None
+    except (ValueError, KeyError, TypeError, AttributeError) as error:
+        if isinstance(error, DeploymentError):
+            raise
+        raise DeploymentError("BootstrapPlanBindingMismatch") from None
+
+
+def check_source_transition(previous_sha, current_sha, files, environment):
+    """Require an ancestor and byte-identical Terraform source at that commit."""
+    try:
+        run(
+            ["git", "merge-base", "--is-ancestor", previous_sha, current_sha],
+            cwd=PROJECT,
+            env=environment,
         )
+        tree = (
+            run(
+                ["git", "ls-tree", "-r", "--name-only", previous_sha, "--", "terraform/bootstrap/"],
+                cwd=PROJECT,
+                env=environment,
+            )
+            .decode()
+            .splitlines()
+        )
+        direct = {
+            Path(p).name
+            for p in tree
+            if str(Path(p).parent).replace("\\", "/") == "terraform/bootstrap"
+        }
+        relevant = {
+            n for n in direct if n.endswith((".tf", ".tf.json")) or n == ".terraform.lock.hcl"
+        }
+        if relevant != set(files):
+            raise DeploymentError("BootstrapSourceTransitionInvalid")
+        for name in files:
+            raw = run(
+                ["git", "show", f"{previous_sha}:terraform/bootstrap/{name}"],
+                cwd=PROJECT,
+                env=environment,
+            )
+            current = run(
+                ["git", "show", f"{current_sha}:terraform/bootstrap/{name}"],
+                cwd=PROJECT,
+                env=environment,
+            )
+            # Compare Git blobs to Git blobs; clean checkout may use Windows CRLF.
+            if raw != current:
+                raise DeploymentError("BootstrapSourceTransitionInvalid")
+    except DeploymentError, UnicodeError:
+        raise DeploymentError("BootstrapSourceTransitionInvalid") from None
 
 
 def execute_stage(
@@ -580,37 +737,31 @@ def execute_stage(
     approved_hash=None,
     attempt=1,
     resume=False,
+    previous_source_sha=None,
 ):
     parent = dict(os.environ if environment is None else environment)
     prerequisites(parent)
-    if operation not in {"plan", "apply", "inspect", "replan", "migrate", "verify"}:
-        raise DeploymentError("InvalidBootstrapOperation")
-    if type(attempt) is not int or not 1 <= attempt <= 9999:
-        raise DeploymentError("InvalidBootstrapAttempt")
-    if resume and operation != "migrate" or operation == "plan" and attempt != 1:
-        raise DeploymentError("InvalidBootstrapOperation")
+    validate_operation(operation, attempt, resume, previous_source_sha)
+    source_sha = checked_source(PROJECT, parent)
     account, region = account_settings(PROJECT, parent)
     private = (PROJECT / ".p4-artifacts").resolve()
     directory = private_path(directory, private)
     input_path = private_path(input_path, private)
     values = inputs(input_path, account, region)
-    local_profile = read_local_settings(PROJECT).get("AWS_PROFILE")
-    if local_profile:
-        if parent.get("AWS_PROFILE", local_profile) != local_profile:
-            raise DeploymentError("ConflictingCredentialProfile")
-        if not parent.get("AWS_ACCESS_KEY_ID"):
-            parent["AWS_PROFILE"] = local_profile
     source = PROJECT / "terraform" / "bootstrap"
     validate_configuration(source)
     env = input_environment(directory, parent, account, region, values)
-    source_sha = checked_source(PROJECT, parent)
     if operation == "plan":
         _copy_configuration(source, directory)
     elif not directory.is_dir():
         raise DeploymentError("BootstrapRunRequired")
     records = directory if attempt == 1 else directory / "attempts" / f"{attempt:04d}"
     private_path(records, private)
+    context = ACTIVE.get()
+    if context is not None:
+        context["diagnostics"] = Diagnostics(directory, operation, attempt, source_sha)
     operation_allowed(directory, operation, records=records, resume=resume)
+    stage("binding")
     validate_configuration(directory)
     source_files = sorted(source.glob("*.tf")) + [source / ".terraform.lock.hcl"]
     files = {path.name: digest_bytes(path.read_bytes()) for path in source_files}
@@ -629,20 +780,28 @@ def execute_stage(
 
     def authorize():
         nonlocal env
+        previous_stage = ACTIVE.get()["stage"] if ACTIVE.get() else "binding"
+        stage("authentication")
+        local_profile = read_local_settings(PROJECT).get("AWS_PROFILE")
+        if local_profile and parent.get("AWS_PROFILE", local_profile) != local_profile:
+            raise DeploymentError("ConflictingCredentialProfile")
         if not env.get("AWS_ACCESS_KEY_ID") and not env.get("AWS_PROFILE"):
             local_profile = read_local_settings(PROJECT).get("AWS_PROFILE")
             if local_profile:
                 env["AWS_PROFILE"] = local_profile
         session = checked_session(account, region, environment=env)
         env = credential_environment(session, env)
+        stage(previous_stage)
         return session
 
+    stage("terraform_version")
     version = json.loads(run(["terraform", "version", "-json"], cwd=directory, env=env))
     if version.get("terraform_version") != TF_VERSION:
         raise DeploymentError("TerraformVersionMismatch")
     plan = records / "bootstrap.tfplan"
+    stage("binding")
     binding = {
-        "schema_version": 1,
+        "schema_version": 2,
         "source_sha": source_sha,
         "account_id": account,
         "region": region,
@@ -652,23 +811,47 @@ def execute_stage(
         "attempt": attempt,
         "backend": "local",
         "state_key": STATE_KEY,
+        "predecessor": None,
     }
     if operation == "replan":
         previous = directory if attempt == 2 else directory / "attempts" / f"{attempt - 1:04d}"
         if attempt < 2 or records.exists():
             raise DeploymentError("NewBootstrapAttemptRequired")
-        prior = json.loads((previous / "binding.json").read_text(encoding="utf-8"))
         expected_prior = binding | {
             "attempt": attempt - 1,
-            "plan_sha256": digest_bytes((previous / "bootstrap.tfplan").read_bytes()),
-            "review_sha256": digest_bytes((previous / "review.private.json").read_bytes()),
+            "source_sha": previous_source_sha or source_sha,
         }
-        if prior != expected_prior:
-            raise DeploymentError("BootstrapPlanBindingMismatch")
+        prior = check_binding(previous, expected_prior, directory)
+        if previous_source_sha:
+            check_source_transition(previous_source_sha, source_sha, files, parent)
+        if (
+            not (previous / "apply-attempt.json").is_file()
+            or (previous / "apply-completed.json").exists()
+            or any(
+                (directory / name).exists()
+                for name in (
+                    "migration-attempt.json",
+                    "migration-receipt.json",
+                    "pre-migration.tfstate",
+                    "backend.tf",
+                )
+            )
+        ):
+            raise DeploymentError("BootstrapReplanNotAllowed")
+        try:
+            private_path(previous / "apply-attempt.json", private)
+            journal = json.loads((previous / "apply-attempt.json").read_bytes())
+            if journal != {"plan_sha256": prior["plan_sha256"]}:
+                raise DeploymentError("BootstrapPlanBindingMismatch")
+        except (OSError, ValueError) as error:
+            if isinstance(error, DeploymentError):
+                raise
+            raise DeploymentError("BootstrapPlanBindingMismatch") from None
         status = inspect_state(directory, authorize(), account, region, previous)
         if status["next_operation"] != "replan":
             raise DeploymentError("BootstrapReplanNotAllowed")
         records.mkdir(parents=True, exist_ok=False)
+        binding["predecessor"] = predecessor(directory, attempt)
     if operation in {"plan", "replan"}:
         authorize()
         run(["terraform", "init", "-input=false", "-lockfile=readonly"], cwd=directory, env=env)
@@ -689,23 +872,23 @@ def execute_stage(
             },
         )
         return {"status": "bootstrap_planned", "plan_sha256": hashed, "attempt": attempt}
-    actual = json.loads((records / "binding.json").read_text(encoding="utf-8"))
+    check_binding(records, binding, directory)
     hashed = digest_bytes(plan.read_bytes())
-    if actual != binding | {
-        "plan_sha256": hashed,
-        "review_sha256": digest_bytes((records / "review.private.json").read_bytes()),
-    }:
-        raise DeploymentError("BootstrapPlanBindingMismatch")
-    if operation == "apply":
+    if operation in {"apply", "preflight"}:
         if not isinstance(approved_hash, str) or approved_hash != hashed:
             raise DeploymentError("ApprovedPlanHashRequired")
         authorize()
-        if attempt > 1 and any((directory / "attempts").glob(f"{attempt + 1:04d}/binding.json")):
-            raise DeploymentError("BootstrapAttemptSuperseded")
+        if operation == "preflight":
+            return {
+                "status": "bootstrap_preflight_passed",
+                "attempt": attempt,
+                "next_operation": "apply",
+            }
         write_record(records / "apply-attempt.json", {"plan_sha256": hashed})
         run(["terraform", "apply", "-input=false", str(plan)], cwd=directory, env=env)
         write_record(records / "apply-completed.json", {"plan_sha256": hashed})
         observed = _output_values(run(["terraform", "output", "-json"], cwd=directory, env=env))
+        stage("readback")
         readback = verify_created_resources(authorize(), observed, account, region, values)
         write_record(
             records / "readback-completed.json", {"plan_sha256": hashed, "readback": readback}
@@ -726,6 +909,7 @@ def execute_stage(
     else:
         observed = _output_values(run(["terraform", "output", "-json"], cwd=directory, env=env))
     session = authorize()
+    stage("readback")
     readback = verify_created_resources(session, observed, account, region, values)
     if operation == "verify" and not (directory / "migration-attempt.json").exists():
         if not (records / "readback-completed.json").exists():
@@ -735,6 +919,7 @@ def execute_stage(
         return {"status": "bootstrap_resources_verified"}
     local_state = directory / "terraform.tfstate"
     if operation == "migrate":
+        stage("migration")
         migration_target(account, region, observed["state_bucket"], session=session)
         if not resume:
             original = local_state.read_bytes()
@@ -786,13 +971,15 @@ def execute_stage(
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "operation", choices=("plan", "apply", "inspect", "replan", "migrate", "verify")
+        "operation",
+        choices=("plan", "apply", "preflight", "inspect", "replan", "migrate", "verify"),
     )
     parser.add_argument("--inputs", required=True)
     parser.add_argument("--directory", required=True)
     parser.add_argument("--plan-hash")
     parser.add_argument("--attempt", type=int, required=True)
     parser.add_argument("--resume", action="store_true")
+    parser.add_argument("--previous-source-sha")
     args = parser.parse_args()
     try:
         result = execute(
@@ -802,32 +989,18 @@ def main():
             approved_hash=args.plan_hash,
             attempt=args.attempt,
             resume=args.resume,
+            previous_source_sha=args.previous_source_sha,
         )
-    except DeploymentError as error:
-        allowed = {
-            "BootstrapApplyAlreadyAttempted": "inspect",
-            "BootstrapMigrationAlreadyAttempted": "inspect",
-            "BootstrapOperationLocked": "stop",
-            "TerraformOperationFailed": "inspect",
-            "BootstrapReadbackFailed": "verify",
-            "MigratedStateReadbackFailed": "inspect",
-            "BootstrapBackupMismatch": "stop",
-            "BootstrapStateDestinationUnconfirmed": "inspect",
-        }
-        failure = str(error) if str(error) in allowed else "BootstrapStateMigrationFailed"
+    except BootstrapFailure as error:
+        print(json.dumps(public_failure(error)), file=sys.stderr)
+        return 1
+    except Exception:
         print(
             json.dumps(
-                {
-                    "status": "failed",
-                    "failure": failure,
-                    "next_operation": allowed.get(failure, "stop"),
-                }
+                public_failure(BootstrapFailure("UnexpectedBootstrapFailure", "prerequisites"))
             ),
             file=sys.stderr,
         )
-        return 1
-    except Exception:
-        print("BootstrapStateMigrationFailed", file=sys.stderr)
         return 1
     print(json.dumps(result))
     return 0

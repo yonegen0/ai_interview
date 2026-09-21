@@ -153,6 +153,19 @@ private reviewとbindingをローカルエディタで確認し、表示され�
 
 ## 4. bootstrap applyと読戻し
 
+private review後、同じhashを指定してapply前の検査を行える。
+
+```powershell
+$reviewedHash = Read-Host 'レビュー済みbootstrap plan SHA-256'
+.\.venv\Scripts\python.exe skills/p4/bootstrap_state.py preflight --inputs ../.p4-artifacts/bootstrap-inputs.json --directory ../.p4-artifacts/bootstrap-initial --attempt 1 --plan-hash $reviewedHash
+```
+
+成功statusは`bootstrap_preflight_passed`。preflightは操作lockと診断記録だけを作成し、
+Terraform init/plan/apply、State更新、apply journal作成は行わない。
+Git・構成・binding・承認hash・認証元・SDKのSTS Account・短期Credentialをapplyと同じ処理で確認する。
+資源作成権限・quota・資源重複は保証しない。applyはpreflight結果を使い回さず再検査する。
+apply開始済みや後続attemptが存在するplanはpreflightでも拒否する。
+
 ```powershell
 $reviewedHash = Read-Host 'レビュー済みbootstrap plan SHA-256'
 .\.venv\Scripts\python.exe skills/p4/bootstrap_state.py apply --inputs ../.p4-artifacts/bootstrap-inputs.json --directory ../.p4-artifacts/bootstrap-initial --attempt 1 --plan-hash $reviewedHash
@@ -198,7 +211,65 @@ S3 Stateが存在する場合の通常移行は禁止。403を不存在と扱わ
 ```
 
 新成果物は`attempts/0002`に保存される。新hashをレビュー後、同じrootと`--attempt 2`でapplyする。
-以後のinspect/migrate/verifyも、applyしたattempt番号を使用する。SHA・入力の変更を伴う修復は自動対応しない。
+以後のinspect/migrate/verifyも、applyしたattempt番号を使用する。入力・Terraform構成の変更を伴う修復は自動対応しない。
+
+### 診断記録と認証失敗
+
+実行器はTerraform stdout/stderrを`<run>/diagnostics/<UUID>/`へ直接保存する。
+ファイルは新規作成限定で、`context.json`、連番の`*.stdout.private`・`*.stderr.private`・
+`*-result.json`、最後の`outcome.json`を作る。outcome欠落は処理未完了であり成功を意味しない。
+初期Guardが診断先作成前に停止した場合はdiagnostic_idがnullとなり、記録は作成されない。
+
+Windowsでは新規UUIDディレクトリの継承を無効化し、実行ユーザー・SYSTEM・AdministratorsのSIDに
+限定して設定・読戻し検査する。POSIXではディレクトリ0700、ファイル0600を使用する。
+既存runのACLは変更しない。本人限定アクセスの確保に失敗したらTerraformを起動しない。
+診断先のsymlink/junction、既存ファイル上書きを拒否する。記録失敗時もjournal・診断先を削除しない。
+
+公開JSONは従来のstatus/failure/next_operationにstage/reason_code/diagnostic_idを追加する。
+Terraformの非ゼロ終了時はreturn_codeも返す。原因の本文はprivateエディタで確認する。
+診断にはメール、資源識別子、Stateなどが含まれ得る。チャット、CIログ、公開artifactへ貼らない。
+環境変数・Credential・SSO cacheは診断metadataに転記しない。生のTerraform出力が秘密情報を
+含まないことは保証しないため、TF_LOG等の既存禁止は維持する。
+
+| reason_code | 対応 |
+|---|---|
+| MixedCredentialSources / PartialCredentials / CredentialProfileConflict | Profileと環境変数Credentialの競合・不足を解消する。値を表示しない |
+| SsoTokenUnavailable | 実際にSSO方式のProfileの場合、実行者が既存SSOへ再ログインする |
+| AwsAuthenticationRejected / AwsConnectionFailed / AwsIdentityUnavailable | Credential有効性・接続・SDK側の認証を確認する。CLIのSTS成功だけで代用しない |
+| AwsAccountMismatch / ShortTermCredentialsRequired | 対象Account・短期Credentialの前提を修正する |
+| TerraformNonZeroExit / TerraformStartFailed | stageとprivate stderrを確認する。apply開始済みなら再apply禁止、inspectへ |
+| DiagnosticPermissionsFailed / DiagnosticStorageFailed | 診断保存先を調査する。apply開始済みなら結果不明としてjournalを保持する |
+| BootstrapAttemptIncomplete / NewBootstrapAttemptRequired | 不完全または既存attemptを個別調査する。削除・上書き・飛び番での自動再開は禁止 |
+
+`apply-attempt.json`が存在しなければ開始前の停止。ただし認証・binding等の問題を解消し、
+再検査するまでapplyを繰り返さない。存在すれば完了記録の有無に従ってinspect/verifyへ分岐する。
+過去の実行器が破棄したエラー本文は、この変更では復元できない。
+
+### 診断コード変更後の明示的SHA引継ぎ
+
+診断修正をレビューし、別途承認されたcommit/pushでcleanなmainへ反映した後に限る。
+旧attemptのbinding/plan/journalを新SHAへ書き換えない。
+`--previous-source-sha`はreplan専用であり、旧bindingの完全なSHAを指定する。
+
+```powershell
+$previousSha = Read-Host '直前attemptのbindingで確認した旧source SHA'
+.\.venv\Scripts\python.exe skills/p4/bootstrap_state.py replan --inputs ../.p4-artifacts/bootstrap-inputs.json --directory ../.p4-artifacts/bootstrap-initial-20260918-01 --attempt 5 --previous-source-sha $previousSha
+```
+
+上のattempt 5は、attempt 4が部分applyで、5がまだ存在しない場合だけの例。
+旧SHAが現HEADの祖先であること、旧commit/現commitのTerraform構成・lockfile一致、
+作業ファイル/run/bindingのhash一致、入力・Account・Region・Terraform版・backend・State key一致を要求する。
+Git blob同士を比較してWindows改行変換を考慮するが、作業ファイルとbindingのhash一致条件は緩めない。
+apply開始journalと旧plan hashの一致、完了記録なし、有効なlocal State、移行未開始、remote State不在を確認する。
+403などは不在扱いしない。祖先関係はコードレビューの代替ではない。
+
+新bindingはv2で、直前attempt・旧SHA・旧bindingファイルのhashをpredecessorへ記録する。
+v1も読取り可能で旧ファイルを変換しない。apply/preflightでもpredecessorを照合する。
+旧planの承認は引き継がず、新planのprivate review → preflight → hash承認付きapplyを行う。
+構成や入力変更が必要ならこの引継ぎは拒否され、別の復旧計画が必要となる。
+
+replan途中失敗で次attemptが残った場合は不完全なまま保全する。自動削除・再plan上書き・
+飛び番再開は提供しない。診断記録を確認して個別に復旧を計画する。
 
 移行再開の例：
 

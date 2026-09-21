@@ -107,6 +107,63 @@ def test_guard_redacts_connection_error():
     assert "credential" not in str(error.value)
 
 
+@pytest.mark.parametrize(
+    "environment,reason",
+    [
+        ({"AWS_ACCESS_KEY_ID": "synthetic"}, "PartialCredentials"),
+        (
+            {
+                "AWS_ACCESS_KEY_ID": "synthetic",
+                "AWS_SECRET_ACCESS_KEY": "synthetic",
+                "AWS_SESSION_TOKEN": "synthetic",
+                "AWS_PROFILE": "synthetic",
+            },
+            "MixedCredentialSources",
+        ),
+        ({"AWS_PROFILE": "one", "AWS_DEFAULT_PROFILE": "two"}, "CredentialProfileConflict"),
+    ],
+)
+def test_authentication_source_reasons_preserve_legacy_message(environment, reason):
+    with pytest.raises(DeploymentError, match="^AwsIdentityUnavailable$") as caught:
+        checked_session(
+            "123456789012",
+            "ap-northeast-1",
+            environment=environment,
+            session_factory=lambda **kw: pytest.fail("session must not be created"),
+        )
+    assert caught.value.reason_code == reason
+
+
+@pytest.mark.parametrize(
+    "kind,reason",
+    [
+        ("sso", "SsoTokenUnavailable"),
+        ("denied", "AwsAuthenticationRejected"),
+        ("network", "AwsConnectionFailed"),
+        ("unknown", "AwsIdentityUnavailable"),
+    ],
+)
+def test_sdk_failure_classification_never_retains_message(kind, reason):
+    from botocore.exceptions import ClientError, EndpointConnectionError, TokenRetrievalError
+
+    errors = {
+        "sso": TokenRetrievalError(provider="sso", error_msg="synthetic-token"),
+        "denied": ClientError(
+            {"Error": {"Code": "AccessDenied", "Message": "synthetic-token"}}, "GetCallerIdentity"
+        ),
+        "network": EndpointConnectionError(endpoint_url="https://secret.invalid"),
+        "unknown": RuntimeError("synthetic-token"),
+    }
+
+    def fail(**kwargs):
+        raise errors[kind]
+
+    with pytest.raises(DeploymentError, match="^AwsIdentityUnavailable$") as caught:
+        checked_session("123456789012", "ap-northeast-1", session_factory=fail)
+    assert caught.value.reason_code == reason
+    assert "synthetic-token" not in str(caught.value)
+
+
 def test_explicit_credentials_are_shared_with_terraform():
     captured = []
     credentials = SimpleNamespace(

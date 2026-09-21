@@ -34,6 +34,40 @@ LOCAL_KEYS = frozenset(
 class DeploymentError(ValueError):
     """Only fixed safe classifications may be used as messages."""
 
+    def __init__(self, message, *, reason_code=None):
+        super().__init__(message)
+        self.reason_code = reason_code or message
+
+
+def authentication_reason(error):
+    """Classify SDK failures without retaining messages, responses or credentials."""
+    from botocore.exceptions import (
+        ClientError,
+        ConnectionError,
+        CredentialRetrievalError,
+        TokenRetrievalError,
+        UnauthorizedSSOTokenError,
+    )
+
+    if isinstance(error, (TokenRetrievalError, UnauthorizedSSOTokenError)):
+        return "SsoTokenUnavailable"
+    if isinstance(error, ConnectionError):
+        return "AwsConnectionFailed"
+    if isinstance(error, ClientError):
+        code = error.response.get("Error", {}).get("Code")
+        if code in {
+            "ExpiredToken",
+            "ExpiredTokenException",
+            "InvalidClientTokenId",
+            "AccessDenied",
+            "AccessDeniedException",
+            "UnrecognizedClientException",
+        }:
+            return "AwsAuthenticationRejected"
+    if isinstance(error, CredentialRetrievalError):
+        return "CredentialRetrievalFailed"
+    return "AwsIdentityUnavailable"
+
 
 def require_aws_execution(environment=None):
     """Run before credential discovery, HTTP requests, or AWS client creation."""
@@ -109,8 +143,14 @@ def checked_session(account, region, *, session_factory=None, environment=None):
             keys = ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN")
             present = [bool(env.get(key)) for key in keys]
             if any(present):
-                if not all(present) or env.get("AWS_PROFILE") or env.get("AWS_DEFAULT_PROFILE"):
-                    raise ValueError
+                if not all(present):
+                    raise DeploymentError(
+                        "AwsIdentityUnavailable", reason_code="PartialCredentials"
+                    )
+                if env.get("AWS_PROFILE") or env.get("AWS_DEFAULT_PROFILE"):
+                    raise DeploymentError(
+                        "AwsIdentityUnavailable", reason_code="MixedCredentialSources"
+                    )
                 kwargs.update(
                     zip(
                         ("aws_access_key_id", "aws_secret_access_key", "aws_session_token"),
@@ -121,7 +161,9 @@ def checked_session(account, region, *, session_factory=None, environment=None):
             else:
                 profile = env.get("AWS_PROFILE")
                 if not profile or env.get("AWS_DEFAULT_PROFILE", profile) != profile:
-                    raise ValueError
+                    raise DeploymentError(
+                        "AwsIdentityUnavailable", reason_code="CredentialProfileConflict"
+                    )
                 kwargs["profile_name"] = profile
         session = (session_factory or Session)(**kwargs)
         if hasattr(session, "_session"):
@@ -140,8 +182,10 @@ def checked_session(account, region, *, session_factory=None, environment=None):
         observed = sts.get_caller_identity()["Account"]
     except DeploymentError:
         raise
-    except Exception:
-        raise DeploymentError("AwsIdentityUnavailable") from None
+    except Exception as error:
+        raise DeploymentError(
+            "AwsIdentityUnavailable", reason_code=authentication_reason(error)
+        ) from None
     if observed != account:
         raise DeploymentError("AwsAccountMismatch")
     return session
@@ -168,8 +212,13 @@ def credential_environment(session, environment):
             AWS_EC2_METADATA_DISABLED="true",
         )
         return child
-    except Exception:
-        raise DeploymentError("ShortTermCredentialsRequired") from None
+    except Exception as error:
+        reason = (
+            "ShortTermCredentialsRequired"
+            if isinstance(error, ValueError)
+            else authentication_reason(error)
+        )
+        raise DeploymentError("ShortTermCredentialsRequired", reason_code=reason) from None
 
 
 def terraform_environment(root, environment, account, region):

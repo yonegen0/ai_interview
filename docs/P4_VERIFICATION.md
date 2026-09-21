@@ -1,5 +1,34 @@
 # P4 検証記録
 
+## 2026-09-21：bootstrap診断・preflight・明示的SHA引継ぎ
+
+今回の対象は実装とoffline検証。AWS操作・State移行・IAM/GitHub変更・commit/push・依存更新は行っていない。
+以下の実run状態は既存ファイルの安全なメタ情報を確認した記録であり、今回のapply結果ではない。
+
+- 既存runのattempt 4はapply-attemptあり、apply-completed/readback-completedなし。
+  local State serialは21、SES email identityが1 instance。操作lock・移行記録なし。
+  過去のinspectはpartial_apply/replan。attempt 1〜4の再applyは禁止のまま。
+- 過去のTerraform失敗本文は保存されておらず、原因は未確定。State上の未記録はAWS上の不存在の証明ではない。
+- Terraformの各段階を分類し、stdout/stderrを新規のprivate診断ファイルへ直接保存する実装を追加。
+  公開JSONは固定reason_code/stageとdiagnostic_idだけを追加し、例外本文を出さない。
+- 診断UUIDディレクトリはWindows SID指定の保護DACLを設定・読戻し検査する。
+  合成一時領域で実ACLとローカルsubprocess出力保存を検証。既存run全体のACLは変更しない。
+- preflightを追加。applyと共通の検査・短期認証照合を実施し、State・plan・apply journalは変更しない。
+- replan専用previous-source-shaを追加。祖先関係、旧/新Git blob、run構成、入力、旧plan/review、
+  apply journalを照合し、部分apply・移行未開始・remote不在の場合だけ次attemptへ進む。
+  v2 bindingにpredecessorを記録し、v1は変換せず読取り互換を維持する。
+- 不完全attemptの再利用・飛び番再開、診断保存失敗後の再apply、旧成果物の上書きを拒否する試験を追加。
+- 最初のsandbox試験は新規pytest tempへのアクセス拒否で失敗したため、新しい合成tempで権限付き実行した。
+  Windows Set-Aclが不要な監査権限を要求する問題を検出し、DirectoryInfo.SetAccessControlで必要なDACL/ownerだけを設定するよう修正。
+  既存のアクセス不能pytestディレクトリや失敗試験の成果物は削除していない。
+
+最終通常suiteは620成功・実AWS対象57除外（`.p4-artifacts/tmp-bootstrap-diag-full-02`）。
+その後、未知例外も固定JSONを返す最終CLI境界の追加2試験が成功（既存suiteの再集計ではない）。
+Ruff check成功、format check67ファイル適合、CLI helpとgit diff --check成功。
+実AWSでの新診断採取・SHA引継ぎ・apply成功は未確認。
+レビュー後のmain反映と新planのprivate review/hash承認を経て、別段階で実行する。
+手順は [P4_TERRAFORM_RUNBOOK.md](P4_TERRAFORM_RUNBOOK.md) を参照する。
+
 ## 2026-09-18：dev設定・ZIP validation・WorkIndex記法の修正
 
 ローカル修正・offline検証完了。AWS配備・P4全体の完了を意味しない。

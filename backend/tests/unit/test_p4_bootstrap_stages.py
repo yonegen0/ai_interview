@@ -78,7 +78,7 @@ def test_apply_response_loss_preserves_attempt_and_rejects_retry(staged, monkeyp
 
     def fail(command, **kwargs):
         if command[1] == "apply":
-            raise ValueError("TerraformOperationFailed")
+            raise module.DeploymentError("TerraformOperationFailed")
         return previous(command, **kwargs)
 
     monkeypatch.setattr(module, "run", fail)
