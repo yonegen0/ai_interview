@@ -43,25 +43,14 @@ ErrorViewの本文は`error.dark`を10%暗くし、AppShellの背景グラデー
 
 `src/components/atoms/MascotCharacter.tsx` が6種類の装飾画像を表示します。開始画面はwelcome、送信・評価中はthinking、結果見出しはsuccess、有効な再挑戦リンクはretry、共通エラーと評価失敗はerrorです。通常の回答入力中には表示しません。
 
-以下は配信用の設計目標です。現WebP実体は1254×1254px・約1.7〜1.9MBであり、512pxを期待するE2Eと不一致があります。今回の契約整合では画像を変更しません。導入時の成功記録は現在の成功保証ではありません。
+2026-09-22に配信画像を修正しました。従来の`.webp`は実体が1254×1254pxのPNGだったため、元データを同名の`.png`として保全し、512×512pxの実WebPへ再生成しています。E2Eの512px期待値は維持しています。
 
-元画像は `public/images/mascot/mascot-*.png`（1254×1254px、透過付き）に保存し、配信には同名のWebP（512×512px、品質90、アルファ品質100）を使う設計です。元PNGは変更しません。512pxで再生成した際の目安は約48〜62KB（元PNG比約97%軽量）です。静的書き出しに対応するため `next/image` に `unoptimized` を指定し、画像変換サーバーは使用しません。画像読み込み失敗時は装飾だけを隠し、寸法・説明・操作を維持します。
+元画像は `public/images/mascot/mascot-*.png`（1254×1254px、透過付き）に保存し、配信には同名のWebP（512×512px、品質90、アルファ品質100）を使います。元PNGは変更しません。再生成後は53,362〜66,402 bytes（元PNG比約96〜97%軽量）です。静的書き出しに対応するため `next/image` に `unoptimized` を指定し、画像変換サーバーは使用しません。画像読み込み失敗時は装飾だけを隠し、寸法・説明・操作を維持します。
 
 再生成は `frontend` で以下を実行します。既存のNext.js依存に含まれるSharpを使用し、通常のビルド中には画像変換しません。生成したWebPもリポジトリへ含めます。
 
 ```powershell
-@'
-const sharp = require('sharp');
-(async () => {
-  for (const variant of ['default', 'welcome', 'thinking', 'success', 'retry', 'error']) {
-    const base = `public/images/mascot/mascot-${variant}`;
-    await sharp(`${base}.png`)
-      .resize(512, 512, { fit: 'inside', withoutEnlargement: true })
-      .webp({ quality: 90, alphaQuality: 100 })
-      .toFile(`${base}.webp`);
-  }
-})();
-'@ | node
+node scripts/build-mascots.mjs
 ```
 
 Storybookの `Components/Atoms/MascotCharacter` で表情・サイズ・取得失敗を、`Components/Templates/PracticeForm` のSubmitting／RetryAfterEvaluationFailureで送信と再入力を確認できます。

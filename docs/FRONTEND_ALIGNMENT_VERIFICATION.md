@@ -1,5 +1,21 @@
 # Frontend契約整合 v2.1 検証記録
 
+## 2026-09-22：マスコット配信画像の修正
+
+下記の過去記録にある512px対1254pxの既知問題を修正した。
+6種類の`.webp`は実体がPNGだったため、元データを同名の`.png`として保全し、
+Sharpで512×512px・品質90・アルファ品質100のWebPに再生成した。
+元PNGは変更前のGit blobとバイト単位で一致。配信画像は全6種類が実WebP・512×512px・透過付き、
+53,362〜66,402 bytes。再生成用の`frontend/scripts/build-mascots.mjs`を追加した。
+
+MockビルドとE2E全8件が成功（Windows、CI=true、新規ローカルサーバー、57.3秒）。
+画像読込み失敗後の寸法保持・練習継続と375/768/1280pxレイアウトも成功。
+テスト期待値・アプリの動作は変更していない。スクリプトのESLint・整形検査も成功。
+最初のsandboxビルドは子プロセスのspawn EPERMで停止し、権限付き再実行で成功した。
+commit/pushとGitHub Actionsでの再実行は未実施。
+
+## 以下は2026-09-11時点の記録
+
 実行日: 2026-09-11。実行環境: Windows、Node.js v24.14.1、npm 11.11.0。
 対象: [ADR-002](ADR-002-frontend-contract-alignment.md)の設計整合とAPIエラー表示。
 Runtime要件・CIのNode.js 22設定は変更していない。
