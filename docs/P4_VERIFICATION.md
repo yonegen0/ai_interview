@@ -1,5 +1,53 @@
 # P4 検証記録
 
+## 2026-09-22：offline CIのpackage失敗・Linux providerチェックサム対応
+
+開始時はcleanなmain、HEAD `09698862b5f31c2c9695c175f3212c37fc130cbf`。
+失敗Actions run 35600832712のcommitは未取得のため、提供ログと現在のHEADで検証した。
+本節はローカル変更の記録。commit/push・GitHub設定変更・AWS操作・attempt 5作成は行っていない。
+
+### 確定したpackage原因と修正
+
+- uv 0.11.8、Python 3.14.4、既存uv.lock、hash検証付きLinux x86_64 wheelの12依存で
+  変更前buildを実行し、`UnsafePackageContent`を再現した。
+- annotated-types 0.8.0 wheelに同梱された`annotated_types/test_cases.py`が拒否対象だった。
+  この依存内の正確なパスだけをZIPから除外する。アプリ側・他のtestファイルは引き続き拒否する。
+- PackageBuildError（ValueError互換）と固定stage/reason_codeを追加。
+  CLIはPackageBuildFailedのJSONと終了コード1を返し、未知例外本文を公開しない。
+  成功manifest schema・buildの引数/戻り値は維持。manifestは新規作成限定にした。
+- native拡張名をCPython 3.14/Linux/x86_64の完全一致へ変更し、3.14t等の誤受入れを防止。
+- 実固定Linux依存から2回ZIPを生成し、同一hashを確認。これはWindows上での生成であり、
+  Linuxでのnative import成功を意味しない。
+
+### Terraform対応
+
+- 提供ログではreadonly init後のcached providerチェックサム照合が失敗していた。
+  新規コピーに対する公式署名付きLinux providerの取得で、Linux用hashの追加を確認した。
+- 元のGit管理構成・lockfileを保持し、CIは一時コピーだけでチェックサムを補完する。
+  provider集合/version/constraintsと既存hash保持を構造検査する限定parserを追加。
+  想定外の構文・provider変更・hash削除は拒否し、検証失敗時も元構成を再照合する。
+- 実行検証でdevの`providers lock`がlocal module未登録により停止することを確認。
+  `terraform get`を先行させ、その後に補完→readonly init→validate→mockを実行するよう修正。
+- 外部CLI設定・plugin cache・AWS環境変数を除外し、空のAWS設定を使用する。
+  元bootstrap lockfile・binding照合・SHA引継ぎ条件に変更はない。
+
+### 検証と残条件
+
+- 最終通常backend suiteは654成功・実AWS/実DB対象57除外。
+  新規一時領域は`.p4-artifacts/ci-full-20260922-02`。追加32ケースを含む。
+- Terraform 1.14.9 Windows実行でbootstrap/dev/test/serviceの4対象validate成功、
+  service mock23件・bootstrap mock1件成功。各コピーでLinux hash追加のみの照合も成功。
+- Ruff check成功、format check69ファイル適合、workflow YAML解析、Terraform fmt check、
+  git diff --check成功。Git管理Terraformファイルの処理前後hash照合成功。
+- 追加テストはlock差分、コピー対象、環境分離、失敗時保全、package正常/異常、
+  deterministic ZIP、CLI秘密情報非表示を対象とする。
+- 最初のsandbox試験は新規pytest一時領域へのアクセス拒否。失敗物を保全し、別の新規領域で
+  権限付き再実行した。既存ACLやアクセス不能ディレクトリは変更していない。
+- Linux実行環境（WSL等）はこの端末では利用できない。Linux上のTerraform実行・展開ZIP importは未実施。
+  workflowへ接続禁止・展開元照合付きimport検証を実装したが、修正commitでのActions成功は未確認。
+- 同一commitのterraform/package両ジョブ成功を確認するまでCI復旧完了とはしない。
+  offline成功はAWS配備・P4完了の証拠ではない。
+
 ## 2026-09-21：bootstrap診断・preflight・明示的SHA引継ぎ
 
 今回の対象は実装とoffline検証。AWS操作・State移行・IAM/GitHub変更・commit/push・依存更新は行っていない。

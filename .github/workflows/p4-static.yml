@@ -25,14 +25,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for root in bootstrap environments/dev environments/test modules/service; do
-            terraform -chdir="terraform/$root" init -backend=false -input=false -lockfile=readonly
-            terraform -chdir="terraform/$root" validate -no-color
-          done
-      - name: Mock plan only (not a live AWS or state diff)
-        run: terraform -chdir=terraform/modules/service test -no-color
-      - name: Mock bootstrap policy contract (no AWS)
-        run: terraform -chdir=terraform/bootstrap test -no-color
+          python3 backend/skills/p4/offline_terraform.py --temp-parent "$RUNNER_TEMP"
   package:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -60,4 +53,24 @@ jobs:
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/p4-expanded"
-          uv run --no-project --python 3.14 python -c 'from interview_backend.aws_runtime import api_handler, worker_handler, dispatcher_handler; from interview_backend.assets import load_questions; assert load_questions()'
+          uv run --no-project --python 3.14 python - <<'PY'
+          import pathlib
+          import socket
+
+          def forbidden(*args, **kwargs):
+              raise RuntimeError("OfflineBoundaryViolation")
+
+          socket.socket.connect = forbidden
+          socket.socket.connect_ex = forbidden
+          socket.create_connection = forbidden
+          import interview_backend
+          import interview_backend.aws_runtime as runtime
+          import interview_backend.assets as assets
+
+          for module in (interview_backend, runtime, assets):
+              assert pathlib.Path(module.__file__).resolve().is_relative_to(pathlib.Path.cwd())
+          assert all(callable(getattr(runtime, name)) for name in (
+              "api_handler", "worker_handler", "dispatcher_handler"
+          ))
+          assert assets.load_questions()
+          PY

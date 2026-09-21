@@ -286,6 +286,28 @@ remote不存在とbackup一致を再確認した場合だけ、途中で変化�
 
 ## 7. CI設定
 
+### AWS非接続CIの検証と障害切り分け
+
+`P4 offline infrastructure and package checks`のterraform/packageが同じcommitで成功したことを
+確認してから実AWSの再開準備へ進む。Node.js非推奨・runner移行予告と、非ゼロ終了の原因は区別する。
+
+Terraform検証はGit管理された構成を新規runner一時領域へコピーする。実値tfvars・State・
+既存`.terraform`はコピーしない。`terraform get`でlocal moduleを登録した後、公式registryの
+`providers lock -platform=linux_amd64`でコピーのチェックサムを補完する。
+provider集合・version・constraints一致と既存hash保持を構造検査し、hash追加だけを許可する。
+その後backendなし・lockfile readonlyのinit/validateとmock testを行う。
+暗黙のCLI設定・provider cache・AWS認証は子プロセスへ引き継がない。
+元構成は処理終了時（失敗時も）に再照合する。元lockfile、既存bootstrap run、SHA引継ぎ条件は変更しない。
+CI用コピーを実plan/applyに流用しない。registry取得失敗や補完後の不一致は検証失敗として扱う。
+
+package失敗はstderrのJSONで`failure=PackageBuildFailed`と固定`stage`/`reason_code`を返す。
+未知例外は`UnexpectedPackageBuildFailure`となり、例外本文・環境変数・ファイル内容は出さない。
+固定依存annotated-typesの`annotated_types/test_cases.py`だけは非runtimeファイルとしてZIPから除外する。
+その他のtestファイル・危険ファイルの拒否、依存version、CPython 3.14 Linux x86_64検査は維持する。
+ZIP生成失敗時は展開/importへ進まない。manifest生成失敗を成功扱いせず、再試行は新規出力先を使う。
+展開ZIPからのhandler importと質問データ読込みはsocket接続禁止で実行し、読込み元も確認する。
+WindowsでのLinux wheel ZIP生成はLinux import成功の代用にしない。
+
 明示承認後、dev Environmentに`AWS_DEV_ACCOUNT_ID`、`P4_OIDC_SUBJECT`、
 `P4_AWS_EXECUTION_READY=true`、`P4_DEPLOY_INPUTS`を設定する。Regionは東京に固定。
 `P4_DEPLOY_INPUTS`は以下のキーだけとし、artifact情報はCIが生成するため追加しない。
