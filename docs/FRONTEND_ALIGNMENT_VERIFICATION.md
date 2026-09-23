@@ -12,7 +12,10 @@ MockビルドとE2E全8件が成功（Windows、CI=true、新規ローカルサ�
 画像読込み失敗後の寸法保持・練習継続と375/768/1280pxレイアウトも成功。
 テスト期待値・アプリの動作は変更していない。スクリプトのESLint・整形検査も成功。
 最初のsandboxビルドは子プロセスのspawn EPERMで停止し、権限付き再実行で成功した。
-commit/pushとGitHub Actionsでの再実行は未実施。
+commit `e37821e34f78eac2eb0c112509efe46405bd5f34` としてmainへ反映済み。
+GitHub Actions run [35661721441](https://github.com/yonegen0/ai_interview/actions/runs/35661721441)の
+`verify` jobが成功し、lint・typecheck・test・本番build・Storybook build・Mock build・
+Playwright E2Eを含む全実行stepの成功を確認した。旧run 35660086531の画像寸法失敗は解消済み。
 
 ## 以下は2026-09-11時点の記録
 

@@ -3,8 +3,10 @@
 ## 2026-09-22：offline CIのpackage失敗・Linux providerチェックサム対応
 
 開始時はcleanなmain、HEAD `09698862b5f31c2c9695c175f3212c37fc130cbf`。
-失敗Actions run 35600832712のcommitは未取得のため、提供ログと現在のHEADで検証した。
-本節はローカル変更の記録。commit/push・GitHub設定変更・AWS操作・attempt 5作成は行っていない。
+失敗Actions run 35600832712のcommitは未取得のため、提供ログと当時のHEADで検証した。
+修正はcommit `ed0eaac42c942aa9ba6fed02cd09ca0392380c87`、続くFrontend画像修正は
+commit `e37821e34f78eac2eb0c112509efe46405bd5f34` としてmainへ反映済み。
+AWS操作・attempt 5作成は行っていない。
 
 ### 確定したpackage原因と修正
 
@@ -43,10 +45,13 @@
   deterministic ZIP、CLI秘密情報非表示を対象とする。
 - 最初のsandbox試験は新規pytest一時領域へのアクセス拒否。失敗物を保全し、別の新規領域で
   権限付き再実行した。既存ACLやアクセス不能ディレクトリは変更していない。
-- Linux実行環境（WSL等）はこの端末では利用できない。Linux上のTerraform実行・展開ZIP importは未実施。
-  workflowへ接続禁止・展開元照合付きimport検証を実装したが、修正commitでのActions成功は未確認。
-- 同一commitのterraform/package両ジョブ成功を確認するまでCI復旧完了とはしない。
-  offline成功はAWS配備・P4完了の証拠ではない。
+- Linux実行環境（WSL等）はこの端末では利用できないため、ローカルでのLinux実行は未実施。
+  GitHub Actions run [35661721446](https://github.com/yonegen0/ai_interview/actions/runs/35661721446)を
+  commit `e37821e34f78eac2eb0c112509efe46405bd5f34` で確認し、`terraform`と`package`の両jobが成功した。
+  `terraform`はfmtとAWS Credentialなしのvalidate、`package`は固定requirementsからのbuildと
+  AWS接続禁止状態での展開ZIP importを含め、すべて成功した。
+- 同一commitで両jobが成功したためoffline CI復旧を確認した。
+  これはAWS配備・実IAM認可・State移行・P4完了の証拠ではない。
 
 ## 2026-09-21：bootstrap診断・preflight・明示的SHA引継ぎ
 
