@@ -21,6 +21,10 @@ Linux ZIP importとAWS上のIAM許可・拒否、通知到達、OTPはローカ�
 
 ## Terraform CLIでの設定ファイル指定
 
+2026-09-23の復旧後は、運用Stateはcanonical recovery runのB/serial 34である。
+元の`terraform/bootstrap`には保存証跡のserial 33が残るため、下記の直接bootstrap plan例を
+現在の運用確認に使用しない。旧入力・lineage A・旧attemptも再利用しない。現状は§5.1を参照。
+
 この節は**リポジトリルート**から実行する。bootstrapとdevにはコメント付きの
 `settings.example.tfvars`を用意している。実値はGit管理外の`settings.tfvars`へ記入する。
 別端末や新しいcloneでは次のようにコピーする。既存のローカル設定は上書きしない。
@@ -180,6 +184,10 @@ $reviewedHash = Read-Host 'レビュー済みbootstrap plan SHA-256'
 
 ## 5. S3 State移行
 
+以下の例は標準bootstrap実行器でbinding/apply/readbackが揃った通常run専用。
+2026-09-23のrecovery runはこの条件を満たさず、そのまま`migrate`/`verify`へ渡してはいけない。
+§5.1の未達条件を解決し、対象・入力・コマンドの別途明示承認を得るまで実行禁止。
+
 ```powershell
 .\.venv\Scripts\python.exe skills/p4/bootstrap_state.py migrate --inputs ../.p4-artifacts/bootstrap-inputs.json --directory ../.p4-artifacts/bootstrap-initial --attempt 1
 .\.venv\Scripts\python.exe skills/p4/bootstrap_state.py verify --inputs ../.p4-artifacts/bootstrap-inputs.json --directory ../.p4-artifacts/bootstrap-initial --attempt 1
@@ -189,7 +197,190 @@ $reviewedHash = Read-Host 'レビュー済みbootstrap plan SHA-256'
 `pre-migration.tfstate`は原本backupとして残す。移行後のlocal Stateは運用に使用しない。
 S3 Stateが存在する場合の通常移行は禁止。403を不存在と扱わない。
 
+### 5.1 recoveryからのS3 State移行直前チェックリスト
+
+#### 2026-09-23後続更新：設定修正と引継ぎadapter（未commit）
+
+以下のA〜Fは最初の調査時点のチェックリスト。今回、その2つの技術的未達条件に対して
+`backend/skills/p4/recovery_migration.py`を追加した。通常binding/apply journalを偽装せず、
+復旧証跡を別のhash固定handoffで検証して既存`bootstrap_state.migrate_state`へ接続する。
+実AWSで実行したのは`inspect`のみ。移行自体と移行後verifyは合成unit testのみであり、未実行。
+
+canonical dev backendは次で固定する（実識別子はprivate HCL/handoffでのみ表示）。
+
+| 項目 | canonical値・責務 |
+|---|---|
+| bucket | recovery Stateの`outputs.state_bucket.value`。同Stateの`aws_s3_bucket.storage["state"]` ID、bootstrap設計、dev実行器、AWS owner/Region/hardeningと照合済み |
+| 命名規則 | `ai-interview-state-<承認Account>-<Region>`。名前だけで採用せず上記の証拠と一致が必要 |
+| dev key / bootstrap key | `dev/terraform.tfstate` / `bootstrap/terraform.tfstate`。同bucketだが独立Stateであり混在禁止 |
+| Region / workspace | `ap-northeast-1` / `default` |
+| locking / versioning / 暗号化 | S3 native `use_lockfile=true` / Enabled必須 / `encrypt=true`、既存AES256 |
+| Account所有主体 | ローカル設定とSTSで照合した専用dev Account。`allowed_account_ids`も固定 |
+| 認証 | ローカルは既存短期認証、CIは既存dev OIDC Role。profile/role/credentialをHCLに保存しない |
+| 管理境界 | bootstrapがbucket・hardening・CI IAM等を管理。devはdev keyへサービスStateを保存し、bucketを再作成しない |
+
+`backend-dev.hcl`だけが旧固定名を使用していた。bootstrap設計・運用State出力・
+`terraform_dev.bind_plan`/CI経路は既に一致していたため、Terraform資源構成・CI設定は変更せず、
+Git管理対象のHCLから旧bucket名を除き、非秘密のpartial configurationにした。
+実bucket/accountは`canonical_backend`/`backend_hcl`で生成するprivate HCLへ分離し、handoffでhash固定する。
+空の`backend "s3" {}`はpartial configurationとして維持。古い`.terraform`metadataは変更していない。
+将来の直接CLI利用はreview済みprivate HCLを`-backend-config`へ渡す。公開partial HCLだけでinitしない。
+adapterのinspectはprivate HCLと公開partial双方の一致も拒否条件にする。
+
+S3 native lockingは既存方式であり変更不要。公式v1.14仕様でも有効で、DynamoDB lockingは非推奨。
+根拠：[HashiCorp S3 backend](https://developer.hashicorp.com/terraform/language/v1.14.x/backend/s3)。
+
+引継ぎレビュー資料はprivateの`closeout-prepare-a4fb37116b4e4e938644928c197ab297`にある。
+`recovery-handoff.private.json`はsource絶対path、Bの実lineage、serial 34、32 instance、State hash、
+移行先、Account/Region/workspace、入力・旧review/preflight・apply/readback・normal planの
+path/hashを固定する。`handoff-sha256.json`を人がレビューし、CLIに同じhashを渡す。
+`recovery-before-migration.tfstate`は新規byte-for-byte backup、metadataは時刻/Git SHA/State識別情報付き。
+このhash生成は移行承認ではない。準備途中の失敗成果物も削除していない。
+
+adapterは通常bootstrapと同じlocal operation lockを将来の書込み時に取得し、再検証する。
+read-only inspectはlockを作らず、残存を拒否する。他端末/CI非稼働の人による確認は別途必要。
+remoteのHEADだけでなくbootstrap/dev双方のversions/delete markers/`.tflock`を列挙し、
+1件でも存在・不明なら停止する。認証失敗を不存在扱いしない。
+
+実行例はリポジトリルート基準（placeholderをprivate値へ置換する。今回はinspectのみ実行）。
+
+```powershell
+backend/.venv/Scripts/python.exe backend/skills/p4/recovery_migration.py inspect --handoff <private-handoff-path> --handoff-sha256 <reviewed-handoff-hash>
+```
+
+将来の移行は`-migrate-state`であり`-reconfigure`ではない。今回どちらも未実行。
+既存エンジンは非対話・出力秘匿でコピーするため内部に`-force-copy`を使用する。
+adapterはデフォルトで移行を拒否し、**人がその自動yesの意味を理解して別途承認した場合だけ**
+`--approve-force-copy`を受け付ける。通常は使用しない方針を維持し、この例外を承認しない場合は
+対話確認と秘密出力を両立する別経路のレビューが必要である。
+根拠：[HashiCorp init：migration/reconfigure/force-copy](https://developer.hashicorp.com/terraform/cli/commands/init)。
+
+```powershell
+# 表示のみ。clean main・新commit CI成功・全ゲートとforce-copy例外の明示承認後に限る。
+backend/.venv/Scripts/python.exe backend/skills/p4/recovery_migration.py migrate --handoff <private-handoff-path> --handoff-sha256 <reviewed-handoff-hash> --approve-force-copy
+# 将来の移行後にだけ実行。normal planは保存・検証するがapplyしない。
+backend/.venv/Scripts/python.exe backend/skills/p4/recovery_migration.py verify --handoff <private-handoff-path> --handoff-sha256 <reviewed-handoff-hash>
+```
+
+移行は専用handoffのmigration-attemptを新規作成し、再実行・resumeを拒否する。
+verifyはAWS読戻し、S3 metadata、VersionId指定State、backend state pull、全resource/ID/outputs構造一致、
+保存normal planのno-op・driftなし、plan前後のremote VersionId/bytes不変を確認してからreceiptを作る。
+差分・部分失敗ではreceiptを成功扱いにせず、既存State/plan/journalを残して停止する。
+verify途中失敗でplanが残った場合も自動上書き/再試行をしない。人による診断・再開設計が必要。
+
+**現在の総合判定はNOT READY。** 新コード/資料が未commitで対象変更のCI成功がなく、
+handoffとforce-copy例外の人の承認、実行直前の短期認証/排他/書込み権限の最終確認が残る。
+新コードのclean-main制御を迂回して今回移行してはいけない。
+rollbackはFの停止・保全方針を維持し、remote削除・state push・旧State復元・
+`-reconfigure`を自動実行しない。remoteが一致していても再コピーしない。
+
+以下は2026-09-23の**初回準備時点の履歴**。後続更新で変更された条件は上記を優先する。
+初回は準備・read-only照合だけで停止し、移行用Stateコピー、backend宣言追加、
+`init -migrate-state`/`init -reconfigure`、applyは行っていない。
+チェック欄は**実行直前の再検査用**であり、現時点で一括して完了にしない。
+観測証拠は[P4_VERIFICATION.mdの最新節](P4_VERIFICATION.md)とそのprivate参照先を使用する。
+
+#### A. 移行元・移行先の固定
+
+- [ ] 移行元はcanonical recoveryの`run/terraform.tfstate`、lineage B、serial 34、32 instance。
+- [ ] 旧bootstrap原本のserial 33、P4 lineage A、旧attempt、dev Stateを選択していない。
+- [ ] SHA-256、全address・ID・outputsが復旧後readback/normal plan記録と一致する。
+  lineageはState JSONの`lineage`、serialは`serial`、instance数は各resourceの`instances`から確認し、
+  比較結果だけを公開する。State本文はprivateでのみ扱う。
+- [ ] default workspace、対象Account/Region/bucketをprivate設定と照合し、別workspaceを作成しない。
+- [ ] bootstrap keyは`bootstrap/terraform.tfstate`。dev用`dev/terraform.tfstate`と混同しない。
+- [ ] `terraform/environments/dev/backend-dev.hcl`の意図を確認する。今回読取時はdev key、
+  Region一致、`encrypt=true`/`use_lockfile=true`だが、bucketが確認済みState bucketと不一致。
+  実値を転記せず、今回は設定を変更しない。bootstrap用設定として流用しない。
+- [ ] 対象keyと`.tflock`の現object、全Version、delete markerを再確認する。
+  今回のread-only列挙では両keyともversion/delete markerは0。403や読取不能を不存在扱いしない。
+
+#### B. S3設定・locking・認証・排他
+
+- [ ] versioning Enabled、暗号化、Public Access Block、TLS拒否の対象/内容が期待どおり。
+  今回は既存bucketのEnabled/AES256/全PAB/TLS拒否の存在を確認した。実行直前に再読戻しする。
+- [ ] Terraform 1.14.9と承認済みlockfile/Providerを維持する。recoveryのAWS Providerは6.64.0。
+  offlineの別rootのProviderを理由にrecoveryをupgradeしない。
+- [ ] `use_lockfile=true`によるS3 native lockingを使い、新しいDynamoDB lock tableを作成しない。
+- [ ] State prefixのListBucket、State本体GetObject/PutObject、`.tflock`のGetObject/PutObject/DeleteObject、
+  VersionId照合用のGetObjectVersion/versions列挙権限を確認する。State本体のDeleteObjectは不要。
+  今回のread-only成功は書込み/lock権限の実証ではない。確認だけのために試し書きしない。
+- [ ] 短期認証の有効期限とSTS Account/Regionを再確認。Credentialはbackend設定へ書かない。
+- [ ] 一人・一端末、他clone/CI/端末からの並行操作なしを人が確認する。
+- [ ] local/remote lockの残存なし。残存や結果不明なら自動解除せず停止する。
+
+locking/権限の根拠：[HashiCorp S3 backend（v1.14.x）](https://developer.hashicorp.com/terraform/language/v1.14.x/backend/s3)。
+VersionIdによる世代保全の根拠：[AWS S3 Versioning](https://docs.aws.amazon.com/AmazonS3/latest/userguide/Versioning.html)。
+
+#### C. recovery記録と既存移行実行器の接続（現在のブロッカー）
+
+`backend/skills/p4/bootstrap_state.py`のoperation guard、binding検証、migrate/verifyの記録配置を
+復旧経路と照合した。以下は同義ではなく、ファイルのコピー/改名で成功記録を作ってはいけない。
+
+| 通常実行器の前提 | recoveryの現状 | 移行前に必要なこと |
+|---|---|---|
+| attemptの`binding.json`、保存bootstrap plan、private review | recovery runに標準bindingなし。別review/preflightに入力/構成hashあり | 正規の引継ぎ設計・offline試験・別レビュー |
+| 同じattemptの`apply-completed.json` | 別`approved-refresh-execution-*`に承認済みrefresh-only完了あり | 通常bootstrap成功と偽装せずState-only復旧として関係を検証 |
+| `readback-completed.json`とbindingのplan hash | 復旧専用`readback-completed.private.json` | 標準完全読戻しの必須項目と照合し、不足を明示 |
+| 入力・構成・Git SHA・現在Stateの一貫したbinding | 新recovery入力とB/34 State、旧attempt入力/記録は保存 | 新旧入力やSHAをすり替えず承認対象を固定 |
+| 移行journal/receipt | 未作成 | 接続検証後、承認された実行でのみ生成 |
+
+- [ ] 上表の対応を追跡可能にし、通常binding・旧journalを改変していない。
+- [ ] 資料をcommitする場合の新SHAと既存復旧SHAの関係も検証する。旧bindingを新SHAへ書き換えない。
+- [ ] 既存実装の`migrate --resume`は条件付きで`init -reconfigure`を使うため、今回の禁止下では起動しない。
+  再開が必要なら、この内部操作を含めた対応範囲を別レビュー・明示承認へ提示する。
+- [ ] 未実装/未試験の接続が残る間は「移行準備完了」としない。
+
+今回は接続のためだけの実行器改造、通常bootstrapの再apply、新attempt作成を行わない。
+
+#### D. 移行直前バックアップと承認対象
+
+- [ ] serial 34の最新Stateを新規private保存先へbyte-for-byte保全する手順・対象が承認されている。
+  今回の準備では移行用Stateコピーを作っていない。既存serial 33 backupを代用しない。
+- [ ] hash、lineage、serial、instance数、timestamp、Git SHAを記録し、読戻して一致を確認する。
+- [ ] backend metadata、構成/lockfile、新recovery入力、関連journalも保全対象を固定する。
+  Credentialを収集せず、旧証跡を上書きしない。
+- [ ] cleanな対象commit、HEADとremote main、入力hash、移行先Account/bucket/key/Region、
+  実行run、コマンドと内部操作、停止条件を人へ提示し、明示承認を得る。
+- [ ] 復旧済みrefresh-only planの承認を、移行・normal apply・CI配備の承認として流用していない。
+
+#### E. 承認後の手順（今回は実行しない）
+
+1. A〜Dを再検査する。不一致があれば開始しない。
+2. 接続レビュー済みの承認runだけにS3 backend設定を適用する。
+3. 承認された`terraform init -input=false -lockfile=readonly -migrate-state`経路を一度だけ実行する。
+   既存実装は加えて`-force-copy`とbucket/key/region/allowed_account_ids/encrypt/use_lockfileを渡す。
+   `-force-copy`はStateコピー確認へ自動でyesを答え、`-migrate-state`も有効にする指定であり、
+   内容検証や上書き安全性を保証しない。対象が確定しremote不存在を確認した承認経路に限定する。
+   根拠：[HashiCorp terraform init](https://developer.hashicorp.com/terraform/cli/commands/init)。
+4. 移行先のVersionIdと暗号化を取得し、そのVersionId指定でStateをprivateへ読み戻す。
+   backend経由の`terraform state pull`でも比較する（既存実装はpull後にVersion検証する）。
+5. 生バイトSHA-256と構造一致を分けて照合する。lineage、serial、全32 instanceのaddress/ID/属性、
+   outputsを比較する。既存実装のState identity比較も確認し、serial差異を「移行だから正常」と黙認しない。
+   予期しない差異は理由が確定するまで停止する。
+6. 移行後normal planを新規private保存し、add/change/destroy/replace/outputs差分/driftすべて0を確認する。
+   このplanはapplyしない。Stateの前後hashも記録する。
+7. VersionId、local/remote hash、構造比較、読戻し・no-op結果を承認された既存receipt経路へ記録する。
+8. 成功後の運用対象をremoteへ固定し、保存済みlocal Stateから運用しない。local証跡は削除しない。
+
+#### F. 失敗・再開・rollback境界
+
+| 観測 | 対応 |
+|---|---|
+| 開始前に不一致 | 実行しない |
+| remote不存在、localと直前backup一致 | 再開候補として保全。再開の内部操作を含む明示承認が必要 |
+| remote存在、承認backupと内容一致 | 再コピーせず、実行記録との対応・VersionId・読戻し検証を進める |
+| remote存在、内容不一致 | 停止。remote上書き・local復元をしない |
+| remote読取不能、結果不明 | 停止。不在扱い・再移行をしない |
+| 移行後planに差分 | applyせず停止。過去Stateへ戻して差分を消さない |
+
+これは停止・再開条件であり、無条件復元手順ではない。`-reconfigure`、remote削除、State push、
+旧State復元を自動rollbackとして使わない。Versioningが有効でも復元操作は別途承認が必要。
+
 ## 6. 中断・失敗からの再開
+
+以下は通常bootstrap run向けの既存手順。復旧完了したB/34 runには§5.1の制限を優先し、
+旧partial applyからのreplan例や`--resume`を流用しない。
 
 ```powershell
 .\.venv\Scripts\python.exe skills/p4/bootstrap_state.py inspect --inputs ../.p4-artifacts/bootstrap-inputs.json --directory ../.p4-artifacts/bootstrap-initial --attempt 1

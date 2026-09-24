@@ -1,6 +1,6 @@
 # P4 継続実行計画
 
-更新日: 2026-09-13。
+初版: 2026-09-13。最新状況追記: 2026-09-23。
 正式な前工程表記は **P3実装完了・Python検証完了・実DB検証待ち**。
 P4は実装継続中。以下は実施計画であり、AWS配備・試験成功の記録ではない。
 実行結果は [P4_VERIFICATION.md](P4_VERIFICATION.md) に分離する。
@@ -20,6 +20,43 @@ P4は実装継続中。以下は実施計画であり、AWS配備・試験成功
 - P5、実Provider、Frontend実接続、実個人データ投入は対象外。
 
 ## 実装順と残作業
+
+### 2026-09-23の残タスク判定
+
+後続更新：下表の2つの技術的未達条件について、公開dev backendから旧bucket名を除き、
+State由来の正しい実設定をprivate HCLへ分離したうえで、
+`recovery_migration.py`によるhash固定handoff/既存migrationエンジンへの接続を追加した。
+read-only inspectは成功。通常suite696件（新規42件）とTerraform mock24件/4 root validateも成功。
+ただし新コードは未commitでCI未実行。移行承認、force-copy例外の判断、直前認証/排他/権限確認が
+残るためNOT READY。詳細は[P4検証記録の後続更新](P4_VERIFICATION.md)を優先する。
+下表は初回棚卸しの履歴であり、移行そのものやP4全体の完了を意味しない。
+
+対象SHAは`ba28157aa34c536bc481a0d80e8714edd9132d5a`。
+実測結果・run IDは[P4検証記録の最新節](P4_VERIFICATION.md)を参照。
+根拠は本計画のDB/AS/AU/運用項目、`P4_IAM_AUDIT.md`、既存検証記録、
+`.github/workflows/{backend,frontend,p4-static}.yml`、`backend/skills/p4/bootstrap_state.py`。
+offline成功を実AWS試験完了へ読み替えない。以下は残作業の可視化であり、実行の承認ではない。
+
+| 領域 | 判定 | 根拠・残タスク |
+|---|---|---|
+| bootstrap State復旧 | 完了 | 承認済みState-only更新、B/34/32維持、AWS前後一致、normal no-opを既存private記録で照合 |
+| bootstrap完全読戻し/移行接続 | 実装残・別途レビュー待ち | 復旧readbackはあるが通常binding/journal形式ではない。標準読戻しの必須項目との対応、入力/構成/SHA/Stateの接続を設計・試験する。成功journalを偽装しない |
+| State運用 | 別途承認待ち・未達条件あり | S3移行未実施。dev backend bucket不一致の意図確認、serial 34直前backup、VersionId付き一致確認、移行後no-opが必要 |
+| CI/package | offline範囲は完了、実配備は未検証 | 3自動CIとterraform/package両job、Linux ZIP import成功。保存plan制御はoffline試験あり、実AWS保存/適用/中断再開の証拠は別 |
+| 閉鎖dev配備 | 実装済み／実機未検証・別途承認待ち | 全機能停止で配備しmanifest v2の全設定を読戻す。配備workflowは今回起動しない |
+| IAM/前提条件 | 実装済み／実機未検証が残る | auditとtrust/policy整合は許可/拒否smokeの代替でない。quota、SES送信可否、実OIDC→STS認証を確認 |
+| DB | 実装残・実AWS証拠待ち | 既存57件は今回除外。DB-01〜20との不足対応・追加試験・実AWS実行結果を揃える |
+| AS | 実装残・実AWS証拠待ち | run専用観測資源、試験ZIP、hard stop、配送/再配送/障害/限定redriveの不足を埋める |
+| AU | 実装残・実AWS証拠待ち | OTP/JWT、全Route本人分離、他issuer/client、CORS、期限/失効/refresh/漏出検査を完成 |
+| 運用 | 実装済み部分あり／実機未検証 | 検出→通知、負荷、費用、rollback、再構築、限定cleanupの実証 |
+| 証拠管理 | 未確認部分あり | R01〜22/C01〜15それぞれにcommit・実行・成果物を紐付ける。通常654件/契約102件だけで網羅完了としない |
+
+移行実行器の引継ぎ改造、実機試験、AWS変更を今回は追加しない。
+次段階の停止条件・承認対象は[P4 runbook §5.1](P4_TERRAFORM_RUNBOOK.md#51-recoveryからのs3-state移行直前チェックリスト)にまとめる。
+
+### 初版時点の実装順（履歴）
+
+以下の表の「Linux実importのCI実行」など、後日完了した項目は上の最新判定を優先する。
 
 | 段階 | 現在の実装 | 完了までに必要なこと |
 |---|---|---|

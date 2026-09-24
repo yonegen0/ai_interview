@@ -1,5 +1,153 @@
 # P4 検証記録
 
+## 2026-09-23後続：移行未達条件の修正（migration未実行）
+
+開始時の3資料の追加差分を再検査し、秘密情報が**混入していない**ことを確認した。
+前回報告の「機密情報混入も確認」は混入発見ではなく、混入の有無を検査したという意味である。
+実Account/ARN/subject/メール、Credential/Token/OTP、State/plan本文をcommit候補へ転記していない。
+
+### 修正と根拠
+
+- dev backendの旧固定bucket名が不一致の原因。空のS3 backend block、bootstrap設計、B/34 Stateの
+  bucket resource ID/output、`terraform_dev.bind_plan`、CI経路、AWS読戻しを突き合わせた。
+  canonicalは管理State出力のbucket、dev keyは`dev/terraform.tfstate`。
+  Git管理対象`backend-dev.hcl`から旧bucket名を除き、公開partial設定に修正。
+  実bucket/allowed_account_idsは新規private HCLへ分離してhandoffでhash固定。実値は公開しない。
+  Terraform資源定義、Provider、State、CI workflowは変更していない。
+- `recovery_migration.py`を追加。復旧記録のpath/hashを固定したprivate handoffを検証し、
+  標準bootstrapのmigration/VersionId検証関数へ接続。通常bindingやapply成功journalを作り直していない。
+  read-only inspectではbackend HCL、Stateのsource path/hash/B/34/32、入力/構成/plan/backup、
+  Account/Region/default workspace、local/remote lock、remote履歴、AWS bootstrap読戻しを確認した。
+- 最新Stateのbyte-for-byte backupとhash/lineage/serial/count/timestamp/Git SHAを新規private領域へ記録。
+  `closeout-prepare-a4fb37116b4e4e938644928c197ab297`のhandoff/backupを使用する。
+  前の準備失敗成果物も削除していない。今回のhandoff hash生成は実行承認ではない。
+- migrateはデフォルト拒否。既存エンジンの非対話`-force-copy`を使う例外は別の人間承認と
+  `--approve-force-copy`が必要。`-reconfigure`/resume/通常applyをadapterから呼ばない。
+  移行済み/開始済みのrunを再migrationしない。移行後verifyはremote/VersionId/構造/ID/
+  AWS読戻し/保存normal plan/no-opを確認する設計で、今回はunit test以外で実行していない。
+
+### 実測結果とゲート
+
+| 項目 | 結果 |
+|---|---|
+| handoff静的照合、実AWS read-only inspect | 成功、Stateを一切書き換えない経路で確認 |
+| Canonical backend | bucket/key/Region/encrypt/locking一致。HCLにprofile/credentialなし |
+| S3 read-only | Account/owner/Region、存在/hardening確認。versioning Enabled、AES256、PAB、TLS拒否維持 |
+| destination競合 | bootstrap/dev各key、`.tflock`、versions/delete markersなし |
+| State/旧証跡 | B/34/32維持、運用hash・旧原本/backup 70件不変、既存normal plan完全no-op |
+| Terraform offline | fmt、4 root validate、service mock23件/bootstrap mock1件成功 |
+| Python | 通常suite 696 passed / 57 deselected（新規42件含む）、Ruff/format/demo成功 |
+| CI | `ba28157`のBackend/Frontend/P4 offline成功を14:31 UTCに再確認。今回の未commit変更のCIは未実行 |
+| 総合migration readiness | **NOT READY**。新commit CI、handoffレビュー/移行承認、force-copy例外判断、直前排他/認証/書込み権限確認が残る |
+
+最初の静的検査でimport順/例外指定を修正。最初のunit実行では改ざんfixtureが元と同じbytesだった
+1件の試験不備を修正した。旧失敗ログを保持し、最終成功と区別している。
+最終コード版のprivate証拠は`closeout-backend-e3fd412012384fe095deaceaeec87a60`（696成功）、
+`closeout-terraform-e8917e15ad67477f89351d55dd56986a`、
+`closeout-audit-507efd313a4b41839d1f7ba4154758e5`。
+package/runtime/Frontend契約のコードは無変更で、直前の同日検証と対象commitのLinux CI証拠を維持する。
+書込みIAM権限の前提はState Get/Put/List、lock Get/Put/Delete、Version読取/列挙であり、
+read-only成功だけでは全実効書込み権限を保証しない。試し書きは行っていない。
+手順・停止条件・将来コマンドは[runbook §5.1](P4_TERRAFORM_RUNBOOK.md#51-recoveryからのs3-state移行直前チェックリスト)。
+AWSリソース変更、operational State変更、S3 Stateコピー、migration init、apply、commit/pushは0。
+最終`git diff --check`成功。新規Pythonファイルも含め、実Account/bucket/subject/SES入力と
+ローカルsecret値をcommit候補に照合し、混入なしを確認した。private成果物はGit追跡外。
+`backend-dev.hcl`が追跡対象であることを再確認し、実値はprivate生成設定へ分離済み。
+commit候補は3資料、公開partial HCL、adapter、unit testの6ファイル。
+推奨message：`fix(p4): bind recovered state to guarded migration preflight`。
+
+## 2026-09-23：State復旧完了・offline再検証・移行準備
+
+照合対象は `ba28157aa34c536bc481a0d80e8714edd9132d5a`。開始時のmain HEAD、
+origin/main、GitHub APIのmain SHAは一致し、追跡ファイルの差分なし。
+以下は同日完了済みの復旧証跡を照合した結果であり、今回applyを再実行したものではない。
+**State復旧は完了。P4全体とS3 State移行は未完了。** 下の過去日付の「未実施」「原因未確定」は
+当時の記録として残す。現在の状態はこの節を優先する。
+
+### 復旧証跡の照合
+
+- 承認済みrefresh-only planのSHA-256と実ファイル・開始/完了記録のhashが完全一致。
+  apply開始記録と対応する成功実行は1回。結果は0 added / 0 changed / 0 destroyed。
+- lineage B維持、serial 33→34、32 instance維持、resource ID変更なし。
+  IAM Role 4件の`inline_policy`、S3 bucket 2件の`policy`/`versioning[0].enabled`という
+  6件の親resource属性の正規化が完了。AWS前後読戻し一致。
+- 後続normal planは終了コード0、add/change/destroy=0/0/0、replace・outputs差分・driftなし。
+  保存plan hash、現在State hash、recovery構成・現在bootstrap構成・新入力hashを既存記録と照合済み。
+  今回構成/入力を変更しないため、この保存済みno-op証跡を採用し、新planは作成しない。
+- normal apply未実施、S3 State移行未実施。local lock/移行receiptなし。
+  これは他端末の非稼働まで証明するものではなく、移行直前の排他確認は別途必要。
+- 既存backup ledgerの70ファイルについて原本とbackupのhash一致を確認。
+  旧証跡・journal・Stateを上書きせず、新しい復旧完了schemaも追加していない。
+
+| State | 現在の位置づけ |
+|---|---|
+| canonical recoveryの`run/terraform.tfstate`：B / 34 / 32 instance | 運用対象・将来の移行元 |
+| `terraform/bootstrap/terraform.tfstate`：B / 33 | 復旧前原本。今後のplan/移行に使用しない |
+| P4 lineage A、attempt 1〜5 | 非運用の保存証跡。削除・再apply・移送しない |
+
+private参照元は`.p4-artifacts/canonical-recovery-20260923T091053Z-940821e106594668beaef6ef64970096/`。
+その`backup-ledger.private.json`、`approved-refresh-apply-attempt.json`、
+`refresh-review-*`の完了済みreview/preflight、`approved-refresh-execution-*`の
+`apply-completed.json`、`readback-completed.private.json`、`normal-result.private.json`、
+`normal.tfplan`、`completed.json`を使用した。State本文・実識別子・入力本文は転記しない。
+
+### 今回のローカル検証
+
+既存workflow/スクリプトと固定lockを使用。AWS認証・実値tfvars・State・既存`.terraform`を
+offline Terraformコピーへ持ち込まず、新しいprivate検証領域を使用した。
+既存cache/ACL/失敗成果物を変更していない。
+
+| 検証 | 実測結果 |
+|---|---|
+| Terraform 1.14.9 fmt check | 成功、書換えなし |
+| `offline_terraform.py` | bootstrap/dev/test/serviceの4 root validate成功 |
+| Terraform mock | service 23件、bootstrap 1件成功 |
+| Backend `uv sync --locked` / Ruff check / format check | すべて成功、依存更新なし |
+| 通常Python suite | 654 passed、実DB/AWS対象57 deselected |
+| `interview-demo` | 成功 |
+| Frontend backend-contract | 1ファイル、102件成功 |
+| 固定依存export・Linux wheel取得・既存package build・ZIP展開 | すべて成功、ZIP/manifest生成 |
+| Linux展開ZIP import | Windowsローカルでは未実行。下記同一SHAのLinux CIで成功 |
+
+新規privateログは`.p4-artifacts/`配下の
+`closeout-backend-b5c6cc359ae54ea0811f004527f49667`、
+`closeout-terraform-4dd114de1661480196889b77a5cfd6ef`、
+`closeout-contract-15de5f0da9cf4e2c85f0903b8c1403cf`、
+`closeout-package-f42f215e27624b789d2daea03ce00371`に保存。
+各既存検証の終了コードは0。失敗がないためofflineコード修正は不要。
+検証後にもState hash（B/34/32）、70件の原本/backup、構成・入力・保存normal planのhash不変を
+再確認した。追跡対象の変更は本資料・計画・runbookの3点のみ。`git diff --check`成功。
+
+### 現在commitのGitHub Actions
+
+2026-09-23 14:02 UTC以降の今回のAPI照会で、上記SHAの最新run/job/stepを確認した。
+いずれもcompleted/success。旧失敗runを現在の失敗として扱わない。
+
+| Workflow | run | 必須job/step |
+|---|---|---|
+| Backend | [35831589581](https://github.com/yonegen0/ai_interview/actions/runs/35831589581) | verify成功、静的検査・通常suite・demo・契約試験成功 |
+| Frontend | [35831589507](https://github.com/yonegen0/ai_interview/actions/runs/35831589507) | verify成功、lint/typecheck/test/build/Storybook/mock build/E2E成功 |
+| P4 offline infrastructure and package checks | [35831589564](https://github.com/yonegen0/ai_interview/actions/runs/35831589564) | terraform/package両job成功、通信禁止のLinux展開ZIP importも成功 |
+
+Frontendの失敗時限定artifact uploadのskipは必須検証のskipではない。
+Frontendコード変更なし・同一SHAのCI成功のため、全Frontend工程のローカル重複実行は省略。
+今回の資料変更は未commit/未pushであり、新しいcommitのCI成功を意味しない。
+配備・実DBworkflowは起動していない。
+
+### S3準備の現在判定
+
+新規監査結果は`closeout-audit-b553b012511241889fa4f37b44dda557`に保存。
+read-onlyで対象Account、既存State bucketのversioning Enabled、AES256、Public Access Block全項目、
+TLS拒否の存在を確認。bootstrap keyとその`.tflock`のversion/delete markerはともに0。
+移行や書込み権限の実証は行っていない。
+
+**移行準備完了とは判定しない。** 通常実行器が要求するbinding/journalとrecovery記録の接続がなく、
+`backend-dev.hcl`のbucketも確認済みState bucketと一致しない。dev keyは`dev/terraform.tfstate`であり、
+bootstrap keyとは別物。設定は変更していない。
+接続レビュー、設定の意図確認、移行直前serial 34バックアップ、権限・排他・短期認証の再確認と
+明示承認が必要。詳細は[runbookの移行チェックリスト](P4_TERRAFORM_RUNBOOK.md#51-recoveryからのs3-state移行直前チェックリスト)を参照。
+今回はAWS資源/運用State変更、backend宣言追加、Stateコピー、commit/pushを行わず停止する。
+
 ## 2026-09-22：offline CIのpackage失敗・Linux providerチェックサム対応
 
 開始時はcleanなmain、HEAD `09698862b5f31c2c9695c175f3212c37fc130cbf`。
