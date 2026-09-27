@@ -284,6 +284,72 @@ def _state_identity(raw):
         raise DeploymentError("TerraformStateInvalid") from None
 
 
+def state_metadata(raw):
+    lineage, serial, _, _ = _state_identity(raw)
+    return {"lineage": lineage, "serial": serial}
+
+
+def check_state_identity(raw, canonical, *, allow_serial_advance=False):
+    """Compare serials only inside the canonical lineage; never infer adoption."""
+    current = state_metadata(raw)
+    if (
+        not isinstance(canonical, dict)
+        or set(canonical) != {"lineage", "serial"}
+        or not isinstance(canonical["lineage"], str)
+        or not canonical["lineage"]
+        or type(canonical["serial"]) is not int
+        or canonical["serial"] < 0
+        or current["lineage"] != canonical["lineage"]
+    ):
+        raise DeploymentError("MigratedStateMismatch")
+    if current["serial"] < canonical["serial"] or (
+        not allow_serial_advance and current["serial"] != canonical["serial"]
+    ):
+        raise DeploymentError("MigratedStateMismatch")
+    return current
+
+
+def compare_state_snapshot(original, remote, *, adopted_identity=None):
+    """Full JSON comparison; only check_results aggregate order is immaterial.
+
+    adopted_identity must come from the recovery adapter's hash-approved adoption
+    record, never from the remote State being evaluated. Default remains strict.
+    """
+    source = state_metadata(original)
+    canonical = source if adopted_identity is None else adopted_identity
+    check_state_identity(remote, canonical)
+    before, after = json.loads(original), json.loads(remote)
+    if adopted_identity is not None:
+        if (
+            source["lineage"] == canonical["lineage"]
+            or source["serial"] != 34
+            or canonical["serial"] != 1
+            or before.get("version") != 4
+            or before.get("terraform_version") != TF_VERSION
+            or after.get("terraform_version") != TF_VERSION
+        ):
+            raise DeploymentError("UnapprovedStateIdentityTransition")
+    for state in (before, after):
+        state.pop("lineage")
+        state.pop("serial")
+
+    def encoded(value):
+        # JSON encoding also distinguishes booleans from numeric attributes.
+        return json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False)
+
+    classification = "IDENTICAL"
+    if encoded(before.get("check_results")) != encoded(after.get("check_results")):
+        classification = "BENIGN_SERIALIZATION_DIFFERENCE"
+    for state in (before, after):
+        checks = state.get("check_results")
+        if isinstance(checks, list):
+            # Sorting, not a set: preserve duplicates and every nested field/order.
+            state["check_results"] = sorted(checks, key=encoded)
+    if encoded(before) != encoded(after):
+        raise DeploymentError("MigratedStateMismatch")
+    return classification
+
+
 def migration_target(account, region, bucket, *, session=None):
     """Reject occupied or unreadable destinations before Terraform can copy State."""
     from botocore.exceptions import ClientError
@@ -321,6 +387,8 @@ def migrate_state(
     session=None,
     backup_prepared=False,
 ):
+    if (Path(root) / "identity-adoption.private.json").exists():
+        raise DeploymentError("AdoptedStateMigrationForbidden")
     migration_target(account, region, bucket, **({"session": session} if session else {}))
     local_state = Path(local_state)
     original = local_state.read_bytes()
@@ -378,12 +446,11 @@ def migrate_state(
         env=environment,
     )
     remote = run(["terraform", "state", "pull"], cwd=root, env=environment)
-    if _state_identity(remote) != _state_identity(original):
-        raise DeploymentError("MigratedStateMismatch")
+    compare_state_snapshot(original, remote)
     return original, remote
 
 
-def verify_state_version(session, bucket, account, original):
+def verify_state_version(session, bucket, account, original, *, adopted_identity=None):
     """Verify the bytes of the exact S3 version recorded in the receipt."""
     s3 = session.client("s3")
     head = s3.head_object(Bucket=bucket, Key=STATE_KEY, ExpectedBucketOwner=account)
@@ -397,8 +464,7 @@ def verify_state_version(session, bucket, account, original):
         if response.get("VersionId") != version or response.get("ServerSideEncryption") != "AES256":
             raise DeploymentError("MigratedStateReadbackFailed")
         remote = stream.read()
-    if _state_identity(remote) != _state_identity(original):
-        raise DeploymentError("MigratedStateMismatch")
+    compare_state_snapshot(original, remote, adopted_identity=adopted_identity)
     return version, remote
 
 
@@ -460,6 +526,8 @@ def write_record(path, value):
 def operation_allowed(directory, operation, *, records=None, resume=False):
     """Attempt records survive crashes and prevent blind reapplication."""
     directory = Path(directory)
+    if (directory / "identity-adoption.private.json").exists():
+        raise DeploymentError("RecoveryIdentityAdoptionRequired")
     records = directory if records is None else Path(records)
     if operation in {"apply", "preflight"}:
         if (records / "apply-attempt.json").exists() or any(

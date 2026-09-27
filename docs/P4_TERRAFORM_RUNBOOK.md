@@ -7,6 +7,34 @@ Linux ZIP importとAWS上のIAM許可・拒否、通知到達、OTPはローカ�
 
 ## 0. 実行前提
 
+### 採用済み recovery State の identity 遷移
+
+`recovery_migration.py verify` は、元 handoff を書き換えず、run 配下の
+`identity-adoption.private.json` と `--adoption-sha256` で承認済み destination identity を
+指定できる。これは既存の private 証跡＋承認 hash 方式の補足情報であり、receipt ではない。
+実ファイルの準備・hash のレビュー・実 verify は別途承認が必要。コード修正やオフラインテストだけで
+このファイルを作成せず、運用採用処理も再実行しない。
+
+補足 JSON は `schema_version=1`、`kind=recovery-identity-adoption`、
+`status=REMOTE_STATE_OPERATIONAL_ADOPTED_READ_ONLY_VERIFIED`、`terraform_version=1.14.9`、
+`workspace=default` と、承認済み handoff の `recovery_handoff_sha256`、
+`source_state_sha256`、`source_identity`（lineage/serial）、`destination`（backend 設定全体）、
+採用済み `destination_identity`（lineage/serial）のみを持つ。
+source serial 34 → 別 lineage の destination serial 1 だけを認める。
+lineage 実値はコードに埋め込まず、remote の観測値から承認情報を自動生成しない。
+過去の migration VersionId が永続保存されていたとは仮定しない。
+
+補足ファイルが存在する場合は hash 指定の省略・不一致を拒否し、通常 bootstrap 経路や再 migration
+へ戻さない。採用情報は、source の保全確認とは分けて destination の照合基準にする。
+State 全 JSON の比較では `lineage`/`serial` の承認済み差分と `check_results` aggregate 配列の
+順序差だけを許容し、重複数・内部配列・未知 field を含む意味的差分は拒否する。
+通常の identity 検査は同一 lineage 内だけで serial 増加を許可できるが、migration 検証中は
+serial 増加も許可しない。plan 前後は destination を基準に VersionId と bytes の不変性を維持する。
+
+既存 `verify` は State 読取りに加えて normal plan と receipt 作成まで実行するため、
+read-only 確認として起動しない。オフライン検証成功は migration 全体完了・receipt 確定・
+dev plan 成功・AWS 配備再開・P4 完了を意味しない。
+
 - 実行者は1人、bootstrap端末は1台。他端末・別cloneから同時実行しない。
 - Terraform 1.14.9、Python 3.14、既存lockfileに対応した依存があること。
 - 変更レビュー後、明示承認を得てmainへ反映し、cleanなmainを使用する。実行中はSHA・入力を変更しない。

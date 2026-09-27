@@ -148,6 +148,7 @@ def validate_handoff(path, approved_hash, account, region, *, migrated=False):
                     "migration-attempt.json",
                     "migration-receipt.json",
                     "pre-migration.tfstate",
+                    "identity-adoption.private.json",
                 )
             ),
             "RecoveryMigrationAlreadyStarted",
@@ -231,8 +232,50 @@ def inspect(path, approved_hash, environment=None, *, migrated=False):
     return binding, state, run, env, session
 
 
-def execute(operation, path, approved_hash, *, approve_force_copy=False):
+def load_adopted_identity(run, binding, approved_hash, adoption_hash):
+    """Read an independently approved supplement; never rewrite the handoff.
+
+    The fixed marker makes omission of its approval fail closed on later runs.
+    This loader does not create the supplement or adopt an observed identity.
+    """
+    path = run / "identity-adoption.private.json"
+    if not path.exists() and adoption_hash is None:
+        return None
+    require(adoption_hash is not None, "ApprovedIdentityAdoptionRequired")
+    path = bootstrap.private_path(path, (bootstrap.PROJECT / ".p4-artifacts").resolve())
+    require(hashed(path) == adoption_hash, "ApprovedIdentityAdoptionRequired")
+    record = read(path)
+    identity = record.get("destination_identity")
+    expected = {
+        "schema_version": 1,
+        "kind": "recovery-identity-adoption",
+        "status": "REMOTE_STATE_OPERATIONAL_ADOPTED_READ_ONLY_VERIFIED",
+        "terraform_version": bootstrap.TF_VERSION,
+        "workspace": "default",
+        "recovery_handoff_sha256": approved_hash,
+        "source_state_sha256": binding["state_sha256"],
+        "source_identity": {"lineage": binding["lineage"], "serial": binding["serial"]},
+        "destination": binding["destination"],
+        "destination_identity": identity,
+    }
+    require(record == expected, "IdentityAdoptionBindingMismatch")
+    require(
+        isinstance(identity, dict)
+        and set(identity) == {"lineage", "serial"}
+        and isinstance(identity["lineage"], str)
+        and bool(identity["lineage"])
+        and identity["lineage"] != binding["lineage"]
+        and type(identity["serial"]) is int
+        and identity["serial"] == 1
+        and binding["serial"] == 34,
+        "IdentityAdoptionBindingMismatch",
+    )
+    return identity
+
+
+def execute(operation, path, approved_hash, *, approve_force_copy=False, adoption_hash=None):
     require(operation in {"inspect", "migrate", "verify"})
+    require(adoption_hash is None or operation == "verify", "AdoptedStateVerifyOnly")
     binding, state, run, env, session = inspect(path, approved_hash, migrated=operation == "verify")
     if operation == "inspect":
         return {
@@ -276,11 +319,15 @@ def execute(operation, path, approved_hash, *, approve_force_copy=False):
         require(read(run / "migration-attempt.json") == {"recovery_handoff_sha256": approved_hash})
         original = (run / "pre-migration.tfstate").read_bytes()
         require(bootstrap.digest_bytes(original) == binding["state_sha256"])
+        adopted = load_adopted_identity(run, binding, approved_hash, adoption_hash)
+        options = {} if adopted is None else {"adopted_identity": adopted}
         version, remote = bootstrap.verify_state_version(
-            session, binding["destination"]["bucket"], binding["account_id"], original
+            session, binding["destination"]["bucket"], binding["account_id"], original, **options
         )
+        # Even injected readback adapters must honor the approved identity/content.
+        bootstrap.compare_state_snapshot(original, remote, **options)
         pulled = bootstrap.run(["terraform", "state", "pull"], cwd=run, env=env)
-        require(bootstrap._state_identity(pulled) == bootstrap._state_identity(original))
+        bootstrap.compare_state_snapshot(remote, pulled)
         plan = run / "migration-normal.tfplan"
         require(not plan.exists() and not (run / "migration-receipt.json").exists())
         bootstrap.run(
@@ -298,8 +345,9 @@ def execute(operation, path, approved_hash, *, approve_force_copy=False):
         )
         require(all(r["actions"] == ["no-op"] for r in review.get("output_changes", {}).values()))
         later_version, later_remote = bootstrap.verify_state_version(
-            session, binding["destination"]["bucket"], binding["account_id"], original
+            session, binding["destination"]["bucket"], binding["account_id"], remote
         )
+        bootstrap.compare_state_snapshot(remote, later_remote)
         require(later_version == version and later_remote == remote)
         require((run / "pre-migration.tfstate").read_bytes() == original)
         bootstrap.write_record(
@@ -314,7 +362,16 @@ def execute(operation, path, approved_hash, *, approve_force_copy=False):
                 "backup_preserved": True,
                 "recovery_handoff_sha256": approved_hash,
                 "normal_plan_sha256": hashed(plan),
-            },
+            }
+            | (
+                {
+                    "identity_adoption_sha256": adoption_hash,
+                    "source_identity": bootstrap.state_metadata(original),
+                    "destination_identity": bootstrap.state_metadata(remote),
+                }
+                if adopted is not None
+                else {}
+            ),
         )
         return {"status": "bootstrap_state_migrated"}
 
@@ -325,6 +382,7 @@ def main():
     parser.add_argument("--handoff", required=True)
     parser.add_argument("--handoff-sha256", required=True)
     parser.add_argument("--approve-force-copy", action="store_true")
+    parser.add_argument("--adoption-sha256")
     args = parser.parse_args()
     try:
         result = execute(
@@ -332,6 +390,7 @@ def main():
             args.handoff,
             args.handoff_sha256,
             approve_force_copy=args.approve_force_copy,
+            adoption_hash=args.adoption_sha256,
         )
     except Exception:
         print(json.dumps({"status": "failed", "reason": "RecoveryMigrationChecksFailed"}))

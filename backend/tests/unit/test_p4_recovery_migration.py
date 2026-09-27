@@ -27,6 +27,7 @@ def handoff(tmp_path, monkeypatch):
 
     state = {
         "version": 4,
+        "terraform_version": "1.14.9",
         "lineage": "synthetic-B",
         "serial": 34,
         "outputs": {"state_bucket": {"value": bucket}},
