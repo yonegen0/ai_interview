@@ -1,0 +1,12 @@
+{
+  "artifact_source_sha": "f1719708d0fb0048b0f840db90a75dcb3cebc2ea",
+  "aws_account": "835384817629",
+  "bucket": "ai-interview-artifacts-835384817629-ap-northeast-1",
+  "manifest_sha256": "374297f0947311010f432583c2e62598d3d7d76b0d1ea9cbd402b96fdd5c4a5d",
+  "oidc_subject": "repo:yonegen0@76547980/ai_interview@1361325921:environment:dev",
+  "provenance_sha256": "5b864d156d2c438854e9072664199326b11349a436dd59e327e1f30376c3013a",
+  "region": "ap-northeast-1",
+  "schema_version": 1,
+  "zip_sha256": "a720e0e74cbf0555a82547b4a475bb5a1d17f14047789717890edfb9a118a914",
+  "zip_size": 19015751
+}

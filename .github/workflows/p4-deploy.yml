@@ -4,8 +4,11 @@ on:
     inputs:
       operation:
         type: choice
-        options: [plan, apply]
+        options: [plan, apply, upload-existing]
         required: true
+      upload_runner_label:
+        type: string
+        description: Unique label of the one-job local artifact runner (upload-existing only)
       plan_run_id:
         type: string
         description: Successful plan workflow run ID (apply only)
@@ -19,10 +22,13 @@ concurrency:
   cancel-in-progress: false
 jobs:
   backend:
+    if: inputs.operation != 'upload-existing'
     uses: ./.github/workflows/backend.yml
   offline:
+    if: inputs.operation != 'upload-existing'
     uses: ./.github/workflows/p4-static.yml
   deployment:
+    if: inputs.operation != 'upload-existing'
     needs: [backend, offline]
     environment: dev
     runs-on: ubuntu-latest
@@ -65,3 +71,32 @@ jobs:
           P4_PLAN_HASH: ${{ inputs.plan_hash }}
           GH_TOKEN: ${{ github.token }}
         run: uv run --locked python skills/p4/ci_deploy.py
+  upload_existing:
+    if: inputs.operation == 'upload-existing' && startsWith(inputs.upload_runner_label, 'p4-upload-existing-')
+    environment: dev
+    runs-on: ${{ inputs.upload_runner_label }}
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+      deployments: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          set-safe-directory: false
+      - name: Upload approved existing ZIP once and verify the returned version
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+          P4_OPERATION: ${{ inputs.operation }}
+          AWS_REGION: ap-northeast-1
+          AWS_EC2_METADATA_DISABLED: 'true'
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (!$env:P4_UPLOAD_PYTHON) { throw 'PreparedArtifactRunnerRequired' }
+          & $env:P4_UPLOAD_PYTHON -B backend/skills/p4/upload_existing.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
