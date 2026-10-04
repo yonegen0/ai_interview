@@ -95,7 +95,7 @@ def simulate(answer_arrivals=(), *, plain_requests=(), assumptions=None):
             continue
         bucket.take()
         account.take()
-        sdk_calls = 3 if route == "answer" else 1
+        sdk_calls = {"answer": 3, "feedback": 2, "next_question": 3}.get(route, 1)
         cpu = (0.002309 if route == "answer" else 0.002393) * a.cpu_multiplier
         # Network time affects client latency, not Lambda concurrency occupancy.
         end = pool.invoke(at, cpu + sdk_calls * a.sdk_seconds, 0 if a.warm else a.init_seconds)

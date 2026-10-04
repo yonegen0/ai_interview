@@ -138,6 +138,7 @@ native依存（pydantic-core等）の対応・再build・正式artifact再監査
 API各要求の保守値2.393ms。別process import660.624msはAWS cold start実測ではない。
 SDK往復10ms、client/API Gateway通信50ms、配送1秒、初期化660.624msの仮定でイベントモデルを使う。
 回答POST→初回評価GET→直前応答後2秒polling→feedback GET→session GET/次問POSTを計数する。
+SDK回数は回答POST3、評価/session GET1、feedback GET2、次問POST3。既存storage実装から確認する。
 同一warm環境は再利用し、coldは各環境の初回だけ加算。Worker2laneの初期化も初回だけ。
 Dispatcher/Recovery等4枠＋Worker2枠を背景占有に確保する。
 
@@ -148,7 +149,7 @@ rate20による拒否が出るため成功とは扱わない。
 quota1000が主判定、quota10は参考。retryなし成功率を評価し、受理分p95だけで判定しない。
 
 上記入力でquota1000の通常・polling・1秒/2秒集中・混在はwarm/cold代理とも
-`MODEL_PASS_WITH_ASSUMPTIONS`。30件結果取得はwarm約3.24/4.20秒、cold代理約5.66/6.27秒。
+`MODEL_PASS_WITH_ASSUMPTIONS`。30件結果取得はwarm約3.25/4.21秒、cold代理約5.67/6.28秒。
 quota10はwarm混在とcold代理のpolling/集中/混在で拒否が出る。現在の配備可否の必須条件にはしない。
 これらはAWS成功率やcold startの証明ではない。
 合否対象のモデル上の必要concurrency上限はwarm11、cold代理41、quota1000との差は989/959。

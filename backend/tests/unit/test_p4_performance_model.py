@@ -1,6 +1,14 @@
 """Event model checks against independent hand-calculated examples."""
 
+import pytest
 from test_p4_tools import tool
+
+
+@pytest.mark.parametrize("route,expected", [("feedback", 0.072393), ("next_question", 0.082393)])
+def test_result_and_next_question_sdk_round_trips(route, expected):
+    m = tool("performance_model")
+    result = m.simulate(plain_requests=[(0, route)], assumptions=m.Assumptions(warm=True))
+    assert result["api_p95_seconds"] == pytest.approx(expected)
 
 
 def test_bucket_refills_and_caps():
