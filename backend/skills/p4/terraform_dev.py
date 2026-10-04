@@ -11,6 +11,7 @@ import os
 import re
 import subprocess
 import sys
+from decimal import Decimal
 from pathlib import Path
 
 from interview_backend.deployment import (
@@ -44,6 +45,13 @@ INPUT_KEYS = frozenset(
         "api_enabled",
     }
 )
+USD_INPUT_KEYS = (INPUT_KEYS - {"jpy_per_usd", "budget_rate_date"}) | {"monthly_budget_usd"}
+
+
+def valid_input_keys(keys, *, without_artifact=False):
+    package = {"artifact_bucket", "artifact_key", "artifact_version", "artifact_sha256_base64"}
+    omitted = package if without_artifact else set()
+    return set(keys) in (INPUT_KEYS - omitted, USD_INPUT_KEYS - omitted)
 
 
 def digest(path):
@@ -100,12 +108,22 @@ def inputs(path, account, region):
 
 
 def validate_inputs(values, account, region):
-    if not isinstance(values, dict) or values.keys() != INPUT_KEYS:
+    if not isinstance(values, dict) or not valid_input_keys(values):
         raise DeploymentError("ExplicitDeploymentInputsRequired")
     result = dict(values)
-    result["monthly_budget_usd"] = monthly_budget(
-        result.pop("jpy_per_usd"), result.pop("budget_rate_date")
-    )
+    if "monthly_budget_usd" in result:
+        amount = result["monthly_budget_usd"]
+        if (
+            not isinstance(amount, str)
+            or not re.fullmatch(r"[0-9]+(?:\.[0-9]{1,2})?", amount)
+            or Decimal(amount) <= 0
+        ):
+            raise DeploymentError("InvalidMonthlyBudget")
+        result["monthly_budget_usd"] = format(Decimal(amount), ".2f")
+    else:
+        result["monthly_budget_usd"] = monthly_budget(
+            result.pop("jpy_per_usd"), result.pop("budget_rate_date")
+        )
     if result["artifact_bucket"] != f"ai-interview-artifacts-{account}-{region}":
         raise DeploymentError("ArtifactBucketMismatch")
     if (

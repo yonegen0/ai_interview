@@ -12,6 +12,8 @@ resource "aws_sns_topic_policy" "alarms" {
   policy = jsonencode({ Version = "2012-10-17", Statement = [{ Effect = "Allow", Principal = { Service = "cloudwatch.amazonaws.com" }, Action = "sns:Publish", Resource = aws_sns_topic.alarms.arn, Condition = { StringEquals = { "aws:SourceAccount" = var.account_id }, ArnLike = { "aws:SourceArn" = "arn:aws:cloudwatch:${var.region}:${var.account_id}:alarm:${local.prefix}-*" } } }] })
 }
 locals {
+  monitoring_enabled  = local.environment != "dev" || anytrue([var.api_enabled, var.worker_enabled, var.streams_enabled, var.scheduler_enabled])
+  dev_emf_alarm_names = toset(["api-IntegrityError", "worker-IntegrityError", "dispatcher-IntegrityError", "OutcomeUnknown", "RecoveryHeartbeat", "RecoverySweepLag"])
   emf_alarms = merge(
     { for n in ["PendingAge", "QueuedAge"] : n => { metric = n, component = "dispatcher", threshold = 120, comparison = "GreaterThanThreshold", periods = 1, period = 60, stat = "Maximum", missing = "notBreaching" } },
     { RecoveryHeartbeat = { metric = "RecoveryHeartbeat", component = "dispatcher", threshold = 1, comparison = "LessThanThreshold", periods = 3, period = 60, stat = "Sum", missing = "breaching" },
@@ -22,7 +24,7 @@ locals {
   )
 }
 resource "aws_cloudwatch_metric_alarm" "emf" {
-  for_each            = local.emf_alarms
+  for_each            = { for name, alarm in local.emf_alarms : name => alarm if local.monitoring_enabled && (local.environment != "dev" || contains(local.dev_emf_alarm_names, name)) }
   alarm_name          = "${local.prefix}-${each.key}"
   namespace           = "AIInterview"
   metric_name         = each.value.metric
@@ -35,11 +37,11 @@ resource "aws_cloudwatch_metric_alarm" "emf" {
   treat_missing_data  = each.value.missing
   alarm_actions       = [aws_sns_topic.alarms.arn]
   ok_actions          = [aws_sns_topic.alarms.arn]
-  actions_enabled     = each.key != "RecoveryHeartbeat" || var.scheduler_enabled
+  actions_enabled     = (each.key != "RecoveryHeartbeat" && (local.environment != "dev" || each.key != "RecoverySweepLag")) || var.scheduler_enabled
   tags                = local.tags
 }
 resource "aws_cloudwatch_metric_alarm" "dlq" {
-  for_each            = { worker = aws_sqs_queue.worker_dlq.name, stream = aws_sqs_queue.stream_failure.name }
+  for_each            = { for name, queue in { worker = aws_sqs_queue.worker_dlq.name, stream = aws_sqs_queue.stream_failure.name } : name => queue if local.monitoring_enabled }
   alarm_name          = "${local.prefix}-dlq-${each.key}"
   namespace           = "AWS/SQS"
   metric_name         = "ApproximateNumberOfMessagesVisible"
@@ -54,7 +56,7 @@ resource "aws_cloudwatch_metric_alarm" "dlq" {
   tags                = local.tags
 }
 resource "aws_cloudwatch_metric_alarm" "lambda" {
-  for_each            = { for pair in setproduct(keys(local.function_arns), ["Errors", "Throttles"]) : "${pair[0]}-${pair[1]}" => pair }
+  for_each            = { for pair in setproduct(keys(local.function_arns), ["Errors", "Throttles"]) : "${pair[0]}-${pair[1]}" => pair if local.monitoring_enabled }
   alarm_name          = "${local.prefix}-${each.key}"
   namespace           = "AWS/Lambda"
   metric_name         = each.value[1]
@@ -69,6 +71,7 @@ resource "aws_cloudwatch_metric_alarm" "lambda" {
   tags                = local.tags
 }
 resource "aws_cloudwatch_metric_alarm" "iterator" {
+  count               = local.environment == "dev" ? 0 : 1
   alarm_name          = "${local.prefix}-iterator-age"
   namespace           = "AWS/Lambda"
   metric_name         = "IteratorAge"
@@ -84,6 +87,7 @@ resource "aws_cloudwatch_metric_alarm" "iterator" {
   tags                = local.tags
 }
 resource "aws_cloudwatch_metric_alarm" "failure_rate" {
+  count               = local.environment == "dev" ? 0 : 1
   alarm_name          = "${local.prefix}-failure-rate"
   comparison_operator = "GreaterThanThreshold"
   threshold           = 20
@@ -120,13 +124,23 @@ resource "aws_budgets_budget" "dev" {
   time_unit    = "MONTHLY"
   # Account-wide notification is conservative and does not depend on tag activation.
   dynamic "notification" {
-    for_each = toset([50, 80, 100])
+    for_each = { actual_80 = { threshold = 80, type = "ACTUAL" }, actual_100 = { threshold = 100, type = "ACTUAL" }, forecast_100 = { threshold = 100, type = "FORECASTED" } }
     content {
       comparison_operator        = "GREATER_THAN"
-      threshold                  = notification.value
+      threshold                  = notification.value.threshold
       threshold_type             = "PERCENTAGE"
-      notification_type          = "ACTUAL"
+      notification_type          = notification.value.type
       subscriber_email_addresses = [var.alarm_email]
     }
   }
+}
+
+moved {
+  from = aws_cloudwatch_metric_alarm.iterator
+  to   = aws_cloudwatch_metric_alarm.iterator[0]
+}
+
+moved {
+  from = aws_cloudwatch_metric_alarm.failure_rate
+  to   = aws_cloudwatch_metric_alarm.failure_rate[0]
 }

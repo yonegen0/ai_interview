@@ -77,8 +77,8 @@ run "reject_missing_account" {
 run "budget_notifications" {
   command = plan
   assert {
-    condition     = toset([for n in aws_budgets_budget.dev[0].notification : n.threshold]) == toset([50, 80, 100])
-    error_message = "All three actual monthly budget thresholds are mandatory."
+    condition     = toset([for n in aws_budgets_budget.dev[0].notification : "${n.notification_type}:${n.threshold}"]) == toset(["ACTUAL:80", "ACTUAL:100", "FORECASTED:100"])
+    error_message = "Both actual thresholds and the forecast notification are mandatory."
   }
 }
 

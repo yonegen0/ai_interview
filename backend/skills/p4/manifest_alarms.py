@@ -128,6 +128,30 @@ def expected_alarms(manifest, prefix):
             }
         )
     alarms[prefix + "-failure-rate"] = rate
+    if manifest["environment"] == "dev":
+        configuration = manifest["configuration"]
+        if not any(
+            configuration[key]
+            for key in ("api_enabled", "worker_enabled", "streams_enabled", "scheduler_enabled")
+        ):
+            return {}
+        names = {
+            "RecoveryHeartbeat",
+            "RecoverySweepLag",
+            "OutcomeUnknown",
+            "dlq-worker",
+            "dlq-stream",
+        } | {
+            f"{role}-{metric}"
+            for role in ("api", "worker", "dispatcher")
+            for metric in ("Errors", "Throttles", "IntegrityError")
+        }
+        alarms = {
+            name: value
+            for name, value in alarms.items()
+            if name.removeprefix(prefix + "-") in names
+        }
+        alarms[prefix + "-RecoverySweepLag"]["ActionsEnabled"] = configuration["scheduler_enabled"]
     return alarms
 
 

@@ -117,6 +117,7 @@ def deployment(monkeypatch):
                 "Runtime": "python3.14",
                 "Architectures": ["x86_64"],
                 "MemorySize": 512,
+                "TracingConfig": {"Mode": "PassThrough"},
                 "Timeout": {"api": 15, "worker": 60, "dispatcher": 30}[role],
                 "Handler": f"interview_backend.aws_runtime.{role}_handler",
                 "Role": f"arn:aws:iam::{a}:role/{name}-runtime",
@@ -346,7 +347,7 @@ def deployment(monkeypatch):
         add(
             "logs",
             "describe_log_groups",
-            {"logGroups": [{"logGroupName": name, "retentionInDays": 30}]},
+            {"logGroups": [{"logGroupName": name, "retentionInDays": 7}]},
             name,
         )
     add(
@@ -412,9 +413,9 @@ def deployment(monkeypatch):
                     "Threshold": n,
                     "ComparisonOperator": "GREATER_THAN",
                     "ThresholdType": "PERCENTAGE",
-                    "NotificationType": "ACTUAL",
+                    "NotificationType": kind,
                 }
-                for n in (50, 80, 100)
+                for kind, n in (("ACTUAL", 80), ("ACTUAL", 100), ("FORECASTED", 100))
             ]
         },
     )
@@ -464,6 +465,34 @@ def test_complete_closed_deployment(deployment):
     )
 
 
+@pytest.mark.parametrize("mutation", ["logs", "tracing", "vpc", "budget", "notification", "alarm"])
+def test_serverless_readback_rejects_configuration_drift(deployment, mutation):
+    m, data, session = deployment
+    if mutation == "logs":
+        response = next(
+            value for key, value in data.items() if key[:2] == ("logs", "describe_log_groups")
+        )
+        response["logGroups"][0]["retentionInDays"] = 30
+    elif mutation in {"tracing", "vpc"}:
+        response = data["lambda", "get_function_configuration", "ai-interview-dev-api"]
+        if mutation == "tracing":
+            response["TracingConfig"]["Mode"] = "Active"
+        else:
+            response["VpcConfig"] = {"SubnetIds": ["unexpected-subnet"]}
+    elif mutation == "budget":
+        data["budgets", "describe_budget", ""]["Budget"]["BudgetLimit"]["Amount"] = "999"
+    elif mutation == "notification":
+        data["budgets", "describe_notifications_for_budget", ""]["Notifications"][0][
+            "Threshold"
+        ] = 50
+    else:
+        data["cloudwatch", "describe_alarms", ""]["MetricAlarms"].append(
+            {"AlarmName": "ai-interview-dev-unexpected"}
+        )
+    with pytest.raises(ValueError, match="DeploymentReadbackFailed"):
+        tool("manifest").verify_live_manifest(session, m, require_api_enabled=False)
+
+
 @pytest.mark.parametrize("reserved", [0, 2, 10])
 def test_worker_reservation_is_rejected(deployment, reserved):
     m, data, session = deployment
@@ -482,12 +511,20 @@ def test_unbounded_worker_mapping_is_rejected(deployment):
 
 def test_every_alarm_condition_is_checked(deployment):
     m, data, session = deployment
+    m["configuration"]["worker_enabled"] = True
+    module = tool("manifest_alarms")
+    data["cloudwatch", "describe_alarms", ""]["MetricAlarms"] = [
+        value | {"AlarmName": key}
+        for key, value in module.expected_alarms(m, "ai-interview-dev").items()
+    ]
     alarms = data["cloudwatch", "describe_alarms", ""]["MetricAlarms"]
+    assert len(alarms) == 14
+    module.verify_alarms(session.client("cloudwatch"), m, "ai-interview-dev")
     for alarm in alarms:
         original = alarm["Threshold"]
         alarm["Threshold"] = original + 1
-        with pytest.raises(ValueError, match="DeploymentReadbackFailed"):
-            tool("manifest").verify_live_manifest(session, m, require_api_enabled=False)
+        with pytest.raises(ValueError, match="DeploymentAttributeMismatch"):
+            module.verify_alarms(session.client("cloudwatch"), m, "ai-interview-dev")
         alarm["Threshold"] = original
 
 
@@ -521,7 +558,8 @@ def test_each_required_response_leaf_is_checked(deployment):
                 tool("manifest").verify_live_manifest(session, m, require_api_enabled=False)
             checked += 1
         data[target] = original
-    assert checked > 300
+    # Closed dev no longer contains the 32 alarms; their active contracts are tested separately.
+    assert checked >= 264
 
 
 @pytest.mark.parametrize(

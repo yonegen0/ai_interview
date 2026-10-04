@@ -70,7 +70,7 @@ foreach ($tfRoot in @('terraform/bootstrap', 'terraform/environments/dev')) {
    bootstrapは確認済みAccount・実OIDC Subject・承認済みSES方式と送信元を記入する。
    devはbootstrapの確認済み出力、同一ZIPのS3 key・VersionId・Base64 SHA-256、送信元・通知先を記入する。
 2. devの`cors_origins`に実Frontend originを、`monthly_budget_usd`に承認済みの正のUSD額を記入する。
-   空のCORSはvalidationで拒否される。予算は3,000円÷160円/USD=18.75 USD（基準日2026-09-17）。Regionは東京、4つの有効化フラグはfalseを維持する。
+   空のCORSはvalidationで拒否される。限定試験向けdev予算は10.00 USD。Regionは東京、4つの有効化フラグはfalseを維持する。
 3. 既存手順に従って短期認証とTerraform初期化を準備し、対象AccountとStateを確認する。
    devのS3 backend設定は`terraform -chdir=terraform/environments/dev init -input=false '-backend-config=<確認済みbackend設定ファイル>'`で別途指定する。
    backend設定ファイルの相対パスはdevディレクトリ基準。既存Stateの移行にこのinit例を流用せず、後述の移行手順に従う。
@@ -132,6 +132,24 @@ WorkIndexの記法変更後の実planでテーブル置換やGSI再作成が出�
 offline mock成功は実Stateに対する無変更の証明ではない。
 
 ## 1. GitHub dev EnvironmentとOIDC Claim
+
+### 限定試験用USD入力とpackage差分判定
+
+配備補助の新入力は `monthly_budget_usd: "10.00"`。
+正の10進文字列で小数2桁までを受け付け、2桁へ正規化する。
+旧 `jpy_per_usd`＋`budget_rate_date` 形式も既存計算を維持する。
+新旧混在・どちらもなし・未知キー・指数/boolean/NaN/Infinity/0/負数は拒否する。
+Terraform output manifest構造とartifact manifestは変更しない。
+GitHub保存済み入力の移行時は旧為替2キーを外しUSDキーを入れる。自動変更しない。
+
+P4 offline package jobはpushのbefore→after、PRのbase merge-base→headを比較し、
+runtime source、依存定義/lock、Lambda package builderの変更時だけ実行する。
+複数commitも含める。比較元commitを取得できなければエラーとする。
+手動workflow/reusable呼出しは実在する祖先 `package_base_sha` を指定する。
+infra/tools/tests/docsだけの変更ではpackageをskipし、build成功とは数えない。
+fixtureのpackage安全性単体テストはBackend offline CIで継続する。
+今回の正式saved planはローカルCLI経路で固定S3 versionを使い、build/upload付き配備jobを起動しない。
+監視と終了手順は [サーバレス最適化](P4_SERVERLESS_OPTIMIZATION.md)を参照。
 
 明示承認後、RepositoryのEnvironment `dev`をmain限定で作成・確認する。
 required reviewerは設定しない。workflowコードの変更権限を持つ人が配備Roleを利用できる境界である。

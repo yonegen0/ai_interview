@@ -15,6 +15,9 @@ on:
       plan_hash:
         type: string
         description: Reviewed SHA-256 of the saved plan (apply only)
+      package_base_sha:
+        type: string
+        description: Available ancestor commit for offline package comparison (plan/apply)
 permissions:
   contents: read
 concurrency:
@@ -27,6 +30,8 @@ jobs:
   offline:
     if: inputs.operation != 'upload-existing'
     uses: ./.github/workflows/p4-static.yml
+    with:
+      package_base_sha: ${{ inputs.package_base_sha }}
   deployment:
     if: inputs.operation != 'upload-existing'
     needs: [backend, offline]

@@ -1,7 +1,7 @@
 resource "aws_cloudwatch_log_group" "lambda" {
   for_each          = local.function_arns
   name              = "/aws/lambda/${local.prefix}-${each.key}"
-  retention_in_days = 30
+  retention_in_days = local.environment == "dev" ? 7 : 30
   tags              = local.tags
 }
 resource "aws_iam_role" "lambda" {
@@ -50,6 +50,7 @@ resource "aws_lambda_function" "main" {
   s3_object_version              = var.artifact_version
   source_code_hash               = var.artifact_sha256_base64
   publish                        = true
+  tracing_config { mode = "PassThrough" }
   environment {
     variables = merge(local.common_env, local.role_env[each.key], { INTERVIEW_COMPONENT = each.key, INTERVIEW_FUNCTION_NAME = "${local.prefix}-${each.key}" })
   }
@@ -63,6 +64,7 @@ resource "aws_lambda_alias" "entry" {
   function_version = aws_lambda_function.main[each.value.role].version
 }
 resource "aws_lambda_event_source_mapping" "worker" {
+  depends_on                         = [aws_cloudwatch_metric_alarm.emf, aws_cloudwatch_metric_alarm.lambda, aws_cloudwatch_metric_alarm.dlq, aws_sns_topic_policy.alarms, aws_sns_topic_subscription.email]
   event_source_arn                   = aws_sqs_queue.main.arn
   function_name                      = aws_lambda_alias.entry["worker"].arn
   enabled                            = var.worker_enabled
@@ -72,6 +74,7 @@ resource "aws_lambda_event_source_mapping" "worker" {
   scaling_config { maximum_concurrency = 2 }
 }
 resource "aws_lambda_event_source_mapping" "streams" {
+  depends_on                         = [aws_cloudwatch_metric_alarm.emf, aws_cloudwatch_metric_alarm.lambda, aws_cloudwatch_metric_alarm.dlq, aws_cloudwatch_metric_alarm.iterator, aws_sns_topic_policy.alarms, aws_sns_topic_subscription.email]
   event_source_arn                   = aws_dynamodb_table.main.stream_arn
   function_name                      = aws_lambda_alias.entry["streams"].arn
   enabled                            = var.streams_enabled
@@ -118,5 +121,5 @@ resource "aws_scheduler_schedule" "recovery" {
       maximum_event_age_in_seconds = 60
     }
   }
-  depends_on = [aws_iam_role_policy.scheduler]
+  depends_on = [aws_iam_role_policy.scheduler, aws_cloudwatch_metric_alarm.emf, aws_cloudwatch_metric_alarm.lambda, aws_cloudwatch_metric_alarm.dlq, aws_sns_topic_policy.alarms, aws_sns_topic_subscription.email]
 }

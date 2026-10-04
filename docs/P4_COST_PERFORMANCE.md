@@ -1,5 +1,10 @@
 # P4：30人向けコスト・性能レビュー
 
+> 2026-10-04時点の履歴。最新の設計・判定条件は
+> [限定試験向けサーバレス最適化](P4_SERVERLESS_OPTIMIZATION.md)を参照。
+> quota10は参考評価であり、最新計画の配備可否の必須条件ではない。
+> AWS実性能未検証は後続試験として残す。以下の旧費用表・監視構成は現行予定値ではない。
+
 ## 採用する閉鎖dev構成
 
 WorkerはReserved Concurrencyを設定せず、唯一のSQS mappingをMaximumConcurrency=2にする。

@@ -132,6 +132,9 @@ def verify_configuration(session, manifest, config):
                 "State": "Active",
             },
         )
+        expect(deployed["TracingConfig"], {"Mode": "PassThrough"})
+        if deployed.get("VpcConfig", {}).get("SubnetIds"):
+            raise ValueError("UnexpectedVpcConfiguration")
         expect(
             deployed["Environment"],
             {
@@ -223,7 +226,7 @@ def verify_configuration(session, manifest, config):
         ]
         if len(found) != 1:
             raise ValueError("LogGroupMissing")
-        expect(found[0], {"retentionInDays": 30})
+        expect(found[0], {"retentionInDays": 7 if m["environment"] == "dev" else 30})
     verify_notifications(client, m, prefix)
     from manifest_alarms import verify_alarms
 
@@ -423,7 +426,9 @@ def verify_notifications(client, m, prefix):
         ):
             raise ValueError("BudgetMismatch")
         notifications = pages(budgets.describe_notifications_for_budget, "Notifications", **args)
-        if len(notifications) != 3 or {n["Threshold"] for n in notifications} != {50, 80, 100}:
+        if len(notifications) != 3 or {
+            (n["NotificationType"], n["Threshold"]) for n in notifications
+        } != {("ACTUAL", 80), ("ACTUAL", 100), ("FORECASTED", 100)}:
             raise ValueError("BudgetNotificationMismatch")
         for notification in notifications:
             expect(
@@ -431,7 +436,6 @@ def verify_notifications(client, m, prefix):
                 {
                     "ComparisonOperator": "GREATER_THAN",
                     "ThresholdType": "PERCENTAGE",
-                    "NotificationType": "ACTUAL",
                 },
             )
             subscribers = pages(

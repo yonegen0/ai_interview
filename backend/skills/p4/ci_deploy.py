@@ -9,12 +9,12 @@ from urllib.request import Request
 
 from ci_identity import NoRedirect, assume
 from terraform_dev import (
-    INPUT_KEYS,
     PROJECT,
     REPOSITORY,
     checked_git,
     execute,
     run,
+    valid_input_keys,
     validate_inputs,
 )
 
@@ -42,7 +42,9 @@ def preflight(environment):
         raise DeploymentError("ApprovedPlanIdentityRequired")
     account, region = account_settings(PROJECT, environment)
     configuration = json.loads(environment["P4_DEPLOY_INPUTS"])
-    if not isinstance(configuration, dict) or configuration.keys() != INPUT_KEYS - PACKAGE_KEYS:
+    if not isinstance(configuration, dict) or not valid_input_keys(
+        configuration, without_artifact=True
+    ):
         raise DeploymentError("ExplicitDeploymentInputsRequired")
     package = {
         "artifact_bucket": f"ai-interview-artifacts-{account}-{region}",
