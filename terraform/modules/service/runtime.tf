@@ -35,15 +35,16 @@ locals {
   aliases = { api = { role = "api", alias = "live" }, worker = { role = "worker", alias = "live" }, streams = { role = "dispatcher", alias = "streams" }, recovery = { role = "dispatcher", alias = "recovery" } }
 }
 resource "aws_lambda_function" "main" {
-  for_each                       = local.function_arns
-  function_name                  = "${local.prefix}-${each.key}"
-  role                           = aws_iam_role.lambda[each.key].arn
-  runtime                        = "python3.14"
-  architectures                  = ["x86_64"]
-  handler                        = "interview_backend.aws_runtime.${each.key}_handler"
-  memory_size                    = 512
-  timeout                        = each.key == "worker" ? 60 : each.key == "dispatcher" ? 30 : 15
-  reserved_concurrent_executions = each.key == "worker" ? 2 : -1
+  for_each      = local.function_arns
+  function_name = "${local.prefix}-${each.key}"
+  role          = aws_iam_role.lambda[each.key].arn
+  runtime       = "python3.14"
+  architectures = ["x86_64"]
+  handler       = "interview_backend.aws_runtime.${each.key}_handler"
+  memory_size   = 512
+  timeout       = each.key == "worker" ? 60 : each.key == "dispatcher" ? 30 : 15
+  # SQS limits Worker fan-out below; leave the account pool unreserved.
+  reserved_concurrent_executions = -1
   s3_bucket                      = var.artifact_bucket
   s3_key                         = var.artifact_key
   s3_object_version              = var.artifact_version

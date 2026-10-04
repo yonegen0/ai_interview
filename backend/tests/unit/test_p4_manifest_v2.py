@@ -128,7 +128,7 @@ def deployment(monkeypatch):
         add(
             "lambda",
             "get_function_concurrency",
-            {"ReservedConcurrentExecutions": 2} if role == "worker" else {},
+            {},
             name,
         )
         add(
@@ -218,7 +218,7 @@ def deployment(monkeypatch):
         {
             "StageName": "dev",
             "AutoDeploy": True,
-            "DefaultRouteSettings": {"ThrottlingBurstLimit": 10, "ThrottlingRateLimit": 5.0},
+            "DefaultRouteSettings": {"ThrottlingBurstLimit": 30, "ThrottlingRateLimit": 20.0},
             "AccessLogSettings": {
                 "DestinationArn": f"arn:aws:logs:{r}:{a}:log-group:/aws/apigateway/{p}",
                 "Format": json.dumps(
@@ -462,6 +462,22 @@ def test_complete_closed_deployment(deployment):
     tool("manifest").verify_live_manifest(
         session, m, require_api_enabled=False, approved_inputs=m["configuration"]
     )
+
+
+@pytest.mark.parametrize("reserved", [0, 2, 10])
+def test_worker_reservation_is_rejected(deployment, reserved):
+    m, data, session = deployment
+    name = "ai-interview-dev-worker"
+    data["lambda", "get_function_concurrency", name] = {"ReservedConcurrentExecutions": reserved}
+    with pytest.raises(ValueError, match="DeploymentReadbackFailed"):
+        tool("manifest").verify_live_manifest(session, m, require_api_enabled=False)
+
+
+def test_unbounded_worker_mapping_is_rejected(deployment):
+    m, data, session = deployment
+    data["lambda", "get_event_source_mapping", "worker-id"]["ScalingConfig"] = {}
+    with pytest.raises(ValueError, match="DeploymentReadbackFailed"):
+        tool("manifest").verify_live_manifest(session, m, require_api_enabled=False)
 
 
 def test_every_alarm_condition_is_checked(deployment):

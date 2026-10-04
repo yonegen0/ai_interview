@@ -142,7 +142,7 @@ def verify_configuration(session, manifest, config):
         )
         concurrency = lambdas.get_function_concurrency(FunctionName=name)
         # AWS omits ReservedConcurrentExecutions when no reservation exists.
-        if concurrency.get("ReservedConcurrentExecutions", -1) != (2 if role == "worker" else -1):
+        if concurrency.get("ReservedConcurrentExecutions", -1) != -1:
             raise ValueError("ConcurrencyMismatch")
         observed_role = iam.get_role(RoleName=name + "-runtime")["Role"]
         expect(
@@ -248,7 +248,7 @@ def verify_api(api, m, prefix):
     expect(cors, {"AllowCredentials": False, "MaxAge": 300})
     stage = api.get_stage(ApiId=m["api_id"], StageName="dev")
     expect(stage, {"StageName": "dev", "AutoDeploy": True})
-    expect(stage["DefaultRouteSettings"], {"ThrottlingBurstLimit": 10, "ThrottlingRateLimit": 5.0})
+    expect(stage["DefaultRouteSettings"], {"ThrottlingBurstLimit": 30, "ThrottlingRateLimit": 20.0})
     expected_log = (
         f"arn:aws:logs:{m['region']}:{m['account_id']}:log-group:/aws/apigateway/{prefix}"
     )

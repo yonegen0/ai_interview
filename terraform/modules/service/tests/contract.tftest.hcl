@@ -37,8 +37,12 @@ run "p2_fixed_configuration" {
     error_message = "No TTL or additional GSI projection."
   }
   assert {
-    condition     = aws_lambda_function.main["worker"].timeout == 60 && aws_lambda_function.main["worker"].reserved_concurrent_executions == 2 && aws_sqs_queue.main.visibility_timeout_seconds == 360
-    error_message = "Worker budget and concurrency must match P2."
+    condition     = aws_lambda_function.main["worker"].timeout == 60 && alltrue([for f in aws_lambda_function.main : f.reserved_concurrent_executions == -1]) && aws_sqs_queue.main.visibility_timeout_seconds == 360 && aws_lambda_event_source_mapping.worker.scaling_config[0].maximum_concurrency == 2
+    error_message = "Keep execution budgets and SQS maximum concurrency 2 without reserving account capacity."
+  }
+  assert {
+    condition     = aws_apigatewayv2_stage.dev.default_route_settings[0].throttling_rate_limit == 20 && aws_apigatewayv2_stage.dev.default_route_settings[0].throttling_burst_limit == 30
+    error_message = "Allow 30-user polling and short bursts without removing the API rate limit."
   }
   assert {
     condition     = aws_lambda_event_source_mapping.worker.batch_size == 1 && !aws_lambda_event_source_mapping.worker.enabled && !aws_lambda_event_source_mapping.streams.enabled && aws_scheduler_schedule.recovery.state == "DISABLED"

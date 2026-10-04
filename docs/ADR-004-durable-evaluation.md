@@ -114,7 +114,7 @@ DB/GSI障害中に15分内で収束する保証はない。復旧後deadline超�
 | Evaluation deadline | 受付+15分。Frontend120秒停止と独立 |
 | SQS visibility / batch / window | 360秒 / 1 / 0秒 |
 | maxReceiveCount | 5 |
-| Worker event source最大並列 / reserved concurrency | 2 / 2、通常on-demand poll。Provisioned Mode不使用 |
+| Worker event source最大並列 / reserved concurrency | 2 / 未設定、通常on-demand poll。Provisioned Mode不使用 |
 | Main queue / Worker DLQ保持 | 4日 / 14日 |
 | Dispatcher timeout / send lease | 30秒 / 45秒 |
 | QUEUED claim確認 | queued_at+120秒 |
@@ -128,8 +128,11 @@ DB/GSI障害中に15分内で収束する保証はない。復旧後deadline超�
 | SQS handler結果 | terminal/stale/busy/missingはack、missingは計測。deadline_dueは回復で保存確認後ack。DB/破損/不正イベントはbatch失敗 |
 
 SQS visibility360=6×60+window0、maxReceiveCount5はAWS推奨に合わせる。
-AWSはreserved concurrency最低5も推奨するが、初期費用抑制を優先し、
-唯一のSQS event source最大並列も2に制限する。throttle/滞留をP4で検証し、2での可用性を保証済みとしない。
+Workerの唯一のSQS event sourceを最大並列2に制限し、関数のReserved Concurrencyは設定しない。
+Reserved自体は無料であり、この変更による直接の料金削減はない。予約設定に必要な未予約枠100の
+制約を避けつつ、SQS経由の処理上限を維持する。API用の容量保証にはならないため、共有負荷と
+cold startを含むthrottle/滞留をP4で検証し、2での実AWS可用性を保証済みとしない。
+30人向けの負荷モデルと検証上の限界は[コスト・性能レビュー](P4_COST_PERFORMANCE.md)を参照。
 [Lambda SQS設定](https://docs.aws.amazon.com/lambda/latest/dg/services-sqs-configure.html)、
 [最大並列設定](https://docs.aws.amazon.com/lambda/latest/dg/services-sqs-scaling.html)
 
