@@ -99,6 +99,45 @@ P4作業ディレクトリのStateや移行済みS3 Stateと混同し、空のSt
 既存P4実行器・CIは従来のJSON入力と環境変数を使用し、`settings.tfvars`を取り込まない。
 自動読込される`terraform.tfvars`や`*.auto.tfvars`は既存Guardが拒否するため作成しない。
 
+### 成功済みdevのE2E有効化入力
+
+閉鎖配備の読み戻し完了後、E2E用の構成変更が明示承認された場合だけ、
+`terraform/environments/dev/validation.example.tfvars.json`の4フラグを、照合済みの
+private tfvars JSONへマージする。初回配備のdefaultと`settings.example.tfvars`はfalseを維持する。
+このプリセットは自動読込ファイルではなく、単独では配備入力として使用しない。
+Account、Region、Budget、CORS、送信元・通知先、固定artifactの値は照合済み入力から保持し、
+完成した**単一のprivate tfvars JSON**だけを`-var-file`に指定する。資格情報は含めない。
+
+| 変数 | false → trueで変わる属性 | E2Eでの役割 |
+|---|---|---|
+| `api_enabled` | HTTP API `disable_execute_api_endpoint`: true → false | 既存HTTP endpointへ到達する |
+| `worker_enabled` | Worker event source mapping `enabled`: false → true | SQSの評価要求をWorkerへ渡す |
+| `streams_enabled` | Streams mapping `enabled`: false → true | DynamoDBのDispatch記録を既存Dispatcherへ渡す |
+| `scheduler_enabled` | recovery schedule `state`: DISABLED → ENABLED | 毎分の復旧処理を検証する |
+
+この有効化は既存4資源のupdateであり、JWT業務ルート、Cognito PASSWORD+EMAIL_OTP、
+FakeProvider、Worker MaximumConcurrency2、runtime/memory/timeout/throttle、IAM、
+タグ体系、version固定artifactを変更しない。承認されたsaved planをapplyするまではAWSは閉鎖状態のまま。
+既存の初回配備CI guardは変更せず、有効化planは承認済みlocal CLI経路で監査する。
+
+性能値はLambda/API Gateway/SQS/DynamoDBの標準metricsと既存Logsから取得する。
+route-level detailed metrics、metric filter、dashboard、新しいEMF dimensionを追加しない。
+ただし、[既存の有効dev安全条件](P4_SERVERLESS_OPTIMIZATION.md#構成と監視)では、
+処理開始前に14 alarm（Errors/Throttles6、DLQ2、IntegrityError3、OutcomeUnknown1、
+RecoveryHeartbeat1、RecoverySweepLag1）が必要。標準Lambda Errorsだけでは捕捉しない
+業務上の不整合・結果不明や復旧停止も検知するため、この依存条件を維持する。
+測定目的の新alarmは追加しない。標準解像度の14件を720時間保持したgross料金は$1.40/月、
+共有alarm無料枠10件が利用可能なら$0.40/月（残量未確認）。短時間の保有は時間比例で見積る。
+既存ZIPのEMFが稼働後に生成するcustom metricsの料金はalarmと別であり、現在の観測0件を
+有効化後も0件と仮定しない。[Lambda標準metrics](https://docs.aws.amazon.com/lambda/latest/dg/monitoring-metrics.html)、
+[HTTP API metrics](https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-metrics.html)、
+[EMF](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch_Embedded_Metric_Format.html)、
+[CloudWatch料金](https://aws.amazon.com/cloudwatch/pricing/)を参照。
+
+新planは成功済み50-resource Stateを基準に、全updateと新alarmの必要性・料金を監査する。
+replace/destroyや説明不能な変更は停止。Git/CI/State/CodeSha256を照合し、saved planのSHA256を確定する。
+3回目apply、実際の有効化、Smoke/Performanceは、そのsaved planへの別の明示承認を待つ。
+
 ### ZIPの確定と構成検証
 
 ZIPのkey・VersionId・Base64 SHA-256は、既存CIで固定ソース・依存からLinux ZIPを作成し、

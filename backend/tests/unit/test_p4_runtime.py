@@ -247,3 +247,18 @@ def test_aws_get_keeps_storage_and_provider_pure(runtime):
     assert runtime.repository.snapshot() == before
     assert runtime.provider.calls == 0
     assert runtime.publisher.events == []
+
+
+def test_deployed_worker_composition_keeps_fake_provider(monkeypatch):
+    from interview_backend import aws_runtime
+    from interview_backend.evaluation.provider import FakeProvider
+
+    for key, value in environment("worker").items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.setattr(aws_runtime, "client_for", lambda region: object())
+    aws_runtime.build_entry.cache_clear()
+    try:
+        entry = aws_runtime.build_entry("worker")
+        assert isinstance(entry.handlers.worker.provider, FakeProvider)
+    finally:
+        aws_runtime.build_entry.cache_clear()

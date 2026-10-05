@@ -1,5 +1,8 @@
 """Artifact settings must fail offline before Terraform or AWS operations."""
 
+import json
+from pathlib import Path
+
 import pytest
 from test_p4_tools import tool
 
@@ -84,3 +87,20 @@ def test_valid_artifact_and_budget(version):
     assert result["artifact_version"] == version
     assert result["artifact_key"] == values["artifact_key"]
     assert result["artifact_sha256_base64"] == values["artifact_sha256_base64"]
+
+
+def test_validation_preset_preserves_explicit_artifact_and_budget():
+    preset = Path(__file__).resolve().parents[3] / (
+        "terraform/environments/dev/validation.example.tfvars.json"
+    )
+    flags = json.loads(preset.read_text(encoding="utf-8"))
+    assert flags == dict.fromkeys(
+        ("api_enabled", "worker_enabled", "streams_enabled", "scheduler_enabled"), True
+    )
+    base = valid_inputs()
+    enabled = tool("terraform_dev").validate_inputs(base | flags, "123456789012", "ap-northeast-1")
+    closed = tool("terraform_dev").validate_inputs(base, "123456789012", "ap-northeast-1")
+    assert all(enabled[key] and not closed[key] for key in flags)
+    assert {key: value for key, value in enabled.items() if key not in flags} == {
+        key: value for key, value in closed.items() if key not in flags
+    }

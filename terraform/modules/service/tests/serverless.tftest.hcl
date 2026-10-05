@@ -18,6 +18,10 @@ variables {
 run "closed_dev" {
   command = plan
   assert {
+    condition     = aws_apigatewayv2_api.main.disable_execute_api_endpoint && !aws_lambda_event_source_mapping.worker.enabled && !aws_lambda_event_source_mapping.streams.enabled && aws_scheduler_schedule.recovery.state == "DISABLED"
+    error_message = "Omitting activation inputs must keep the first deployment closed."
+  }
+  assert {
     condition     = length(aws_cloudwatch_metric_alarm.emf) + length(aws_cloudwatch_metric_alarm.lambda) + length(aws_cloudwatch_metric_alarm.dlq) + length(aws_cloudwatch_metric_alarm.iterator) + length(aws_cloudwatch_metric_alarm.failure_rate) == 0
     error_message = "Closed dev must have no billable alarms."
   }
@@ -82,6 +86,22 @@ run "fully_active_dev" {
   assert {
     condition     = length(aws_cloudwatch_metric_alarm.emf) + length(aws_cloudwatch_metric_alarm.lambda) + length(aws_cloudwatch_metric_alarm.dlq) == 14 && alltrue([for a in aws_cloudwatch_metric_alarm.emf : a.actions_enabled])
     error_message = "Active dev has fourteen enabled alarms."
+  }
+  assert {
+    condition     = !aws_apigatewayv2_api.main.disable_execute_api_endpoint && aws_lambda_event_source_mapping.worker.enabled && aws_lambda_event_source_mapping.streams.enabled && aws_scheduler_schedule.recovery.state == "ENABLED" && aws_scheduler_schedule.recovery.schedule_expression == "rate(1 minute)"
+    error_message = "All four explicit activation inputs must enable the existing E2E path without changing its schedule."
+  }
+  assert {
+    condition     = aws_lambda_event_source_mapping.worker.scaling_config[0].maximum_concurrency == 2 && alltrue([for f in aws_lambda_function.main : f.reserved_concurrent_executions == -1 && length(f.vpc_config) == 0 && f.runtime == "python3.14" && f.memory_size == 512 && toset(f.architectures) == toset(["x86_64"])])
+    error_message = "Activation must retain the Worker limit, on-demand runtime and existing compute settings."
+  }
+  assert {
+    condition     = alltrue([for r in aws_apigatewayv2_route.business : r.authorization_type == "JWT"]) && aws_apigatewayv2_authorizer.jwt.authorizer_type == "JWT" && toset(aws_cognito_user_pool.main.sign_in_policy[0].allowed_first_auth_factors) == toset(["PASSWORD", "EMAIL_OTP"]) && !aws_cognito_user_pool_client.web.generate_secret && toset(aws_cognito_user_pool_client.web.explicit_auth_flows) == toset(["ALLOW_USER_AUTH", "ALLOW_REFRESH_TOKEN_AUTH"])
+    error_message = "Opening the HTTP endpoint must preserve Cognito choice authentication and every business route's JWT requirement."
+  }
+  assert {
+    condition     = alltrue([for f in aws_lambda_function.main : f.s3_bucket == var.artifact_bucket && f.s3_key == var.artifact_key && f.s3_object_version == var.artifact_version && f.source_code_hash == var.artifact_sha256_base64])
+    error_message = "Activation must not change any function's versioned artifact binding."
   }
 }
 
