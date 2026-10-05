@@ -104,3 +104,17 @@ def test_validation_preset_preserves_explicit_artifact_and_budget():
     assert {key: value for key, value in enabled.items() if key not in flags} == {
         key: value for key, value in closed.items() if key not in flags
     }
+
+
+def test_closure_preset_reverses_only_validation_flags():
+    dev = Path(__file__).resolve().parents[3] / "terraform/environments/dev"
+    enablement = json.loads((dev / "validation.example.tfvars.json").read_text(encoding="utf-8"))
+    closure = json.loads((dev / "closure.example.tfvars.json").read_text(encoding="utf-8"))
+    assert closure == dict.fromkeys(enablement, False)
+    base = valid_inputs()
+    inputs = tool("terraform_dev")
+    active_inputs = base | enablement
+    active = inputs.validate_inputs(active_inputs, "123456789012", "ap-northeast-1")
+    restored = inputs.validate_inputs(active_inputs | closure, "123456789012", "ap-northeast-1")
+    assert restored == inputs.validate_inputs(base, "123456789012", "ap-northeast-1")
+    assert {key for key in active if active[key] != restored[key]} == set(closure)

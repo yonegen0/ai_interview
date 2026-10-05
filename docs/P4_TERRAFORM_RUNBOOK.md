@@ -138,6 +138,26 @@ RecoveryHeartbeat1、RecoverySweepLag1）が必要。標準Lambda Errorsだけ�
 replace/destroyや説明不能な変更は停止。Git/CI/State/CodeSha256を照合し、saved planのSHA256を確定する。
 3回目apply、実際の有効化、Smoke/Performanceは、そのsaved planへの別の明示承認を待つ。
 
+### 検証後のdev閉鎖入力
+
+検証終了後は、`terraform/environments/dev/closure.example.tfvars.json`を、実際に
+有効化したprivate tfvars JSONへマージする。変更する入力は上記4フラグのtrue → falseだけ。
+Enablementプリセットと回帰テスト、初回配備のclosed defaultは維持する。
+Account、Region、Budget、CORS、通知先、固定artifactなどは有効化時の値を保持し、
+完成した単一のprivate tfvars JSONだけを新しいclosure planへ指定する。
+
+成功した有効化applyの最新Stateを基準に、閉鎖planの全件を監査する。既存設計では
+API endpoint無効化、Worker/Streams mapping無効化、Scheduler DISABLEDの4 updateと、
+有効devに連動する14 CloudWatch Alarmの削除が閉鎖差分となる。baseline 50資源の削除、
+replace、artifact/security/runtime/concurrencyの変更、説明不能な差分を認めない。
+資源数や差分数は実planで確認し、saved planのSHA-256を確定する。
+
+Smokeまたは性能検証が失敗した場合も、成功したapplyとState/AWSの整合を確認できれば
+閉鎖plan準備へ進める。検証中にアプリやインフラを修正せず、未検証事項と原因を記録する。
+closure planの作成・監査はAWSの閉鎖を意味しない。別途そのsaved planのSHA-256に対する
+明示承認を得てapplyし、読戻しが完了するまで、API・mapping・Scheduler・14 alarmは
+有効なままでactive idle費用が継続する。保存planの承認がない閉鎖applyは実行しない。
+
 ### ZIPの確定と構成検証
 
 ZIPのkey・VersionId・Base64 SHA-256は、既存CIで固定ソース・依存からLinux ZIPを作成し、
