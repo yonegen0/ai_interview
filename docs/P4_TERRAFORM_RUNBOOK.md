@@ -156,10 +156,31 @@ replace、artifact/security/runtime/concurrencyの変更、説明不能な差分
 資源数や差分数は実planで確認し、saved planのSHA-256を確定する。
 
 Smokeまたは性能検証が失敗した場合も、成功したapplyとState/AWSの整合を確認できれば
-閉鎖plan準備へ進める。検証中にアプリやインフラを修正せず、未検証事項と原因を記録する。
-closure planの作成・監査はAWSの閉鎖を意味しない。別途そのsaved planのSHA-256に対する
-明示承認を得てapplyし、読戻しが完了するまで、API・mapping・Scheduler・14 alarmは
-有効なままでactive idle費用が継続する。保存planの承認がない閉鎖applyは実行しない。
+閉鎖へ進める。検証中にアプリやインフラを修正せず、未検証事項と原因を記録する。
+
+2026-10-06以降は、[承認テンプレート](P4_DEV_VALIDATION_APPROVAL_TEMPLATE.md)を使い、
+Enablement applyの承認と同時に、検証後の安全なClosure applyも条件付きで事前承認する。
+Closure saved planのSHA-256はapply前に算出・記録する。全件監査でcreate=0、replace=0、
+上記4resourceの閉鎖updateだけ、validation用Alarmだけのdestroy、その他baseline no-opを確認し、
+Artifact/Lambda版/alias/security/runtime/architecture/Worker上限2/backend/providerを維持する。
+Account/Region一致、State整合、State外dev resourceなし、active lockなしも満たせば、
+追加のユーザー承認なしでClosure saved planを1回applyする。
+
+ホワイトリスト逸脱またはState不整合・State外resource・active lockがあればapplyせず、
+具体的な差分と理由を報告してユーザーへ戻す。EnablementまたはClosure applyのpartial failureは
+read-only診断で停止し、再apply・新plan・手動修復で続行しない。
+
+Smoke/PerformanceのPASS・FAIL、性能基準ギリギリ、EMAIL_OTP/SNS inbox未確認は閉鎖を妨げない。
+証跡保存からClosure apply・AWS閉鎖読戻しまでを同じ作業で完了し、通常終了状態はclosedとする。
+API disabled、Worker/Streams Disabled、Scheduler DISABLED、validation Alarm 0、lockなし、
+State外dev resourceなしを読戻す。性能レビューが残る場合は性能検証フラグを維持する。
+正式performance gateと実用性を分けて記録し、基準を変更しない。
+Closure後の原因分析では、既存証跡・コード・公式資料を読取り、再有効化・新負荷試験・
+アプリ/Terraform変更・Artifact build/upload・memory/concurrency/PC変更を行わない。
+
+closure plan作成だけではAWSは閉鎖されずactive idle費用が継続するため、
+条件を満たすplanを承認待ちのまま放置しない。この同時承認がない個別の作業では、
+ユーザーが与えた承認範囲に従い、閉鎖applyの許可を推測しない。
 
 ### ZIPの確定と構成検証
 
