@@ -92,9 +92,13 @@ resource "aws_lambda_event_source_mapping" "streams" {
     on_failure { destination_arn = aws_sqs_queue.stream_failure.arn }
   }
 }
+locals {
+  # Scheduler rejects empty tag values; keep the common tags unchanged.
+  scheduler_tags = { for key, value in local.tags : key => value if key != "RunId" || value != "" }
+}
 resource "aws_scheduler_schedule_group" "recovery" {
   name = local.prefix
-  tags = local.tags
+  tags = local.scheduler_tags
 }
 resource "aws_iam_role" "scheduler" {
   name                 = "${local.prefix}-scheduler-runtime"

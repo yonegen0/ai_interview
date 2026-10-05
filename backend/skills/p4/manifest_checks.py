@@ -331,7 +331,9 @@ def verify_cognito(cognito, m):
         },
     )
     expect(pool["AdminCreateUserConfig"], {"AllowAdminCreateUserOnly": True})
-    expect(pool["Policies"]["SignInPolicy"], {"AllowedFirstAuthFactors": ["EMAIL_OTP"]})
+    factors = pool["Policies"]["SignInPolicy"]["AllowedFirstAuthFactors"]
+    if sorted(factors) != ["EMAIL_OTP", "PASSWORD"]:
+        raise ValueError("DeploymentAttributeMismatch")
     expect(
         pool["EmailConfiguration"],
         {

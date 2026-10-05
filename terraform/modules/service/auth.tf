@@ -5,7 +5,8 @@ resource "aws_cognito_user_pool" "main" {
   auto_verified_attributes = ["email"]
   mfa_configuration        = "OFF"
   admin_create_user_config { allow_admin_create_user_only = true }
-  sign_in_policy { allowed_first_auth_factors = ["EMAIL_OTP"] }
+  # Cognito requires PASSWORD even when the client selects EMAIL_OTP.
+  sign_in_policy { allowed_first_auth_factors = ["PASSWORD", "EMAIL_OTP"] }
   email_configuration {
     email_sending_account = "DEVELOPER"
     source_arn            = var.ses_identity_arn

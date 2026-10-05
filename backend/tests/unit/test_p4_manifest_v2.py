@@ -305,7 +305,9 @@ def deployment(monkeypatch):
                 "AutoVerifiedAttributes": ["email"],
                 "MfaConfiguration": "OFF",
                 "AdminCreateUserConfig": {"AllowAdminCreateUserOnly": True},
-                "Policies": {"SignInPolicy": {"AllowedFirstAuthFactors": ["EMAIL_OTP"]}},
+                "Policies": {
+                    "SignInPolicy": {"AllowedFirstAuthFactors": ["PASSWORD", "EMAIL_OTP"]}
+                },
                 "EmailConfiguration": {
                     "EmailSendingAccount": "DEVELOPER",
                     "SourceArn": c["ses_identity_arn"],
@@ -489,6 +491,26 @@ def test_serverless_readback_rejects_configuration_drift(deployment, mutation):
         data["cloudwatch", "describe_alarms", ""]["MetricAlarms"].append(
             {"AlarmName": "ai-interview-dev-unexpected"}
         )
+    with pytest.raises(ValueError, match="DeploymentReadbackFailed"):
+        tool("manifest").verify_live_manifest(session, m, require_api_enabled=False)
+
+
+@pytest.mark.parametrize("factors", [["PASSWORD", "EMAIL_OTP"], ["EMAIL_OTP", "PASSWORD"]])
+def test_cognito_password_and_email_otp_readback(deployment, factors):
+    m, data, session = deployment
+    policy = data["cognito-idp", "describe_user_pool", ""]["UserPool"]["Policies"]
+    policy["SignInPolicy"]["AllowedFirstAuthFactors"] = factors
+    tool("manifest").verify_live_manifest(session, m, require_api_enabled=False)
+
+
+@pytest.mark.parametrize(
+    "factors",
+    [[], ["EMAIL_OTP"], ["PASSWORD"], ["PASSWORD", "EMAIL_OTP", "SMS_OTP"], ["PASSWORD"] * 2],
+)
+def test_cognito_missing_or_unapproved_first_auth_factors_rejected(deployment, factors):
+    m, data, session = deployment
+    policy = data["cognito-idp", "describe_user_pool", ""]["UserPool"]["Policies"]
+    policy["SignInPolicy"]["AllowedFirstAuthFactors"] = factors
     with pytest.raises(ValueError, match="DeploymentReadbackFailed"):
         tool("manifest").verify_live_manifest(session, m, require_api_enabled=False)
 
