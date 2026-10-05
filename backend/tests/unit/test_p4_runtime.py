@@ -262,3 +262,103 @@ def test_deployed_worker_composition_keeps_fake_provider(monkeypatch):
         assert isinstance(entry.handlers.worker.provider, FakeProvider)
     finally:
         aws_runtime.build_entry.cache_clear()
+
+
+def http_api_event(method, path, route_key, payload=None, key=None):
+    """HTTP API v2 shape: named execute-api stage prefixes the request path.
+
+    AWS integration/event and Powertools APIGatewayHttpResolver documentation:
+    https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-develop-integrations-lambda.html
+    https://docs.aws.amazon.com/powertools/python/latest/api/event_handler/api_gateway.html
+    Synthetic claims use the existing offline trusted-authorizer test boundary.
+    """
+    request = event()
+    request.update(version="2.0", routeKey=route_key, rawPath=path)
+    request["requestContext"].update(routeKey=route_key)
+    request["requestContext"]["http"].update(method=method, path=path, protocol="HTTP/1.1")
+    request["headers"] = {"content-type": "application/json"}
+    if key is not None:
+        request["headers"]["idempotency-key"] = key
+    if payload is not None:
+        request["body"] = json.dumps(payload)
+    return request
+
+
+@pytest.mark.parametrize("prefix", ["", "/dev"])
+def test_http_api_named_stage_business_routes(runtime, prefix):
+    from conftest import uid
+
+    entry = ApiEntry(AwsSettings.load(environment("api"), "api"), runtime.handler)
+
+    def call(method, path, route_key, payload=None, key=None):
+        request = http_api_event(method, prefix + path, route_key, payload, key)
+        original = deepcopy(request)
+        response = entry(request, context())
+        assert request == original
+        return response["statusCode"], json.loads(response["body"])
+
+    payload = {"category": "career", "difficulty": "standard"}
+    created = call("POST", "/sessions", "POST /sessions", payload, uid(100))
+    assert created[0] == 201
+    assert call("POST", "/sessions", "POST /sessions", payload, uid(100)) == created
+    sid = created[1]["sessionId"]
+    question = call("GET", f"/sessions/{sid}/question", "GET /sessions/{sessionId}/question")
+    assert question[0] == 200
+    answer = {"questionId": question[1]["question"]["id"], "answer": "synthetic route regression"}
+    accepted = call(
+        "POST", f"/sessions/{sid}/answers", "POST /sessions/{sessionId}/answers", answer, uid(101)
+    )
+    assert accepted[0] == 202
+    eid, aid = accepted[1]["evaluationId"], accepted[1]["attemptId"]
+    assert call("GET", f"/evaluations/{eid}", "GET /evaluations/{evaluationId}")[0] == 200
+    runtime.worker.run("synthetic-a", eid)
+    completed = call("GET", f"/evaluations/{eid}", "GET /evaluations/{evaluationId}")
+    assert completed[1]["status"] == "completed"
+    feedback = call("GET", f"/attempts/{aid}/feedback", "GET /attempts/{attemptId}/feedback")
+    assert feedback[0] == 200 and feedback[1]["answer"] == answer["answer"]
+    next_question = call(
+        "POST",
+        f"/sessions/{sid}/questions/next",
+        "POST /sessions/{sessionId}/questions/next",
+        {"fromAttemptId": aid},
+        uid(102),
+    )
+    assert next_question[0] == 200 and next_question[1]["questionNumber"] == 2
+    assert call("GET", "/unknown", "$default")[0] == 404
+    assert call("DELETE", f"/sessions/{sid}/question", "$default")[0] == 405
+
+
+@pytest.mark.parametrize(
+    "path",
+    ["/dev-other/sessions", "/other/sessions", "/dev/dev/sessions", "/dev/unknown", "/dev"],
+)
+def test_http_api_stage_normalization_keeps_unknown_routes(runtime, path):
+    entry = ApiEntry(AwsSettings.load(environment("api"), "api"), runtime.handler)
+    # A matching routeKey never overrides the actual path used by the router.
+    request = http_api_event("POST", path, "POST /sessions", {}, "synthetic")
+    assert entry(request, context())["statusCode"] == 404
+    assert not runtime.repository.snapshot().sessions
+
+
+@pytest.mark.parametrize(
+    "field,value", [("version", "1.0"), ("stage", "other"), ("token_use", "id")]
+)
+def test_http_api_stage_normalization_preserves_authentication(runtime, field, value):
+    entry = ApiEntry(AwsSettings.load(environment("api"), "api"), runtime.handler)
+    request = http_api_event("POST", "/dev/sessions", "POST /sessions", {}, "synthetic")
+    if field == "version":
+        request[field] = value
+    elif field == "stage":
+        request["requestContext"][field] = value
+    else:
+        request["requestContext"]["authorizer"]["jwt"]["claims"][field] = value
+    assert entry(request, context())["statusCode"] == 401
+    assert not runtime.repository.snapshot().sessions
+
+
+def test_http_api_stage_normalization_requires_jwt(runtime):
+    entry = ApiEntry(AwsSettings.load(environment("api"), "api"), runtime.handler)
+    request = http_api_event("POST", "/dev/sessions", "POST /sessions", {}, "synthetic")
+    request["requestContext"].pop("authorizer")
+    assert entry(request, context())["statusCode"] == 401
+    assert not runtime.repository.snapshot().sessions

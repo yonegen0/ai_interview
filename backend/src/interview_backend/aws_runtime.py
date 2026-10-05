@@ -42,6 +42,10 @@ class ApiEntry:
             ):
                 self.metrics.emit("Unauthorized")
                 return error(401, "UNAUTHORIZED")
+            # HTTP API v2 includes named execute-api stages in the request path.
+            path, prefix = event.get("rawPath"), f"/{self.settings.stage}"
+            if isinstance(path, str) and (path == prefix or path.startswith(prefix + "/")):
+                event = {**event, "rawPath": path[len(prefix) :] or "/"}
             with storage_budget(context.get_remaining_time_in_millis):
                 result = self.handler(event)
             self.metrics.emit("ApiRequest")
