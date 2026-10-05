@@ -1,5 +1,7 @@
 """Artifact settings must fail offline before Terraform or AWS operations."""
 
+import base64
+import hashlib
 import json
 from pathlib import Path
 
@@ -118,3 +120,26 @@ def test_closure_preset_reverses_only_validation_flags():
     restored = inputs.validate_inputs(active_inputs | closure, "123456789012", "ap-northeast-1")
     assert restored == inputs.validate_inputs(base, "123456789012", "ap-northeast-1")
     assert {key for key in active if active[key] != restored[key]} == set(closure)
+
+
+def test_closure_after_artifact_update_keeps_latest_deployment():
+    dev = Path(__file__).resolve().parents[3] / "terraform/environments/dev"
+    enablement = json.loads((dev / "validation.example.tfvars.json").read_text(encoding="utf-8"))
+    closure = json.loads((dev / "closure.example.tfvars.json").read_text(encoding="utf-8"))
+    initial = valid_inputs()
+    corrected = initial | {
+        "artifact_key": "lambda/corrected-build/app.zip",
+        "artifact_version": "corrected-immutable-version",
+        "artifact_sha256_base64": base64.b64encode(
+            hashlib.sha256(b"corrected build").digest()
+        ).decode(),
+    }
+    inputs = tool("terraform_dev")
+    active = inputs.validate_inputs(corrected | enablement, "123456789012", "ap-northeast-1")
+    closed = inputs.validate_inputs(
+        corrected | enablement | closure, "123456789012", "ap-northeast-1"
+    )
+    assert closed == inputs.validate_inputs(corrected, "123456789012", "ap-northeast-1")
+    assert {key for key in active if active[key] != closed[key]} == set(closure)
+    for key in ("artifact_key", "artifact_version", "artifact_sha256_base64"):
+        assert closed[key] == corrected[key] != initial[key]

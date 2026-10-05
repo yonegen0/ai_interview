@@ -145,6 +145,9 @@ replace/destroyや説明不能な変更は停止。Git/CI/State/CodeSha256を照
 Enablementプリセットと回帰テスト、初回配備のclosed defaultは維持する。
 Account、Region、Budget、CORS、通知先、固定artifactなどは有効化時の値を保持し、
 完成した単一のprivate tfvars JSONだけを新しいclosure planへ指定する。
+再検証で修正版Artifactを配備した場合は、その最新の成功applyで使った入力を基準にする。
+以前の閉鎖入力を再利用して古いArtifactへ戻さない。閉鎖後も修正版のS3 key・VersionId・
+SHA-256とLambda publish版・aliasを保持し、planではLambdaとaliasのno-opを確認する。
 
 成功した有効化applyの最新Stateを基準に、閉鎖planの全件を監査する。既存設計では
 API endpoint無効化、Worker/Streams mapping無効化、Scheduler DISABLEDの4 updateと、
