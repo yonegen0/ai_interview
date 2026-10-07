@@ -26,9 +26,13 @@ export const storyNow = "2026-09-09T00:00:00.000Z";
 export const storyNowMs = Date.parse(storyNow);
 
 export const exactText = (length: number): string => {
-  const source = "私は課題を整理し、周囲と相談しながら行動して成果につなげました。";
-  const value = source.repeat(Math.ceil(length / source.length)).slice(0, length);
-  if (value.length !== length) throw new Error(`Fixture length mismatch: ${length}`);
+  const source =
+    "私は課題を整理し、周囲と相談しながら行動して成果につなげました。";
+  const value = source
+    .repeat(Math.ceil(length / source.length))
+    .slice(0, length);
+  if (value.length !== length)
+    throw new Error(`Fixture length mismatch: ${length}`);
   return value;
 };
 
@@ -100,7 +104,10 @@ export const createStoryState = (options?: {
   const feedback = options?.feedback;
   const evaluation = options?.evaluation;
   return {
-    version: 1,
+    version: 2,
+    bank: { version: 0, updatedAt: null, questions },
+    sessionQuestions: {},
+    owners: {},
     sessions: { [session.sessionId]: session },
     attempts:
       feedback && evaluation

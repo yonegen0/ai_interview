@@ -15,6 +15,7 @@ import {
   storyTexts,
 } from "../../fixtures";
 
+import { createNewCompletedState } from "../../fixtures/refactor";
 const completed = createCompletedState();
 const stale = {
   ...completed,
@@ -257,3 +258,26 @@ export const InAppShell: Story = {
   decorators: [withAppShell],
   parameters: { layout: "fullscreen" },
 };
+
+export const FinalQuestion: Story = {
+  parameters: { seed: createNewCompletedState(15, 15) },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      await canvas.findByRole("heading", {
+        name: "全15問の練習が完了しました",
+      }),
+    ).toBeVisible();
+    await expect(
+      canvas.queryByRole("button", { name: "次の質問へ" }),
+    ).toBeNull();
+    await expect(
+      canvas.getByRole("link", { name: "同じ質問に再挑戦" }),
+    ).toBeVisible();
+  },
+};
+export const SingleQuestionCategory: Story = {
+  parameters: { seed: createNewCompletedState(1, 1) },
+};
+export const Tablet: Story = { globals: { viewport: { value: "ipad" } } };
+export const Desktop: Story = { globals: { viewport: { value: "desktop" } } };

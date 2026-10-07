@@ -1,151 +1,93 @@
-/** @file PracticeForm.tsx @description 質問・回答・評価・終了操作を構成する練習Template。 */
+/** @file PracticeForm.tsx @description Presentation and composition for PracticeForm. */
 "use client";
-import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-import { styled } from "@mui/material/styles";
-import { MascotCoachCard } from "@/components/molecules/MascotCoachCard";
-import type { Session } from "@/lib/api/schemas";
-import { Actions } from "@/components/atoms/Actions";
+import { Text } from "@/components/atoms/Text";
+import { Header } from "@/components/molecules/Header";
 import { Button } from "@/components/atoms/Button";
 import { Link } from "@/components/atoms/Link";
-import { Panel } from "@/components/atoms/Panel";
+import { Actions } from "@/components/atoms/Actions";
 import { Dialog } from "@/components/organisms/Dialog";
-import { ErrorView } from "@/components/organisms/ErrorView";
-import { AnswerField } from "@/features/interview/components/molecules/AnswerField";
-import { QuestionCard } from "@/features/interview/components/molecules/QuestionCard";
-import { EvaluationLoading } from "@/features/interview/components/organisms/EvaluationLoading";
-import { useAnswer } from "@/features/interview/hooks/useAnswer";
-import type { EvaluationTiming } from "@/features/interview/hooks/useEvaluation";
-
-const FailureCard = styled(MascotCoachCard)({ marginBottom: 24 });
-const SubmissionCard = styled(MascotCoachCard)({ marginTop: 24 });
-
+import { MascotCoachCard } from "@/components/molecules/MascotCoachCard";
+import { QuestionCard } from "../molecules/QuestionCard";
+import { EvaluationLoading } from "../organisms/EvaluationLoading";
+import { AnswerSubmission } from "../organisms/AnswerSubmission";
+import { exitNotice } from "../../model/practice";
+import type {
+  PracticeView,
+  PracticeActions,
+  AnswerSubmissionProps,
+} from "../../model/practice";
 export type PracticeFormProps = {
-  session: Session;
-  retryFrom: string | null;
-  timing?: EvaluationTiming;
+  view: PracticeView;
+  form: AnswerSubmissionProps;
+  actions: PracticeActions;
 };
-
-export const PracticeForm = (props: PracticeFormProps) => {
-  const state = useAnswer(props.session, props.retryFrom, props.timing);
-  const router = useRouter();
-  const [confirm, setConfirm] = useState(false);
-  const navigated = useRef<string | null>(null);
-  useEffect(() => {
-    const data = state.evaluation.data;
-    if (data?.status === "completed" && navigated.current !== data.attemptId) {
-      navigated.current = data.attemptId;
-      router.push(`/result/?attemptId=${data.attemptId}`);
-    }
-  }, [state.evaluation.data, router]);
-  const exit = () => {
-    state.discard();
-    router.push("/practice/");
-  };
-  return (
-    <>
-      <h1>一問一答</h1>
-      <QuestionCard
-        question={props.session.question}
-        number={props.session.questionNumber}
+export const PracticeForm = ({ view, form, actions }: PracticeFormProps) => (
+  <>
+    <Header title="一問一答" />
+    <QuestionCard
+      question={view.session.question}
+      number={view.session.questionNumber}
+      total={
+        view.session.mode === "legacy" ? undefined : view.session.totalQuestions
+      }
+    />
+    {view.phase === "processing" || view.phase === "completed" ? (
+      <EvaluationLoading
+        elapsed={view.elapsed}
+        paused={view.paused}
+        error={view.evaluationError}
+        retry={actions.refreshEvaluation}
+        longWaitSeconds={view.longWaitSeconds}
       />
-      {state.phase === "processing" || state.phase === "completed" ? (
-        <EvaluationLoading
-          elapsed={state.evaluation.elapsed}
-          paused={state.evaluation.paused}
-          error={state.evaluation.error}
-          retry={() => void state.evaluation.refetch()}
-          longWaitSeconds={props.timing?.longWaitSeconds}
-        />
-      ) : state.phase === "failed" ? (
-        <FailureCard
-          variant="error"
-          tone="attention"
-          heading={<h2>評価の作成に失敗しました</h2>}
-          actions={<Button onClick={state.retry}>同じ質問に再挑戦</Button>}
-        >
-          <p>もう一度、同じ質問に回答して練習できます。</p>
-        </FailureCard>
-      ) : (
-        <Panel>
-          <form
-            onSubmit={state.form.handleSubmit((value) => state.send(value))}
-          >
-            <AnswerField
-              field={state.form.register("answer")}
-              count={state.answer.length}
-              disabled={state.phase !== "answering"}
-              error={state.form.formState.errors.answer?.message}
-            />
-            {state.phase === "submitting" ? (
-              <SubmissionCard
-                variant="thinking"
-                heading={<h2>回答を送信しています</h2>}
-                actions={
-                  <Button type="submit" disabled>
-                    回答を送信しています…
-                  </Button>
-                }
-              >
-                <p role="status" aria-live="polite">
-                  送信が終わるまで、このままお待ちください。
-                </p>
-              </SubmissionCard>
-            ) : (
-              <Actions>
-                {state.phase === "recovery_required" ? (
-                  <Button type="button" onClick={() => void state.send()}>
-                    送信結果を再確認
-                  </Button>
-                ) : (
-                  <Button
-                    type="submit"
-                    disabled={
-                      !state.form.formState.isValid ||
-                      state.phase !== "answering"
-                    }
-                  >
-                    回答を送信
-                  </Button>
-                )}
-              </Actions>
-            )}
-          </form>
-          {state.error && <ErrorView error={state.error} />}
-        </Panel>
-      )}
-      <Actions>
-        <Button
-          onClick={() =>
-            state.answer || state.phase !== "answering"
-              ? setConfirm(true)
-              : exit()
-          }
-        >
-          練習を終了
-        </Button>
-      </Actions>
-      <Dialog
-        open={confirm}
-        onClose={() => setConfirm(false)}
-        title="練習を終了しますか？"
-        content={
-          <p>入力中の下書きは破棄されます。送信済みの評価は中止されません。</p>
+    ) : view.phase === "failed" ? (
+      <MascotCoachCard
+        variant="error"
+        tone="attention"
+        heading={
+          <Text variant="h2" component="h2">
+            評価の作成に失敗しました
+          </Text>
         }
         actions={
-          <>
-            <Button autoFocus onClick={() => setConfirm(false)}>
-              続ける
-            </Button>
-            {state.phase === "recovery_required" ||
-            state.phase === "submitting" ? (
-              <Link href="/practice/">未確定の送信を保持して終了</Link>
-            ) : (
-              <Button onClick={exit}>終了する</Button>
-            )}
-          </>
+          <Button variant="contained" color="primary" onClick={actions.retry}>
+            同じ質問に再挑戦
+          </Button>
         }
-      />
-    </>
-  );
-};
+      >
+        <Text>もう一度、同じ質問に回答して練習できます。</Text>
+      </MascotCoachCard>
+    ) : (
+      <AnswerSubmission {...form} />
+    )}
+    <Actions>
+      <Button variant="text" color="inherit" onClick={actions.requestExit}>
+        練習を終了
+      </Button>
+    </Actions>
+    <Dialog
+      open={view.confirm}
+      onClose={actions.closeExit}
+      title="練習を終了しますか？"
+      content={<Text>{exitNotice(view.phase)}</Text>}
+      actions={
+        <>
+          <Button
+            variant="outlined"
+            color="primary"
+            autoFocus
+            onClick={actions.closeExit}
+          >
+            続ける
+          </Button>
+          {view.phase === "recovery_required" || view.phase === "submitting" ? (
+            <Link href="/practice/">未確定の送信を保持して終了</Link>
+          ) : (
+            <Button variant="contained" color="error" onClick={actions.exit}>
+              終了する
+            </Button>
+          )}
+        </>
+      }
+    />
+  </>
+);

@@ -3,8 +3,10 @@
  * @description スコアと評価内容を読みやすく整理するフィードバックレポート
  */
 "use client";
+import { scoreTypography, scaledRadius, radiusLength } from "@/theme/tokens";
 
 import { alpha, styled } from "@mui/material/styles";
+import { Text } from "@/components/atoms/Text";
 import { Panel } from "@/components/atoms/Panel";
 import { MascotCoachCard } from "@/components/molecules/MascotCoachCard";
 import type { Feedback } from "@/lib/api/schemas";
@@ -12,95 +14,89 @@ import type { Feedback } from "@/lib/api/schemas";
 type PointTone = "strength" | "improvement";
 
 const FeedbackPanel = styled(Panel)(({ theme }) => ({
-  padding: 20,
+  padding: theme.spacing(2.5),
   overflow: "hidden",
   border: `1px solid ${alpha(theme.palette.primary.main, 0.14)}`,
-  borderRadius: 24,
+  borderRadius: scaledRadius(theme, 1.5),
   background: alpha(theme.palette.common.white, 0.94),
   boxShadow: `0 20px 60px ${alpha(theme.palette.primary.dark, 0.1)}`,
-  "@media (min-width: 768px)": {
-    padding: 32,
+  [theme.breakpoints.up("md")]: {
+    padding: theme.spacing(4),
   },
 }));
 
-const Introduction = styled(MascotCoachCard)({
-  margin: "-20px -20px 24px",
-  borderRadius: "23px 23px 20px 20px",
-  "@media (min-width: 768px)": { margin: "-32px -32px 24px" },
-});
+const Introduction = styled(MascotCoachCard)(({ theme }) => ({
+  margin: theme.spacing(-2.5, -2.5, 3),
+  borderRadius: `${radiusLength(theme, 1.4375)} ${radiusLength(theme, 1.4375)} ${radiusLength(theme, 1.25)} ${radiusLength(theme, 1.25)}`,
+  [theme.breakpoints.up("md")]: { margin: theme.spacing(-4, -4, 3) },
+}));
 const TitlePhrase = styled("span")({
   display: "inline-block",
   maxWidth: "100%",
 });
 
-const Eyebrow = styled("p")(({ theme }) => ({
-  margin: "0 0 6px",
+const Eyebrow = styled(Text)(({ theme }) => ({
+  margin: theme.spacing(0, 0, 0.75),
+  ...theme.typography.overline,
   color: theme.palette.text.secondary,
-  fontSize: 12,
   fontWeight: 700,
   letterSpacing: "0.14em",
 }));
 
-const Title = styled("h1")(({ theme }) => ({
+const Title = styled(Text)(({ theme }) => ({
   margin: 0,
+  ...theme.typography.h1,
   color: theme.palette.text.primary,
-  fontSize: 24,
   fontWeight: 700,
   lineHeight: 1.4,
   letterSpacing: "-0.02em",
-  "@media (min-width: 768px)": {
-    fontSize: 28,
-  },
 }));
 
-const ReportFlow = styled("div")({
+const ReportFlow = styled("div")(({ theme }) => ({
   display: "grid",
-  gap: 24,
-});
+  gap: theme.spacing(3),
+}));
 
-const ScoreBlock = styled("div")({
+const ScoreBlock = styled("div")(({ theme }) => ({
   minWidth: 0,
-  marginTop: 20,
-});
+  marginTop: theme.spacing(2.5),
+}));
 
-const SectionTitle = styled("h2")(({ theme }) => ({
-  margin: "0 0 12px",
+const SectionTitle = styled(Text)(({ theme }) => ({
+  margin: theme.spacing(0, 0, 1.5),
+  ...theme.typography.h2,
   color: theme.palette.text.primary,
-  fontSize: 18,
   fontWeight: 700,
   lineHeight: 1.5,
 }));
 
-const ScoreLine = styled("p")({
+const ScoreLine = styled("p")(({ theme }) => ({
   display: "flex",
   alignItems: "baseline",
-  gap: 8,
+  gap: theme.spacing(1),
   margin: 0,
   fontVariantNumeric: "tabular-nums",
-});
+}));
 
-const ScoreValue = styled("span")(({ theme }) => ({
+const ScoreValue = styled(Text)(({ theme }) => ({
+  ...scoreTypography(theme),
   color: theme.palette.primary.dark,
-  fontSize: 48,
   fontWeight: 700,
   lineHeight: 1,
   letterSpacing: "-0.04em",
-  "@media (min-width: 768px)": {
-    fontSize: 64,
-  },
 }));
 
-const ScoreScale = styled("span")(({ theme }) => ({
+const ScoreScale = styled(Text)(({ theme }) => ({
+  ...theme.typography.body1,
   color: theme.palette.text.secondary,
-  fontSize: 16,
   fontWeight: 600,
 }));
 
-const BodyText = styled("p")(({ theme }) => ({
+const BodyText = styled(Text)(({ theme }) => ({
   minWidth: 0,
   margin: 0,
+  ...theme.typography.body1,
   color: theme.palette.text.primary,
-  fontSize: 16,
   lineHeight: 1.8,
   whiteSpace: "pre-wrap",
   overflowWrap: "anywhere",
@@ -108,43 +104,43 @@ const BodyText = styled("p")(({ theme }) => ({
 
 const QuestionSection = styled("section")(({ theme }) => ({
   minWidth: 0,
-  padding: 20,
-  borderRadius: 16,
+  padding: theme.spacing(2.5),
+  borderRadius: scaledRadius(theme, 1),
   backgroundColor: theme.palette.background.default,
 }));
 
-const AnswerSection = styled("section")({
+const AnswerSection = styled("section")(({ theme }) => ({
   minWidth: 0,
-  padding: "0 4px",
-});
+  padding: theme.spacing(0, 0.5),
+}));
 
 const AnswerText = styled(BodyText)(({ theme }) => ({
-  paddingLeft: 16,
+  paddingLeft: theme.spacing(2),
   borderLeft: `3px solid ${alpha(theme.palette.primary.main, 0.25)}`,
 }));
 
-const PointsGrid = styled("div")({
+const PointsGrid = styled("div")(({ theme }) => ({
   display: "grid",
   gridTemplateColumns: "minmax(0, 1fr)",
   alignItems: "start",
-  gap: 16,
+  gap: theme.spacing(2),
   minWidth: 0,
-  "@media (min-width: 768px)": {
+  [theme.breakpoints.up("md")]: {
     gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
   },
-});
+}));
 
 const PointsSection = styled("section", {
   shouldForwardProp: (prop) => prop !== "$tone",
 })<{ $tone: PointTone }>(({ theme, $tone }) => ({
   minWidth: 0,
-  padding: 20,
+  padding: theme.spacing(2.5),
   border: `1px solid ${
     $tone === "strength"
       ? alpha(theme.palette.primary.main, 0.14)
       : alpha(theme.palette.secondary.main, 0.24)
   }`,
-  borderRadius: 16,
+  borderRadius: scaledRadius(theme, 1),
   backgroundColor:
     $tone === "strength"
       ? alpha(theme.palette.primary.main, 0.05)
@@ -165,14 +161,14 @@ const PointsSection = styled("section", {
 
 const PointsList = styled("ul")(({ theme }) => ({
   display: "grid",
-  gap: 12,
+  gap: theme.spacing(1.5),
   margin: 0,
-  paddingLeft: 20,
+  paddingLeft: theme.spacing(2.5),
   color: theme.palette.text.primary,
-  fontSize: 16,
+  ...theme.typography.body1,
   lineHeight: 1.8,
   "& li": {
-    paddingLeft: 4,
+    paddingLeft: theme.spacing(0.5),
     whiteSpace: "pre-wrap",
     overflowWrap: "anywhere",
   },
@@ -184,9 +180,9 @@ const EmptyText = styled(BodyText)(({ theme }) => ({
 
 const ExampleSection = styled("section")(({ theme }) => ({
   minWidth: 0,
-  padding: 20,
+  padding: theme.spacing(2.5),
   border: `1px solid ${alpha(theme.palette.secondary.main, 0.18)}`,
-  borderRadius: 16,
+  borderRadius: scaledRadius(theme, 1),
   backgroundColor: alpha(theme.palette.secondary.main, 0.06),
 }));
 
@@ -200,7 +196,9 @@ const Points = ({
   tone: PointTone;
 }) => (
   <PointsSection $tone={tone}>
-    <SectionTitle>{title}</SectionTitle>
+    <SectionTitle variant="h2" component="h2">
+      {title}
+    </SectionTitle>
     {values.length ? (
       <PointsList>
         {values.map((value, index) => (
@@ -221,29 +219,43 @@ export const FeedbackCard = ({ feedback }: { feedback: Feedback }) => (
       emphasis="featured"
       heading={
         <>
-          <Eyebrow>FEEDBACK</Eyebrow>
-          <Title aria-label="今回のフィードバック">
+          <Eyebrow variant="overline" component="p">
+            FEEDBACK
+          </Eyebrow>
+          <Title variant="h1" component="h1" aria-label="今回のフィードバック">
             今回の<TitlePhrase>フィードバック</TitlePhrase>
           </Title>
           <ScoreBlock>
-            <SectionTitle>総合評価</SectionTitle>
+            <SectionTitle variant="h2" component="h2">
+              総合評価
+            </SectionTitle>
             <ScoreLine>
-              <ScoreValue>{feedback.score}</ScoreValue>
-              <ScoreScale>/ 100</ScoreScale>
+              <ScoreValue variant="h1" component="span">
+                {feedback.score}
+              </ScoreValue>
+              <ScoreScale variant="body1" component="span">
+                / 100
+              </ScoreScale>
             </ScoreLine>
           </ScoreBlock>
         </>
       }
     >
-      <p>{feedback.summary}</p>
+      <Text>{feedback.summary}</Text>
     </Introduction>
     <ReportFlow>
       <QuestionSection>
-        <SectionTitle>質問</SectionTitle>
-        <BodyText>{feedback.question.question}</BodyText>
+        <SectionTitle variant="h2" component="h2">
+          質問
+        </SectionTitle>
+        <BodyText variant="body1" component="p">
+          {feedback.question.question}
+        </BodyText>
       </QuestionSection>
       <AnswerSection>
-        <SectionTitle>あなたの回答</SectionTitle>
+        <SectionTitle variant="h2" component="h2">
+          あなたの回答
+        </SectionTitle>
         <AnswerText>{feedback.answer}</AnswerText>
       </AnswerSection>
       <PointsGrid>
@@ -260,8 +272,12 @@ export const FeedbackCard = ({ feedback }: { feedback: Feedback }) => (
       </PointsGrid>
       {feedback.exampleAnswer && (
         <ExampleSection>
-          <SectionTitle>回答例</SectionTitle>
-          <BodyText>{feedback.exampleAnswer}</BodyText>
+          <SectionTitle variant="h2" component="h2">
+            回答例
+          </SectionTitle>
+          <BodyText variant="body1" component="p">
+            {feedback.exampleAnswer}
+          </BodyText>
         </ExampleSection>
       )}
     </ReportFlow>

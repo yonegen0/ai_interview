@@ -2,7 +2,11 @@
 import { test, expect, type Page } from "@playwright/test";
 const begin = async (page: Page) => {
   await page.goto("/practice/");
-  await page.getByRole("button", { name: "転職理由", exact: true }).click();
+  await page
+    .getByRole("button", { name: /\u30ab\u30c6\u30b4\u30ea\u7df4\u7fd2/ })
+    .click();
+  await page.getByRole("button", { name: "カテゴリ練習", exact: true }).click();
+  await page.getByRole("button", { name: /^転職理由/ }).click();
   await page.getByRole("button", { name: "練習を始める", exact: true }).click();
   await expect(page.getByLabel("あなたの回答")).toBeVisible();
 };
@@ -69,7 +73,7 @@ test("response loss recovers without duplicate attempt", async ({ page }) => {
   const count = await page.evaluate(
     () =>
       Object.keys(
-        JSON.parse(sessionStorage.getItem("pocket:mock:v1")!).attempts,
+        JSON.parse(sessionStorage.getItem("pocket:mock:v2")!).attempts,
       ).length,
   );
   expect(count).toBe(1);
@@ -126,7 +130,8 @@ test("mascot assets are static and image failures do not block practice", async 
   const failedDimensions = await welcome.locator("..").boundingBox();
   expect(failedDimensions?.width).toBe(dimensions?.width);
   expect(failedDimensions?.height).toBe(dimensions?.height);
-  await page.getByRole("button", { name: "転職理由", exact: true }).click();
+  await page.getByRole("button", { name: "カテゴリ練習", exact: true }).click();
+  await page.getByRole("button", { name: /^転職理由/ }).click();
   await page.getByRole("button", { name: "練習を始める", exact: true }).click();
   await answer(page);
   await expect(
@@ -168,12 +173,18 @@ for (const width of [375, 768, 1280])
     await expect(page.locator("main img")).toHaveCount(0);
     const field = page.getByLabel("あなたの回答");
     await field.fill("😀".repeat(250));
-    await expect(page.getByText("500 / 500文字 · 100〜300文字がおすすめです")).toBeVisible();
+    await expect(
+      page.getByText("500 / 500文字 · 100〜300文字がおすすめです"),
+    ).toBeVisible();
     await expectContentWithinViewport(page);
     await field.fill("😀".repeat(250) + "あ");
-    await expect(page.getByText("500文字以内で入力してください。")).toBeVisible();
+    await expect(
+      page.getByText("500文字以内で入力してください。"),
+    ).toBeVisible();
     await expect(field).toHaveValue("😀".repeat(250) + "あ");
-    await expect(page.getByRole("button", { name: "回答を送信", exact: true })).toBeDisabled();
+    await expect(
+      page.getByRole("button", { name: "回答を送信", exact: true }),
+    ).toBeDisabled();
     await expectContentWithinViewport(page);
     expect(
       await page.evaluate(

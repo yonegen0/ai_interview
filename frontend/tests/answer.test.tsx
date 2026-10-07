@@ -6,6 +6,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import { useAnswer } from "@/features/interview/hooks/useAnswer";
 import { getEvaluation, submitAnswer } from "@/lib/api/interview";
 import type { Session } from "@/lib/api/schemas";
+import { scopedKey } from "@/lib/storage/recovery";
 vi.mock("@/lib/api/interview", () => ({
   getEvaluation: vi.fn(),
   submitAnswer: vi.fn(),
@@ -42,7 +43,7 @@ it.each(["completed", "processing"] as const)(
   async (status) => {
     const body = { questionId: id, answer: "新しい回答です。" };
     sessionStorage.setItem(
-      storageKey,
+      scopedKey(storageKey)!,
       JSON.stringify({
         version: 1,
         questionId: id,
@@ -67,7 +68,9 @@ it.each(["completed", "processing"] as const)(
     });
     expect(view.result.current.phase).toBe("recovery_required");
     expect(getEvaluation).not.toHaveBeenCalled();
-    expect(sessionStorage.getItem(storageKey)).toContain(body.answer);
+    expect(sessionStorage.getItem(scopedKey(storageKey)!)).toContain(
+      body.answer,
+    );
     await act(async () => {
       await view.result.current.send();
     });
@@ -94,7 +97,7 @@ it("restores a draft after retrying a failed evaluation and remounting", async (
     first.result.current.form.setValue("answer", "再入力した下書きです。"),
   );
   await waitFor(() =>
-    expect(sessionStorage.getItem(storageKey)).toContain(
+    expect(sessionStorage.getItem(scopedKey(storageKey)!)).toContain(
       "再入力した下書きです。",
     ),
   );
@@ -104,7 +107,7 @@ it("restores a draft after retrying a failed evaluation and remounting", async (
   expect(second.result.current.phase).toBe("answering");
   expect(second.result.current.answer).toBe("再入力した下書きです。");
   expect(getEvaluation).not.toHaveBeenCalled();
-  expect(sessionStorage.getItem(storageKey)).toContain(
+  expect(sessionStorage.getItem(scopedKey(storageKey)!)).toContain(
     "再入力した下書きです。",
   );
   second.unmount();

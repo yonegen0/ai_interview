@@ -1,8 +1,14 @@
 /** @file storyEnvironment.tsx @description Query、Storage、RouterをStoryごとに隔離する共通環境。 */
 import { useEffect, useState, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { getRouter, useSearchParams } from "@storybook/nextjs-vite/navigation.mock";
+import {
+  getRouter,
+  useSearchParams,
+  usePathname,
+} from "@storybook/nextjs-vite/navigation.mock";
 import type { MockState } from "@/mocks/store";
+import { resetRecoveryMemoryForTests } from "@/lib/storage/recovery";
+import { auth } from "@/lib/auth/session";
 
 export type StoryMockScenario =
   | "success"
@@ -21,6 +27,7 @@ export type StoryMockScenario =
 export type FeatureStoryParameters = {
   mock?: boolean;
   mockScenario?: StoryMockScenario;
+  mockRole?: "USER" | "ADMIN" | "ANONYMOUS";
   initialRoute?: string;
   seed?: MockState;
   storage?: Record<string, unknown>;
@@ -48,16 +55,29 @@ export const StoryQueryProvider = (props: { children: ReactNode }) => {
     },
     [client],
   );
-  return <QueryClientProvider client={client}>{props.children}</QueryClientProvider>;
+  return (
+    <QueryClientProvider client={client}>{props.children}</QueryClientProvider>
+  );
 };
 
-const pocketKeys = ["pocket:mock:v1", "pocket:scenario", "pocket:create"];
-const pocketPrefixes = ["pocket:answer:", "pocket:next:"];
+const pocketKeys = [
+  "pocket:mock:v1",
+  "pocket:mock:v2",
+  "pocket:scenario",
+  "pocket:create",
+];
+const pocketPrefixes = ["pocket:answer:", "pocket:next:", "pocket:v2:"];
 
 export const clearPocketStorage = (): void => {
+  resetRecoveryMemoryForTests();
+  auth.setMockActor("mock-user", ["USER"]);
   for (let index = sessionStorage.length - 1; index >= 0; index -= 1) {
     const key = sessionStorage.key(index);
-    if (key && (pocketKeys.includes(key) || pocketPrefixes.some((prefix) => key.startsWith(prefix)))) {
+    if (
+      key &&
+      (pocketKeys.includes(key) ||
+        pocketPrefixes.some((prefix) => key.startsWith(prefix)))
+    ) {
       sessionStorage.removeItem(key);
     }
   }
@@ -65,6 +85,7 @@ export const clearPocketStorage = (): void => {
 
 export const setInitialRoute = (path: string): void => {
   const url = new URL(path, "http://storybook.local");
+  usePathname.mockReturnValue(url.pathname);
   useSearchParams.mockReturnValue(
     new URLSearchParams(url.search) as unknown as ReturnType<
       typeof useSearchParams
@@ -80,6 +101,8 @@ export const resetNavigationMock = (): void => {
   router.forward.mockReset();
   router.refresh.mockReset();
   router.prefetch.mockReset();
+  usePathname.mockReset();
+  usePathname.mockReturnValue("/");
   useSearchParams.mockReset();
   useSearchParams.mockReturnValue(
     new URLSearchParams() as unknown as ReturnType<typeof useSearchParams>,
@@ -88,6 +111,8 @@ export const resetNavigationMock = (): void => {
 
 export const assertNoHorizontalOverflow = (element: HTMLElement): void => {
   if (element.scrollWidth > element.clientWidth) {
-    throw new Error(`Horizontal overflow: ${element.scrollWidth} > ${element.clientWidth}`);
+    throw new Error(
+      `Horizontal overflow: ${element.scrollWidth} > ${element.clientWidth}`,
+    );
   }
 };

@@ -3,6 +3,7 @@
  * @description 画面遷移に利用する共通リンクコンポーネント
  */
 "use client";
+import { scaledRadius } from "@/theme/tokens";
 
 import type { ComponentPropsWithRef } from "react";
 import NextLink from "next/link";
@@ -35,11 +36,11 @@ const StyledLink = styled(LinkBase, {
   alignItems: "center",
   justifyContent: "flex-start",
   minWidth: 0,
-  minHeight: 44,
+  minHeight: theme.spacing(5.5),
   maxWidth: "100%",
-  padding: "8px 4px",
+  padding: theme.spacing(1, 0.5),
   border: 0,
-  borderRadius: 4,
+  borderRadius: scaledRadius(theme, 0.25),
   backgroundColor: "transparent",
   color: theme.palette.primary.dark,
   fontFamily: theme.typography.fontFamily,

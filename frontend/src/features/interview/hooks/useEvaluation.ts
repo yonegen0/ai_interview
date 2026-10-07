@@ -1,5 +1,6 @@
 /** @file useEvaluation.ts @description 中断・再開・長時間待機を扱う評価Query */
 "use client";
+import { useOperationScope } from "@/hooks/useOperationScope";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getEvaluation } from "@/lib/api/interview";
@@ -27,6 +28,7 @@ export const useEvaluation = (
   id: string | undefined,
   timing: EvaluationTiming = defaultEvaluationTiming,
 ) => {
+  const { scope, isActive, assertActive } = useOperationScope();
   const active = useSyncExternalStore(
     subscribe,
     () => document.visibilityState === "visible" && navigator.onLine,
@@ -37,9 +39,13 @@ export const useEvaluation = (
     setElapsed(0);
   }, [id]);
   const query = useQuery({
-    queryKey: ["evaluation", id],
-    queryFn: ({ signal }) => getEvaluation(id!, signal),
+    queryKey: [scope, "evaluation", id],
+    queryFn: ({ signal }) => {
+      assertActive();
+      return getEvaluation(id!, signal);
+    },
     enabled: (q) =>
+      isActive() &&
       !!id &&
       active &&
       elapsed < timing.autoPauseSeconds &&
@@ -50,6 +56,7 @@ export const useEvaluation = (
     refetchOnMount: false,
     refetchIntervalInBackground: false,
     refetchInterval: (q) =>
+      isActive() &&
       active &&
       elapsed < timing.autoPauseSeconds &&
       !q.state.error &&

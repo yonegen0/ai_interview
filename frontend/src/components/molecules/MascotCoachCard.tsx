@@ -1,5 +1,6 @@
 /** @file MascotCoachCard.tsx @description マスコットと見出し・説明・操作を一体にする案内カード。 */
 "use client";
+import { scaledRadius } from "@/theme/tokens";
 
 import { Children, type ReactNode } from "react";
 import { alpha, styled, type Theme } from "@mui/material/styles";
@@ -27,7 +28,11 @@ type CardStyleProps = {
 
 const toneStyles = {
   neutral: { palette: "primary", backgroundOpacity: 0.06, borderOpacity: 0.14 },
-  attention: { palette: "secondary", backgroundOpacity: 0.1, borderOpacity: 0.2 },
+  attention: {
+    palette: "secondary",
+    backgroundOpacity: 0.1,
+    borderOpacity: 0.2,
+  },
   error: { palette: "error", backgroundOpacity: 0.06, borderOpacity: 0.3 },
 } as const;
 
@@ -48,16 +53,16 @@ const Card = styled("div", {
       ...($hasActions ? ['"actions actions"'] : []),
     ].join(" "),
     alignItems: "start",
-    gap: 16,
+    gap: theme.spacing(2),
     minWidth: 0,
-    padding: 16,
-    borderRadius: 20,
+    padding: theme.spacing(2),
+    borderRadius: scaledRadius(theme, 1.25),
     border: `1px solid ${alpha(accent, borderOpacity)}`,
     backgroundColor: alpha(accent, backgroundOpacity),
     color: theme.palette.text.primary,
-    "@media (min-width: 768px)": {
-      padding: 24,
-      columnGap: 24,
+    [theme.breakpoints.up("md")]: {
+      padding: theme.spacing(3),
+      columnGap: theme.spacing(3),
       gridTemplateAreas: [
         '"heading artwork"',
         ...($hasBody ? ['"body artwork"'] : []),
@@ -72,10 +77,7 @@ const Heading = styled("div")({
   alignSelf: "center",
   minWidth: 0,
   overflowWrap: "anywhere",
-  "& > h2": { margin: 0, fontSize: 20, lineHeight: 1.5, textWrap: "balance" },
-  "@media (min-width: 768px)": {
-    "& > h2": { fontSize: 22 },
-  },
+  "& > h2": { margin: 0, textWrap: "balance" },
 });
 
 const Artwork = styled("div", {
@@ -101,28 +103,27 @@ const Artwork = styled("div", {
 const Character = styled(MascotCharacter, {
   shouldForwardProp: (prop) => prop !== "$emphasis",
 })<{ $emphasis: NonNullable<MascotCoachCardProps["emphasis"]> }>(
-  ({ $emphasis }) => ({
+  ({ theme, $emphasis }) => ({
     width: $emphasis === "featured" ? 112 : 96,
     height: $emphasis === "featured" ? 112 : 96,
-    "@media (min-width: 768px)": {
+    [theme.breakpoints.up("md")]: {
       width: $emphasis === "featured" ? 176 : 144,
       height: $emphasis === "featured" ? 176 : 144,
     },
   }),
 );
 
-const Body = styled("div")({
+const Body = styled("div")(({ theme }) => ({
   gridArea: "body",
   minWidth: 0,
   overflowWrap: "anywhere",
-  fontSize: 14,
+  ...theme.typography.body1,
   lineHeight: 1.8,
   "& p": { margin: 0, whiteSpace: "pre-wrap" },
-  "& p + p": { marginTop: 12 },
-  "@media (min-width: 768px)": { fontSize: 16 },
-});
+  "& p + p": { marginTop: theme.spacing(1.5) },
+}));
 
-const CardActions = styled(Actions)({
+const CardActions = styled(Actions)(({ theme }) => ({
   gridArea: "actions",
   marginTop: 0,
   minWidth: 0,
@@ -130,13 +131,13 @@ const CardActions = styled(Actions)({
   alignItems: "stretch",
   "& > button": { width: "100%", minWidth: 0, overflowWrap: "anywhere" },
   "& > a": { alignSelf: "flex-start" },
-  "@media (min-width: 768px)": {
+  [theme.breakpoints.up("md")]: {
     flexDirection: "row",
     alignItems: "center",
     "& > button": { width: "auto" },
     "& > a": { alignSelf: "auto" },
   },
-});
+}));
 
 /** 各スロットの意味・状態は利用側に任せ、装飾と配置だけを共通化する。 */
 export const MascotCoachCard = ({

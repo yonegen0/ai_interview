@@ -1,5 +1,6 @@
 /** @file useAnswer.ts @description 回答の単一送信・永続化・復旧・評価統合 */
 "use client";
+import { useOperationScope } from "@/hooks/useOperationScope";
 import { useEffect, useReducer, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useForm, useWatch } from "react-hook-form";
@@ -7,12 +8,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { formSchema, type Session, type Attempt } from "@/lib/api/schemas";
 import { submitAnswer } from "@/lib/api/interview";
 import { uncertain } from "@/lib/api/client";
-import {
-  readSaved,
-  recoverySchema,
-  removeSaved,
-  save,
-} from "@/lib/storage/recovery";
+import { recoverySchema } from "@/lib/storage/recovery";
 import { reducer, type Phase } from "@/features/interview/model/machine";
 import { useEvaluation } from "@/features/interview/hooks/useEvaluation";
 import type { EvaluationTiming } from "@/features/interview/hooks/useEvaluation";
@@ -22,6 +18,11 @@ export const useAnswer = (
   retryFrom: string | null,
   timing?: EvaluationTiming,
 ) => {
+  const {
+    isActive,
+    assertActive,
+    storage: { readSaved, save, removeSaved },
+  } = useOperationScope();
   const storageKey = `pocket:answer:${session.sessionId}`;
   const context = `${session.questionNumber}:${retryFrom ?? "normal"}`;
   const [saved] = useState(() => {
@@ -59,19 +60,22 @@ export const useAnswer = (
   const answer = useWatch({ control: form.control, name: "answer" }) ?? "";
   const evaluation = useEvaluation(attempt?.evaluationId, timing);
   const mutation = useMutation({
-    mutationFn: (value: NonNullable<typeof pending.current>) =>
-      submitAnswer(session.sessionId, value.body, value.key),
+    mutationFn: (value: NonNullable<typeof pending.current>) => {
+      assertActive();
+      return submitAnswer(session.sessionId, value.body, value.key);
+    },
   });
   useEffect(() => {
-    if (phase === "answering")
+    if (isActive() && phase === "answering")
       save(storageKey, {
         version: 1,
         questionId: session.question.id,
         context,
         draft: answer,
       });
-  }, [answer, phase, storageKey, context, session.question.id]);
+  }, [answer, phase, storageKey, context, session.question.id, save, isActive]);
   useEffect(() => {
+    if (!isActive()) return;
     if (evaluation.data?.status === "completed") {
       dispatch("COMPLETE");
       removeSaved(storageKey);
@@ -80,7 +84,7 @@ export const useAnswer = (
       dispatch("FAIL");
       removeSaved(storageKey);
     }
-  }, [evaluation.data, storageKey]);
+  }, [evaluation.data, storageKey, removeSaved, isActive]);
   useEffect(() => {
     const guard = (event: BeforeUnloadEvent) => {
       if (answer || pending.current || phase === "processing") {
@@ -92,7 +96,11 @@ export const useAnswer = (
     return () => window.removeEventListener("beforeunload", guard);
   }, [answer, phase]);
   const send = async (value?: { answer: string }) => {
-    if (locked.current || !["answering", "recovery_required"].includes(phase))
+    if (
+      !isActive() ||
+      locked.current ||
+      !["answering", "recovery_required"].includes(phase)
+    )
       return;
     locked.current = true;
     setError(null);
@@ -114,11 +122,13 @@ export const useAnswer = (
     dispatch("SUBMIT");
     try {
       const result = await mutation.mutateAsync(payload);
+      if (!isActive()) return;
       setAttempt(result);
       pending.current = undefined;
       removeSaved(storageKey);
       dispatch("ACCEPT");
     } catch (cause) {
+      if (!isActive()) return;
       const failure =
         cause instanceof Error ? cause : new Error("送信できませんでした。");
       setError(failure);
@@ -132,6 +142,7 @@ export const useAnswer = (
     }
   };
   const retry = () => {
+    if (!isActive()) return;
     pending.current = undefined;
     setAttempt(null);
     form.reset({ answer: "" });
@@ -146,6 +157,8 @@ export const useAnswer = (
     evaluation,
     send,
     retry,
-    discard: () => removeSaved(storageKey),
+    discard: () => {
+      if (isActive()) removeSaved(storageKey);
+    },
   };
 };

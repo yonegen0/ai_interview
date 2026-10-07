@@ -2,10 +2,10 @@
 "use client";
 import { styled } from "@mui/material/styles";
 
-export const Actions = styled("div")({
+export const Actions = styled("div")(({ theme }) => ({
   display: "flex",
   flexWrap: "wrap",
-  gap: 12,
-  marginTop: 24,
+  gap: theme.spacing(1.5),
+  marginTop: theme.spacing(3),
   alignItems: "center",
-});
+}));

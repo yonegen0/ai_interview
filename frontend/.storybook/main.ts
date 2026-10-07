@@ -9,5 +9,12 @@ const config: StorybookConfig = {
   ],
   framework: { name: "@storybook/nextjs-vite", options: {} },
   staticDirs: ["../public"],
+  viteFinal: async (config) => ({
+    ...config,
+    define: {
+      ...config.define,
+      "process.env.NEXT_PUBLIC_MSW_ENABLED": JSON.stringify("true"),
+    },
+  }),
 };
 export default config;

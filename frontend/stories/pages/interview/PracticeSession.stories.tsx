@@ -1,9 +1,9 @@
-/** @file PracticeForm.stories.tsx @description 回答、評価、復旧、終了を扱うForm統合Story。 */
+/** @file PracticeSessionContent.stories.tsx @description 回答、評価、復旧、終了を扱うForm統合Story。 */
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { delay, http, HttpResponse } from "msw";
 import { expect, fireEvent, userEvent, waitFor, within } from "storybook/test";
 import { getRouter } from "@storybook/nextjs-vite/navigation.mock";
-import { PracticeForm } from "@/features/interview/components/templates/PracticeForm";
+import { PracticeSessionContent } from "@/features/interview/components/pages/PracticeSessionContent";
 import { withAppShell } from "../../test-utils/withAppShell";
 import {
   createCompletedState,
@@ -45,11 +45,11 @@ const pendingAnswer = {
   },
 };
 const meta = {
-  title: "Components/Templates/PracticeForm",
-  component: PracticeForm,
+  title: "Pages/Interview/PracticeSession",
+  component: PracticeSessionContent,
   parameters: { layout: "padded", mock: true, seed: createStoryState() },
   args: { session, retryFrom: null, timing: shortTiming },
-} satisfies Meta<typeof PracticeForm>;
+} satisfies Meta<typeof PracticeSessionContent>;
 export default meta;
 type Story = StoryObj<typeof meta>;
 export const Answering: Story = {};
@@ -254,6 +254,7 @@ export const ExitWhileProcessing: Story = {
   },
 };
 export const SubmitFlow: Story = {
+  args: { timing: { ...shortTiming, autoPauseSeconds: 10 } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.type(

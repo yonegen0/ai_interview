@@ -11,9 +11,11 @@ import InputLabel from "@mui/material/InputLabel";
 import MenuItem from "@mui/material/MenuItem";
 import Paper from "@mui/material/Paper";
 import MuiSelect from "@mui/material/Select";
-import type { ReactNode } from "react";
+import type { ReactNode, Ref } from "react";
 import type { SelectChangeEvent } from "@mui/material/Select";
 import { alpha, styled } from "@mui/material/styles";
+import { fieldStyles } from "@/theme/fieldStyles";
+import { scaledRadius } from "@/theme/tokens";
 
 /** 選択肢 1 件 */
 export type SelectOption<T extends string | number> = {
@@ -27,6 +29,11 @@ export type SelectOption<T extends string | number> = {
 export type SelectProps<T extends string | number> = {
   /** フィールドラベル（InputLabel に表示） */
   label: string;
+  name?: string;
+  id?: string;
+  onBlur?: () => void;
+  inputRef?: Ref<HTMLInputElement>;
+  describedBy?: string;
   /** 現在値 */
   value: T;
   /** 値変更ハンドラ（型付き値を直接返す） */
@@ -57,39 +64,7 @@ const StyledFormControl = styled(FormControl, {
 })<StyledFormControlProps>(({ theme, $fullWidth, $minWidth }) => ({
   width: $fullWidth ? "100%" : undefined,
   minWidth: $minWidth,
-  "& .MuiOutlinedInput-root": {
-    borderRadius: "12px",
-    backgroundColor: alpha(theme.palette.common.white, 0.9),
-    backdropFilter: "blur(10px)",
-    transition: theme.transitions.create(
-      ["background-color", "box-shadow", "border-color"],
-      { duration: 300 },
-    ),
-    "& fieldset": {
-      borderColor: theme.palette.grey[300],
-    },
-    "&:hover fieldset": {
-      borderColor: theme.palette.grey[400],
-    },
-    "&.Mui-focused": {
-      backgroundColor: theme.palette.common.white,
-      boxShadow:
-        `0 0 15px ${alpha(theme.palette.primary.main, 0.3)}, ` +
-        `inset 0 0 10px ${alpha(theme.palette.primary.main, 0.1)}`,
-      "& fieldset": {
-        borderWidth: "1px",
-        borderColor: theme.palette.primary.main,
-      },
-    },
-  },
-  "& .MuiInputLabel-root": {
-    fontWeight: 600,
-    color: theme.palette.text.secondary,
-    "&.Mui-focused": {
-      color: theme.palette.primary.main,
-      textShadow: `0 0 5px ${theme.palette.primary.main}`,
-    },
-  },
+  ...fieldStyles(theme),
   "& .MuiSelect-select": {
     color: theme.palette.text.primary,
     fontWeight: 500,
@@ -101,10 +76,11 @@ const StyledFormControl = styled(FormControl, {
   "& .MuiOutlinedInput-root.Mui-focused .MuiSelect-icon": {
     color: theme.palette.primary.main,
   },
-  "& .MuiFormHelperText-root": {
-    marginTop: "8px",
-    lineHeight: 1.4,
+  "& .MuiOutlinedInput-root.Mui-error .MuiSelect-icon": {
+    color: theme.palette.error.main,
   },
+  "& .MuiOutlinedInput-root.Mui-disabled .MuiSelect-icon, & .MuiOutlinedInput-root.Mui-disabled.Mui-error .MuiSelect-icon":
+    { color: theme.palette.text.disabled },
 }));
 
 /** ドロップダウンの glass パネル（Panel.tsx のレシピ準拠） */
@@ -115,7 +91,7 @@ const StyledMenuPaper = styled(Paper)(({ theme }) => ({
   overflowY: "auto",
   maxHeight: "calc(100% - 32px)",
   // ---- 以下 glass 装飾 ----
-  borderRadius: 14,
+  borderRadius: scaledRadius(theme, 0.875),
   border: `1px solid ${alpha(theme.palette.primary.main, 0.12)}`,
   backgroundColor: alpha(theme.palette.common.white, 0.85),
   backdropFilter: "blur(12px)",
@@ -126,7 +102,7 @@ const StyledMenuPaper = styled(Paper)(({ theme }) => ({
   },
   "& .MuiMenuItem-root": {
     marginInline: theme.spacing(0.75),
-    borderRadius: 8,
+    borderRadius: scaledRadius(theme, 0.5),
     paddingBlock: theme.spacing(0.75),
     transition: theme.transitions.create(["background-color", "color"], {
       duration: theme.transitions.duration.shortest,
@@ -155,7 +131,10 @@ const StyledMenuPaper = styled(Paper)(({ theme }) => ({
  * @returns 共通 Select UI
  */
 export const Select = <T extends string | number>(props: SelectProps<T>) => {
-  const labelId = useId();
+  const generatedId = useId();
+  const inputId = props.id ?? generatedId;
+  const labelId = `${inputId}-label`;
+  const helperId = `${inputId}-helper`;
   const handleChange = (e: SelectChangeEvent<T>) => {
     props.onChange(e.target.value as T);
   };
@@ -170,6 +149,15 @@ export const Select = <T extends string | number>(props: SelectProps<T>) => {
     >
       <InputLabel id={labelId}>{props.label}</InputLabel>
       <MuiSelect<T>
+        id={inputId}
+        name={props.name}
+        inputRef={props.inputRef}
+        onBlur={props.onBlur}
+        aria-describedby={
+          [props.describedBy, hasError ? helperId : undefined]
+            .filter(Boolean)
+            .join(" ") || undefined
+        }
         labelId={labelId}
         label={props.label}
         value={props.value}
@@ -182,7 +170,11 @@ export const Select = <T extends string | number>(props: SelectProps<T>) => {
           </MenuItem>
         ))}
       </MuiSelect>
-      {hasError ? <FormHelperText>{props.error}</FormHelperText> : null}
+      {hasError ? (
+        <FormHelperText id={helperId} role="alert">
+          {props.error}
+        </FormHelperText>
+      ) : null}
     </StyledFormControl>
   );
 };

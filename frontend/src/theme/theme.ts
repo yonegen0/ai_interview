@@ -4,6 +4,8 @@
  */
 import { createTheme } from "@mui/material/styles";
 
+const breakpoints = createTheme().breakpoints;
+
 export const theme = createTheme({
   palette: {
     primary: {
@@ -72,7 +74,7 @@ export const theme = createTheme({
       fontWeight: 700,
       fontSize: "27px",
       lineHeight: 1.35,
-      "@media (max-width:900px)": {
+      [breakpoints.down("md")]: {
         fontSize: "22px",
       },
     },
@@ -80,7 +82,7 @@ export const theme = createTheme({
       fontWeight: 600,
       fontSize: "21px",
       lineHeight: 1.4,
-      "@media (max-width:900px)": {
+      [breakpoints.down("md")]: {
         fontSize: "18px",
       },
     },
@@ -88,7 +90,7 @@ export const theme = createTheme({
       fontWeight: 600,
       fontSize: "18px",
       lineHeight: 1.45,
-      "@media (max-width:900px)": {
+      [breakpoints.down("md")]: {
         fontSize: "16px",
       },
     },
@@ -96,7 +98,7 @@ export const theme = createTheme({
       fontWeight: 600,
       fontSize: "33px",
       lineHeight: 1.235,
-      "@media (max-width:900px)": {
+      [breakpoints.down("md")]: {
         fontSize: "26px",
       },
     },
@@ -104,16 +106,27 @@ export const theme = createTheme({
       fontWeight: 600,
       fontSize: "24px",
       lineHeight: 1.334,
-      "@media (max-width:900px)": {
+      [breakpoints.down("md")]: {
         fontSize: "20px",
       },
     },
     body1: {
       fontSize: "16px",
       lineHeight: 1.6,
-      "@media (max-width:900px)": {
+      [breakpoints.down("md")]: {
         fontSize: "14px",
       },
+    },
+    body2: {
+      fontSize: "14px",
+      lineHeight: 1.6,
+      [breakpoints.down("md")]: { fontSize: "13px" },
+    },
+    overline: {
+      fontSize: "12px",
+      fontWeight: 700,
+      lineHeight: 1.6,
+      letterSpacing: "0.12em",
     },
     button: {
       textTransform: "none",

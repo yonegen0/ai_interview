@@ -3,11 +3,11 @@ import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { EvaluationLoading } from "@/features/interview/components/organisms/EvaluationLoading";
 import { ApiError } from "@/lib/api/client";
-import { withAppShell } from "../../test-utils/withAppShell";
+import { withAppShell } from "../../../test-utils/withAppShell";
 
 const retry = fn();
 const meta = {
-  title: "Components/Organisms/EvaluationLoading",
+  title: "Components/Organisms/Interview/EvaluationLoading",
   component: EvaluationLoading,
   parameters: { layout: "padded" },
   args: { elapsed: 0, paused: false, retry },

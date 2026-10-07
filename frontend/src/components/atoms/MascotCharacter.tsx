@@ -27,16 +27,18 @@ const dimensions = { sm: [48, 64], md: [80, 112], lg: [112, 176] } as const;
 
 const Frame = styled("span", {
   shouldForwardProp: (prop) => prop !== "$size",
-})<{ $size: NonNullable<MascotCharacterProps["size"]> }>(({ $size }) => ({
-  display: "block",
-  flexShrink: 0,
-  width: dimensions[$size][0],
-  height: dimensions[$size][0],
-  "@media (min-width: 768px)": {
-    width: dimensions[$size][1],
-    height: dimensions[$size][1],
-  },
-}));
+})<{ $size: NonNullable<MascotCharacterProps["size"]> }>(
+  ({ theme, $size }) => ({
+    display: "block",
+    flexShrink: 0,
+    width: dimensions[$size][0],
+    height: dimensions[$size][0],
+    [theme.breakpoints.up("md")]: {
+      width: dimensions[$size][1],
+      height: dimensions[$size][1],
+    },
+  }),
+);
 
 const CharacterImage = styled(Image, {
   shouldForwardProp: (prop) => prop !== "$failed",

@@ -1,6 +1,22 @@
 # Interview Pocket Frontend
 
-Backendなしで動く面接練習MVPです。認証・実AI評価は含まず、MSWが固定サンプルを返します。
+デフォルト15問の通し・カテゴリ練習、一巡終了、管理者による質問編集を実装しています。
+実Cognito EMAIL_OTPログインと実API接続に対応し、MSWではAWS通信なしでサンプル評価を確認できます。
+新しい質問管理APIとadmin Lambdaの実AWS配備は後続工程です。
+
+## 質問管理・認証
+
+- `/practice/`：全質問またはカテゴリを選択して練習。
+- `/login/`：登録済みメールアドレスのEMAIL_OTP認証。タブ内で維持し、token更新・ログアウトに対応。
+- `/admin/questions/`：ADMIN専用の本文・カテゴリ編集、追加、削除、上下移動、確認・保存。
+- 保存後の新規練習に反映し、既存練習の質問は保持。競合時は編集を残して最新版と比較。
+- Mockの管理者ログインは `admin@example.invalid`、コード `123456`。実認証では使用しません。
+
+実接続では `.env.example` のAPI URL、Cognito Region／User Pool ID／Client IDを設定し、
+`NEXT_PUBLIC_MSW_ENABLED=false`とします。公開識別子だけを設定し、AWS credentialは渡しません。
+設定不足時にMockへ自動切替しません。
+実AI評価と実OTP完了の証明は含めません。
+[実装・検証記録](../docs/QUESTION_MANAGEMENT_VERIFICATION_20261006.md)を参照してください。
 
 ## 起動
 
@@ -25,7 +41,7 @@ Playwrightブラウザが未導入なら `npx playwright install chromium` を�
 
 ## Storybook
 
-`npm run storybook` で <http://localhost:6006> を開きます。StoryはAtomic Designに合わせた `Components/Atoms`、`Components/Molecules`、`Components/Organisms`、`Components/Templates`と、画面Containerの`Pages/Home`、`Pages/Interview`、`Pages/Feedback`に分類されています。トップ画面からカテゴリ選択、回答、評価待機、結果、再挑戦、次の質問までを個別に開けます。
+`npm run storybook` で <http://localhost:6006> を開きます。StoryはAtomic Designに合わせた `Components/Atoms`、`Components/Molecules`、`Components/Organisms`、`Components/Templates`と、画面Containerの`Pages/Home/HomePage`、`Pages/Interview`、`Pages/Feedback`に分類されています。トップ画面からカテゴリ選択、回答、評価待機、結果、再挑戦、次の質問までを個別に開けます。
 
 Feature Storyは実API ClientとMSWを通ります。各Storyの `parameters` で `initialRoute`、固定Repositoryデータ、`pocket:*` の復旧データ、`mockScenario` を指定し、描画前にQuery Cache・Router・対象Storage・Handlerを初期化します。利用できるシナリオは `success`、`slow`、`never`、`validation`、`unauthorized`、`not_found`、`server_error`、`network_error`、`response_lost`、`invalid_response`、`evaluation_failed`、`state_conflict` です。
 
@@ -39,7 +55,7 @@ ErrorViewの本文は`error.dark`を10%暗くし、AppShellの背景グラデー
 
 `heading`・`children`・`actions`に表示内容を渡し、任意のスロットを省略すると空の行も省略されます。`Components/Molecules/MascotCoachCard`のStoryで長文、操作なし、スマホ幅、画像失敗を確認できます。カードの外側の余白は利用側で指定します。通常の回答入力中と練習開始画面は従来の表示です。
 
-導入時の検証では、lint・型チェック、232件のテスト（`npm test -- --testTimeout=15000`）、Storybook・本番・Mockの各ビルド、専用の新規Mockサーバーを使った8件のE2Eが成功しています。375／768／1280pxで単体とAppShell内の42画面を確認しました。画面例は`Components/Organisms/ErrorView`、`Components/Organisms/EvaluationLoading`、`Components/Templates/PracticeForm`、`Pages/Feedback/FeedbackResult`の`InAppShell`系Storyから再現できます。
+導入時の検証では、lint・型チェック、232件のテスト（`npm test -- --testTimeout=15000`）、Storybook・本番・Mockの各ビルド、専用の新規Mockサーバーを使った8件のE2Eが成功しています。375／768／1280pxで単体とAppShell内の42画面を確認しました。画面例は`Components/Organisms/ErrorView`、`Components/Organisms/Interview/EvaluationLoading`、`Pages/Interview/PracticeSession`、`Pages/Feedback/FeedbackResult`の`InAppShell`系Storyから再現できます。
 
 `src/components/atoms/MascotCharacter.tsx` が6種類の装飾画像を表示します。開始画面はwelcome、送信・評価中はthinking、結果見出しはsuccess、有効な再挑戦リンクはretry、共通エラーと評価失敗はerrorです。通常の回答入力中には表示しません。
 
@@ -53,12 +69,12 @@ ErrorViewの本文は`error.dark`を10%暗くし、AppShellの背景グラデー
 node scripts/build-mascots.mjs
 ```
 
-Storybookの `Components/Atoms/MascotCharacter` で表情・サイズ・取得失敗を、`Components/Templates/PracticeForm` のSubmitting／RetryAfterEvaluationFailureで送信と再入力を確認できます。
+Storybookの `Components/Atoms/MascotCharacter` で表情・サイズ・取得失敗を、`Pages/Interview/PracticeSession` のSubmitting／RetryAfterEvaluationFailureで送信と再入力を確認できます。
 
 ## ルート
 
 - / : 入口
-- /practice/ : カテゴリ選択
+- /practice/ : 通し・カテゴリ選択
 - /practice/session/?sessionId=UUID : 回答と評価待機
 - /result/?attemptId=UUID : 結果
 
@@ -84,5 +100,42 @@ Mockのシナリオ切替・実Backendに必要な実装はAPI契約を参照し
 
 現API・復旧・画面を維持し、FORBIDDEN／RATE_LIMITED／AI_TIMEOUT／AI_UPSTREAM_ERRORの日本語表示を追加します。
 型・制約はsrc/lib/api/schemas、HTTP・冪等性・復旧はdocs/FRONTEND_API_CONTRACT.mdを正本とします。
-認証SDK・Token付与・更新・ログアウト処理、非同期Backend、AWS構築は次工程です。
+認証SDK・Token付与・更新・ログアウトと質問管理の実装は上記の2026-10-06更新を参照してください。
+実AWSでの新機能の配備・実機検証は後続工程です。
 [Backend着手前の必須事項](../設計書一覧/04_横断仕様/06_決定事項_未確定事項.md)を参照してください。
+
+## 2026-10-06 hooks・Atomic Design・Storybook
+
+画面Containerは各Featureのhooksを呼び、`view`（表示状態）、`form`／`editor`（RHF接続）、`actions`（操作）をTemplateへ渡します。Template／Organismは通信・Storage・冪等キー生成を行いません。UI内部のController・useIdなどは表示のために使用します。純粋な計算・戻り先検証・復旧Schemaは各Featureのmodelに置き、API Schemaは引き続きlib/api/schemasを使用します。
+
+管理者画面はeditor hookと保存・復旧hookを組み合わせています。確認対象の質問一覧を独立したスナップショットにし、保存前に期待版・本文・冪等キーを保存します。結果不明の間は同じ要求だけを確認します。質問UUIDとFieldArrayのfieldKeyは別に扱います。認証サービス、API client、保存領域のキー・形式は維持しています。
+
+共通UIはInput／Select／Button／Actions／Panel／Headerに加え、選択状態を表すChoiceButtonと、themeの文字スタイルを使うTextを使用します。新規フォームはControllerで入力本体のref・blur・値を接続します。スタイルはMUI styled、palette・spacing・typography・shape・shadows・breakpointsを使用します。
+
+Storyは次の責務で追加します。
+
+- `Components/Atoms|Molecules|Organisms|Templates`：propsと固定fixtureで表示を確認します。RHF接続はstories/test-utils/presentation.tsxのHarnessで再現し、APIを呼びません。
+- `Pages/Admin|Auth|Interview|Feedback`：実際のhooksとAPI clientをMSW／Mock Repositoryへ接続し、操作・復旧・遷移を確認します。
+- 旧PracticeFormの通信・復旧・遷移Storyは、削除せず`Pages/Interview/PracticeSession`へ移しました。表示専用の`Components/Templates/Interview/PracticeForm`は別に用意しています。
+
+StoryごとにRouterのpathname・searchParams、Query、認証利用者、Mock Repository、handler、利用者別Storageとメモリ退避を初期化します。`mockRole`はUSER／ADMIN／ANONYMOUSです。管理者Storage fixtureは認証利用者の設定後に保存します。タイマーの60秒経過はunit試験、Storyでは固定待ち時間を確認します。Select／DialogのPortal操作はdocument.bodyを対象にします。
+
+新しい部品を追加する際は、Feature固有か共通かを決め、下位から上位を参照しない層へ置きます。Storyには通常・不正入力・disabledなど必要な状態と重要な操作を追加し、主要画面は375／768／1280pxを確認します。callbackはfn()、API障害はhandlerで再現します。
+
+```powershell
+npm run test:unit
+npx vitest run --project storybook
+npm run build-storybook
+```
+
+2026-10-07の最終検証結果・Story移行対応は[リファクタリング検証記録](../docs/FRONTEND_REFACTOR_VERIFICATION_20261007.md)を参照してください。AWS接続・配備・再有効化は実施しません。
+
+## 2026-10-07 デザイン・Storybookパスの統一
+
+共通部品のStoryは `stories/components/<層>/<Component名>.stories.tsx` と `Components/<層>/<Component名>`、Feature部品は `stories/components/<層>/<feature>/<Component名>.stories.tsx` と `Components/<層>/<Feature>/<Component名>` に揃えます。Pageは `stories/pages/<feature>/<画面名>.stories.tsx` と `Pages/<Feature>/<画面名>` です。表示用Harnessを使う場合も、ファイル名とtitleは表示対象のComponent名にします。
+
+`Pages/Interview/PracticeSession` の既存23 Storyは保持しています。Story探索globは変更しません。サイドバーのtitle変更に伴う旧・新Story IDとimportPathの対応は今回の検証証跡に保存します。過去の検証記録・画像は当時のパスのまま保持します。
+
+Buttonは主要操作にcontained、補助操作にoutlined、削除にoutlined/error、終了の確定にcontained/errorを使用します。入力エラーはフォーカス中も赤を維持し、disabledを優先します。画面幅の切替はthemeのmd（900px）です。
+
+[今回の実装・検証記録](../docs/FRONTEND_DESIGN_FIX_VERIFICATION_20261007.md)を参照してください。

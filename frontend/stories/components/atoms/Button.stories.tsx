@@ -2,6 +2,7 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { Button } from "@/components/atoms/Button";
+import { theme } from "@/theme/theme";
 import { assertNoHorizontalOverflow } from "../../test-utils/storyEnvironment";
 
 const meta = {
@@ -13,10 +14,18 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Primary: Story = { args: { variant: "contained", color: "primary" } };
-export const Secondary: Story = { args: { variant: "contained", color: "secondary" } };
-export const Success: Story = { args: { color: "success", children: "次の質問へ" } };
-export const Destructive: Story = { args: { color: "error", children: "終了する" } };
+export const Primary: Story = {
+  args: { variant: "contained", color: "primary" },
+};
+export const Secondary: Story = {
+  args: { variant: "contained", color: "secondary" },
+};
+export const Success: Story = {
+  args: { color: "success", children: "次の質問へ" },
+};
+export const Destructive: Story = {
+  args: { color: "error", children: "終了する" },
+};
 export const Outlined: Story = { args: { variant: "outlined" } };
 export const Disabled: Story = {
   args: { disabled: true },
@@ -40,4 +49,53 @@ export const LongLabel: Story = {
 export const Mobile: Story = {
   ...LongLabel,
   globals: { viewport: { value: "iphoneSe" } },
+};
+
+export const OperationHierarchy: Story = {
+  render: () => (
+    <>
+      <Button variant="contained" color="primary">
+        保存して反映
+      </Button>
+      <Button variant="outlined" color="primary">
+        編集に戻る
+      </Button>
+      <Button variant="outlined" color="error">
+        削除
+      </Button>
+      <Button variant="contained" color="error">
+        終了する
+      </Button>
+      <Button variant="text" color="inherit">
+        ログアウト
+      </Button>
+    </>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("button", { name: "保存して反映" }),
+    ).toHaveStyle({
+      backgroundColor: theme.palette.primary.main,
+      color: theme.palette.primary.contrastText,
+    });
+    await expect(
+      canvas.getByRole("button", { name: "編集に戻る" }),
+    ).toHaveStyle({ color: theme.palette.primary.main });
+    await expect(canvas.getByRole("button", { name: "削除" })).toHaveStyle({
+      color: theme.palette.error.main,
+    });
+    await expect(canvas.getByRole("button", { name: "終了する" })).toHaveStyle({
+      backgroundColor: theme.palette.error.main,
+      color: theme.palette.error.contrastText,
+    });
+    await userEvent.tab();
+    const primary = canvas.getByRole("button", { name: "保存して反映" });
+    await expect(primary).toHaveFocus();
+    await expect(primary).toHaveStyle({
+      outlineWidth: "3px",
+      outlineStyle: "solid",
+      outlineColor: theme.palette.primary.main,
+    });
+  },
 };

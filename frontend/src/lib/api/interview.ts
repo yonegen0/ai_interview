@@ -11,18 +11,26 @@ import {
   nextSchema,
   type Category,
   type Answer,
+  type CreateInput,
+  practiceOptionsSchema,
 } from "./schemas";
 const checkedId = (id: string) => {
   if (!idSchema.safeParse(id).success)
     throw new ApiError("VALIDATION_ERROR", 400);
   return id;
 };
-export const createSession = (category: Category, key: string) =>
+export const createSession = (input: Category | CreateInput, key: string) =>
   request("/sessions", createdSchema, {
     method: "POST",
     key,
-    body: createSchema.parse({ category, difficulty: "standard" }),
+    body: createSchema.parse(
+      typeof input === "string"
+        ? { category: input, difficulty: "standard" }
+        : input,
+    ),
   });
+export const getPracticeOptions = (signal?: AbortSignal) =>
+  request("/practice-options", practiceOptionsSchema, { signal });
 export const getQuestion = (id: string, signal?: AbortSignal) =>
   request(`/sessions/${checkedId(id)}/question`, sessionSchema, { signal });
 export const submitAnswer = (id: string, body: Answer, key: string) =>

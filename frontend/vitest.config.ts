@@ -6,7 +6,7 @@ import { playwright } from "@vitest/browser-playwright";
 export default defineConfig({
   resolve: { alias: { "@": path.resolve("src") } },
   optimizeDeps: {
-    include: ["@hookform/resolvers/zod"],
+    include: ["@hookform/resolvers/zod", "@mui/material/Typography"],
   },
   test: {
     projects: [
@@ -16,6 +16,8 @@ export default defineConfig({
           name: "unit",
           environment: "jsdom",
           include: ["tests/**/*.test.{ts,tsx}"],
+          // Reviewer reproductions assert old bugs; keep these temporary files outside the formal suite.
+          exclude: ["tests/**/*.tmp.test.{ts,tsx}"],
           setupFiles: ["./tests/setup.ts"],
         },
       },
@@ -24,6 +26,8 @@ export default defineConfig({
         plugins: [storybookTest({ configDir: path.resolve(".storybook") })],
         test: {
           name: "storybook",
+          // Stories share auth, MSW and sessionStorage fixtures inside the browser.
+          fileParallelism: false,
           browser: {
             enabled: true,
             headless: true,

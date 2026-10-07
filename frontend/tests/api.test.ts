@@ -34,7 +34,7 @@ afterAll(() => {
   vi.unstubAllEnvs();
 });
 const start = async () => {
-  const created = await createSession("career", crypto.randomUUID());
+  const created = await createSession("job_change", crypto.randomUUID());
   return getQuestion(created.sessionId);
 };
 it.each([
@@ -63,9 +63,7 @@ it.each([
         { status },
       ),
     );
-    server.use(
-      http.post("http://localhost/api/sessions/:id/answers", handler),
-    );
+    server.use(http.post("http://localhost/api/sessions/:id/answers", handler));
     const client = createAppQueryClient();
     try {
       const mutation = client.getMutationCache().build(client, {
@@ -92,33 +90,48 @@ it.each([
 it.each([
   ["AI_TIMEOUT", 504],
   ["AI_UPSTREAM_ERROR", 502],
-] as const)("manually confirms the same request after %s", async (code, status) => {
-  const session = await start();
-  const key = crypto.randomUUID();
-  const body = { questionId: session.question.id, answer: "再確認する回答" };
-  const requests: Array<{ key: string | null; body: unknown }> = [];
-  server.use(
-    http.post("http://localhost/api/sessions/:id/answers", async ({ request }) => {
-      requests.push({
-        key: request.headers.get("Idempotency-Key"),
-        body: await request.clone().json(),
-      });
-      if (requests.length === 1)
-        return HttpResponse.json({ code, message: "private detail" }, { status });
-      // 再確認は既存Handlerへ渡して実際の冪等性を検証する。
-      return undefined;
-    }),
-  );
-  await expect(submitAnswer(session.sessionId, body, key)).rejects.toMatchObject({
-    code,
-    status,
-  });
-  expect(requests).toHaveLength(1);
-  const attempt = await submitAnswer(session.sessionId, body, key);
-  expect(await submitAnswer(session.sessionId, body, key)).toEqual(attempt);
-  expect(requests).toEqual([{ key, body }, { key, body }, { key, body }]);
-  expect(Object.keys(repository.read().attempts)).toHaveLength(1);
-});
+] as const)(
+  "manually confirms the same request after %s",
+  async (code, status) => {
+    const session = await start();
+    const key = crypto.randomUUID();
+    const body = { questionId: session.question.id, answer: "再確認する回答" };
+    const requests: Array<{ key: string | null; body: unknown }> = [];
+    server.use(
+      http.post(
+        "http://localhost/api/sessions/:id/answers",
+        async ({ request }) => {
+          requests.push({
+            key: request.headers.get("Idempotency-Key"),
+            body: await request.clone().json(),
+          });
+          if (requests.length === 1)
+            return HttpResponse.json(
+              { code, message: "private detail" },
+              { status },
+            );
+          // 再確認は既存Handlerへ渡して実際の冪等性を検証する。
+          return undefined;
+        },
+      ),
+    );
+    await expect(
+      submitAnswer(session.sessionId, body, key),
+    ).rejects.toMatchObject({
+      code,
+      status,
+    });
+    expect(requests).toHaveLength(1);
+    const attempt = await submitAnswer(session.sessionId, body, key);
+    expect(await submitAnswer(session.sessionId, body, key)).toEqual(attempt);
+    expect(requests).toEqual([
+      { key, body },
+      { key, body },
+      { key, body },
+    ]);
+    expect(Object.keys(repository.read().attempts)).toHaveLength(1);
+  },
+);
 it("runs session, answer, three polls, feedback, retry and next", async () => {
   const session = await start();
   const key = crypto.randomUUID();

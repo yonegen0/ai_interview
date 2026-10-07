@@ -2,12 +2,12 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { expect, within } from "storybook/test";
 import { FeedbackCard } from "@/features/feedback/components/organisms/FeedbackCard";
-import { createFeedbackFixture, storyTexts } from "../../fixtures";
-import { assertNoHorizontalOverflow } from "../../test-utils/storyEnvironment";
+import { createFeedbackFixture, storyTexts } from "../../../fixtures";
+import { assertNoHorizontalOverflow } from "../../../test-utils/storyEnvironment";
 
 const feedback = createFeedbackFixture();
 const meta = {
-  title: "Components/Organisms/FeedbackCard",
+  title: "Components/Organisms/Feedback/FeedbackCard",
   component: FeedbackCard,
   parameters: {
     layout: "padded",

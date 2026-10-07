@@ -1,70 +1,72 @@
-/**
- * @file Button.tsx
- * @description 全画面で利用する共通ボタンコンポーネント
- */
+/** @file Button.tsx @description 主要・補助・危険操作を区別する共通Button。 */
 "use client";
-
-import { Button as MuiButton } from "@mui/material";
-import type { ButtonProps as MuiButtonProps } from "@mui/material";
-import type { Theme } from "@mui/material/styles";
-import { alpha, styled } from "@mui/material/styles";
-
-/** 共通ButtonのProps */
+import {
+  Button as MuiButton,
+  type ButtonProps as MuiButtonProps,
+} from "@mui/material";
+import { alpha, darken, styled } from "@mui/material/styles";
+import { scaledRadius } from "@/theme/tokens";
 export type ButtonProps = MuiButtonProps;
-
-/** styled 用: MUI の color に対応するアクセント色 */
-type StyledMuiButtonProps = MuiButtonProps & {
-  $buttonColor: NonNullable<MuiButtonProps["color"]>;
-};
-
-/** MUI Button の color に対応するアクセント色を返す */
-const getAccentColor = (theme: Theme, color: NonNullable<MuiButtonProps["color"]>): string => {
-  if (color === "inherit") {
-    return theme.palette.text.primary;
-  }
-  return theme.palette[color].main;
-};
-
-/** 共通ボタンUI（$buttonColor で枠・グローの配色を切り替える） */
-const StyledMuiButton = styled(MuiButton, {
-  shouldForwardProp: (prop) => prop !== "$buttonColor",
-})<StyledMuiButtonProps>(({ theme, $buttonColor }) => {
-  const accent = getAccentColor(theme, $buttonColor);
-
+const StyledButton = styled(MuiButton, {
+  shouldForwardProp: (prop) => prop !== "$buttonColor" && prop !== "$variant",
+})<{
+  $buttonColor: NonNullable<ButtonProps["color"]>;
+  $variant: NonNullable<ButtonProps["variant"]>;
+}>(({ theme, $buttonColor, $variant }) => {
+  const accent =
+    $buttonColor === "inherit"
+      ? theme.palette.text.primary
+      : theme.palette[$buttonColor].main;
+  const contrast =
+    $buttonColor === "inherit"
+      ? theme.palette.background.paper
+      : theme.palette[$buttonColor].contrastText;
+  const contained = $variant === "contained";
+  const outlined = $variant === "outlined";
   return {
-    minWidth: "100px",
-    borderRadius: "12px",
-    backgroundColor: alpha(theme.palette.background.paper, 0.05),
-    backdropFilter: "blur(10px)",
-    border: `1px solid ${alpha(theme.palette.background.paper, 0.2)}`,
-    color: theme.palette.text.primary,
-    padding: "10px 24px",
-    boxShadow:
-      `0 0 15px ${alpha(accent, 0.3)}, ` + `inset 0 0 10px ${alpha(accent, 0.1)}`,
-    transition: theme.transitions.create(["box-shadow", "border-color", "color", "background-color"], {
-      duration: theme.transitions.duration.shorter,
-    }),
+    minWidth: theme.spacing(12.5),
+    minHeight: theme.spacing(5.5),
+    borderRadius: scaledRadius(theme, 0.75),
+    padding: theme.spacing(1.25, 3),
+    color: contained ? contrast : accent,
+    border: outlined
+      ? `1px solid ${alpha(accent, 0.65)}`
+      : "1px solid transparent",
+    backgroundColor: contained
+      ? accent
+      : outlined
+        ? alpha(theme.palette.background.paper, 0.85)
+        : "transparent",
+    backdropFilter: outlined ? "blur(10px)" : "none",
+    boxShadow: contained ? `0 3px 12px ${alpha(accent, 0.2)}` : "none",
+    transition: theme.transitions.create([
+      "box-shadow",
+      "border-color",
+      "background-color",
+    ]),
     "&:hover": {
-      borderColor: accent,
-      boxShadow: `0 0 20px ${alpha(accent, 0.5)}`,
-      color: accent,
-      backgroundColor: alpha(theme.palette.background.paper, 0.08),
+      color: contained ? contrast : accent,
+      backgroundColor: contained ? darken(accent, 0.1) : alpha(accent, 0.08),
+      borderColor: outlined ? accent : "transparent",
+      boxShadow: contained ? `0 4px 16px ${alpha(accent, 0.3)}` : "none",
+    },
+    "&:focus-visible, &.Mui-focusVisible": {
+      outline: `3px solid ${accent}`,
+      outlineOffset: 3,
     },
     "&.Mui-disabled": {
-      backgroundColor: theme.palette.grey[300],
-      borderColor: theme.palette.grey[300],
-      color: theme.palette.grey[500],
+      backgroundColor: contained ? theme.palette.grey[300] : "transparent",
+      borderColor: outlined ? theme.palette.action.disabled : "transparent",
+      color: theme.palette.text.disabled,
       boxShadow: "none",
     },
+    "@media (prefers-reduced-motion: reduce)": { transition: "none" },
   };
 });
-
-/**
- * 共通ボタンコンポーネントを表示する
- * @param props 表示に必要なプロパティ
- * @returns 共通ボタンUI
- */
-export const Button = (props: ButtonProps) => {
-  const buttonColor = props.color ?? "primary";
-  return <StyledMuiButton {...props} $buttonColor={buttonColor} />;
-};
+export const Button = (props: ButtonProps) => (
+  <StyledButton
+    {...props}
+    $buttonColor={props.color ?? "primary"}
+    $variant={props.variant ?? "text"}
+  />
+);

@@ -24,7 +24,10 @@ export const AnswerField = ({
       minRows={6}
       disabled={disabled}
       error={!!error}
-      helperText={error ?? `${count} / ${ANSWER_MAX_LENGTH}文字 · 100〜300文字がおすすめです`}
+      helperText={
+        error ??
+        `${count} / ${ANSWER_MAX_LENGTH}文字 · 100〜300文字がおすすめです`
+      }
       slotProps={{ formHelperText: { "aria-live": "polite" } }}
     />
   );

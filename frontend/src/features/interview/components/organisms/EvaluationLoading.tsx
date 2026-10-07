@@ -3,9 +3,12 @@
 import CircularProgress from "@mui/material/CircularProgress";
 import { styled } from "@mui/material/styles";
 import { MascotCoachCard } from "@/components/molecules/MascotCoachCard";
+import { Text } from "@/components/atoms/Text";
 import { Button } from "@/components/atoms/Button";
 import { Muted } from "@/components/atoms/Muted";
-const EvaluationCard = styled(MascotCoachCard)({ marginBottom: 24 });
+const EvaluationCard = styled(MascotCoachCard)(({ theme }) => ({
+  marginBottom: theme.spacing(3),
+}));
 
 export const EvaluationLoading = ({
   elapsed,
@@ -22,10 +25,16 @@ export const EvaluationLoading = ({
 }) => (
   <EvaluationCard
     variant="thinking"
-    heading={<h2>回答を確認しています</h2>}
+    heading={
+      <Text variant="h2" component="h2">
+        回答を確認しています
+      </Text>
+    }
     actions={
       paused || error ? (
-        <Button onClick={retry}>結果を再確認</Button>
+        <Button variant="contained" color="primary" onClick={retry}>
+          結果を再確認
+        </Button>
       ) : undefined
     }
   >
@@ -37,9 +46,9 @@ export const EvaluationLoading = ({
           : "あなたの回答をもとにフィードバックを作成しています。"}
       </Muted>
       {paused && (
-        <p>自動確認を停止しました。評価が失敗したわけではありません。</p>
+        <Text>自動確認を停止しました。評価が失敗したわけではありません。</Text>
       )}
-      {error && <p>{error.message}</p>}
+      {error && <Text>{error.message}</Text>}
     </div>
   </EvaluationCard>
 );

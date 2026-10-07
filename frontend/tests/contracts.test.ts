@@ -39,9 +39,9 @@ it("restores validated storage and discards corrupt data", () => {
   const value = { version: 1, key: crypto.randomUUID(), category: "career" };
   save("test", value);
   expect(readSaved("test", operationSchema)).toEqual(value);
-  sessionStorage.setItem("test", "not json");
+  sessionStorage.setItem("pocket:v2:mock:mock-user:test", "not json");
   expect(readSaved("test", operationSchema)).toBeNull();
-  expect(sessionStorage.getItem("test")).toBeNull();
+  expect(sessionStorage.getItem("pocket:v2:mock:mock-user:test")).toBeNull();
 });
 it("storage write failure is recoverable", () => {
   const spy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {

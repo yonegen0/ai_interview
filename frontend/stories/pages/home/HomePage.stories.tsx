@@ -2,10 +2,10 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { expect, userEvent, within } from "storybook/test";
 import { HomePage } from "@/features/home/components/pages/HomePage";
-import { assertNoHorizontalOverflow } from "../test-utils/storyEnvironment";
+import { assertNoHorizontalOverflow } from "../../test-utils/storyEnvironment";
 
 const meta = {
-  title: "Pages/Home",
+  title: "Pages/Home/HomePage",
   component: HomePage,
   parameters: { layout: "padded" },
 } satisfies Meta<typeof HomePage>;

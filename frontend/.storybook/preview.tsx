@@ -6,6 +6,8 @@ import type { Preview } from "@storybook/nextjs-vite";
 import { ThemeProvider } from "@mui/material/styles";
 import { CssBaseline } from "@mui/material";
 import { theme } from "../src/theme/theme";
+import { save } from "../src/lib/storage/recovery";
+import { auth } from "../src/lib/auth/session";
 import {
   clearPocketStorage,
   resetNavigationMock,
@@ -61,16 +63,21 @@ const preview: Preview = {
   loaders: [
     async ({ parameters }) => {
       const feature = parameters as FeatureStoryParameters & {
-        handlers?: Parameters<(typeof import("../src/mocks/browser"))["worker"]["use"]>;
+        handlers?: Parameters<
+          (typeof import("../src/mocks/browser"))["worker"]["use"]
+        >;
       };
       resetNavigationMock();
       clearPocketStorage();
+      if (feature.mockRole === "ADMIN")
+        auth.setMockActor("mock-admin", ["ADMIN"]);
+      if (feature.mockRole === "ANONYMOUS") await auth.logout();
       setInitialRoute(feature.initialRoute ?? "/");
       if (feature.mockScenario) {
         sessionStorage.setItem("pocket:scenario", feature.mockScenario);
       }
       for (const [key, value] of Object.entries(feature.storage ?? {})) {
-        sessionStorage.setItem(key, JSON.stringify(value));
+        save(key, value);
       }
       if (feature.mock) {
         const { startMock, worker, repository } =

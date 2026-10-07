@@ -6,10 +6,12 @@ import {
   submitSchema,
   nextSchema,
   idSchema,
+  activeCategoryIds,
+  categories,
+  bankSaveSchema,
   type Feedback,
   type Session,
 } from "@/lib/api/schemas";
-import { questions } from "../data/questions";
 import type { Repository, MockState } from "../store";
 export type Scenario =
   | "success"
@@ -40,6 +42,15 @@ export const scenarios: Scenario[] = [
 ];
 const error = (code: string, status: number) =>
   HttpResponse.json({ code, message: code }, { status });
+function actor(request: Request) {
+  const token = request.headers.get("authorization")?.replace(/^Bearer /, "");
+  const match = token?.match(/^mock:([^:]+):(USER|ADMIN)$/);
+  return match
+    ? { sub: decodeURIComponent(match[1]), admin: match[2] === "ADMIN" }
+    : null;
+}
+const sessionOwner = (state: MockState, id: string) =>
+  state.owners[id] || "mock-user";
 export function createHandlers(
   repository: Repository,
   scenario: () => Scenario = () => "success",
@@ -82,6 +93,13 @@ export function createHandlers(
       body: T,
     ) => { status: number; body: unknown } | Response,
   ) {
+    const identity = actor(request);
+    if (!identity) return error("UNAUTHORIZED", 401);
+    if (
+      new URL(request.url).pathname.endsWith("/admin/question-bank") &&
+      !identity.admin
+    )
+      return error("FORBIDDEN", 403);
     const key = request.headers.get("Idempotency-Key");
     if (!idSchema.safeParse(key).success) return error("VALIDATION_ERROR", 400);
     let raw: unknown;
@@ -94,7 +112,8 @@ export function createHandlers(
     if (!parsed.success) return error("VALIDATION_ERROR", 400);
     const state = repository.read();
     const fingerprint = `${new URL(request.url).pathname}:${JSON.stringify(parsed.data)}`;
-    const previous = state.requests[key!];
+    const scoped = `${identity.sub}:${key}`;
+    const previous = state.requests[scoped];
     if (previous)
       return previous.fingerprint === fingerprint
         ? HttpResponse.json(previous.body as object, {
@@ -105,7 +124,7 @@ export function createHandlers(
     if (failure) return failure;
     const result = operation(state, parsed.data);
     if (result instanceof Response) return result;
-    state.requests[key!] = { fingerprint, ...result };
+    state.requests[scoped] = { fingerprint, ...result };
     repository.write(state);
     if (
       scenario() === "response_lost" &&
@@ -118,72 +137,144 @@ export function createHandlers(
     return HttpResponse.json(result.body as object, { status: result.status });
   }
   return [
+    http.get(`${base}/practice-options`, ({ request }) => {
+      if (!actor(request)) return error("UNAUTHORIZED", 401);
+      const bank = repository.read().bank;
+      return HttpResponse.json(
+        {
+          bankVersion: bank.version,
+          totalQuestions: bank.questions.length,
+          categories: activeCategoryIds.flatMap((id) => {
+            const count = bank.questions.filter(
+              (q) => q.category === id,
+            ).length;
+            return count
+              ? [{ id, label: categories[id], questionCount: count }]
+              : [];
+          }),
+        },
+        { headers: { "Cache-Control": "no-store" } },
+      );
+    }),
+    http.get(`${base}/admin/question-bank`, ({ request }) => {
+      const identity = actor(request);
+      if (!identity) return error("UNAUTHORIZED", 401);
+      if (!identity.admin) return error("FORBIDDEN", 403);
+      return HttpResponse.json(repository.read().bank, {
+        headers: { "Cache-Control": "no-store" },
+      });
+    }),
+    http.post(`${base}/admin/question-bank`, ({ request }) =>
+      mutate(request, bankSaveSchema, (state, body) => {
+        if (body.expectedVersion !== state.bank.version)
+          return error("QUESTION_BANK_CONFLICT", 409);
+        if (
+          JSON.stringify(body.questions) !==
+          JSON.stringify(state.bank.questions)
+        )
+          state.bank = {
+            version: state.bank.version + 1,
+            updatedAt: new Date().toISOString(),
+            questions: structuredClone(body.questions),
+          };
+        return {
+          status: 200,
+          body: {
+            version: state.bank.version,
+            totalQuestions: state.bank.questions.length,
+            updatedAt: state.bank.updatedAt,
+          },
+        };
+      }),
+    ),
     http.post(`${base}/sessions`, ({ request }) =>
       mutate(request, createSchema, (state, body) => {
+        const pool = state.bank.questions.filter(
+          (q) => body.mode === "full" || q.category === body.category,
+        );
+        if (!pool.length) return error("CATEGORY_UNAVAILABLE", 409);
         const sessionId = crypto.randomUUID();
+        state.sessionQuestions[sessionId] = structuredClone(pool);
+        state.owners[sessionId] = actor(request)!.sub;
         state.sessions[sessionId] = {
           sessionId,
-          question: questions.find((q) => q.category === body.category)!,
+          question: structuredClone(pool[0]),
           questionNumber: 1,
           activeAttempt: null,
+          mode: body.mode || "category",
+          totalQuestions: pool.length,
+          hasNext: pool.length > 1,
         };
         return { status: 201, body: { sessionId } };
       }),
     ),
-    http.get(`${base}/sessions/:id/question`, ({ params }) => {
-      const value = repository.read().sessions[String(params.id)];
+    http.get(`${base}/sessions/:id/question`, ({ params, request }) => {
+      const identity = actor(request);
+      if (!identity) return error("UNAUTHORIZED", 401);
+      const state = repository.read(),
+        id = String(params.id);
+      const value =
+        sessionOwner(state, id) === identity.sub
+          ? state.sessions[id]
+          : undefined;
       return value ? HttpResponse.json(value) : error("SESSION_NOT_FOUND", 404);
     }),
     http.post(`${base}/sessions/:id/answers`, ({ params, request }) =>
-      mutate(
-        request,
-        submitSchema,
-        (state, body) => {
-          const session = state.sessions[String(params.id)];
-          if (!session) return error("SESSION_NOT_FOUND", 404);
-          if (
-            session.question.id !== body.questionId ||
-            session.activeAttempt?.status === "processing"
-          )
-            return error("SESSION_STATE_CONFLICT", 409);
-          const attemptId = crypto.randomUUID(),
-            evaluationId = crypto.randomUUID();
-          const feedback: Feedback = {
-            attemptId,
-            sessionId: session.sessionId,
-            question: session.question,
-            questionNumber: session.questionNumber,
-            answer: body.answer,
-            score: 78,
-            summary: "結論と具体例をつなげる伝え方のサンプルです。",
-            strengths: ["最初に伝えたいことを示すと、話の軸が明確になります。"],
-            improvements: ["実際に経験した行動と結果を一つ添えてみましょう。"],
-            exampleAnswer:
-              "私が大切にしているのは、課題を整理して行動に移すことです。ここにご自身の具体的な経験と学びを加えてください。",
-            createdAt: new Date().toISOString(),
-          };
-          state.attempts[attemptId] = {
-            feedback,
-            evaluation: { attemptId, evaluationId, status: "processing" },
-            polls: 0,
-            startedAt: Date.now(),
-          };
-          session.activeAttempt = {
-            attemptId,
-            evaluationId,
-            status: "processing",
-          };
-          return { status: 202, body: session.activeAttempt };
-        },
-      ),
+      mutate(request, submitSchema, (state, body) => {
+        const session = state.sessions[String(params.id)];
+        if (
+          !session ||
+          sessionOwner(state, String(params.id)) !== actor(request)!.sub
+        )
+          return error("SESSION_NOT_FOUND", 404);
+        if (
+          session.question.id !== body.questionId ||
+          session.activeAttempt?.status === "processing"
+        )
+          return error("SESSION_STATE_CONFLICT", 409);
+        const attemptId = crypto.randomUUID(),
+          evaluationId = crypto.randomUUID();
+        const feedback: Feedback = {
+          attemptId,
+          sessionId: session.sessionId,
+          question: session.question,
+          questionNumber: session.questionNumber,
+          answer: body.answer,
+          score: 78,
+          summary: "結論と具体例をつなげる伝え方のサンプルです。",
+          strengths: ["最初に伝えたいことを示すと、話の軸が明確になります。"],
+          improvements: ["実際に経験した行動と結果を一つ添えてみましょう。"],
+          exampleAnswer:
+            "私が大切にしているのは、課題を整理して行動に移すことです。ここにご自身の具体的な経験と学びを加えてください。",
+          createdAt: new Date().toISOString(),
+        };
+        state.attempts[attemptId] = {
+          feedback,
+          evaluation: { attemptId, evaluationId, status: "processing" },
+          polls: 0,
+          startedAt: Date.now(),
+        };
+        session.activeAttempt = {
+          attemptId,
+          evaluationId,
+          status: "processing",
+        };
+        return { status: 202, body: session.activeAttempt };
+      }),
     ),
-    http.get(`${base}/evaluations/:id`, async ({ params }) => {
+    http.get(`${base}/evaluations/:id`, async ({ params, request }) => {
+      const identity = actor(request);
+      if (!identity) return error("UNAUTHORIZED", 401);
       await delay(50);
       const state = repository.read();
       const record = Object.values(state.attempts).find(
         (a) => a.evaluation.evaluationId === params.id,
       );
-      if (!record) return error("ATTEMPT_NOT_FOUND", 404);
+      if (
+        !record ||
+        sessionOwner(state, record.feedback.sessionId) !== identity.sub
+      )
+        return error("ATTEMPT_NOT_FOUND", 404);
       if (record.evaluation.status === "processing") {
         record.polls++;
         if (
@@ -210,9 +301,16 @@ export function createHandlers(
       }
       return HttpResponse.json(record.evaluation);
     }),
-    http.get(`${base}/attempts/:id/feedback`, ({ params }) => {
-      const record = repository.read().attempts[String(params.id)];
-      if (!record) return error("ATTEMPT_NOT_FOUND", 404);
+    http.get(`${base}/attempts/:id/feedback`, ({ params, request }) => {
+      const identity = actor(request);
+      if (!identity) return error("UNAUTHORIZED", 401);
+      const state = repository.read();
+      const record = state.attempts[String(params.id)];
+      if (
+        !record ||
+        sessionOwner(state, record.feedback.sessionId) !== identity.sub
+      )
+        return error("ATTEMPT_NOT_FOUND", 404);
       if (record.evaluation.status !== "completed")
         return error("EVALUATION_NOT_COMPLETED", 409);
       return HttpResponse.json(record.feedback);
@@ -220,20 +318,36 @@ export function createHandlers(
     http.post(`${base}/sessions/:id/questions/next`, ({ params, request }) =>
       mutate(request, nextSchema, (state, body) => {
         const session = state.sessions[String(params.id)];
-        if (!session) return error("SESSION_NOT_FOUND", 404);
+        if (
+          !session ||
+          sessionOwner(state, String(params.id)) !== actor(request)!.sub
+        )
+          return error("SESSION_NOT_FOUND", 404);
         if (
           session.activeAttempt?.attemptId !== body.fromAttemptId ||
           session.activeAttempt.status !== "completed"
         )
           return error("SESSION_STATE_CONFLICT", 409);
-        const pool = questions.filter(
-          (q) => q.category === session.question.category,
-        );
+        const pool = state.sessionQuestions[session.sessionId] || [
+          session.question,
+        ];
+        if (
+          session.mode &&
+          session.mode !== "legacy" &&
+          session.questionNumber === pool.length
+        )
+          return error("SESSION_COMPLETED", 409);
         const next: Session = {
           ...session,
           question: pool[session.questionNumber % pool.length],
           questionNumber: session.questionNumber + 1,
           activeAttempt: null,
+          hasNext:
+            !session.mode ||
+            session.mode === "legacy" ||
+            session.questionNumber + 1 < pool.length,
+          mode: session.mode || "legacy",
+          totalQuestions: pool.length,
         };
         state.sessions[session.sessionId] = next;
         return { status: 200, body: next };

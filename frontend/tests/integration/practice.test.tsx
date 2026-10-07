@@ -8,7 +8,7 @@ import { ThemeProvider } from "@mui/material/styles";
 import { createRepository } from "@/mocks/store";
 import { createHandlers, type Scenario } from "@/mocks/handlers";
 import { createSession, getQuestion } from "@/lib/api/interview";
-import { PracticeForm } from "@/features/interview/components/templates/PracticeForm";
+import { PracticeSessionContent } from "@/features/interview/components/pages/PracticeSessionContent";
 import { theme } from "@/theme/theme";
 import type { Session } from "@/lib/api/schemas";
 import { save } from "@/lib/storage/recovery";
@@ -25,7 +25,10 @@ const server = setupServer(
 );
 beforeAll(() => {
   server.events.on("request:start", ({ request }) => {
-    if (request.method === "POST" && new URL(request.url).pathname.endsWith("/answers")) {
+    if (
+      request.method === "POST" &&
+      new URL(request.url).pathname.endsWith("/answers")
+    ) {
       answerRequests += 1;
     }
   });
@@ -53,7 +56,7 @@ async function mount(seed?: (session: Session) => void) {
   return render(
     <ThemeProvider theme={theme}>
       <QueryClientProvider client={client}>
-        <PracticeForm session={session} retryFrom={null} />
+        <PracticeSessionContent session={session} retryFrom={null} />
       </QueryClientProvider>
     </ThemeProvider>,
   );
@@ -120,20 +123,30 @@ it.each(["あ".repeat(500), "😀".repeat(250)])(
 
 it("restores an overlong draft across remount and allows correction", async () => {
   let savedSession: Session;
-  const view = await mount((session) => { savedSession = session; });
+  const view = await mount((session) => {
+    savedSession = session;
+  });
   const answer = "あ".repeat(501);
-  fireEvent.change(screen.getByLabelText("あなたの回答"), { target: { value: answer } });
+  fireEvent.change(screen.getByLabelText("あなたの回答"), {
+    target: { value: answer },
+  });
   await screen.findByText("500文字以内で入力してください。");
   view.unmount();
-  const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
+  const client = new QueryClient({
+    defaultOptions: { mutations: { retry: false } },
+  });
   const restored = render(
-    <ThemeProvider theme={theme}><QueryClientProvider client={client}>
-      <PracticeForm session={savedSession!} retryFrom={null} />
-    </QueryClientProvider></ThemeProvider>,
+    <ThemeProvider theme={theme}>
+      <QueryClientProvider client={client}>
+        <PracticeSessionContent session={savedSession!} retryFrom={null} />
+      </QueryClientProvider>
+    </ThemeProvider>,
   );
   const input = screen.getByLabelText("あなたの回答");
   expect(input).toHaveValue(answer);
-  fireEvent.submit(screen.getByRole("button", { name: "回答を送信" }).closest("form")!);
+  fireEvent.submit(
+    screen.getByRole("button", { name: "回答を送信" }).closest("form")!,
+  );
   await screen.findByText("500文字以内で入力してください。");
   expect(answerRequests).toBe(0);
   fireEvent.change(input, { target: { value: answer.slice(0, 500) } });
@@ -148,14 +161,20 @@ it("restores an overlong draft across remount and allows correction", async () =
 it("does not restore or automatically send an obsolete overlong pending request", async () => {
   const view = await mount((session) => {
     save(`pocket:answer:${session.sessionId}`, {
-      version: 1, questionId: session.question.id, context: "1:normal",
-      draft: "同居していた下書き", pending: {
-        key: crypto.randomUUID(), body: { questionId: session.question.id, answer: "あ".repeat(501) },
+      version: 1,
+      questionId: session.question.id,
+      context: "1:normal",
+      draft: "同居していた下書き",
+      pending: {
+        key: crypto.randomUUID(),
+        body: { questionId: session.question.id, answer: "あ".repeat(501) },
       },
     });
   });
   expect(screen.getByLabelText("あなたの回答")).toHaveValue("");
-  expect(screen.queryByRole("button", { name: "送信結果を再確認" })).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "送信結果を再確認" }),
+  ).not.toBeInTheDocument();
   expect(answerRequests).toBe(0);
   view.unmount();
 });

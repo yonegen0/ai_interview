@@ -1,0 +1,128 @@
+[
+  {
+    "id": "00000000-0000-4000-8000-000000000001",
+    "category": "job_change",
+    "difficulty": "standard",
+    "question": "転職を考えた理由を教えてください。"
+  },
+  {
+    "id": "00000000-0000-4000-8000-000000000002",
+    "category": "job_change",
+    "difficulty": "standard",
+    "question": "次の職場で実現したいことは何ですか？"
+  },
+  {
+    "id": "00000000-0000-4000-8000-000000000003",
+    "category": "job_change",
+    "difficulty": "standard",
+    "question": "現職では実現が難しいと感じたことを教えてください。"
+  },
+  {
+    "id": "00000000-0000-4000-8000-000000000004",
+    "category": "motivation",
+    "difficulty": "standard",
+    "question": "当社を志望した理由を教えてください。"
+  },
+  {
+    "id": "00000000-0000-4000-8000-000000000005",
+    "category": "motivation",
+    "difficulty": "standard",
+    "question": "当社の事業のどこに魅力を感じますか？"
+  },
+  {
+    "id": "00000000-0000-4000-8000-000000000006",
+    "category": "motivation",
+    "difficulty": "standard",
+    "question": "入社後、どのように貢献したいですか？"
+  },
+  {
+    "id": "00000000-0000-4000-8000-000000000007",
+    "category": "strengths",
+    "difficulty": "standard",
+    "question": "あなたの強みを具体例とともに教えてください。"
+  },
+  {
+    "id": "00000000-0000-4000-8000-000000000008",
+    "category": "strengths",
+    "difficulty": "standard",
+    "question": "周囲からよく評価される点は何ですか？"
+  },
+  {
+    "id": "00000000-0000-4000-8000-000000000009",
+    "category": "strengths",
+    "difficulty": "standard",
+    "question": "強みを仕事で活かした経験を教えてください。"
+  },
+  {
+    "id": "00000000-0000-4000-8000-000000000010",
+    "category": "experience",
+    "difficulty": "standard",
+    "question": "これまでの仕事で最も力を入れたことは何ですか？"
+  },
+  {
+    "id": "00000000-0000-4000-8000-000000000011",
+    "category": "experience",
+    "difficulty": "standard",
+    "question": "チームで成果を出した経験を教えてください。"
+  },
+  {
+    "id": "00000000-0000-4000-8000-000000000012",
+    "category": "experience",
+    "difficulty": "standard",
+    "question": "業務を改善した経験を教えてください。"
+  },
+  {
+    "id": "00000000-0000-4000-8000-000000000013",
+    "category": "difficulty",
+    "difficulty": "standard",
+    "question": "仕事で困難を乗り越えた経験を教えてください。"
+  },
+  {
+    "id": "00000000-0000-4000-8000-000000000014",
+    "category": "difficulty",
+    "difficulty": "standard",
+    "question": "失敗から学んだことは何ですか？"
+  },
+  {
+    "id": "00000000-0000-4000-8000-000000000015",
+    "category": "difficulty",
+    "difficulty": "standard",
+    "question": "意見が対立した際、どう対応しましたか？"
+  },
+  {
+    "id": "00000000-0000-4000-8000-000000000016",
+    "category": "career",
+    "difficulty": "standard",
+    "question": "3年後、どのような仕事をしていたいですか？"
+  },
+  {
+    "id": "00000000-0000-4000-8000-000000000017",
+    "category": "career",
+    "difficulty": "standard",
+    "question": "今後身につけたい能力は何ですか？"
+  },
+  {
+    "id": "00000000-0000-4000-8000-000000000018",
+    "category": "career",
+    "difficulty": "standard",
+    "question": "仕事で大切にしている価値観を教えてください。"
+  },
+  {
+    "id": "00000000-0000-4000-8000-000000000019",
+    "category": "questions",
+    "difficulty": "standard",
+    "question": "面接官に確認したいことは何ですか？"
+  },
+  {
+    "id": "00000000-0000-4000-8000-000000000020",
+    "category": "questions",
+    "difficulty": "standard",
+    "question": "入社後の期待を確認する質問を考えてください。"
+  },
+  {
+    "id": "00000000-0000-4000-8000-000000000021",
+    "category": "questions",
+    "difficulty": "standard",
+    "question": "チームの働き方について、どのように質問しますか？"
+  }
+]
