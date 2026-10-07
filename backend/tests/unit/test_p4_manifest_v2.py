@@ -467,6 +467,26 @@ def test_complete_closed_deployment(deployment):
     )
 
 
+def test_budget_optional_percentage_type_omission_preserves_response(deployment):
+    m, data, session = deployment
+    notifications = data["budgets", "describe_notifications_for_budget", ""]["Notifications"]
+    for notification in notifications:
+        notification.pop("ThresholdType")
+    original = copy.deepcopy(notifications)
+    tool("manifest").verify_live_manifest(session, m, require_api_enabled=False)
+    assert notifications == original
+
+
+@pytest.mark.parametrize("threshold_type", [None, "", "ABSOLUTE_VALUE", "unknown"])
+def test_budget_explicit_non_percentage_type_is_rejected(deployment, threshold_type):
+    m, data, session = deployment
+    data["budgets", "describe_notifications_for_budget", ""]["Notifications"][0][
+        "ThresholdType"
+    ] = threshold_type
+    with pytest.raises(ValueError, match="DeploymentReadbackFailed"):
+        tool("manifest").verify_live_manifest(session, m, require_api_enabled=False)
+
+
 @pytest.mark.parametrize("mutation", ["logs", "tracing", "vpc", "budget", "notification", "alarm"])
 def test_serverless_readback_rejects_configuration_drift(deployment, mutation):
     m, data, session = deployment
@@ -564,6 +584,7 @@ def test_each_required_response_leaf_is_checked(deployment):
             yield prefix
 
     checked = 0
+    optional_checked = 0
     for target, original in list(data.items()):
         for path in paths(original):
             # These are not delivery evidence, and OPTIONS has no authorizer.
@@ -576,12 +597,19 @@ def test_each_required_response_leaf_is_checked(deployment):
             for part in path[:-1]:
                 parent = parent[part]
             del parent[path[-1]]
+            if target[:2] == ("budgets", "describe_notifications_for_budget") and (
+                path[-1] == "ThresholdType"
+            ):
+                tool("manifest").verify_live_manifest(session, m, require_api_enabled=False)
+                optional_checked += 1
+                continue
             with pytest.raises(ValueError, match="DeploymentReadbackFailed"):
                 tool("manifest").verify_live_manifest(session, m, require_api_enabled=False)
             checked += 1
         data[target] = original
     # Closed dev no longer contains the 32 alarms; their active contracts are tested separately.
-    assert checked >= 264
+    assert optional_checked == 3
+    assert checked + optional_checked >= 264
 
 
 @pytest.mark.parametrize(

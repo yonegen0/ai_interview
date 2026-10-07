@@ -577,11 +577,14 @@ def verify_notifications(client, m, prefix):
         } != {("ACTUAL", 80), ("ACTUAL", 100), ("FORECASTED", 100)}:
             raise ValueError("BudgetNotificationMismatch")
         for notification in notifications:
+            # AWS may omit this optional field for percentage notifications.
+            # Preserve the response used in the subscriber query; reject explicit drift.
+            if notification.get("ThresholdType", "PERCENTAGE") != "PERCENTAGE":
+                raise ValueError("BudgetNotificationMismatch")
             expect(
                 notification,
                 {
                     "ComparisonOperator": "GREATER_THAN",
-                    "ThresholdType": "PERCENTAGE",
                 },
             )
             subscribers = pages(
