@@ -1,5 +1,25 @@
 # AI面接練習Webアプリ MVP
 
+## 現在の実装状況（2026-10-06）
+
+デフォルト15問を通し・カテゴリ別に練習し、一巡で終了できる実装です。
+ADMINは質問本文・カテゴリ・順番を編集し、追加・削除して一覧を保存できます。
+変更は新規練習から反映し、進行中の練習・再挑戦・過去結果は元の質問を保持します。
+EMAIL_OTPログイン、タブ内の認証維持、JWT付与・更新、管理者認可、DynamoDBの版管理・
+冪等保存、専用admin Lambdaとmanifest v3を実装しました。
+
+今回の機能はローカル／AWS非接続で検証しています。AWSへ配備した機能ではありません。
+既存devは保存済み証跡でclosed、`P4_DEV_CLOSED_PERFORMANCE_REVIEW_REQUIRED`を維持します。
+実AIはFakeProviderのままです。実CognitoのOTP完了・新APIの実機動作・新構成のIAM実効権限は後続検証です。
+[質問管理の実装・検証記録](docs/QUESTION_MANAGEMENT_VERIFICATION_20261006.md)を参照してください。
+
+Mock起動は `cd frontend` → `npm run dev:mock`。
+体験版はUSERとして開始し、管理画面の確認には `/login/` で `admin@example.invalid` と
+コード `123456` を使用します。この操作はMock内だけの認証で、AWSへメールを送りません。
+実接続はFrontendの環境変数例にAPI URL・Cognitoの公開識別子を設定し、MSWを無効にして行います。
+
+以下は2026-09-12時点の実装説明です。現在の状態は上記と最新検証記録を優先します。
+
 更新日: 2026-09-12。設計書v2.3対応。Markdown本文はUTF-8です。
 
 転職者がスマートフォンで一問ずつ面接練習するWebアプリです。
@@ -7,6 +27,7 @@
 
 ## 資料と正本
 
+- [インフラ構成概要・構成図](docs/INFRASTRUCTURE_OVERVIEW.md)：Terraformの現行定義に基づく構成、非同期処理、Bootstrap、dev閉鎖運用。
 - [設計書一覧](設計書一覧/00_管理/00_設計書一覧.md)：現行の計画・基本・詳細・横断・テスト設計。
 - [リポジトリ案内](REPOSITORY_GUIDE.md)：構成と実装への入口。
 - [ADR-002](docs/ADR-002-frontend-contract-alignment.md)：現Frontend契約を採用する判断。

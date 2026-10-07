@@ -24,6 +24,12 @@ locals {
       INTERVIEW_API_ID       = aws_apigatewayv2_api.main.id
       INTERVIEW_STAGE        = "dev"
     }
+    admin = {
+      INTERVIEW_CLIENT_ID    = aws_cognito_user_pool_client.web.id
+      INTERVIEW_USER_POOL_ID = aws_cognito_user_pool.main.id
+      INTERVIEW_API_ID       = aws_apigatewayv2_api.main.id
+      INTERVIEW_STAGE        = "dev"
+    }
     worker = { INTERVIEW_QUEUE_ARN = aws_sqs_queue.main.arn }
     dispatcher = {
       INTERVIEW_QUEUE_ARN    = aws_sqs_queue.main.arn
@@ -32,7 +38,7 @@ locals {
       INTERVIEW_SCHEDULE_ARN = local.schedule_arn
     }
   }
-  aliases = { api = { role = "api", alias = "live" }, worker = { role = "worker", alias = "live" }, streams = { role = "dispatcher", alias = "streams" }, recovery = { role = "dispatcher", alias = "recovery" } }
+  aliases = { api = { role = "api", alias = "live" }, admin = { role = "admin", alias = "live" }, worker = { role = "worker", alias = "live" }, streams = { role = "dispatcher", alias = "streams" }, recovery = { role = "dispatcher", alias = "recovery" } }
 }
 resource "aws_lambda_function" "main" {
   for_each      = local.function_arns

@@ -94,7 +94,7 @@ jobs:
           for module in (interview_backend, runtime, assets):
               assert pathlib.Path(module.__file__).resolve().is_relative_to(pathlib.Path.cwd())
           assert all(callable(getattr(runtime, name)) for name in (
-              "api_handler", "worker_handler", "dispatcher_handler"
+              "api_handler", "worker_handler", "dispatcher_handler", "admin_handler"
           ))
-          assert assets.load_questions()
+          assert len(assets.load_questions()) == 15
           PY

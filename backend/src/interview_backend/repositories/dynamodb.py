@@ -127,6 +127,29 @@ class DynamoUnit:
     def revision(self, reference):
         return self.reads[reference][1]
 
+    def exists(self, reference):
+        """Read keys only; an absent record remains a transactional dependency."""
+        if reference in self.reads:
+            return self.reads[reference][0] is not None
+        expected = key(*reference)
+        response = self.repo._call(
+            "get_item",
+            self.deadline,
+            TableName=self.repo.table,
+            Key=to_wire(expected),
+            ConsistentRead=True,
+            ProjectionExpression="#pk, #sk",
+            ExpressionAttributeNames={"#pk": "PK", "#sk": "SK"},
+        )
+        item = response.get("Item")
+        if item:
+            native = from_wire(item)
+            if any(native.get(k) != v for k, v in expected.items()):
+                raise IntegrityError("requested_key")
+            return True
+        self.reads[reference] = (None, None)
+        return False
+
     def refresh(self, reference):
         self.reads.pop(reference, None)
         return self.get(reference)

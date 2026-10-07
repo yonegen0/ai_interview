@@ -112,7 +112,7 @@ class DispatcherEntry:
         raise RuntimeError("InternalInvocationFailed") from None
 
 
-@lru_cache(maxsize=3)
+@lru_cache(maxsize=4)
 def build_entry(component):
     settings = AwsSettings.load(os.environ, component)
     metrics = Metrics(
@@ -124,6 +124,10 @@ def build_entry(component):
     if component == "api":
         application = Application(repository, load_questions(), lambda: str(uuid4()))
         return ApiEntry(settings, Handler(application), metrics)
+    if component == "admin":
+        from interview_backend.api.admin import AdminHandler
+
+        return ApiEntry(settings, AdminHandler(repository, load_questions()), metrics)
     if component == "worker":
         return WorkerEntry(
             settings, Worker(repository, FakeProvider(), metric=metrics.classification), metrics
@@ -139,7 +143,7 @@ def _invoke(component, event, context):
         entry = build_entry(component)
     except Exception:
         Metrics(component).emit("InvalidConfiguration")
-        if component == "api":
+        if component in {"api", "admin"}:
             return error(500, "INTERNAL_SERVER_ERROR")
         raise RuntimeError("InvalidConfiguration") from None
     return entry(event, context)
@@ -155,3 +159,7 @@ def worker_handler(event, context):
 
 def dispatcher_handler(event, context):
     return _invoke("dispatcher", event, context)
+
+
+def admin_handler(event, context):
+    return _invoke("admin", event, context)

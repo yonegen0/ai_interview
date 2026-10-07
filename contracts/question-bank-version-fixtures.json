@@ -1,0 +1,28 @@
+[
+  { "label": "zero", "json": "0", "valid": true, "value": 0 },
+  { "label": "zero decimal", "json": "0.0", "valid": true, "value": 0 },
+  { "label": "zero exponent", "json": "0e0", "valid": true, "value": 0 },
+  { "label": "negative zero", "json": "-0.0", "valid": true, "value": 0 },
+  { "label": "integer decimal", "json": "1.0", "valid": true, "value": 1 },
+  { "label": "integer exponent", "json": "1e0", "valid": true, "value": 1 },
+  {
+    "label": "maximum",
+    "json": "9007199254740991",
+    "valid": true,
+    "value": 9007199254740991
+  },
+  {
+    "label": "maximum decimal",
+    "json": "9007199254740991.0",
+    "valid": true,
+    "value": 9007199254740991
+  },
+  { "label": "above maximum", "json": "9007199254740992", "valid": false },
+  { "label": "negative", "json": "-1", "valid": false },
+  { "label": "fraction", "json": "0.5", "valid": false },
+  { "label": "overflow", "json": "1e309", "valid": false },
+  { "label": "boolean true", "json": "true", "valid": false },
+  { "label": "boolean false", "json": "false", "valid": false },
+  { "label": "string", "json": "\"0\"", "valid": false },
+  { "label": "null", "json": "null", "valid": false }
+]

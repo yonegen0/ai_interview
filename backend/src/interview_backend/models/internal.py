@@ -31,10 +31,31 @@ class Session:
     version: int = 0
     created_at: int = 0
     updated_at: int = 0
+    practice_mode: Literal["full", "category"] | None = None
+    question_bank_version: int | None = None
 
     @property
     def question(self) -> Question:
-        return self.questions[(self.number - 1) % len(self.questions)]
+        index = self.number - 1
+        return self.questions[index if self.practice_mode else index % len(self.questions)]
+
+
+@dataclass
+class QuestionBank:
+    questions: tuple[Question, ...]
+    version: int
+    updated_at: int
+    updated_by: str
+
+
+@dataclass
+class QuestionBankChange:
+    owner: str
+    key: str
+    fingerprint: str
+    reply: Reply
+    changed_ids: tuple[str, ...]
+    created_at: int
 
 
 @dataclass
@@ -237,3 +258,5 @@ class State:
     requests: dict[tuple[str, str], IdempotentReply] = field(default_factory=dict)
     dispatches: dict[str, Dispatch] = field(default_factory=dict)
     cursors: dict[str, RecoveryCursor] = field(default_factory=dict)
+    question_banks: dict[str, QuestionBank] = field(default_factory=dict)
+    question_bank_changes: dict[tuple[str, str], QuestionBankChange] = field(default_factory=dict)

@@ -10,6 +10,7 @@ from interview_backend.models.internal import BusinessError, Reply
 from interview_backend.models.public import InvalidIdentifier
 
 ROUTES = (
+    ("GET", re.compile(r"^/practice-options$"), "practice_options"),
     ("POST", re.compile(r"^/sessions$"), "create"),
     ("GET", re.compile(r"^/sessions/([^/]+)/question$"), "question"),
     ("POST", re.compile(r"^/sessions/([^/]+)/answers$"), "submit"),
@@ -19,6 +20,12 @@ ROUTES = (
 )
 MESSAGES = {
     "VALIDATION_ERROR": "Invalid request.",
+    "FORBIDDEN": "Access denied.",
+    "QUESTION_BANK_CONFLICT": "Question bank changed.",
+    "QUESTION_BANK_TOO_LARGE": "Question bank too large.",
+    "CATEGORY_UNAVAILABLE": "Category unavailable.",
+    "SESSION_COMPLETED": "Practice completed.",
+    "REQUEST_TOO_LARGE": "Request too large.",
     "UNAUTHORIZED": "Authentication required.",
     "SESSION_NOT_FOUND": "Session not found.",
     "ATTEMPT_NOT_FOUND": "Attempt not found.",
@@ -96,7 +103,10 @@ class Handler:
                     reply = getattr(self.application, action)(*args)
                 except InvalidIdentifier as exc:
                     raise BusinessError(400, "VALIDATION_ERROR") from exc
-                return response(reply)
+                result = response(reply)
+                if action == "practice_options":
+                    result["headers"]["Cache-Control"] = "no-store"
+                return result
             if allowed_methods:
                 result = error(405, "METHOD_NOT_ALLOWED")
                 result["headers"]["Allow"] = ", ".join(sorted(allowed_methods))

@@ -1,5 +1,52 @@
 mock_provider "aws" {}
 
+run "admin_question_management" {
+  command = plan
+  assert {
+    condition = (
+      length(aws_lambda_function.main) == 4 &&
+      aws_lambda_function.main["admin"].handler == "interview_backend.aws_runtime.admin_handler" &&
+      aws_lambda_function.main["admin"].timeout == 15 &&
+      aws_lambda_function.main["admin"].memory_size == 512 &&
+      length(aws_apigatewayv2_route.admin) == 2 &&
+      alltrue([for r in aws_apigatewayv2_route.admin : r.authorization_type == "JWT"]) &&
+      output.manifest.schema_version == 3 &&
+      aws_apigatewayv2_api.main.disable_execute_api_endpoint
+    )
+    error_message = "Question management requires a dedicated closed ADMIN API and manifest v3."
+  }
+  assert {
+    condition = alltrue([
+      for statement in local.base_statements["admin"] :
+      alltrue([for action in statement.Action : startswith(action, "logs:") || contains(["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:ConditionCheckItem"], action)])
+    ])
+    error_message = "ADMIN has no queue, recovery, scan, query or delete permissions."
+  }
+  assert {
+    condition = (
+      local.base_statements["admin"][1].Condition["ForAllValues:StringEquals"]["dynamodb:LeadingKeys"] == ["SYSTEM#QUESTION_BANK"] &&
+      local.base_statements["admin"][2].Condition["ForAllValues:StringEquals"]["dynamodb:LeadingKeys"] == ["SYSTEM#QUESTION_BANK"] &&
+      local.base_statements["api"][2].Condition["ForAllValues:StringLike"]["dynamodb:LeadingKeys"] == ["USER#*"]
+    )
+    error_message = "General API writes only user partitions; ADMIN writes only the question bank."
+  }
+  assert {
+    condition = (
+      local.base_statements["admin"][3].Action == ["dynamodb:GetItem"] &&
+      local.base_statements["admin"][4].Action == ["dynamodb:ConditionCheckItem"] &&
+      alltrue([for s in slice(local.base_statements["admin"], 3, 5) :
+        s.Condition["ForAllValues:StringLike"]["dynamodb:LeadingKeys"] == ["USER#*"] &&
+        toset(s.Condition["ForAllValues:StringEquals"]["dynamodb:Attributes"]) == toset(["PK", "SK"]) &&
+        s.Condition.Null["dynamodb:Attributes"] == "false"
+      ]) &&
+      local.base_statements["admin"][3].Condition.StringEqualsIfExists["dynamodb:Select"] == "SPECIFIC_ATTRIBUTES" &&
+      local.base_statements["admin"][4].Condition.StringEqualsIfExists["dynamodb:ReturnValues"] == "NONE" &&
+      local.base_statements["admin"][4].Condition.StringEquals["dynamodb:EnclosingOperation"] == "TransactWriteItems"
+    )
+    error_message = "ADMIN may check user keys for idempotency without reading bodies or writing user items."
+  }
+}
+
 variables {
   account_id             = "123456789012"
   region                 = "ap-northeast-1"

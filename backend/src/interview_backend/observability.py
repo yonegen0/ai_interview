@@ -45,7 +45,10 @@ UNITS = {
 
 class Metrics:
     def __init__(self, component, *, environment="dev", sink=print, clock=time):
-        if component not in {"api", "worker", "dispatcher"} or environment not in {"dev", "test"}:
+        if component not in {"api", "worker", "dispatcher", "admin"} or environment not in {
+            "dev",
+            "test",
+        }:
             raise ValueError("InvalidMetricDimension")
         self.component, self.environment, self.sink, self.clock = (
             component,

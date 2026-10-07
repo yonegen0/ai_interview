@@ -56,10 +56,19 @@ class Application:
         self._owner(owner)
         request = request_model(CreateRequest, payload)
         validate_id(key)
-        questions = tuple(q for q in self.questions if q.category == request.category)
         return self.repository.create_once(
-            owner, key, self._fingerprint("/sessions", request.wire()), questions, self._new_id
+            owner,
+            key,
+            self._fingerprint("/sessions", request.wire()),
+            self.questions,
+            self._new_id,
+            mode=request.mode or "category",
+            category=request.category,
         )
+
+    def practice_options(self, owner: str) -> Reply:
+        self._owner(owner)
+        return self.repository.practice_options(self.questions)
 
     def question(self, owner: str, session_id: str) -> Reply:
         self._owner(owner)

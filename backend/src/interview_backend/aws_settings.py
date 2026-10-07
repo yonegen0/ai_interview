@@ -43,7 +43,7 @@ class AwsSettings:
             return value
 
         if (
-            component not in {"api", "worker", "dispatcher"}
+            component not in {"api", "worker", "dispatcher", "admin"}
             or env.get("INTERVIEW_COMPONENT") != component
         ):
             raise ConfigurationError()
@@ -61,7 +61,7 @@ class AwsSettings:
         config = dict(
             component=component, account=account, region=region, table=table, function_name=function
         )
-        if component == "api":
+        if component in {"api", "admin"}:
             config.update(
                 client_id=required("CLIENT_ID", r"[a-zA-Z0-9]{1,128}"),
                 user_pool=required("USER_POOL_ID", re.escape(region) + r"_[a-zA-Z0-9]+"),

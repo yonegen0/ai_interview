@@ -1,5 +1,71 @@
 # Frontend単体MVP API契約
 
+## 2026-10-06 質問管理・通し練習の現行契約
+
+以下を現行契約とする。後段の2026-09-12記述は既存6 APIと旧データ互換の基礎仕様として残す。
+質問本文・順番の原本はBackendの質問JSON、型・制約はFrontend ZodとBackend Pydanticで照合する。
+
+### 練習開始と終了
+
+`POST /sessions`は`{mode:"full",difficulty:"standard"}`、または
+`{mode:"category",category:<有効カテゴリ>,difficulty:"standard"}`を受け付ける。
+fullのcategory指定は禁止。categoryモードはcategory必須。既存のmode省略形式も受理し、
+新規カテゴリ練習として扱う。旧要求のfingerprintへmodeを追加しない。
+成功応答201のsessionIdは維持する。
+
+`GET /practice-options`はログイン必須で、`bankVersion`、`totalQuestions`、
+`categories:[{id,label,questionCount}]`を返す。質問のないカテゴリを省き、本文・更新者は返さない。
+応答は`Cache-Control:no-store`。開始時はBackendの最新一覧を版確認付きで保存する。
+
+質問取得・次問応答に`mode:full|category|legacy`、`totalQuestions`、`hasNext`を追加する。
+旧保存済み応答の3項目省略を受理する。項目を追加する場合は3つをまとめて返す。
+新規セッションは一巡で終了し、最後のcompleted Attemptからの次問は409 SESSION_COMPLETED。
+旧Sessionは循環動作を維持する。古いAttempt・評価未完了時はSESSION_STATE_CONFLICTを優先する。
+終了フラグや総合評価APIは追加しない。最終問への再挑戦は引き続き可能。
+
+有効カテゴリはself_introduction、company_selection、experience、job_change、motivation、career、
+strengths、weaknesses、conditions、questions。旧difficultyは既存質問の読取用に保持する。
+選択後に質問がなくなったカテゴリの新規開始は409 CATEGORY_UNAVAILABLE。同じ開始要求の成功済み再送を先に返す。
+
+### 管理者の取得・保存
+
+`GET /admin/question-bank`は`{version,updatedAt,questions}`を返す。質問の各項目は
+`{id,category,difficulty:"standard",question}`。updatedAtはUTC ISO 8601、初期版0ではnull。
+ADMINをBackendで再認可し、未認証401、一般利用者403。応答はno-store。
+
+`POST /admin/question-bank`は`{expectedVersion,questions}`とUUIDのIdempotency-Keyを必須とする。
+一覧を全件置換し、成功時200で`{version,totalQuestions,updatedAt}`を返す。
+質問1〜100件、本文1〜1,000 UTF-16単位、空白のみ禁止、UUIDの大文字小文字を区別しない重複禁止、
+有効カテゴリのみ、未知field禁止。デコード後JSONは1MiBまで、一覧・Sessionの保存上限は350KiB。
+Sessionには回答受付・評価完了時の更新に必要な1KiBの余裕を確保し、保存時と新規開始時に検査する。
+expectedVersionはJSONの有限な整数値として判定し、`0`・`0.0`・`0e0`は同じ版0として照合する。
+真偽値・文字列・小数・範囲外は拒否する。
+順番は配列順。IDは編集・移動で保持し、新規追加で発行する。
+
+保存成功記録の照合を版確認より先に行い、後続更新後の再送でも元の応答を返す。
+同じキーの本文違いは409 IDEMPOTENCY_CONFLICT、古い期待版は409 QUESTION_BANK_CONFLICT。
+管理保存も既存の練習POSTと同じ利用者・キーの識別範囲に含め、異なる操作先での再利用は409とする。
+同一一覧の保存では版・日時を変更せず、再送確認記録だけを保存する。
+保存結果不明時は同じキー・本文で再確認し、競合時は自動上書きしない。
+保存後に開始する新規練習だけへ反映し、既存Session・Attempt・Feedbackを変更しない。
+
+追加エラーは400 QUESTION_BANK_TOO_LARGE、413 REQUEST_TOO_LARGE、上記409各種。
+形式は既存の`{code,message}`を維持し、画面はcodeを日本語へ写像する。
+
+### 認証と復旧
+
+実接続はCognito USER_AUTH／EMAIL_OTP。OTP送信・再送は手動で、SDK送信を自動Retryしない。
+access／refresh tokenをタブ内に保持し、期限30秒前に更新、同時更新は1件とする。
+401で1回更新・同じ要求を再送し、再度401なら再ログインへ移る。403では更新しない。
+OTP・challengeはメモリだけに保持し、ID tokenは永続保存しない。
+ログアウト後に遅れて返る認証応答で再ログイン状態へ戻さない。
+復旧データはClient ID＋subで分離し、同じ利用者だけ復旧する。元の練習へ戻れるようにする。
+token・OTP・回答・raw Stateをログに出さない。
+
+旧Mock version1は旧21問のスナップショットを補完し、version2の別キーへコピーする。
+元のversion1を削除せず、不整合時は元データを保持して復旧を拒否する。
+所有者のない旧Mockデータを実API利用者へ移さない。
+
 更新日: 2026-09-12。設計書v2.3／[ADR-002](ADR-002-frontend-contract-alignment.md)に対応。
 
 ## 対象と正本

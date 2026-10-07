@@ -297,7 +297,7 @@ def test_http_api_named_stage_business_routes(runtime, prefix):
         assert request == original
         return response["statusCode"], json.loads(response["body"])
 
-    payload = {"category": "career", "difficulty": "standard"}
+    payload = {"category": "job_change", "difficulty": "standard"}
     created = call("POST", "/sessions", "POST /sessions", payload, uid(100))
     assert created[0] == 201
     assert call("POST", "/sessions", "POST /sessions", payload, uid(100)) == created

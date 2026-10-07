@@ -9,6 +9,10 @@ from interview_backend.models.public import Question
 
 PROMPT_VERSION = "interview-evaluation-v1"
 CRITERIA = {
+    "self_introduction": "経験・役割の要約と、相手に伝わる自己紹介。",
+    "company_selection": "企業選びの軸と、その理由の一貫性。",
+    "weaknesses": "弱みの自覚、具体例、改善への取り組み。",
+    "conditions": "希望条件、優先順位と理由の説明。",
     "job_change": "結論と理由、前向きな転職目的。",
     "motivation": "志望理由と経験・貢献の関連。",
     "strengths": "強みと具体的な経験。",

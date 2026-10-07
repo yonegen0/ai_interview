@@ -59,7 +59,7 @@ def durable():
 
 
 def accept(app, owner="synthetic-user", key=100):
-    sid = app.create(owner, uid(key), {"category": "career", "difficulty": "standard"}).body[
+    sid = app.create(owner, uid(key), {"category": "job_change", "difficulty": "standard"}).body[
         "sessionId"
     ]
     qid = app.question(owner, sid).body["question"]["id"]

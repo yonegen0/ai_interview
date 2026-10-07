@@ -1,4 +1,21 @@
-# Backend（P3実装完了・Python検証完了・実DB検証待ち）
+# Backend
+
+## 現在の実装（2026-10-06）
+
+既存6 APIに練習選択肢とADMIN専用の質問管理APIを追加しました。初期15問、全質問・カテゴリ練習、
+一巡終了、質問スナップショット、原子的な一覧保存と版競合・再送確認に対応しています。
+runtimeはapi／worker／dispatcher／adminの4責務、配備manifestはv3です。
+旧Session・評価・保存済み応答とmanifest v2は読み取り互換を維持します。
+
+質問管理の実装はAWS未配備です。既存devの閉鎖状態と性能レビュー待ちは維持しています。
+通常suiteはAWS非接続、実DynamoDB／認証・IAM試験は明示的な後続工程です。
+[実装・検証記録](../docs/QUESTION_MANAGEMENT_VERIFICATION_20261006.md)と
+[API契約](../docs/FRONTEND_API_CONTRACT.md)を参照してください。
+
+2026-10-07のレビュー指摘4件を修正しました。認可groupの形式、Session更新容量、管理APIと練習APIの
+冪等キー、JSON整数表記の修正と検証は[Backendレビュー修正記録](../docs/BACKEND_REVIEW_FIXES_20261007.md)を参照。
+
+以下はP3〜P4初期段階の履歴です。
 
 2026-09-13のレビュー修正、通常344件・Frontend契約102件、実DB57件の収集結果は
 [最新検証記録](../docs/P3_VERIFICATION.md)を参照。AWS試験は未実行で、P4には自動移行しません。

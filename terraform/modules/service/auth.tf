@@ -68,7 +68,7 @@ resource "aws_apigatewayv2_integration" "api" {
   timeout_milliseconds   = 15000
 }
 locals {
-  routes = toset(["POST /sessions", "GET /sessions/{sessionId}/question", "POST /sessions/{sessionId}/answers", "GET /evaluations/{evaluationId}", "GET /attempts/{attemptId}/feedback", "POST /sessions/{sessionId}/questions/next", "$default"])
+  routes = toset(["GET /practice-options", "POST /sessions", "GET /sessions/{sessionId}/question", "POST /sessions/{sessionId}/answers", "GET /evaluations/{evaluationId}", "GET /attempts/{attemptId}/feedback", "POST /sessions/{sessionId}/questions/next", "$default"])
 }
 resource "aws_apigatewayv2_route" "business" {
   for_each           = local.routes
@@ -112,4 +112,30 @@ resource "aws_lambda_permission" "api" {
   principal      = "apigateway.amazonaws.com"
   source_account = var.account_id
   source_arn     = "${aws_apigatewayv2_api.main.execution_arn}/dev/*"
+}
+
+resource "aws_apigatewayv2_integration" "admin" {
+  api_id                 = aws_apigatewayv2_api.main.id
+  integration_type       = "AWS_PROXY"
+  integration_uri        = aws_lambda_alias.entry["admin"].invoke_arn
+  payload_format_version = "2.0"
+  timeout_milliseconds   = 15000
+}
+resource "aws_apigatewayv2_route" "admin" {
+  for_each           = toset(["GET /admin/question-bank", "POST /admin/question-bank"])
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = each.value
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+  target             = "integrations/${aws_apigatewayv2_integration.admin.id}"
+}
+resource "aws_lambda_permission" "admin" {
+  for_each       = toset(["GET", "POST"])
+  statement_id   = "OnlyThisAdmin${each.value}"
+  action         = "lambda:InvokeFunction"
+  function_name  = aws_lambda_function.main["admin"].function_name
+  qualifier      = aws_lambda_alias.entry["admin"].name
+  principal      = "apigateway.amazonaws.com"
+  source_account = var.account_id
+  source_arn     = "${aws_apigatewayv2_api.main.execution_arn}/dev/${each.value}/admin/question-bank"
 }

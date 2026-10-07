@@ -19,6 +19,8 @@ from interview_backend.models.internal import (
     IdempotentReply,
     IntegrityError,
     ItemTooLarge,
+    QuestionBank,
+    QuestionBankChange,
     RecoveryCursor,
     Reply,
     Session,
@@ -26,6 +28,8 @@ from interview_backend.models.internal import (
 )
 from interview_backend.models.public import (
     ActiveAttempt,
+    BankReceipt,
+    BankSaveRequest,
     Created,
     Feedback,
     Question,
@@ -43,7 +47,9 @@ PREFIXES = dict(
         strict=True,
     )
 )
+KINDS.update(QuestionBank=QuestionBank, QuestionBankChange=QuestionBankChange)
 MAX_TIME = 9999999999999
+MAX_ITEM_BYTES = 350 * 1024
 FAILURE = {"code": "EVALUATION_FAILED", "message": "Evaluation could not be completed."}
 REASONS = {
     "PREPARATION_FAILED",
@@ -124,6 +130,30 @@ def validate(record):
             raise IntegrityError("session_state")
         for question in record.questions:
             Question.model_validate(question.model_dump())
+        if (record.practice_mode is None) != (record.question_bank_version is None):
+            raise IntegrityError("partial_practice_mode")
+        if record.practice_mode and record.number > len(record.questions):
+            raise IntegrityError("session_position")
+        if record.practice_mode == "category" and len({q.category for q in record.questions}) != 1:
+            raise IntegrityError("session_category")
+    if isinstance(record, QuestionBank):
+        try:
+            BankSaveRequest(
+                expectedVersion=record.version, questions=[q.wire() for q in record.questions]
+            )
+        except ValueError:
+            raise StorageFormatError("question_bank_fields") from None
+        if record.version < 1 or not record.updated_by.strip():
+            raise IntegrityError("question_bank")
+    if isinstance(record, QuestionBankChange):
+        validate_id(record.key)
+        if not re.fullmatch("[0-9a-f]{64}", record.fingerprint) or record.reply.status != 200:
+            raise StorageFormatError("question_bank_change")
+        parsed = BankReceipt.model_validate(record.reply.body)
+        if parsed.wire() != record.reply.body:
+            raise StorageFormatError("question_bank_receipt")
+        for identifier in record.changed_ids:
+            validate_id(identifier)
     if isinstance(record, Attempt):
         from interview_backend.models.public import AnswerFields
 
@@ -211,6 +241,10 @@ def validate(record):
 
 
 def key(kind, owner, identifier):
+    if kind == "QuestionBank":
+        return {"PK": "SYSTEM#QUESTION_BANK", "SK": "CURRENT"}
+    if kind == "QuestionBankChange":
+        return {"PK": "SYSTEM#QUESTION_BANK", "SK": f"OP#{owner}#{identifier}"}
     return {
         "PK": "SYSTEM#RECOVERY" if kind == "RecoveryCursor" else f"USER#{owner}",
         "SK": f"{PREFIXES[kind]}#{identifier}",
@@ -229,15 +263,17 @@ def work(record):
     return None
 
 
-def encode(kind, record, rev):
+def encode(kind, record, rev, *, reserve_bytes=0):
     if kind not in KINDS or not isinstance(record, KINDS[kind]) or type(rev) is not int or rev < 0:
         raise StorageFormatError("record_kind_revision")
     validate(record)
     identifier = (
-        record.partition.removeprefix("WORK#")
+        "CURRENT"
+        if kind == "QuestionBank"
+        else record.partition.removeprefix("WORK#")
         if kind == "RecoveryCursor"
         else record.key
-        if kind == "IdempotencyRecord"
+        if kind in {"IdempotencyRecord", "QuestionBankChange"}
         else record.id
     )
     item = {
@@ -250,7 +286,7 @@ def encode(kind, record, rev):
     index = work(record)
     if index:
         item.update(work_pk=index[0], work_sk=f"{index[1]:013d}#{record.id}")
-    if len(canonical(item).encode("ascii")) > 350 * 1024:
+    if len(canonical(item).encode("ascii")) + reserve_bytes > MAX_ITEM_BYTES:
         raise ItemTooLarge("item_size")
     return item
 
@@ -258,8 +294,9 @@ def encode(kind, record, rev):
 def hydrate(kind, data):
     source = deepcopy(data)
     data = dict(data)
-    if kind == "Session":
+    if kind in {"Session", "QuestionBank"}:
         data["questions"] = tuple(Question(**q) for q in data["questions"])
+    if kind == "Session":
         if data["active"] is not None:
             data["active"] = ActiveAttempt(**data["active"])
     if kind == "Attempt":
@@ -272,6 +309,9 @@ def hydrate(kind, data):
     if kind == "IdempotencyRecord":
         data["fingerprint"] = data.pop("request_hash")
         data["reply"] = Reply(**data["reply"])
+    if kind == "QuestionBankChange":
+        data["reply"] = Reply(**data["reply"])
+        data["changed_ids"] = tuple(data["changed_ids"])
     record = KINDS[kind](**data)
     validate(record)
     # Reject missing required fields, explicit optional nulls and unknown fields.

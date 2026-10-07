@@ -1,128 +1,17 @@
 [
-  {
-    "id": "00000000-0000-4000-8000-000000000001",
-    "category": "job_change",
-    "difficulty": "standard",
-    "question": "転職を考えた理由を教えてください。"
-  },
-  {
-    "id": "00000000-0000-4000-8000-000000000002",
-    "category": "job_change",
-    "difficulty": "standard",
-    "question": "次の職場で実現したいことは何ですか？"
-  },
-  {
-    "id": "00000000-0000-4000-8000-000000000003",
-    "category": "job_change",
-    "difficulty": "standard",
-    "question": "現職では実現が難しいと感じたことを教えてください。"
-  },
-  {
-    "id": "00000000-0000-4000-8000-000000000004",
-    "category": "motivation",
-    "difficulty": "standard",
-    "question": "当社を志望した理由を教えてください。"
-  },
-  {
-    "id": "00000000-0000-4000-8000-000000000005",
-    "category": "motivation",
-    "difficulty": "standard",
-    "question": "当社の事業のどこに魅力を感じますか？"
-  },
-  {
-    "id": "00000000-0000-4000-8000-000000000006",
-    "category": "motivation",
-    "difficulty": "standard",
-    "question": "入社後、どのように貢献したいですか？"
-  },
-  {
-    "id": "00000000-0000-4000-8000-000000000007",
-    "category": "strengths",
-    "difficulty": "standard",
-    "question": "あなたの強みを具体例とともに教えてください。"
-  },
-  {
-    "id": "00000000-0000-4000-8000-000000000008",
-    "category": "strengths",
-    "difficulty": "standard",
-    "question": "周囲からよく評価される点は何ですか？"
-  },
-  {
-    "id": "00000000-0000-4000-8000-000000000009",
-    "category": "strengths",
-    "difficulty": "standard",
-    "question": "強みを仕事で活かした経験を教えてください。"
-  },
-  {
-    "id": "00000000-0000-4000-8000-000000000010",
-    "category": "experience",
-    "difficulty": "standard",
-    "question": "これまでの仕事で最も力を入れたことは何ですか？"
-  },
-  {
-    "id": "00000000-0000-4000-8000-000000000011",
-    "category": "experience",
-    "difficulty": "standard",
-    "question": "チームで成果を出した経験を教えてください。"
-  },
-  {
-    "id": "00000000-0000-4000-8000-000000000012",
-    "category": "experience",
-    "difficulty": "standard",
-    "question": "業務を改善した経験を教えてください。"
-  },
-  {
-    "id": "00000000-0000-4000-8000-000000000013",
-    "category": "difficulty",
-    "difficulty": "standard",
-    "question": "仕事で困難を乗り越えた経験を教えてください。"
-  },
-  {
-    "id": "00000000-0000-4000-8000-000000000014",
-    "category": "difficulty",
-    "difficulty": "standard",
-    "question": "失敗から学んだことは何ですか？"
-  },
-  {
-    "id": "00000000-0000-4000-8000-000000000015",
-    "category": "difficulty",
-    "difficulty": "standard",
-    "question": "意見が対立した際、どう対応しましたか？"
-  },
-  {
-    "id": "00000000-0000-4000-8000-000000000016",
-    "category": "career",
-    "difficulty": "standard",
-    "question": "3年後、どのような仕事をしていたいですか？"
-  },
-  {
-    "id": "00000000-0000-4000-8000-000000000017",
-    "category": "career",
-    "difficulty": "standard",
-    "question": "今後身につけたい能力は何ですか？"
-  },
-  {
-    "id": "00000000-0000-4000-8000-000000000018",
-    "category": "career",
-    "difficulty": "standard",
-    "question": "仕事で大切にしている価値観を教えてください。"
-  },
-  {
-    "id": "00000000-0000-4000-8000-000000000019",
-    "category": "questions",
-    "difficulty": "standard",
-    "question": "面接官に確認したいことは何ですか？"
-  },
-  {
-    "id": "00000000-0000-4000-8000-000000000020",
-    "category": "questions",
-    "difficulty": "standard",
-    "question": "入社後の期待を確認する質問を考えてください。"
-  },
-  {
-    "id": "00000000-0000-4000-8000-000000000021",
-    "category": "questions",
-    "difficulty": "standard",
-    "question": "チームの働き方について、どのように質問しますか？"
-  }
+  {"id":"f1500000-0000-4000-8000-000000000001","category":"self_introduction","difficulty":"standard","question":"自己紹介をお願いしてもよろしいでしょうか？"},
+  {"id":"f1500000-0000-4000-8000-000000000002","category":"company_selection","difficulty":"standard","question":"就職活動では、どのような軸を持って企業を選んでいましたか？\nまた、その軸を設定した理由についても教えてください。"},
+  {"id":"f1500000-0000-4000-8000-000000000003","category":"company_selection","difficulty":"standard","question":"その中で、1社目の会社を選んだ理由を教えてください。"},
+  {"id":"f1500000-0000-4000-8000-000000000004","category":"experience","difficulty":"standard","question":"1社目の会社では、どのような仕事に携わっていましたか？"},
+  {"id":"f1500000-0000-4000-8000-000000000005","category":"experience","difficulty":"standard","question":"その仕事のやりがいは、どのようなところにありましたか？"},
+  {"id":"f1500000-0000-4000-8000-000000000006","category":"experience","difficulty":"standard","question":"一方で、その仕事の難しさはどのようなところにありましたか？"},
+  {"id":"f1500000-0000-4000-8000-000000000007","category":"job_change","difficulty":"standard","question":"1社目の会社から転職を考えた理由を教えてください。"},
+  {"id":"f1500000-0000-4000-8000-000000000008","category":"job_change","difficulty":"standard","question":"転職活動をするにあたって、どのような軸で転職先を選んでいますか？"},
+  {"id":"f1500000-0000-4000-8000-000000000009","category":"motivation","difficulty":"standard","question":"その中で、当社に応募しようと思った理由を教えてください。"},
+  {"id":"f1500000-0000-4000-8000-000000000010","category":"motivation","difficulty":"standard","question":"当社に入社した場合、これまでのどのような経験・スキル・知識を活かせるとお考えですか？"},
+  {"id":"f1500000-0000-4000-8000-000000000011","category":"career","difficulty":"standard","question":"当社への入社にかかわらず、5年後にはどのようなビジネスパーソンになっていたいと考えていますか？"},
+  {"id":"f1500000-0000-4000-8000-000000000012","category":"strengths","difficulty":"standard","question":"ご自身の強みや長所について、そう考える理由や具体的なエピソードも交えて教えてください。"},
+  {"id":"f1500000-0000-4000-8000-000000000013","category":"weaknesses","difficulty":"standard","question":"ご自身の弱みや短所について、そう考える理由や具体的なエピソードも交えて教えてください。"},
+  {"id":"f1500000-0000-4000-8000-000000000014","category":"conditions","difficulty":"standard","question":"今回の転職活動において、希望している条件について教えてください。"},
+  {"id":"f1500000-0000-4000-8000-000000000015","category":"questions","difficulty":"standard","question":"最後に、当社について聞いておきたいことや、確認しておきたいことがあれば質問してください。"}
 ]

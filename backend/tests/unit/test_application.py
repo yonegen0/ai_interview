@@ -34,28 +34,34 @@ def assert_error(code, operation):
 
 
 @pytest.mark.parametrize("category", CATEGORIES)
-def test_question_cycle_and_retry(runtime, category):
+def test_question_sequence_and_retry(runtime, category):
     session_id, payload = start(runtime, category)
-    first_question = payload["questionId"]
-    ids = []
-    for number in range(1, 5):
+    pool = [q for q in load_questions() if q.category == category]
+    for number, question in enumerate(pool, 1):
         current = runtime.application.question(OWNER, session_id).body
-        ids.append(current["question"]["id"])
+        assert current["question"]["id"] == question.id
         assert current["questionNumber"] == number
-        payload["questionId"] = current["question"]["id"]
+        assert current["totalQuestions"] == len(pool)
+        assert current["hasNext"] is (number < len(pool))
+        payload["questionId"] = question.id
         accepted = runtime.application.submit(OWNER, uid(200 + number), session_id, payload).body
         runtime.worker.run(OWNER, accepted["evaluationId"])
         retry = runtime.application.submit(OWNER, uid(300 + number), session_id, payload).body
         assert retry["attemptId"] != accepted["attemptId"]
         runtime.worker.run(OWNER, retry["evaluationId"])
         feedback = runtime.application.feedback(OWNER, retry["attemptId"]).body
-        assert feedback["questionNumber"] == number
-        assert feedback["answer"] == payload["answer"]
-        runtime.application.next_question(
-            OWNER, uid(400 + number), session_id, {"fromAttemptId": retry["attemptId"]}
-        )
-    assert len(set(ids[:3])) == 3
-    assert ids[3] == first_question
+        assert feedback["questionNumber"] == number and feedback["answer"] == payload["answer"]
+        if number < len(pool):
+            runtime.application.next_question(
+                OWNER, uid(400 + number), session_id, {"fromAttemptId": retry["attemptId"]}
+            )
+        else:
+            assert_error(
+                "SESSION_COMPLETED",
+                lambda number=number, retry=retry: runtime.application.next_question(
+                    OWNER, uid(400 + number), session_id, {"fromAttemptId": retry["attemptId"]}
+                ),
+            )
 
 
 def test_replay_after_completion_and_next_and_response_loss(runtime):
@@ -343,7 +349,7 @@ def test_old_worker_does_not_overwrite_new_active(runtime):
 
 def test_bank_validation():
     bank = [question.wire() for question in load_questions()]
-    assert len(bank) == 21
+    assert len(bank) == 15
     for invalid in [bank + [bank[0]], bank[:3], [{**bank[0], "question": ""}] + bank[1:]]:
         with pytest.raises(ValueError):
             validate_bank(invalid)

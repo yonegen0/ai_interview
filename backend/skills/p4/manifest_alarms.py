@@ -18,6 +18,11 @@ def expected_alarms(manifest, prefix):
         "ActionsEnabled": True,
     }
     alarms = {}
+    roles = (
+        ("api", "worker", "dispatcher", "admin")
+        if manifest["schema_version"] == 3
+        else ("api", "worker", "dispatcher")
+    )
 
     def emf(name, component="dispatcher", metric=None, **kwargs):
         alarms[prefix + "-" + name] = (
@@ -52,7 +57,7 @@ def expected_alarms(manifest, prefix):
     )
     for name in ("ExpiredLease", "DeadlineOverdue"):
         emf(name, EvaluationPeriods=2)
-    for role in ("api", "worker", "dispatcher"):
+    for role in roles:
         for metric in (
             "DBError",
             "IntegrityError",
@@ -69,7 +74,7 @@ def expected_alarms(manifest, prefix):
             "Dimensions": [{"Name": "QueueName", "Value": f"{prefix}-{suffix}"}],
             "Statistic": "Maximum",
         }
-    for role in ("api", "worker", "dispatcher"):
+    for role in roles:
         for metric in ("Errors", "Throttles"):
             alarms[f"{prefix}-{role}-{metric}"] = common | {
                 "Namespace": "AWS/Lambda",
@@ -143,7 +148,7 @@ def expected_alarms(manifest, prefix):
             "dlq-stream",
         } | {
             f"{role}-{metric}"
-            for role in ("api", "worker", "dispatcher")
+            for role in roles
             for metric in ("Errors", "Throttles", "IntegrityError")
         }
         alarms = {

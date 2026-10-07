@@ -30,6 +30,8 @@ COLLECTIONS = {
     "Dispatch": "dispatches",
     "IdempotencyRecord": "requests",
     "RecoveryCursor": "cursors",
+    "QuestionBank": "question_banks",
+    "QuestionBankChange": "question_bank_changes",
 }
 
 
@@ -42,9 +44,9 @@ class MemoryUnit:
     def location(self, reference):
         kind, owner, identifier = reference
         records = getattr(self.state, COLLECTIONS[kind])
-        if kind == "IdempotencyRecord":
+        if kind in {"IdempotencyRecord", "QuestionBankChange"}:
             return records, (owner, identifier)
-        if kind == "RecoveryCursor":
+        if kind in {"RecoveryCursor", "QuestionBank"}:
             return records, identifier
         existing = records.get(identifier)
         return records, (
@@ -60,6 +62,10 @@ class MemoryUnit:
 
     def many(self, references):
         return [self.get(r) for r in references]
+
+    def exists(self, reference):
+        records, identifier = self.location(reference)
+        return identifier in records
 
     def refresh(self, reference):
         return self.get(reference)

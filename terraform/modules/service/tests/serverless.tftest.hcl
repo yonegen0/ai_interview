@@ -39,7 +39,7 @@ run "worker_only" {
   command = plan
   variables { worker_enabled = true }
   assert {
-    condition     = toset(keys(aws_cloudwatch_metric_alarm.emf)) == toset(["api-IntegrityError", "worker-IntegrityError", "dispatcher-IntegrityError", "OutcomeUnknown", "RecoveryHeartbeat", "RecoverySweepLag"]) && length(aws_cloudwatch_metric_alarm.lambda) == 6 && length(aws_cloudwatch_metric_alarm.dlq) == 2 && length(aws_cloudwatch_metric_alarm.iterator) == 0 && length(aws_cloudwatch_metric_alarm.failure_rate) == 0
+    condition     = toset(keys(aws_cloudwatch_metric_alarm.emf)) == toset(["api-IntegrityError", "worker-IntegrityError", "dispatcher-IntegrityError", "admin-IntegrityError", "OutcomeUnknown", "RecoveryHeartbeat", "RecoverySweepLag"]) && length(aws_cloudwatch_metric_alarm.lambda) == 8 && length(aws_cloudwatch_metric_alarm.dlq) == 2 && length(aws_cloudwatch_metric_alarm.iterator) == 0 && length(aws_cloudwatch_metric_alarm.failure_rate) == 0
     error_message = "Any active dev component requires the fourteen attended-test alarms."
   }
   assert {
@@ -52,7 +52,7 @@ run "api_only" {
   command = plan
   variables { api_enabled = true }
   assert {
-    condition     = length(aws_cloudwatch_metric_alarm.emf) == 6 && length(aws_cloudwatch_metric_alarm.lambda) == 6 && length(aws_cloudwatch_metric_alarm.dlq) == 2
+    condition     = length(aws_cloudwatch_metric_alarm.emf) == 7 && length(aws_cloudwatch_metric_alarm.lambda) == 8 && length(aws_cloudwatch_metric_alarm.dlq) == 2
     error_message = "API activation cannot bypass monitoring."
   }
 }
@@ -61,7 +61,7 @@ run "streams_only" {
   command = plan
   variables { streams_enabled = true }
   assert {
-    condition     = length(aws_cloudwatch_metric_alarm.emf) == 6 && length(aws_cloudwatch_metric_alarm.lambda) == 6 && length(aws_cloudwatch_metric_alarm.dlq) == 2
+    condition     = length(aws_cloudwatch_metric_alarm.emf) == 7 && length(aws_cloudwatch_metric_alarm.lambda) == 8 && length(aws_cloudwatch_metric_alarm.dlq) == 2
     error_message = "Streams activation cannot bypass monitoring."
   }
 }
@@ -70,7 +70,7 @@ run "scheduler_only" {
   command = plan
   variables { scheduler_enabled = true }
   assert {
-    condition     = length(aws_cloudwatch_metric_alarm.emf) == 6 && aws_cloudwatch_metric_alarm.emf["RecoveryHeartbeat"].actions_enabled && aws_cloudwatch_metric_alarm.emf["RecoverySweepLag"].actions_enabled
+    condition     = length(aws_cloudwatch_metric_alarm.emf) == 7 && aws_cloudwatch_metric_alarm.emf["RecoveryHeartbeat"].actions_enabled && aws_cloudwatch_metric_alarm.emf["RecoverySweepLag"].actions_enabled
     error_message = "Enabled recovery requires heartbeat and sweep notifications."
   }
 }
@@ -84,7 +84,7 @@ run "fully_active_dev" {
     scheduler_enabled = true
   }
   assert {
-    condition     = length(aws_cloudwatch_metric_alarm.emf) + length(aws_cloudwatch_metric_alarm.lambda) + length(aws_cloudwatch_metric_alarm.dlq) == 14 && alltrue([for a in aws_cloudwatch_metric_alarm.emf : a.actions_enabled])
+    condition     = length(aws_cloudwatch_metric_alarm.emf) + length(aws_cloudwatch_metric_alarm.lambda) + length(aws_cloudwatch_metric_alarm.dlq) == 17 && alltrue([for a in aws_cloudwatch_metric_alarm.emf : a.actions_enabled])
     error_message = "Active dev has fourteen enabled alarms."
   }
   assert {
@@ -109,7 +109,7 @@ run "full_test_monitoring" {
   command = plan
   variables { run_id = "synthetic" }
   assert {
-    condition     = length(aws_cloudwatch_metric_alarm.emf) == 22 && length(aws_cloudwatch_metric_alarm.lambda) == 6 && length(aws_cloudwatch_metric_alarm.dlq) == 2 && length(aws_cloudwatch_metric_alarm.iterator) == 1 && length(aws_cloudwatch_metric_alarm.failure_rate) == 1
+    condition     = length(aws_cloudwatch_metric_alarm.emf) == 27 && length(aws_cloudwatch_metric_alarm.lambda) == 8 && length(aws_cloudwatch_metric_alarm.dlq) == 2 && length(aws_cloudwatch_metric_alarm.iterator) == 1 && length(aws_cloudwatch_metric_alarm.failure_rate) == 1
     error_message = "Test keeps all thirty-two alarms."
   }
   assert {

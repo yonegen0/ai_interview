@@ -11,7 +11,7 @@ from interview_backend.models.internal import BusinessError
 
 def start(runtime):
     app = runtime.application
-    sid = app.create("owner", uid(100), {"category": "career", "difficulty": "standard"}).body[
+    sid = app.create("owner", uid(100), {"category": "job_change", "difficulty": "standard"}).body[
         "sessionId"
     ]
     payload = {
@@ -81,7 +81,9 @@ def test_shared_concurrent_post_replay(contract_runtime, operation):
     def invoke(_):
         barrier.wait(timeout=10)
         if operation == "create":
-            return app.create("owner", uid(110), {"category": "career", "difficulty": "standard"})
+            return app.create(
+                "owner", uid(110), {"category": "job_change", "difficulty": "standard"}
+            )
         return app.next_question("owner", uid(110), sid, {"fromAttemptId": reply.body["attemptId"]})
 
     with ThreadPoolExecutor(2) as pool:

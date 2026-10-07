@@ -119,7 +119,13 @@ def verify_configuration(session, manifest, config):
         },
     }
     iam = client("iam")
-    for role in ("api", "worker", "dispatcher"):
+    roles = (
+        ("api", "worker", "dispatcher", "admin")
+        if m["schema_version"] == 3
+        else ("api", "worker", "dispatcher")
+    )
+    role_env["admin"] = role_env["api"]
+    for role in roles:
         name = f"{prefix}-{role}"
         deployed = lambdas.get_function_configuration(
             FunctionName=name, Qualifier=str(m["versions"][role])
@@ -152,6 +158,8 @@ def verify_configuration(session, manifest, config):
             observed_role["PermissionsBoundary"],
             {"PermissionsBoundaryArn": c["boundary_arn"], "PermissionsBoundaryType": "Policy"},
         )
+    if m["schema_version"] == 3:
+        verify_question_permissions(iam, lambdas, m, prefix)
     for name in ("worker", "streams"):
         mapping = lambdas.get_event_source_mapping(UUID=m["mappings"][name])
         expect(
@@ -214,9 +222,7 @@ def verify_configuration(session, manifest, config):
     verify_api(client("apigatewayv2"), m, prefix)
     verify_cognito(client("cognito-idp"), m)
     logs = client("logs")
-    for name in [f"/aws/lambda/{prefix}-{role}" for role in ("api", "worker", "dispatcher")] + [
-        f"/aws/apigateway/{prefix}"
-    ]:
+    for name in [f"/aws/lambda/{prefix}-{role}" for role in roles] + [f"/aws/apigateway/{prefix}"]:
         found = [
             g
             for g in pages(
@@ -231,6 +237,126 @@ def verify_configuration(session, manifest, config):
     from manifest_alarms import verify_alarms
 
     verify_alarms(client("cloudwatch"), m, prefix)
+
+
+def verify_question_permissions(iam, lambdas, m, prefix):
+    """Exact ADMIN/API policies: no question writes from the general runtime."""
+    from bootstrap_contract import canonical_policy
+
+    account, region = m["account_id"], m["region"]
+    table = f"arn:aws:dynamodb:{region}:{account}:table/{prefix}-main"
+    bank = {
+        "ForAllValues:StringEquals": {"dynamodb:LeadingKeys": ["SYSTEM#QUESTION_BANK"]},
+        "Null": {"dynamodb:LeadingKeys": "false"},
+    }
+    transaction = {"StringEquals": {"dynamodb:EnclosingOperation": "TransactWriteItems"}}
+    user_key_attributes = {
+        "ForAllValues:StringLike": {"dynamodb:LeadingKeys": ["USER#*"]},
+        "ForAllValues:StringEquals": {"dynamodb:Attributes": ["PK", "SK"]},
+        "Null": {"dynamodb:LeadingKeys": "false", "dynamodb:Attributes": "false"},
+    }
+    for role in ("api", "admin"):
+        statements = [
+            {
+                "Effect": "Allow",
+                "Action": ["logs:CreateLogStream", "logs:PutLogEvents"],
+                "Resource": [
+                    f"arn:aws:logs:{region}:{account}:log-group:/aws/lambda/{prefix}-{role}:*"
+                ],
+            }
+        ]
+        if role == "admin":
+            statements += [
+                {
+                    "Effect": "Allow",
+                    "Action": ["dynamodb:GetItem"],
+                    "Resource": [table],
+                    "Condition": bank,
+                },
+                {
+                    "Effect": "Allow",
+                    "Action": ["dynamodb:PutItem", "dynamodb:ConditionCheckItem"],
+                    "Resource": [table],
+                    "Condition": bank | transaction,
+                },
+                {
+                    "Effect": "Allow",
+                    "Action": ["dynamodb:GetItem"],
+                    "Resource": [table],
+                    "Condition": user_key_attributes
+                    | {"StringEqualsIfExists": {"dynamodb:Select": "SPECIFIC_ATTRIBUTES"}},
+                },
+                {
+                    "Effect": "Allow",
+                    "Action": ["dynamodb:ConditionCheckItem"],
+                    "Resource": [table],
+                    "Condition": user_key_attributes
+                    | transaction
+                    | {"StringEqualsIfExists": {"dynamodb:ReturnValues": "NONE"}},
+                },
+            ]
+        else:
+            statements += [
+                {"Effect": "Allow", "Action": ["dynamodb:GetItem"], "Resource": [table]},
+                {
+                    "Effect": "Allow",
+                    "Action": ["dynamodb:PutItem"],
+                    "Resource": [table],
+                    "Condition": transaction
+                    | {
+                        "ForAllValues:StringLike": {"dynamodb:LeadingKeys": ["USER#*"]},
+                        "Null": {"dynamodb:LeadingKeys": "false"},
+                    },
+                },
+                {
+                    "Effect": "Allow",
+                    "Action": ["dynamodb:ConditionCheckItem"],
+                    "Resource": [table],
+                    "Condition": bank | transaction,
+                },
+            ]
+        name = f"{prefix}-{role}-runtime"
+        if pages(iam.list_role_policies, "PolicyNames", token="Marker", RoleName=name) != [
+            "business"
+        ]:
+            raise ValueError("UnexpectedRuntimePolicy")
+        if pages(
+            iam.list_attached_role_policies, "AttachedPolicies", token="Marker", RoleName=name
+        ):
+            raise ValueError("UnexpectedRuntimePolicy")
+        observed = iam.get_role_policy(RoleName=name, PolicyName="business")["PolicyDocument"]
+        if canonical_policy(observed) != canonical_policy(
+            {"Version": "2012-10-17", "Statement": statements}
+        ):
+            raise ValueError("QuestionPermissionsMismatch")
+    policy = json.loads(
+        lambdas.get_policy(FunctionName=f"{prefix}-admin", Qualifier="live")["Policy"]
+    )
+    observed = policy.get("Statement", [])
+    if len(observed) != 2:
+        raise ValueError("AdminInvocationPolicyMismatch")
+    for method in ("GET", "POST"):
+        matched = [s for s in observed if s.get("Sid") == "OnlyThisAdmin" + method]
+        if len(matched) != 1:
+            raise ValueError("AdminInvocationPolicyMismatch")
+        expect(
+            matched[0],
+            {
+                "Effect": "Allow",
+                "Action": "lambda:InvokeFunction",
+                "Principal": {"Service": "apigateway.amazonaws.com"},
+                "Resource": m["aliases"]["admin"],
+                "Condition": {
+                    "StringEquals": {"AWS:SourceAccount": account},
+                    "ArnLike": {
+                        "AWS:SourceArn": (
+                            f"arn:aws:execute-api:{region}:{account}:{m['api_id']}"
+                            f"/dev/{method}/admin/question-bank"
+                        )
+                    },
+                },
+            },
+        )
 
 
 def verify_api(api, m, prefix):
@@ -265,9 +391,10 @@ def verify_api(api, m, prefix):
         raise ValueError("AccessLogFormatMismatch")
     authorizers = pages(api.get_authorizers, "Items", ApiId=m["api_id"])
     integrations = pages(api.get_integrations, "Items", ApiId=m["api_id"])
-    if len(authorizers) != 1 or len(integrations) != 1:
+    version3 = m["schema_version"] == 3
+    if len(authorizers) != 1 or len(integrations) != (2 if version3 else 1):
         raise ValueError("ApiComponentsMismatch")
-    auth, integration = authorizers[0], integrations[0]
+    auth = authorizers[0]
     expect(
         auth,
         {
@@ -279,18 +406,24 @@ def verify_api(api, m, prefix):
             },
         },
     )
-    expect(
-        integration,
-        {
-            "IntegrationType": "AWS_PROXY",
-            "PayloadFormatVersion": "2.0",
-            "TimeoutInMillis": 15000,
-            "IntegrationUri": (
-                f"arn:aws:apigateway:{m['region']}:lambda:path/2015-03-31/"
-                f"functions/{m['aliases']['api']}/invocations"
-            ),
-        },
-    )
+    by_role = {}
+    for role in ("api", "admin") if version3 else ("api",):
+        uri = (
+            f"arn:aws:apigateway:{m['region']}:lambda:path/2015-03-31/"
+            f"functions/{m['aliases'][role]}/invocations"
+        )
+        matched = [i for i in integrations if i.get("IntegrationUri") == uri]
+        if len(matched) != 1:
+            raise ValueError("ApiIntegrationMismatch")
+        by_role[role] = matched[0]
+        expect(
+            matched[0],
+            {
+                "IntegrationType": "AWS_PROXY",
+                "PayloadFormatVersion": "2.0",
+                "TimeoutInMillis": 15000,
+            },
+        )
     routes = pages(api.get_routes, "Items", ApiId=m["api_id"])
     business = {
         "POST /sessions",
@@ -301,20 +434,31 @@ def verify_api(api, m, prefix):
         "POST /sessions/{sessionId}/questions/next",
         "$default",
     }
-    if len(routes) != 9 or {r["RouteKey"] for r in routes} != business | {
-        "OPTIONS /{proxy+}",
-        "OPTIONS /",
-    }:
+    if version3:
+        business.add("GET /practice-options")
+    admin_routes = {"GET /admin/question-bank", "POST /admin/question-bank"} if version3 else set()
+    expected_routes = (
+        business
+        | admin_routes
+        | {
+            "OPTIONS /{proxy+}",
+            "OPTIONS /",
+        }
+    )
+    if len(routes) != len(expected_routes) or {r["RouteKey"] for r in routes} != expected_routes:
         raise ValueError("ApiRoutesMismatch")
     for route in routes:
         expect(
             route,
             {
-                "Target": "integrations/" + integration["IntegrationId"],
-                "AuthorizationType": "JWT" if route["RouteKey"] in business else "NONE",
+                "Target": "integrations/"
+                + by_role["admin" if route["RouteKey"] in admin_routes else "api"]["IntegrationId"],
+                "AuthorizationType": "JWT"
+                if route["RouteKey"] in business | admin_routes
+                else "NONE",
             },
         )
-        if route["RouteKey"] in business:
+        if route["RouteKey"] in business | admin_routes:
             expect(route, {"AuthorizerId": auth["AuthorizerId"]})
 
 

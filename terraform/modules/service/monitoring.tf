@@ -13,13 +13,13 @@ resource "aws_sns_topic_policy" "alarms" {
 }
 locals {
   monitoring_enabled  = local.environment != "dev" || anytrue([var.api_enabled, var.worker_enabled, var.streams_enabled, var.scheduler_enabled])
-  dev_emf_alarm_names = toset(["api-IntegrityError", "worker-IntegrityError", "dispatcher-IntegrityError", "OutcomeUnknown", "RecoveryHeartbeat", "RecoverySweepLag"])
+  dev_emf_alarm_names = toset(["api-IntegrityError", "worker-IntegrityError", "dispatcher-IntegrityError", "admin-IntegrityError", "OutcomeUnknown", "RecoveryHeartbeat", "RecoverySweepLag"])
   emf_alarms = merge(
     { for n in ["PendingAge", "QueuedAge"] : n => { metric = n, component = "dispatcher", threshold = 120, comparison = "GreaterThanThreshold", periods = 1, period = 60, stat = "Maximum", missing = "notBreaching" } },
     { RecoveryHeartbeat = { metric = "RecoveryHeartbeat", component = "dispatcher", threshold = 1, comparison = "LessThanThreshold", periods = 3, period = 60, stat = "Sum", missing = "breaching" },
     RecoverySweepLag = { metric = "RecoverySweepLag", component = "dispatcher", threshold = 180, comparison = "GreaterThanThreshold", periods = 1, period = 60, stat = "Maximum", missing = "notBreaching" } },
     { for n in ["ExpiredLease", "DeadlineOverdue"] : n => { metric = n, component = "dispatcher", threshold = 1, comparison = "GreaterThanOrEqualToThreshold", periods = 2, period = 60, stat = "Sum", missing = "notBreaching" } },
-    { for pair in setproduct(["api", "worker", "dispatcher"], ["DBError", "IntegrityError", "InvalidEvent", "InvalidConfiguration", "InternalInvocationFailed"]) : "${pair[0]}-${pair[1]}" => { metric = pair[1], component = pair[0], threshold = 1, comparison = "GreaterThanOrEqualToThreshold", periods = 1, period = 300, stat = "Sum", missing = "notBreaching" } },
+    { for pair in setproduct(keys(local.function_arns), ["DBError", "IntegrityError", "InvalidEvent", "InvalidConfiguration", "InternalInvocationFailed"]) : "${pair[0]}-${pair[1]}" => { metric = pair[1], component = pair[0], threshold = 1, comparison = "GreaterThanOrEqualToThreshold", periods = 1, period = 300, stat = "Sum", missing = "notBreaching" } },
     { OutcomeUnknown = { metric = "OutcomeUnknown", component = "dispatcher", threshold = 1, comparison = "GreaterThanOrEqualToThreshold", periods = 1, period = 60, stat = "Sum", missing = "notBreaching" } }
   )
 }

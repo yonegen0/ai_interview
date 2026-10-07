@@ -237,7 +237,8 @@ def build_package(directory, sha):
             "assert all(Path(m.__file__).resolve().is_relative_to(Path.cwd()) "
             "for m in (interview_backend,boto3,pydantic,pydantic_core)); "
             "from interview_backend.aws_runtime import api_handler, "
-            "worker_handler, dispatcher_handler; from interview_backend.assets import "
+            "worker_handler, dispatcher_handler, admin_handler; "
+            "from interview_backend.assets import "
             "load_questions; assert load_questions()",
         ],
         cwd=directory / "expanded",

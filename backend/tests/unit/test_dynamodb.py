@@ -23,7 +23,7 @@ from interview_backend.models.internal import (
 )
 from interview_backend.repositories.codec import PARTITIONS, decode, encode, from_wire, key, to_wire
 from interview_backend.repositories.domain import ref
-from interview_backend.repositories.dynamodb import DynamoDBRepository
+from interview_backend.repositories.dynamodb import DynamoDBRepository, DynamoUnit
 from interview_backend.repositories.memory import MemoryRepository
 
 NOW = 1789171200000
@@ -35,7 +35,7 @@ def prepared():
     repo = MemoryRepository(lambda: NOW)
     ids = count(1)
     app = Application(repo, load_questions(), lambda: uid(next(ids)))
-    sid = app.create(OWNER, uid(100), {"category": "career", "difficulty": "standard"}).body[
+    sid = app.create(OWNER, uid(100), {"category": "job_change", "difficulty": "standard"}).body[
         "sessionId"
     ]
     qid = app.question(OWNER, sid).body["question"]["id"]
@@ -55,11 +55,15 @@ def snapshot(repo):
         ("Dispatch", state.dispatches),
         ("IdempotencyRecord", state.requests),
         ("RecoveryCursor", state.cursors),
+        ("QuestionBank", state.question_banks),
+        ("QuestionBankChange", state.question_bank_changes),
     ):
         for record in records.values():
             identifier = (
-                record.key
-                if kind == "IdempotencyRecord"
+                "CURRENT"
+                if kind == "QuestionBank"
+                else record.key
+                if kind in {"IdempotencyRecord", "QuestionBankChange"}
                 else record.partition.removeprefix("WORK#")
                 if kind == "RecoveryCursor"
                 else record.id
@@ -83,6 +87,12 @@ class SnapshotClient:
         assert request["ConsistentRead"] is True
         k = from_wire(request["Key"])
         item = self.items.get((k["PK"], k["SK"]))
+        if item and request.get("ProjectionExpression"):
+            names = request["ExpressionAttributeNames"]
+            item = {
+                names[n.strip()]: item[names[n.strip()]]
+                for n in request["ProjectionExpression"].split(",")
+            }
         return {"Item": deepcopy(item)} if item else {}
 
     def transact_get_items(self, **request):
@@ -366,6 +376,15 @@ def test_stubber_real_transaction_request_validation(sdk):
             },
         )
         stub.add_response(
+            "get_item",
+            {},
+            {
+                "TableName": "test-table",
+                "Key": to_wire(key("QuestionBankChange", OWNER, uid(100))),
+                "ConsistentRead": True,
+            },
+        )
+        stub.add_response(
             "transact_write_items", {}, {"TransactItems": ANY, "ClientRequestToken": ANY}
         )
         assert (
@@ -374,6 +393,32 @@ def test_stubber_real_transaction_request_validation(sdk):
             .status
             == 201
         )
+        stub.assert_no_pending_responses()
+
+
+@pytest.mark.parametrize("present", [True, False])
+def test_stubber_idempotency_presence_reads_only_keys(sdk, present):
+    reference = ref("IdempotencyRecord", OWNER, uid(100))
+    expected = key(*reference)
+    with Stubber(sdk) as stub:
+        stub.add_response(
+            "get_item",
+            {"Item": to_wire(expected)} if present else {},
+            {
+                "TableName": "test-table",
+                "Key": to_wire(expected),
+                "ConsistentRead": True,
+                "ProjectionExpression": "#pk, #sk",
+                "ExpressionAttributeNames": {"#pk": "PK", "#sk": "SK"},
+            },
+        )
+        repository = db(sdk)
+        unit = DynamoUnit(repository, repository.monotonic() + 5)
+        assert unit.exists(reference) is present
+        if not present:
+            check = unit.actions()[0]["ConditionCheck"]
+            assert check["Key"] == to_wire(expected)
+            assert check["ConditionExpression"] == "attribute_not_exists(PK)"
         stub.assert_no_pending_responses()
 
 

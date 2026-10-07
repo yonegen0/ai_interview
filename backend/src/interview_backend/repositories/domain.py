@@ -19,13 +19,22 @@ from interview_backend.models.internal import (
     ItemTooLarge,
     LeaseClaim,
     MutationResult,
+    QuestionBank,
+    QuestionBankChange,
     RecoveryCursor,
     Reply,
     Session,
 )
-from interview_backend.models.public import ActiveAttempt, SessionResponse, validate_id
+from interview_backend.models.public import (
+    CATEGORY_LABELS,
+    ActiveAttempt,
+    SessionResponse,
+    validate_id,
+)
 from interview_backend.repositories.budget import CommitWindow
 from interview_backend.repositories.codec import FAILURE, PARTITIONS, encode, validate
+
+SESSION_UPDATE_RESERVE_BYTES = 1024
 
 
 def utc_ms():
@@ -60,6 +69,9 @@ def session_body(session):
         question=session.question,
         questionNumber=session.number,
         activeAttempt=session.active,
+        mode=session.practice_mode or "legacy",
+        totalQuestions=len(session.questions),
+        hasNext=session.practice_mode is None or session.number < len(session.questions),
     ).wire()
 
 
@@ -84,6 +96,8 @@ class DomainRepository:
                     raise BusinessError(409, "IDEMPOTENCY_CONFLICT")
                 return cached.reply
             try:
+                if tx.get(ref("QuestionBankChange", owner, key)) is not None:
+                    raise BusinessError(409, "IDEMPOTENCY_CONFLICT")
                 reply = operation(tx, now)
             except BusinessError:
                 # A competing same-key request may commit between the first I read and S read.
@@ -98,19 +112,142 @@ class DomainRepository:
 
         return self._atomic(run)
 
-    def create_once(self, owner, key, fingerprint, questions, new_id):
+    def create_once(self, owner, key, fingerprint, questions, new_id, *, mode=None, category=None):
         generated = []
 
         def run(tx, now):
+            selected, bank_version = questions, None
+            if mode:
+                bank = tx.get(ref("QuestionBank", "", "CURRENT"))
+                selected, bank_version = (bank.questions, bank.version) if bank else (questions, 0)
+                if mode == "category":
+                    selected = tuple(q for q in selected if q.category == category)
+                if not selected:
+                    raise BusinessError(409, "CATEGORY_UNAVAILABLE")
             if not generated:
                 generated.append(new_id())
             session = Session(
-                owner, generated[0], deepcopy(questions), created_at=now, updated_at=now
+                owner,
+                generated[0],
+                deepcopy(selected),
+                created_at=now,
+                updated_at=now,
+                practice_mode=mode,
+                question_bank_version=bank_version,
             )
+            if mode:
+                try:
+                    encode("Session", session, 0, reserve_bytes=SESSION_UPDATE_RESERVE_BYTES)
+                except ItemTooLarge:
+                    raise BusinessError(400, "QUESTION_BANK_TOO_LARGE") from None
             tx.new(ref("Session", owner, session.id), session)
             return Reply(201, {"sessionId": session.id})
 
         return self._post(owner, key, fingerprint, run)
+
+    def get_question_bank(self, defaults):
+        bank = self._read(ref("QuestionBank", "", "CURRENT"))
+        return {
+            "version": bank.version if bank else 0,
+            "updatedAt": self._timestamp(bank.updated_at) if bank else None,
+            "questions": [q.wire() for q in (bank.questions if bank else defaults)],
+        }
+
+    @staticmethod
+    def _timestamp(milliseconds):
+        return (
+            datetime.fromtimestamp(milliseconds / 1000, UTC)
+            .isoformat(timespec="milliseconds")
+            .replace("+00:00", "Z")
+        )
+
+    def practice_options(self, defaults):
+        bank = self.get_question_bank(defaults)
+        counts = {c: sum(q["category"] == c for q in bank["questions"]) for c in CATEGORY_LABELS}
+        return Reply(
+            200,
+            {
+                "bankVersion": bank["version"],
+                "totalQuestions": len(bank["questions"]),
+                "categories": [
+                    {"id": c, "label": label, "questionCount": counts[c]}
+                    for c, label in CATEGORY_LABELS.items()
+                    if counts[c]
+                ],
+            },
+        )
+
+    def save_question_bank_once(self, owner, key, fingerprint, expected, questions, defaults):
+        change_ref = ref("QuestionBankChange", owner, key)
+        bank_ref = ref("QuestionBank", "", "CURRENT")
+        now = self.clock()
+
+        def replay(cached):
+            if cached.fingerprint != fingerprint:
+                raise BusinessError(409, "IDEMPOTENCY_CONFLICT")
+            return cached.reply
+
+        def run(tx):
+            cached = tx.get(change_ref)
+            if cached is not None:
+                return replay(cached)
+            if tx.exists(ref("IdempotencyRecord", owner, key)):
+                raise BusinessError(409, "IDEMPOTENCY_CONFLICT")
+            bank = tx.get(bank_ref)
+            version = bank.version if bank else 0
+            if version != expected:
+                cached = tx.refresh(change_ref)
+                if cached is not None:
+                    return replay(cached)
+                raise BusinessError(409, "QUESTION_BANK_CONFLICT")
+            previous = bank.questions if bank else defaults
+            changed = tuple(q.wire() for q in previous) != tuple(q.wire() for q in questions)
+            next_version = version + int(changed)
+            updated_at = (
+                self._timestamp(now)
+                if changed
+                else self._timestamp(bank.updated_at)
+                if bank
+                else None
+            )
+            reply = Reply(
+                200,
+                {
+                    "version": next_version,
+                    "totalQuestions": len(questions),
+                    "updatedAt": updated_at,
+                },
+            )
+            old = {q.id: (i, q.wire()) for i, q in enumerate(previous)}
+            new = {q.id: (i, q.wire()) for i, q in enumerate(questions)}
+            changed_ids = tuple(
+                sorted(i for i in old.keys() | new.keys() if old.get(i) != new.get(i))
+            )
+            try:
+                if changed:
+                    proposed = QuestionBank(deepcopy(questions), next_version, now, owner)
+                    encode("QuestionBank", proposed, 0)
+                # Leave room for activeAttempt, owner and counter/timestamp growth.
+                sample = Session(
+                    owner,
+                    "ffffffff-ffff-4fff-8fff-ffffffffffff",
+                    deepcopy(questions),
+                    created_at=now,
+                    updated_at=now,
+                    practice_mode="full",
+                    question_bank_version=next_version,
+                )
+                encode("Session", sample, 0, reserve_bytes=SESSION_UPDATE_RESERVE_BYTES)
+                if changed:
+                    tx.put(bank_ref, proposed)
+                tx.new(
+                    change_ref, QuestionBankChange(owner, key, fingerprint, reply, changed_ids, now)
+                )
+            except ItemTooLarge:
+                raise BusinessError(400, "QUESTION_BANK_TOO_LARGE") from None
+            return reply
+
+        return self._atomic(run)
 
     def accept_once(self, owner, key, fingerprint, session_id, question_id, answer, new_id):
         generated = []
@@ -157,6 +294,8 @@ class DomainRepository:
                 or session.active.status != "completed"
             ):
                 raise BusinessError(409, "SESSION_STATE_CONFLICT")
+            if session.practice_mode and session.number == len(session.questions):
+                raise BusinessError(409, "SESSION_COMPLETED")
             session.number += 1
             session.active = None
             self._touch(session, now)

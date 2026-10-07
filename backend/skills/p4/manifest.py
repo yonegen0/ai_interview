@@ -38,7 +38,7 @@ def _read_manifest(path, account, region, *, require_test=False):
     data = json.loads(Path(path).read_text(encoding="utf-8"))
     if "manifest" in data and isinstance(data["manifest"], dict) and "value" in data["manifest"]:
         data = data["manifest"]["value"]
-    if type(data.get("schema_version")) is not int or data["schema_version"] != 2:
+    if type(data.get("schema_version")) is not int or data["schema_version"] not in {2, 3}:
         raise ValueError("InvalidManifest")
     if (
         not re.fullmatch(r"[0-9]{12}", account)
@@ -56,17 +56,26 @@ def _read_manifest(path, account, region, *, require_test=False):
     prefix = f"ai-interview-test-{run}" if run else "ai-interview-dev"
     if data.get("table_name") != f"{prefix}-main":
         raise ValueError("InvalidManifestTable")
-    for key, role, alias in (
+    entries = (
         ("api", "api", "live"),
         ("worker", "worker", "live"),
         ("streams", "dispatcher", "streams"),
         ("recovery", "dispatcher", "recovery"),
-    ):
+    ) + (("admin", "admin", "live"),) * (data["schema_version"] == 3)
+    if set(data.get("aliases", {})) != {entry[0] for entry in entries}:
+        raise ValueError("InvalidManifestAlias")
+    for key, role, alias in entries:
         if (
             data.get("aliases", {}).get(key)
             != f"arn:aws:lambda:{region}:{account}:function:{prefix}-{role}:{alias}"
         ):
             raise ValueError("InvalidManifestAlias")
+    if data["schema_version"] == 3:
+        roles = ("api", "worker", "dispatcher", "admin")
+        if set(data.get("versions", {})) != set(roles) or data.get("log_groups") != {
+            role: f"/aws/lambda/{prefix}-{role}" for role in roles
+        }:
+            raise ValueError("InvalidManifestAdminConfiguration")
     api_id = data.get("api_id", "")
     if (
         not re.fullmatch(r"[a-z0-9]+", api_id)
@@ -87,7 +96,11 @@ def _read_manifest(path, account, region, *, require_test=False):
         raise ValueError("InvalidManifestIdentity")
     if not all(
         re.fullmatch(r"[1-9][0-9]*", str(data.get("versions", {}).get(k, "")))
-        for k in ("api", "worker", "dispatcher")
+        for k in (
+            ("api", "worker", "dispatcher", "admin")
+            if data["schema_version"] == 3
+            else ("api", "worker", "dispatcher")
+        )
     ):
         raise ValueError("InvalidManifestVersions")
     configuration = data["configuration"]
@@ -122,7 +135,7 @@ def verify_live_manifest(session, manifest, *, require_api_enabled=True, approve
         validate_target(account, region)
         if session.client("sts", config=config).get_caller_identity()["Account"] != account:
             raise ValueError
-        if manifest["schema_version"] != 2:
+        if manifest["schema_version"] not in {2, 3}:
             raise ValueError
         if approved_inputs is not None:
             expected = {key: approved_inputs[key] for key in manifest["configuration"]}
@@ -210,7 +223,8 @@ def verify_live_manifest(session, manifest, *, require_api_enabled=True, approve
                 raise ValueError
             if (
                 deployed["MemorySize"] != 512
-                or deployed["Timeout"] != {"api": 15, "worker": 60, "dispatcher": 30}[component]
+                or deployed["Timeout"]
+                != {"api": 15, "worker": 60, "dispatcher": 30, "admin": 15}[component]
             ):
                 raise ValueError
         from manifest_checks import verify_configuration

@@ -9,6 +9,7 @@ from pydantic import ValidationError
 from interview_backend.demo import demo_event
 from interview_backend.models.public import (
     ActiveAttempt,
+    BankSaveRequest,
     Created,
     CreateRequest,
     ErrorBody,
@@ -33,6 +34,28 @@ MODELS = {
     "session": SessionResponse,
     "submit": SubmitRequest,
 }
+VERSION_CASES = json.loads(
+    (Path(__file__).parents[3] / "contracts/question-bank-version-fixtures.json").read_text(
+        encoding="utf-8"
+    )
+)
+
+
+@pytest.mark.parametrize("case", VERSION_CASES, ids=lambda case: case["label"])
+def test_question_bank_version_json_compatibility(case):
+    from interview_backend.assets import load_questions
+
+    payload = {
+        "expectedVersion": json.loads(case["json"]),
+        "questions": [load_questions()[0].wire()],
+    }
+    if case["valid"]:
+        parsed = BankSaveRequest.model_validate(payload)
+        assert type(parsed.expectedVersion) is int
+        assert parsed.expectedVersion == case["value"]
+    else:
+        with pytest.raises(ValidationError):
+            BankSaveRequest.model_validate(payload)
 
 
 @pytest.fixture
@@ -142,6 +165,14 @@ def test_input_fixtures_through_json_handler(runtime, case):
             "20000000-0000-4000-8000-000000000002",
         )
     result = runtime.handler(event)
+    if (
+        case["schema"] == "create"
+        and case["valid"]
+        and case["value"].get("category") == "difficulty"
+    ):
+        assert result["statusCode"] == 409
+        assert json.loads(result["body"])["code"] == "CATEGORY_UNAVAILABLE"
+        return
     assert (result["statusCode"] < 300) == case["valid"]
     if not case["valid"]:
         assert result["statusCode"] == 400

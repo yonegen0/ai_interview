@@ -1,6 +1,6 @@
 output "manifest" {
   value = {
-    schema_version = 2
+    schema_version = 3
     configuration = {
       boundary_arn       = var.boundary_arn
       ses_email          = var.ses_email

@@ -28,6 +28,14 @@ class Repository(Protocol):
         fingerprint: str,
         questions: tuple[Question, ...],
         new_id: Callable[[], str],
+        *,
+        mode: str | None = None,
+        category: str | None = None,
+    ) -> Reply: ...
+    def practice_options(self, defaults: tuple[Question, ...]) -> Reply: ...
+    def get_question_bank(self, defaults: tuple[Question, ...]) -> dict: ...
+    def save_question_bank_once(
+        self, owner, key, fingerprint, expected, questions, defaults
     ) -> Reply: ...
     def accept_once(
         self,

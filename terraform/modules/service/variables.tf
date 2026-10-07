@@ -88,5 +88,5 @@ locals {
   tags          = { Project = "ai-interview", Environment = local.environment, ManagedBy = "Terraform", RunId = var.run_id }
   table_arn     = "arn:aws:dynamodb:${var.region}:${var.account_id}:table/${local.prefix}-main"
   schedule_arn  = "arn:aws:scheduler:${var.region}:${var.account_id}:schedule/${local.prefix}/recovery"
-  function_arns = { for role in ["api", "worker", "dispatcher"] : role => "arn:aws:lambda:${var.region}:${var.account_id}:function:${local.prefix}-${role}" }
+  function_arns = { for role in ["api", "worker", "dispatcher", "admin"] : role => "arn:aws:lambda:${var.region}:${var.account_id}:function:${local.prefix}-${role}" }
 }

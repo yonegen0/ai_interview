@@ -4,7 +4,15 @@ import math
 import re
 from typing import Annotated, Literal
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field, TypeAdapter, field_validator
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    ConfigDict,
+    Field,
+    TypeAdapter,
+    field_validator,
+    model_validator,
+)
 
 ANSWER_MAX_LENGTH = 500
 
@@ -34,17 +42,31 @@ def validate_id(value: str) -> str:
 
 Identifier = Annotated[str, AfterValidator(validate_id)]
 Category = Literal[
-    "job_change", "motivation", "strengths", "experience", "difficulty", "career", "questions"
-]
-CATEGORIES = (
+    "self_introduction",
+    "company_selection",
     "job_change",
     "motivation",
     "strengths",
     "experience",
     "difficulty",
     "career",
+    "weaknesses",
+    "conditions",
     "questions",
-)
+]
+CATEGORY_LABELS = {
+    "self_introduction": "自己紹介",
+    "company_selection": "企業選び",
+    "experience": "仕事経験",
+    "job_change": "転職理由",
+    "motivation": "志望動機",
+    "career": "キャリア",
+    "strengths": "強み",
+    "weaknesses": "弱み",
+    "conditions": "希望条件",
+    "questions": "逆質問",
+}
+CATEGORIES = tuple(CATEGORY_LABELS)
 Status = Literal["processing", "completed", "failed"]
 PositiveInt = Annotated[int, Field(gt=0)]
 
@@ -70,17 +92,90 @@ class AnswerFields(Model):
 
 
 class CreateRequest(Model):
-    category: Category
+    category: Category = Field(default=None, validate_default=False)
     difficulty: Literal["standard"]
+    mode: Literal["full", "category"] = Field(default=None, validate_default=False)
+
+    @model_validator(mode="before")
+    @classmethod
+    def mode_fields(cls, value):
+        if (
+            isinstance(value, dict)
+            and "mode" in value
+            and set(value) - {"mode", "category", "difficulty"}
+        ):
+            raise ValueError("Unknown practice field")
+        return value
+
+    @model_validator(mode="after")
+    def selection(self):
+        if self.mode == "full":
+            if "category" in self.model_fields_set:
+                raise ValueError("Full practice does not select a category")
+        elif self.category is None:
+            raise ValueError("Category required")
+        if "mode" in self.model_fields_set and self.mode is None:
+            raise ValueError("Invalid mode")
+        if self.mode == "category" and self.category not in CATEGORIES:
+            raise ValueError("Inactive category")
+        return self
 
 
 class Created(Model):
     sessionId: Identifier
 
 
-class Question(CreateRequest):
+class Question(Model):
+    category: Category
+    difficulty: Literal["standard"]
     id: Identifier
     question: Annotated[str, Field(min_length=1)]
+
+
+class ManagedQuestion(Question):
+    model_config = ConfigDict(strict=True, extra="forbid")
+
+    @field_validator("category")
+    @classmethod
+    def active_category(cls, value):
+        if value not in CATEGORIES:
+            raise ValueError("Inactive category")
+        return value
+
+    @field_validator("question")
+    @classmethod
+    def text_length(cls, value):
+        if (
+            not value.strip(JS_WHITESPACE)
+            or len(value.encode("utf-16-le", errors="surrogatepass")) // 2 > 1000
+        ):
+            raise ValueError("Invalid question")
+        return value
+
+
+class BankSaveRequest(Model):
+    model_config = ConfigDict(strict=True, extra="forbid")
+    expectedVersion: Annotated[int, Field(ge=0, le=9007199254740991)]
+    questions: Annotated[list[ManagedQuestion], Field(min_length=1, max_length=100)]
+
+    @field_validator("expectedVersion", mode="before")
+    @classmethod
+    def integer_version(cls, value):
+        if isinstance(value, float) and math.isfinite(value) and value.is_integer():
+            return int(value)
+        return value
+
+    @model_validator(mode="after")
+    def distinct_ids(self):
+        if len({q.id.lower() for q in self.questions}) != len(self.questions):
+            raise ValueError("Duplicate question IDs")
+        return self
+
+
+class BankReceipt(Model):
+    version: Annotated[int, Field(ge=0, le=9007199254740991)]
+    totalQuestions: Annotated[int, Field(ge=1, le=100)]
+    updatedAt: str | None
 
 
 class ErrorBody(Model):
@@ -99,6 +194,22 @@ class SessionResponse(Model):
     question: Question
     questionNumber: PositiveInt
     activeAttempt: ActiveAttempt | None
+    mode: Literal["full", "category", "legacy"] = Field(default=None, validate_default=False)
+    totalQuestions: PositiveInt = Field(default=None, validate_default=False)
+    hasNext: bool = Field(default=None, validate_default=False)
+
+    @model_validator(mode="after")
+    def progress(self):
+        metadata = {"mode", "totalQuestions", "hasNext"}
+        if self.model_fields_set & metadata:
+            if not metadata <= self.model_fields_set:
+                raise ValueError("Incomplete progress")
+            expected = self.mode == "legacy" or self.questionNumber < self.totalQuestions
+            if self.hasNext is not expected or (
+                self.mode != "legacy" and self.questionNumber > self.totalQuestions
+            ):
+                raise ValueError("Invalid progress")
+        return self
 
 
 class SubmitRequest(AnswerFields):
