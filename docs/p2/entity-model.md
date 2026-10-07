@@ -1,5 +1,9 @@
 # P2-202 Entity・内部契約
 
+2026-10-07: V1仕様を保持し、[コーチングV2](../COACHING_V2_IMPLEMENTATION.md)を追加。
+Attemptの初回Evaluation参照は不変。契約版2だけAttemptCoachingを同一テーブルに保存し、Evaluationにラウンド固定入力と再試行元を持たせる。
+Sessionの保存形式、schema_version=1、canonical JSON、キー/rev/WorkIndexは維持する。
+
 状態: 設計確定（2026-09-12）。実装・実機試験の完了ではない。
 決定と机上確認の対応は [確認記録](P2_VERIFICATION.md)、遷移は [状態表](state-machine.md)。
 [依存方針](../DEVELOPMENT_DEPENDENCY_POLICY.md)を適用する。

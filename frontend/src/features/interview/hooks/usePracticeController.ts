@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useOperationScope } from "@/hooks/useOperationScope";
 import type { Session } from "@/lib/api/schemas";
+import { countCodePoints } from "@/lib/textLimits";
 import { useAnswer } from "./useAnswer";
 import type { EvaluationTiming } from "./useEvaluation";
 import type {
@@ -17,16 +18,26 @@ export function usePracticeController(
   timing?: EvaluationTiming,
 ) {
   const { isActive } = useOperationScope();
-  const state = useAnswer(session, retryFrom, timing);
   const router = useRouter();
+  const state = useAnswer(session, retryFrom, timing, undefined, (accepted) => {
+    if ((retryFrom || session.activeCoaching) && isActive())
+      router.push(
+        `/practice/session/?sessionId=${session.sessionId}&mode=evaluation&evaluationId=${accepted.evaluationId}`,
+      );
+  });
   const [confirm, setConfirm] = useState(false);
   const navigated = useRef<string | null>(null);
   useEffect(() => {
     if (!isActive()) return;
     const data = state.evaluation.data;
-    if (data?.status === "completed" && navigated.current !== data.attemptId) {
-      navigated.current = data.attemptId;
-      router.push(`/result/?attemptId=${data.attemptId}`);
+    if (
+      data?.status === "completed" &&
+      navigated.current !== data.evaluationId
+    ) {
+      navigated.current = data.evaluationId;
+      router.push(
+        `/result/?attemptId=${data.attemptId}${data.feedbackVersion === 2 ? `&evaluationId=${data.evaluationId}` : ""}`,
+      );
     }
   }, [state.evaluation.data, router, isActive]);
   const exit = () => {
@@ -46,7 +57,7 @@ export function usePracticeController(
     } satisfies PracticeView,
     form: {
       field: state.form.register("answer"),
-      count: state.answer.length,
+      count: countCodePoints(state.answer),
       phase: state.phase,
       valid: state.form.formState.isValid,
       inputError: state.form.formState.errors.answer?.message,

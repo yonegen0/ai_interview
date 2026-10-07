@@ -6,11 +6,18 @@ from uuid import uuid4
 
 from pydantic import ValidationError
 
-from interview_backend.evaluation.provider import PROMPT_VERSION, build_prompt
+from interview_backend.evaluation.coaching import InvalidCoachingResult, validate_coaching_result
+from interview_backend.evaluation.provider import (
+    COACHING_PROMPT_VERSION,
+    PROMPT_VERSION,
+    build_coaching_prompt,
+    build_prompt,
+)
 from interview_backend.models.internal import ExecutionConfig
-from interview_backend.models.public import EvaluationResult, Feedback
+from interview_backend.models.public import CoachingResult, EvaluationResult, Feedback, FeedbackV2
 from interview_backend.repositories.budget import invocation_budget
 from interview_backend.repositories.domain import utc_ms
+from interview_backend.text_limits import score_values
 
 
 class Worker:
@@ -27,6 +34,9 @@ class Worker:
         self.repository, self.provider, self.clock = repository, provider, clock
         self.monotonic, self.new_execution_id = monotonic_clock, new_execution_id
         self.config = config or ExecutionConfig(prompt_version=PROMPT_VERSION)
+        self.coaching_config = ExecutionConfig(
+            prompt_version=COACHING_PROMPT_VERSION, result_schema_version=2
+        )
         self.metric = metric
 
     @invocation_budget(60000)
@@ -36,8 +46,10 @@ class Worker:
         remaining = remaining_ms or (
             lambda: max(0, 60000 - int((self.monotonic() - started) * 1000))
         )
+        version = self.repository.evaluation_contract_version(owner, evaluation_id)
+        config = self.coaching_config if version == 2 else self.config
         claim = self.repository.claim(
-            owner, evaluation_id, generation, self.new_execution_id(), self.config
+            owner, evaluation_id, generation, self.new_execution_id(), config
         )
         if claim.status == "deadline_due":
             self.repository.recover(owner, evaluation_id)
@@ -56,13 +68,18 @@ class Worker:
 
         try:
             if (
-                lease.execution_config != self.config
-                or self.config.prompt_version != PROMPT_VERSION
-                or self.config.provider_id != "fake"
-                or self.config.model_id != "fake"
+                lease.execution_config != config
+                or config.prompt_version
+                != (COACHING_PROMPT_VERSION if version == 2 else PROMPT_VERSION)
+                or config.provider_id != "fake"
+                or config.model_id != "fake"
             ):
                 raise ValueError("execution_config")
-            prompt = build_prompt(lease.attempt.question, lease.attempt.answer)
+            prompt = (
+                build_coaching_prompt(lease.coaching_input)
+                if version == 2
+                else build_prompt(lease.attempt.question, lease.attempt.answer)
+            )
         except Exception:
             return self.repository.finish(lease, reason="PREPARATION_FAILED").status in {
                 "applied",
@@ -88,23 +105,48 @@ class Worker:
             entered = True
             called_at = self.monotonic()
             raw = self.provider.evaluate(prompt)
-            if (self.monotonic() - called_at) * 1000 >= self.config.provider_timeout_ms:
+            if (self.monotonic() - called_at) * 1000 >= config.provider_timeout_ms:
                 raise TimeoutError
-            result = EvaluationResult.model_validate(raw)
-            feedback = Feedback(
-                **result.wire(),
-                attemptId=lease.attempt.id,
-                sessionId=lease.attempt.session_id,
-                question=lease.attempt.question,
-                questionNumber=lease.attempt.question_number,
-                answer=lease.attempt.answer,
-                createdAt=datetime.fromtimestamp(self.clock() / 1000, UTC)
-                .isoformat()
-                .replace("+00:00", "Z"),
+            result = (CoachingResult if version == 2 else EvaluationResult).model_validate(raw)
+            created_at = (
+                datetime.fromtimestamp(self.clock() / 1000, UTC).isoformat().replace("+00:00", "Z")
             )
+            if version == 2:
+                validate_coaching_result(result, lease.coaching_input)
+                context = lease.coaching_input
+                feedback = FeedbackV2(
+                    feedbackVersion=2,
+                    attemptId=lease.attempt.id,
+                    evaluationId=evaluation_id,
+                    sessionId=lease.attempt.session_id,
+                    question=lease.attempt.question,
+                    questionNumber=lease.attempt.question_number,
+                    answer=lease.attempt.answer,
+                    latestAnswer=context.latest_answer,
+                    coachingHistory=list(context.coaching_history),
+                    coachingCount=context.coaching_count,
+                    result=result,
+                    createdAt=created_at,
+                    **score_values(
+                        lease.attempt.answer,
+                        result.conclusion_score,
+                        result.specificity_score,
+                        result.reasoning_score,
+                    ),
+                )
+            else:
+                feedback = Feedback(
+                    **result.wire(),
+                    attemptId=lease.attempt.id,
+                    sessionId=lease.attempt.session_id,
+                    question=lease.attempt.question,
+                    questionNumber=lease.attempt.question_number,
+                    answer=lease.attempt.answer,
+                    createdAt=created_at,
+                )
         except TimeoutError:
             reason = "PROVIDER_TIMEOUT"
-        except ValidationError:
+        except ValidationError, InvalidCoachingResult:
             reason = "INVALID_RESULT"
         except Exception:
             reason = "PROVIDER_FAILED"

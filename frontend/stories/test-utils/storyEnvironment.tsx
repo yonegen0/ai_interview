@@ -63,6 +63,7 @@ export const StoryQueryProvider = (props: { children: ReactNode }) => {
 const pocketKeys = [
   "pocket:mock:v1",
   "pocket:mock:v2",
+  "pocket:mock:v3",
   "pocket:scenario",
   "pocket:create",
 ];

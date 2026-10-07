@@ -333,12 +333,34 @@ def test_detached_reads_and_question_snapshot(runtime):
 
 
 def test_old_worker_does_not_overwrite_new_active(runtime):
+    from dataclasses import replace
+
+    from interview_backend.models.internal import Dispatch, Evaluation
+
     session_id, _, accepted = submit(runtime)
     lease = runtime.repository.claim(
         OWNER, accepted["evaluationId"], 1, uid(800), runtime.worker.config
     ).lease
     # Inject a later active pointer directly: this defensive state cannot be produced by P1 API.
     with runtime.repository._lock:
+        prior = runtime.repository._state.attempts[accepted["attemptId"]]
+        runtime.repository._state.attempts[uid(900)] = replace(
+            prior, id=uid(900), evaluation_id=uid(901)
+        )
+        runtime.repository._state.evaluations[uid(901)] = Evaluation(
+            OWNER,
+            uid(901),
+            uid(900),
+            created_at=prior.created_at,
+            deadline_at=prior.created_at + 900000,
+        )
+        runtime.repository._state.dispatches[uid(901)] = Dispatch(
+            OWNER,
+            uid(901),
+            prior.created_at + 900000,
+            created_at=prior.created_at,
+            next_at=prior.created_at,
+        )
         runtime.repository._state.sessions[session_id].active = ActiveAttempt(
             attemptId=uid(900), evaluationId=uid(901), status="processing"
         )

@@ -13,6 +13,7 @@ from interview_backend.models.public import (
     NextRequest,
     Question,
     SubmitRequest,
+    parse_submit_request,
     validate_id,
 )
 from interview_backend.repositories.base import Repository
@@ -79,7 +80,25 @@ class Application:
         self._owner(owner)
         validate_id(session_id)
         validate_id(key)
-        request = request_model(SubmitRequest, payload)
+        try:
+            request = parse_submit_request(payload)
+        except ValidationError as exc:
+            raise BusinessError(400, "VALIDATION_ERROR") from exc
+        if not isinstance(request, SubmitRequest):
+            operation = {
+                "initial_answer": self.repository.accept_initial_coaching_once,
+                "coaching_answer": self.repository.accept_coaching_answer_once,
+                "retry_evaluation": self.repository.retry_coaching_evaluation_once,
+                "retry_attempt": self.repository.retry_coaching_attempt_once,
+            }[request.kind]
+            return operation(
+                owner,
+                key,
+                self._fingerprint(f"/sessions/{session_id}/answers", request.wire()),
+                session_id,
+                request,
+                self._new_id,
+            )
         return self.repository.accept_once(
             owner,
             key,
@@ -95,10 +114,12 @@ class Application:
         validate_id(evaluation_id)
         return self.repository.get_evaluation(owner, evaluation_id)
 
-    def feedback(self, owner: str, attempt_id: str) -> Reply:
+    def feedback(self, owner: str, attempt_id: str, evaluation_id: str | None = None) -> Reply:
         self._owner(owner)
         validate_id(attempt_id)
-        return self.repository.get_feedback(owner, attempt_id)
+        if evaluation_id is not None:
+            validate_id(evaluation_id)
+        return self.repository.get_feedback(owner, attempt_id, evaluation_id)
 
     def next_question(self, owner: str, key: str, session_id: str, payload: dict) -> Reply:
         self._owner(owner)

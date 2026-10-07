@@ -13,11 +13,11 @@ export const FeedbackResultContent = ({ feedback }: { feedback: Feedback }) => (
   />
 );
 export function FeedbackResult() {
-  const { id, view, feedback, actions } = useFeedbackResult();
+  const { contextKey, view, feedback, actions } = useFeedbackResult();
   if (view.error)
     return <ErrorView error={view.error} retry={actions.refresh} />;
   if (view.loading) return <Text role="status">結果を読み込んでいます…</Text>;
   return feedback ? (
-    <FeedbackResultContent key={id} feedback={feedback} />
+    <FeedbackResultContent key={contextKey} feedback={feedback} />
   ) : null;
 }

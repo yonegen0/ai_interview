@@ -5,6 +5,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Feedback, Session } from "@/lib/api/schemas";
+import { isFeedbackV2 } from "@/lib/api/schemas";
 import { getQuestion, nextQuestion } from "@/lib/api/interview";
 import { uncertain } from "@/lib/api/client";
 import { operationSchema } from "@/lib/storage/recovery";
@@ -33,6 +34,7 @@ export function useFeedbackNavigation(feedback: Feedback) {
       return getQuestion(feedback.sessionId, signal);
     },
     enabled: isActive(),
+    refetchOnMount: "always",
   });
   const mutation = useMutation({
     mutationFn: (requestKey: string) => {
@@ -43,7 +45,11 @@ export function useFeedbackNavigation(feedback: Feedback) {
   const current = (value?: Session) =>
     value?.questionNumber === feedback.questionNumber &&
     value.activeAttempt?.attemptId === feedback.attemptId &&
-    value.activeAttempt.status === "completed";
+    value.activeAttempt.status === "completed" &&
+    (!isFeedbackV2(feedback) ||
+      (feedback.result.status === "completed" &&
+        value.activeAttempt.evaluationId === feedback.evaluationId &&
+        value.activeCoaching?.stage === "completed"));
   const canRetry = current(session.data) && !recovering && !mutation.isPending;
   const hasNext = session.data?.hasNext !== false;
   const next = async () => {
@@ -93,7 +99,7 @@ export function useFeedbackNavigation(feedback: Feedback) {
       recovering,
       pending: mutation.isPending,
       sessionUrl: `/practice/session/?sessionId=${feedback.sessionId}`,
-      retryUrl: `/practice/session/?sessionId=${feedback.sessionId}&mode=retry&fromAttemptId=${feedback.attemptId}`,
+      retryUrl: `/practice/session/?sessionId=${feedback.sessionId}&mode=retry&fromAttemptId=${feedback.attemptId}${isFeedbackV2(feedback) ? `&fromEvaluationId=${feedback.evaluationId}` : ""}`,
     } satisfies FeedbackNavigationView,
     actions: {
       next,

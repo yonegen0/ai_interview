@@ -10,6 +10,11 @@ import { Text } from "@/components/atoms/Text";
 import { Panel } from "@/components/atoms/Panel";
 import { MascotCoachCard } from "@/components/molecules/MascotCoachCard";
 import type { Feedback } from "@/lib/api/schemas";
+import {
+  isFeedbackV2,
+  type LegacyFeedback,
+  type FeedbackV2,
+} from "@/lib/api/schemas";
 
 type PointTone = "strength" | "improvement";
 
@@ -212,7 +217,7 @@ const Points = ({
 );
 
 /** 評価結果をレポート形式で表示する */
-export const FeedbackCard = ({ feedback }: { feedback: Feedback }) => (
+const LegacyFeedbackCard = ({ feedback }: { feedback: LegacyFeedback }) => (
   <FeedbackPanel>
     <Introduction
       variant="success"
@@ -283,3 +288,90 @@ export const FeedbackCard = ({ feedback }: { feedback: Feedback }) => (
     </ReportFlow>
   </FeedbackPanel>
 );
+
+const CoachingFeedbackCard = ({ feedback: f }: { feedback: FeedbackV2 }) => (
+  <FeedbackPanel>
+    <Introduction
+      variant="success"
+      emphasis="featured"
+      heading={
+        <>
+          <Eyebrow variant="overline" component="p">
+            FEEDBACK
+          </Eyebrow>
+          <Title variant="h1" component="h1">
+            今回のフィードバック
+          </Title>
+          <ScoreBlock>
+            <SectionTitle variant="h2" component="h2">
+              総合評価
+            </SectionTitle>
+            <ScoreLine>
+              <ScoreValue component="span">{f.totalScore}</ScoreValue>
+              <ScoreScale component="span">/ 30 · {f.rank}</ScoreScale>
+            </ScoreLine>
+          </ScoreBlock>
+        </>
+      }
+    >
+      <Text>
+        {f.result.status === "coaching"
+          ? "追加の情報を確認して、回答を育てましょう。"
+          : "現時点の本人情報で回答をまとめました。"}
+      </Text>
+    </Introduction>
+    <ReportFlow>
+      <BodyText>
+        結論 {f.result.conclusion_score} / 10 · 具体性{" "}
+        {f.result.specificity_score} / 10 · 根拠 {f.result.reasoning_score} / 10
+      </BodyText>
+      <BodyText>
+        初回回答 {f.answerLength}文字 · 合計 {f.baseScore}点 · 文字数減点{" "}
+        {f.lengthPenalty}点
+      </BodyText>
+      <QuestionSection>
+        <SectionTitle component="h2">質問</SectionTitle>
+        <BodyText>{f.question.question}</BodyText>
+      </QuestionSection>
+      <AnswerSection>
+        <SectionTitle component="h2">初回の回答</SectionTitle>
+        <AnswerText>{f.answer}</AnswerText>
+      </AnswerSection>
+      {f.coachingHistory.length > 0 && (
+        <details>
+          <summary>深掘りの履歴（{f.coachingCount}回）</summary>
+          {f.coachingHistory.map((h, i) => (
+            <QuestionSection key={i}>
+              <BodyText>{h.question}</BodyText>
+              <AnswerText>{h.answer}</AnswerText>
+            </QuestionSection>
+          ))}
+        </details>
+      )}
+      <PointsGrid>
+        <Points
+          title="良かった点"
+          values={[f.result.good_point]}
+          tone="strength"
+        />
+        <Points
+          title="改善ポイント"
+          values={[f.result.improvement]}
+          tone="improvement"
+        />
+      </PointsGrid>
+      {f.result.example !== null && (
+        <ExampleSection>
+          <SectionTitle component="h2">改善回答</SectionTitle>
+          <BodyText>{f.result.example}</BodyText>
+        </ExampleSection>
+      )}
+    </ReportFlow>
+  </FeedbackPanel>
+);
+export const FeedbackCard = ({ feedback }: { feedback: Feedback }) =>
+  isFeedbackV2(feedback) ? (
+    <CoachingFeedbackCard feedback={feedback} />
+  ) : (
+    <LegacyFeedbackCard feedback={feedback} />
+  );

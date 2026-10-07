@@ -153,7 +153,7 @@ export const MaximumLength: Story = {
         version: 1,
         questionId: storyIds.question,
         context: "1:normal",
-        draft: storyTexts.text500,
+        draft: storyTexts.text400,
       },
     },
   },

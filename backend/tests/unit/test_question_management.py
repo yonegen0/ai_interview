@@ -149,12 +149,20 @@ def test_two_admins_same_version_only_one_wins(runtime):
 
 
 def test_aggregate_size_rejection_keeps_bank_and_ledger_unchanged(runtime):
+    from interview_backend.models.internal import QuestionBank
+    from interview_backend.models.public import Question
+
     question = load_questions()[0].wire()
     oversized = [{**question, "id": uid(2000 + i), "question": "あ" * 1000} for i in range(100)]
-    status, body = save(runtime, oversized)
+    runtime.repository._state.question_banks["CURRENT"] = QuestionBank(
+        tuple(Question(**q) for q in oversized), 1, 1, "admin"
+    )
+    runtime.repository._revisions[("QuestionBank", "", "CURRENT")] = 0
+    before = runtime.repository.snapshot()
+    status, body = save(runtime, oversized, 1)
     assert status == 400 and body["code"] == "QUESTION_BANK_TOO_LARGE"
     state = runtime.repository.snapshot()
-    assert not state.question_banks and not state.question_bank_changes
+    assert state == before
 
 
 def test_corrupt_stored_bank_is_not_a_default_fallback(runtime):
@@ -193,7 +201,8 @@ def test_text_uuid_and_unknown_field_validation(runtime):
         [{**question, "unknown": True}],
     ):
         assert save(runtime, questions)[0] == 400
-    assert save(runtime, [{**question, "question": "🙂" * 500}])[0] == 200
+    assert save(runtime, [{**question, "question": "🙂" * 200}])[0] == 200
+    assert save(runtime, [{**question, "question": "🙂" * 201}], 1, key=999)[0] == 400
 
 
 def test_admin_ack_loss_is_confirmed_by_durable_operation_record(runtime):

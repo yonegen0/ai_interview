@@ -2,7 +2,7 @@
 "use client";
 import type { UseFormRegisterReturn } from "react-hook-form";
 import { Input } from "@/components/atoms/Input";
-import { ANSWER_MAX_LENGTH } from "@/lib/api/schemas";
+import { COACHING_ANSWER_MAX_LENGTH } from "@/lib/textLimits";
 export const AnswerField = ({
   field,
   count,
@@ -26,7 +26,7 @@ export const AnswerField = ({
       error={!!error}
       helperText={
         error ??
-        `${count} / ${ANSWER_MAX_LENGTH}文字 · 100〜300文字がおすすめです`
+        `${count} / ${COACHING_ANSWER_MAX_LENGTH}文字 · 150〜220文字がおすすめです`
       }
       slotProps={{ formHelperText: { "aria-live": "polite" } }}
     />

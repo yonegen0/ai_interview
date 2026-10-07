@@ -51,6 +51,7 @@ def snapshot(repo):
     for kind, records in (
         ("Session", state.sessions),
         ("Attempt", state.attempts),
+        ("AttemptCoaching", state.coachings),
         ("Evaluation", state.evaluations),
         ("Dispatch", state.dispatches),
         ("IdempotencyRecord", state.requests),
@@ -339,6 +340,16 @@ def test_stubber_strong_get_and_query_continuation(sdk):
             {
                 "TableName": "test-table",
                 "Key": to_wire(key("Session", OWNER, sid)),
+                "ConsistentRead": True,
+            },
+        )
+        attempt = memory.snapshot().sessions[sid].active.attemptId
+        stub.add_response(
+            "get_item",
+            {"Item": snapshot(memory)[(f"USER#{OWNER}", f"ATTEMPT#{attempt}")]},
+            {
+                "TableName": "test-table",
+                "Key": to_wire(key("Attempt", OWNER, attempt)),
                 "ConsistentRead": True,
             },
         )

@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   idSchema,
   submitSchema,
+  legacySubmitSchema,
   categorySchema,
   createSchema,
 } from "@/lib/api/schemas";
@@ -14,8 +15,19 @@ export const recoverySchema = z.object({
   questionId: idSchema,
   context: z.string(),
   draft: z.string(),
+  pending: z.object({ key: idSchema, body: legacySubmitSchema }).optional(),
+});
+export const recoveryV2Schema = z.object({
+  version: z.literal(2),
+  questionId: idSchema,
+  context: z.string(),
+  draft: z.string(),
   pending: z.object({ key: idSchema, body: submitSchema }).optional(),
 });
+export const answerRecoverySchema = z.discriminatedUnion("version", [
+  recoverySchema,
+  recoveryV2Schema,
+]);
 export const operationSchema = z.object({
   version: z.literal(1),
   key: idSchema,
@@ -33,6 +45,7 @@ export function readSaved<T>(
   key: string,
   schema: z.ZodType<T>,
   scope = auth.scope(),
+  preserveInvalid = false,
 ): T | null {
   const target = scopedKey(key, scope);
   if (!target) return null;
@@ -53,7 +66,7 @@ export function readSaved<T>(
   } catch {
     /* Invalid data is not a storage availability failure. */
   }
-  removeSaved(key, scope);
+  if (!preserveInvalid) removeSaved(key, scope);
   return null;
 }
 export function save(key: string, value: unknown, scope = auth.scope()) {

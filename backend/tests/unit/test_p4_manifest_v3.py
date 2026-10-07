@@ -188,9 +188,9 @@ def test_v3_rejects_admin_privilege_and_route_drift(admin_deployment, mutation):
 @pytest.mark.parametrize("mutation", ["attributes", "projection", "return_values", "user_write"])
 def test_v3_rejects_expanded_admin_user_data_access(admin_deployment, mutation):
     m, data, session = admin_deployment
-    statements = data["iam", "get_role_policy", "ai-interview-dev-admin-runtime"][
-        "PolicyDocument"
-    ]["Statement"]
+    statements = data["iam", "get_role_policy", "ai-interview-dev-admin-runtime"]["PolicyDocument"][
+        "Statement"
+    ]
     if mutation == "attributes":
         statements[3]["Condition"]["ForAllValues:StringEquals"]["dynamodb:Attributes"].append(
             "data"

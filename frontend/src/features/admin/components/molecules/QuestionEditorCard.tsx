@@ -1,5 +1,6 @@
 /** @file QuestionEditorCard.tsx @description Presentation and composition for QuestionEditorCard. */
 "use client";
+import { countCodePoints } from "@/lib/textLimits";
 import { Controller, type Control, type FieldErrors } from "react-hook-form";
 import { styled } from "@mui/material/styles";
 import { Panel } from "@/components/atoms/Panel";
@@ -66,8 +67,9 @@ export function QuestionEditorCard({
               error={!!error?.question}
               helperText={
                 error?.question
-                  ? "質問本文は空白以外で1〜1,000文字にしてください。"
-                  : `${field.value.length} / 1,000文字`
+                  ? (error.question?.message ??
+                    "質問本文は空白以外で1〜200文字にしてください。")
+                  : `${countCodePoints(field.value)} / 200文字${countCodePoints(field.value) > 200 ? "（保存済み本文は保持されます）" : ""}`
               }
               slotProps={{
                 formHelperText: {

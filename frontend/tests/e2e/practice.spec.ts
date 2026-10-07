@@ -73,7 +73,7 @@ test("response loss recovers without duplicate attempt", async ({ page }) => {
   const count = await page.evaluate(
     () =>
       Object.keys(
-        JSON.parse(sessionStorage.getItem("pocket:mock:v2")!).attempts,
+        JSON.parse(sessionStorage.getItem("pocket:mock:v3")!).attempts,
       ).length,
   );
   expect(count).toBe(1);
@@ -172,16 +172,16 @@ for (const width of [375, 768, 1280])
     await begin(page);
     await expect(page.locator("main img")).toHaveCount(0);
     const field = page.getByLabel("あなたの回答");
-    await field.fill("😀".repeat(250));
+    await field.fill("😀".repeat(400));
     await expect(
-      page.getByText("500 / 500文字 · 100〜300文字がおすすめです"),
+      page.getByText("400 / 400文字 · 150〜220文字がおすすめです"),
     ).toBeVisible();
     await expectContentWithinViewport(page);
-    await field.fill("😀".repeat(250) + "あ");
+    await field.fill("😀".repeat(400) + "あ");
     await expect(
-      page.getByText("500文字以内で入力してください。"),
+      page.getByText("400文字以内で入力してください。"),
     ).toBeVisible();
-    await expect(field).toHaveValue("😀".repeat(250) + "あ");
+    await expect(field).toHaveValue("😀".repeat(400) + "あ");
     await expect(
       page.getByRole("button", { name: "回答を送信", exact: true }),
     ).toBeDisabled();
@@ -191,7 +191,7 @@ for (const width of [375, 768, 1280])
         () => document.documentElement.scrollWidth <= window.innerWidth,
       ),
     ).toBe(true);
-    await field.fill("あ".repeat(500));
+    await field.fill("あ".repeat(400));
     await page.getByRole("button", { name: "回答を送信", exact: true }).click();
     await expect(
       page.getByRole("heading", { name: "回答を確認しています" }),

@@ -23,7 +23,7 @@ const AnswerFieldHarness = (props: {
     <form onSubmit={form.handleSubmit(() => undefined)}>
       <AnswerField
         field={form.register("answer")}
-        count={answer.length}
+        count={Array.from(answer).length}
         disabled={props.disabled}
         error={form.formState.errors.answer?.message}
       />
@@ -51,17 +51,17 @@ export const Recommended100: Story = {
 export const Recommended300: Story = {
   render: () => <AnswerFieldHarness initialValue={"あ".repeat(300)} />,
 };
-export const Maximum500: Story = {
-  render: () => <AnswerFieldHarness initialValue={storyTexts.text500} />,
+export const Maximum400: Story = {
+  render: () => <AnswerFieldHarness initialValue={"\u{1F642}".repeat(400)} />,
 };
-export const TooLong501: Story = {
-  render: () => <AnswerFieldHarness initialValue={storyTexts.text501} />,
+export const TooLong401: Story = {
+  render: () => <AnswerFieldHarness initialValue={"\u{1F642}".repeat(401)} />,
   play: async ({ canvasElement }) => {
     await userEvent.click(
       within(canvasElement).getByRole("button", { name: "検証する" }),
     );
     await expect(
-      await within(canvasElement).findByText(/500文字以内/),
+      await within(canvasElement).findByText(/400文字以内/),
     ).toBeInTheDocument();
   },
 };
@@ -89,11 +89,11 @@ export const TypingInteraction: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.type(canvas.getByLabelText("あなたの回答"), "回答です");
-    await expect(canvas.getByText(/4 \/ 500文字/)).toBeInTheDocument();
+    await expect(canvas.getByText(/4 \/ 400文字/)).toBeInTheDocument();
   },
 };
 export const Mobile: Story = {
-  render: () => <AnswerFieldHarness initialValue={storyTexts.text500} />,
+  render: () => <AnswerFieldHarness initialValue={"\u{1F642}".repeat(400)} />,
   globals: { viewport: { value: "iphoneSe" } },
   play: ({ canvasElement }) => assertNoHorizontalOverflow(canvasElement),
 };

@@ -32,10 +32,15 @@ def bank(last_length):
 
 @pytest.mark.parametrize("adapter", ["memory", "dynamodb"])
 def test_bank_without_answer_capacity_is_rejected_before_publication(runtime, adapter):
+    # Historical texts are grandfathered; aggregate capacity still gates republication.
+    runtime.repository._state.question_banks["CURRENT"] = QuestionBank(
+        tuple(Question(**q) for q in bank(184)), 1, NOW, OWNER
+    )
+    runtime.repository._revisions[("QuestionBank", "", "CURRENT")] = 0
     client = SnapshotClient(snapshot(runtime.repository))
     target = runtime if adapter == "memory" else SimpleNamespace(repository=db(client))
     before = runtime.repository.snapshot()
-    status, body = save(target, bank(184), owner=OWNER)
+    status, body = save(target, bank(184), 1, owner=OWNER)
     assert status == 400 and body["code"] == "QUESTION_BANK_TOO_LARGE"
     assert runtime.repository.snapshot() == before and not client.writes
 
@@ -60,7 +65,11 @@ def test_previously_published_bank_without_capacity_cannot_start_new_session(run
 
 def test_near_limit_accepted_bank_supports_answer_evaluation_retry_and_next(runtime):
     questions = bank(30)
-    assert save(runtime, questions, owner=OWNER)[0] == 200
+    runtime.repository._state.question_banks["CURRENT"] = QuestionBank(
+        tuple(Question(**q) for q in questions), 1, NOW, OWNER
+    )
+    runtime.repository._revisions[("QuestionBank", "", "CURRENT")] = 0
+    assert save(runtime, questions, 1, owner=OWNER)[0] == 200
     app = runtime.application
     sid = app.create(OWNER, uid(801), FULL).body["sessionId"]
     body = {"questionId": questions[0]["id"], "answer": "回答"}

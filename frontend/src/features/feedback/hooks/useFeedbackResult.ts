@@ -7,18 +7,23 @@ import { idSchema } from "@/lib/api/schemas";
 import { getFeedback } from "@/lib/api/feedback";
 export function useFeedbackResult() {
   const { scope, isActive, assertActive } = useOperationScope();
-  const id = useSearchParams().get("attemptId") ?? "";
-  const valid = idSchema.safeParse(id).success;
+  const params = useSearchParams();
+  const id = params.get("attemptId") ?? "";
+  const evaluationId = params.get("evaluationId") ?? undefined;
+  const valid =
+    idSchema.safeParse(id).success &&
+    (evaluationId === undefined || idSchema.safeParse(evaluationId).success);
   const query = useQuery({
-    queryKey: [scope, "feedback", id],
+    queryKey: [scope, "feedback", id, evaluationId ?? "latest"],
     queryFn: ({ signal }) => {
       assertActive();
-      return getFeedback(id, signal);
+      return getFeedback(id, signal, evaluationId);
     },
     enabled: isActive() && valid,
   });
   return {
     id,
+    contextKey: `${id}:${evaluationId ?? "latest"}`,
     view: {
       loading: valid && query.isPending,
       error: !valid ? new Error("回答IDを確認してください。") : query.error,

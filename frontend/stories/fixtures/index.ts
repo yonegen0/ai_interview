@@ -1,11 +1,12 @@
 /** @file index.ts @description Storybookで共有する決定的な面接データFixture。 */
 import {
   evaluationSchema,
-  feedbackSchema,
+  legacyFeedbackSchema,
   questionSchema,
   sessionSchema,
   type Evaluation,
   type Feedback,
+  type LegacyFeedback,
   type Question,
   type Session,
 } from "@/lib/api/schemas";
@@ -38,6 +39,7 @@ export const exactText = (length: number): string => {
 
 export const storyTexts = {
   text100: exactText(100),
+  text400: exactText(400),
   text500: exactText(500),
   text501: exactText(501),
   text1000: exactText(1000),
@@ -77,9 +79,9 @@ export const createEvaluationFixture = (
   );
 
 export const createFeedbackFixture = (
-  overrides: Partial<Feedback> = {},
-): Feedback =>
-  feedbackSchema.parse({
+  overrides: Partial<LegacyFeedback> = {},
+): LegacyFeedback =>
+  legacyFeedbackSchema.parse({
     attemptId: storyIds.currentAttempt,
     sessionId: storyIds.session,
     question: createQuestionFixture(),
@@ -104,7 +106,19 @@ export const createStoryState = (options?: {
   const feedback = options?.feedback;
   const evaluation = options?.evaluation;
   return {
-    version: 2,
+    version: 3,
+    evaluations:
+      feedback && evaluation
+        ? {
+            [evaluation.evaluationId]: {
+              feedback,
+              evaluation,
+              polls: options?.polls ?? 0,
+              startedAt: storyNowMs,
+            },
+          }
+        : {},
+    coachings: {},
     bank: { version: 0, updatedAt: null, questions },
     sessionQuestions: {},
     owners: {},

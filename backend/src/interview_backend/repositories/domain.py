@@ -32,7 +32,13 @@ from interview_backend.models.public import (
     validate_id,
 )
 from interview_backend.repositories.budget import CommitWindow
+from interview_backend.repositories.coaching import (
+    CoachingRepositoryMixin,
+    progress_for,
+    validate_progress,
+)
 from interview_backend.repositories.codec import FAILURE, PARTITIONS, encode, validate
+from interview_backend.text_limits import code_point_length
 
 SESSION_UPDATE_RESERVE_BYTES = 1024
 
@@ -75,7 +81,7 @@ def session_body(session):
     ).wire()
 
 
-class DomainRepository:
+class DomainRepository(CoachingRepositoryMixin):
     def __init__(self, clock=utc_ms):
         self.clock = clock
 
@@ -201,6 +207,12 @@ class DomainRepository:
                     return replay(cached)
                 raise BusinessError(409, "QUESTION_BANK_CONFLICT")
             previous = bank.questions if bank else defaults
+            old_text = {q.id: q.question for q in previous}
+            if any(
+                old_text.get(q.id) != q.question and code_point_length(q.question) > 200
+                for q in questions
+            ):
+                raise BusinessError(400, "VALIDATION_ERROR")
             changed = tuple(q.wire() for q in previous) != tuple(q.wire() for q in questions)
             next_version = version + int(changed)
             updated_at = (
@@ -261,6 +273,12 @@ class DomainRepository:
                 session.active and session.active.status == "processing"
             ):
                 raise BusinessError(409, "SESSION_STATE_CONFLICT")
+            if session.active:
+                previous = tx.get(ref("Attempt", owner, session.active.attemptId))
+                if previous is None:
+                    raise IntegrityError("missing_attempt")
+                if previous.coaching_contract_version == 2:
+                    raise BusinessError(409, "SESSION_STATE_CONFLICT")
             if not generated:
                 generated.extend((new_id(), new_id()))
             aid, eid = generated
@@ -294,8 +312,18 @@ class DomainRepository:
                 or session.active.status != "completed"
             ):
                 raise BusinessError(409, "SESSION_STATE_CONFLICT")
+            coaching = evaluation = None
+            if self._active_is_v2(tx, owner, session):
+                session, _, coaching, evaluation = self._active_records(tx, owner, session)
+            if coaching:
+                if coaching.stage != "completed":
+                    raise BusinessError(409, "SESSION_STATE_CONFLICT")
             if session.practice_mode and session.number == len(session.questions):
                 raise BusinessError(409, "SESSION_COMPLETED")
+            if coaching:
+                tx.put(ref("AttemptCoaching", owner, coaching.id), coaching)
+            if evaluation:
+                tx.ignore_dependency(ref("Evaluation", owner, evaluation.id))
             session.number += 1
             session.active = None
             self._touch(session, now)
@@ -305,10 +333,18 @@ class DomainRepository:
         return self._post(owner, key, fingerprint, run)
 
     def get_session(self, owner, resource_id):
-        session = self._read(ref("Session", owner, resource_id))
-        if session is None:
-            raise BusinessError(404, "SESSION_NOT_FOUND")
-        return Reply(200, session_body(session))
+        def run(tx):
+            session = tx.get(ref("Session", owner, resource_id))
+            if session is None:
+                raise BusinessError(404, "SESSION_NOT_FOUND")
+            body = session_body(session)
+            if self._active_is_v2(tx, owner, session):
+                session, attempt, coaching, _ = self._active_records(tx, owner, session)
+                body = session_body(session)
+                body["activeCoaching"] = progress_for(attempt, coaching)
+            return Reply(200, body)
+
+        return self._atomic(run)
 
     def get_evaluation(self, owner, resource_id):
         evaluation = self._read(ref("Evaluation", owner, resource_id))
@@ -321,19 +357,96 @@ class DomainRepository:
         }
         if evaluation.error is not None:
             body["error"] = evaluation.error
+        if evaluation.coaching_contract_version == 2:
+            body["feedbackVersion"] = 2
         return Reply(200, body)
 
-    def get_feedback(self, owner, resource_id):
-        attempt = self._read(ref("Attempt", owner, resource_id))
+    def evaluation_contract_version(self, owner, resource_id):
+        evaluation = self._read(ref("Evaluation", owner, resource_id))
+        return evaluation.coaching_contract_version or 1 if evaluation else 1
+
+    def get_feedback(self, owner, resource_id, evaluation_id=None):
+        return self._atomic(lambda tx: self._feedback_read(tx, owner, resource_id, evaluation_id))
+
+    def _feedback_read(self, tx, owner, resource_id, evaluation_id):
+        attempt = tx.get(ref("Attempt", owner, resource_id))
         if attempt is None:
             raise BusinessError(404, "ATTEMPT_NOT_FOUND")
-        evaluation = self._read(ref("Evaluation", owner, attempt.evaluation_id))
+        selected = evaluation_id or attempt.evaluation_id
+        if not evaluation_id and attempt.coaching_contract_version == 2:
+            coaching = tx.get(ref("AttemptCoaching", owner, attempt.id))
+            if coaching is None:
+                raise IntegrityError("missing_coaching")
+            selected = coaching.current_evaluation_id
+            coaching, evaluation = tx.many(
+                (ref("AttemptCoaching", owner, attempt.id), ref("Evaluation", owner, selected))
+            )
+            if coaching.current_evaluation_id != selected:
+                from interview_backend.models.internal import StorageUnavailable
+
+                raise StorageUnavailable("snapshot_changed")
+        else:
+            evaluation = tx.get(ref("Evaluation", owner, selected))
+        if evaluation_id and (evaluation is None or evaluation.attempt_id != attempt.id):
+            raise BusinessError(404, "ATTEMPT_NOT_FOUND")
         if evaluation is None or evaluation.attempt_id != attempt.id:
             raise IntegrityError("feedback_relation")
+        if evaluation.coaching_contract_version != attempt.coaching_contract_version:
+            raise IntegrityError("contract_relation")
+        if attempt.coaching_contract_version == 2:
+            self._validate_v2_evaluation(tx, attempt, evaluation)
         if evaluation.status != "completed":
             raise BusinessError(409, "EVALUATION_NOT_COMPLETED")
         validate_feedback(evaluation.feedback, attempt)
+        if attempt.coaching_contract_version == 2:
+            self._validate_v2_feedback(evaluation.feedback, evaluation)
         return Reply(200, evaluation.feedback.wire())
+
+    @staticmethod
+    def _validate_v2_evaluation(tx, attempt, evaluation):
+        context = evaluation.coaching_input
+        if (
+            context is None
+            or context.question != attempt.question
+            or context.initial_answer != attempt.answer
+            or evaluation.created_at < attempt.created_at
+        ):
+            raise IntegrityError("evaluation_input_relation")
+        if evaluation.id == attempt.evaluation_id:
+            if (
+                evaluation.round_index != 0
+                or evaluation.retry_of_evaluation_id is not None
+                or evaluation.created_at != attempt.created_at
+            ):
+                raise IntegrityError("initial_evaluation_relation")
+        elif evaluation.round_index == 0 and evaluation.retry_of_evaluation_id is None:
+            raise IntegrityError("initial_evaluation_relation")
+        if evaluation.retry_of_evaluation_id is not None:
+            er = ref("Evaluation", attempt.owner, evaluation.retry_of_evaluation_id)
+            source = tx.get(er)
+            if (
+                source is None
+                or source.owner != attempt.owner
+                or source.attempt_id != attempt.id
+                or source.coaching_contract_version != 2
+                or source.status != "failed"
+                or source.coaching_input != context
+                or source.round_index != evaluation.round_index
+                or source.created_at > evaluation.created_at
+            ):
+                raise IntegrityError("retry_input_relation")
+            tx.ignore_dependency(er)
+
+    @staticmethod
+    def _validate_v2_feedback(feedback, evaluation):
+        context = evaluation.coaching_input
+        if (
+            feedback.evaluationId != evaluation.id
+            or feedback.latestAnswer != context.latest_answer
+            or tuple(feedback.coachingHistory) != context.coaching_history
+            or feedback.coachingCount != context.coaching_count
+        ):
+            raise IntegrityError("feedback_input")
 
     @staticmethod
     def _touch(session, now):
@@ -357,17 +470,40 @@ class DomainRepository:
             evaluation, dispatch, attempt, session = tx.many((er, dr, ar, sr))
             if any(r is None for r in (evaluation, dispatch, attempt, session)):
                 raise IntegrityError("missing_relation")
+            legacy = attempt.coaching_contract_version is None
             if (
-                attempt.evaluation_id != eid
+                (legacy and attempt.evaluation_id != eid)
                 or evaluation.attempt_id != attempt.id
                 or attempt.session_id != session.id
-                or attempt.created_at != evaluation.created_at
+                or (legacy and attempt.created_at != evaluation.created_at)
                 or attempt.question
                 != session.questions[(attempt.question_number - 1) % len(session.questions)]
             ):
                 raise IntegrityError("reverse_reference")
-            if session.active and (
-                session.active.evaluationId == eid or session.active.attemptId == attempt.id
+            if attempt.coaching_contract_version != evaluation.coaching_contract_version:
+                raise IntegrityError("contract_relation")
+            if not legacy:
+                cr = ref("AttemptCoaching", owner, attempt.id)
+                evaluation, dispatch, attempt, session, coaching = tx.many((er, dr, ar, sr, cr))
+                if any(r is None for r in (evaluation, dispatch, attempt, session, coaching)):
+                    raise IntegrityError("missing_relation")
+                if (
+                    coaching is None
+                    or coaching.owner != owner
+                    or coaching.id != attempt.id
+                    or coaching.session_id != session.id
+                    or evaluation.coaching_input.question != attempt.question
+                    or evaluation.coaching_input.initial_answer != attempt.answer
+                ):
+                    raise IntegrityError("coaching_relation")
+                self._validate_v2_evaluation(tx, attempt, evaluation)
+                if evaluation.worker_state != "terminal":
+                    validate_progress(attempt, coaching, evaluation)
+                    self._validate_history_sources(tx, attempt, coaching)
+            if (
+                session.active
+                and (legacy or evaluation.worker_state != "terminal")
+                and (session.active.evaluationId == eid or session.active.attemptId == attempt.id)
             ):
                 if (
                     session.active.evaluationId != eid
@@ -430,6 +566,7 @@ class DomainRepository:
                         e.deadline_at,
                         d.generation,
                         e.execution_config,
+                        e.coaching_input,
                     ),
                 )
             if e.worker_state != "pending":
@@ -454,6 +591,7 @@ class DomainRepository:
                     e.deadline_at,
                     d.generation,
                     execution_config,
+                    e.coaching_input,
                 ),
             )
 
@@ -494,6 +632,7 @@ class DomainRepository:
         return self._atomic(run, temporal=True)
 
     def _terminal(self, tx, e, d, session, feedback, reason, now):
+        self._coaching_terminal(tx, e, feedback, now)
         e.worker_state, e.finished_at = "terminal", now
         e.status = "completed" if feedback is not None else "failed"
         e.feedback = deepcopy(feedback)
@@ -528,6 +667,8 @@ class DomainRepository:
                 if e.call_phase != "started":
                     raise IntegrityError("result_without_start")
                 validate_feedback(result, a)
+                if e.coaching_contract_version == 2:
+                    self._validate_v2_feedback(result, e)
                 try:
                     candidate = replace(
                         e,

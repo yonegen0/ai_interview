@@ -1,8 +1,23 @@
-.local/
-.uv-cache/
-*__pycache__*
-.venv/
+# Local environments and tooling caches
+/.local/
+/.uv-cache/
+/.venv/
+__pycache__/
+*.py[cod]
 .pytest_cache/
 .ruff_cache/
-dist/
+.mypy_cache/
+
+# Test reports and temporary pytest directories
+.coverage
+.coverage.*
+htmlcov/
+/pytest-cache-files-*/
+
+# Python packaging output
+/build/
+/dist/
 *.egg-info/
+
+# P4 validation evidence, Lambda ZIPs, and extracted dependencies
+.p4-artifacts/

@@ -13,7 +13,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 export const Empty: Story = {};
 export const Answering: Story = { args: { text: "回答です。" } };
-export const MaximumLength: Story = { args: { text: storyTexts.text500 } };
+export const MaximumLength: Story = { args: { text: storyTexts.text400 } };
 export const Invalid: Story = {
   args: { text: " ", inputError: "空白以外の回答を入力してください。" },
 };

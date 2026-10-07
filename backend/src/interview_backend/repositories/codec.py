@@ -13,6 +13,8 @@ from pydantic import BaseModel
 
 from interview_backend.models.internal import (
     Attempt,
+    AttemptCoaching,
+    CoachingTurn,
     Dispatch,
     Evaluation,
     ExecutionConfig,
@@ -30,10 +32,14 @@ from interview_backend.models.public import (
     ActiveAttempt,
     BankReceipt,
     BankSaveRequest,
+    CoachingHistoryItem,
+    CoachingInput,
     Created,
     Feedback,
+    FeedbackV2,
     Question,
     SessionResponse,
+    limited_text,
     validate_id,
 )
 
@@ -48,6 +54,8 @@ PREFIXES = dict(
     )
 )
 KINDS.update(QuestionBank=QuestionBank, QuestionBankChange=QuestionBankChange)
+KINDS["AttemptCoaching"] = AttemptCoaching
+PREFIXES["AttemptCoaching"] = "COACHING"
 MAX_TIME = 9999999999999
 MAX_ITEM_BYTES = 350 * 1024
 FAILURE = {"code": "EVALUATION_FAILED", "message": "Evaluation could not be completed."}
@@ -71,7 +79,7 @@ def canonical(value):
 def primitive(value):
     if isinstance(value, BaseModel):
         # Python mode also preserves lone UTF-16 surrogates.
-        return value.model_dump(exclude_unset=True)
+        return primitive(value.model_dump(exclude_unset=True))
     if is_dataclass(value):
         data = {
             f.name: primitive(getattr(value, f.name))
@@ -113,13 +121,28 @@ def validate(record):
             raise StorageFormatError("invalid_type")
         if is_dataclass(value):
             validate(value)
+        if isinstance(value, tuple):
+            for entry in value:
+                if is_dataclass(entry):
+                    validate(entry)
         if isinstance(value, BaseModel):
             type(value).model_validate(value.model_dump(exclude_unset=True))
         if type(value) is int and (value < 0 or (field.name.endswith("_at") and value > MAX_TIME)):
             raise StorageFormatError("invalid_number")
     if hasattr(record, "owner") and not record.owner.strip():
         raise IntegrityError("invalid_owner")
-    for name in ("id", "attempt_id", "evaluation_id", "session_id", "lock_owner", "send_owner"):
+    for name in (
+        "id",
+        "attempt_id",
+        "evaluation_id",
+        "session_id",
+        "lock_owner",
+        "send_owner",
+        "current_evaluation_id",
+        "last_successful_evaluation_id",
+        "source_evaluation_id",
+        "retry_of_evaluation_id",
+    ):
         if getattr(record, name, None) is not None:
             try:
                 validate_id(getattr(record, name))
@@ -157,7 +180,10 @@ def validate(record):
     if isinstance(record, Attempt):
         from interview_backend.models.public import AnswerFields
 
-        AnswerFields(answer=record.answer)
+        if record.coaching_contract_version == 2:
+            limited_text(record.answer, 400)
+        else:
+            AnswerFields(answer=record.answer)
         if record.question_number < 1:
             raise IntegrityError("attempt_number")
     if isinstance(record, ExecutionConfig):
@@ -165,11 +191,27 @@ def validate(record):
             not record.provider_id
             or not record.model_id
             or not record.prompt_version
-            or record.result_schema_version != 1
+            or record.result_schema_version not in {1, 2}
             or record.provider_timeout_ms != 40000
         ):
             raise StorageFormatError("execution_config")
     if isinstance(record, Evaluation):
+        v2 = record.coaching_contract_version == 2
+        if v2 != (record.coaching_input is not None) or v2 != (record.round_index is not None):
+            raise IntegrityError("partial_coaching_contract")
+        if v2:
+            if record.round_index != record.coaching_input.coaching_count:
+                raise IntegrityError("round_index")
+            if record.execution_config and record.execution_config.result_schema_version != 2:
+                raise IntegrityError("result_schema_version")
+            if record.feedback is not None and not isinstance(record.feedback, FeedbackV2):
+                raise IntegrityError("feedback_version")
+        elif (
+            record.retry_of_evaluation_id is not None
+            or isinstance(record.feedback, FeedbackV2)
+            or (record.execution_config and record.execution_config.result_schema_version != 1)
+        ):
+            raise IntegrityError("legacy_contract")
         terminal = record.worker_state == "terminal"
         if terminal != (record.status in {"completed", "failed"}):
             raise IntegrityError("evaluation_state")
@@ -202,6 +244,30 @@ def validate(record):
     if isinstance(record, (Evaluation, Dispatch)):
         if record.deadline_at != record.created_at + 900000:
             raise IntegrityError("deadline")
+    if isinstance(record, CoachingTurn):
+        CoachingHistoryItem(question=record.question, answer=record.answer)
+    if isinstance(record, AttemptCoaching):
+        if not 0 <= record.coaching_count <= 3 or record.coaching_count != len(record.history):
+            raise IntegrityError("coaching_count")
+        if (record.stage == "awaiting_answer") != (record.pending_question is not None):
+            raise IntegrityError("pending_question")
+        if record.pending_question is not None:
+            limited_text(record.pending_question, 200)
+        if record.coaching_count == 3 and record.stage == "awaiting_answer":
+            raise IntegrityError("coaching_limit")
+        if record.updated_at < record.created_at:
+            raise IntegrityError("coaching_time")
+        if any(
+            not record.created_at <= turn.accepted_at <= record.updated_at
+            for turn in record.history
+        ):
+            raise IntegrityError("coaching_history_time")
+        if len({h.source_evaluation_id for h in record.history}) != len(record.history):
+            raise IntegrityError("duplicate_history")
+        for question in record.unavailable_questions:
+            limited_text(question, 200)
+            if question not in {h.question for h in record.history}:
+                raise IntegrityError("unavailable_history")
     if isinstance(record, Dispatch):
         if record.status not in {"PENDING", "QUEUED", "CLAIMED", "DONE"} or record.generation < 1:
             raise IntegrityError("dispatch_state")
@@ -303,9 +369,20 @@ def hydrate(kind, data):
         data["question"] = Question(**data["question"])
     if kind == "Evaluation":
         if "feedback" in data:
-            data["feedback"] = Feedback(**data["feedback"])
+            cls = FeedbackV2 if data.get("coaching_contract_version") == 2 else Feedback
+            data["feedback"] = cls(**data["feedback"])
+        if "coaching_input" in data:
+            context = data["coaching_input"]
+            context["coaching_history"] = tuple(
+                CoachingHistoryItem(**turn) for turn in context["coaching_history"]
+            )
+            context["unavailable_questions"] = tuple(context["unavailable_questions"])
+            data["coaching_input"] = CoachingInput.model_validate(context)
         if "execution_config" in data:
             data["execution_config"] = ExecutionConfig(**data["execution_config"])
+    if kind == "AttemptCoaching":
+        data["history"] = tuple(CoachingTurn(**h) for h in data["history"])
+        data["unavailable_questions"] = tuple(data["unavailable_questions"])
     if kind == "IdempotencyRecord":
         data["fingerprint"] = data.pop("request_hash")
         data["reply"] = Reply(**data["reply"])

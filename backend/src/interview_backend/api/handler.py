@@ -96,6 +96,12 @@ class Handler:
                     headers = {k.lower(): v for k, v in (event.get("headers") or {}).items()}
                     args.append(headers.get("idempotency-key"))
                 args.extend(match.groups())
+                if action == "feedback":
+                    query = event.get("queryStringParameters") or {}
+                    if "evaluationId" in query:
+                        if not isinstance(query["evaluationId"], str):
+                            raise BusinessError(400, "VALIDATION_ERROR")
+                        args.append(query["evaluationId"])
                 if method == "POST":
                     args.append(parse_body(event))
                 # Application validation failures only; unrelated ValueError is a 500.

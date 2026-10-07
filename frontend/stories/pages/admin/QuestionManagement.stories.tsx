@@ -61,9 +61,7 @@ export const InvalidQuestion: Story = {
     await expect(
       canvas.getByRole("button", { name: "保存内容を確認" }),
     ).toBeDisabled();
-    await expect(await canvas.findByRole("alert")).toHaveTextContent(
-      "1〜1,000",
-    );
+    await expect(await canvas.findByRole("alert")).toHaveTextContent("1〜200");
   },
 };
 export const ConfirmLocksEditing: Story = {

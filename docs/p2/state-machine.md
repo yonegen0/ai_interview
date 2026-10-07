@@ -1,5 +1,9 @@
 # P2-202 状態遷移・競合条件
 
+2026-10-07: V1遷移は維持。V2のevaluating/awaiting_answer/completed/failedと操作別起点検証は[コーチングV2](../COACHING_V2_IMPLEMENTATION.md)を参照。
+深掘り回答の正常受付で履歴/countを一括更新し、failedの明示再試行は固定入力を持つ新Evaluationを作る。
+過去terminalの再配送は現在pointer不一致だけで破損とせず、Provider開始後の自動再呼出し禁止を維持する。
+
 状態: 設計確定（2026-09-12）。[確認記録](P2_VERIFICATION.md)のR01〜R19で机上照合した。
 [Entity](entity-model.md)と[依存追加方針](../DEVELOPMENT_DEPENDENCY_POLICY.md)を参照。
 コード・環境の変更は行わない。具体的な一括更新・CAS条件は[Transaction仕様](transactions.md)のT01〜T14。

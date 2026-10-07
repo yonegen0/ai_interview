@@ -96,20 +96,20 @@ it("retains immutable pending request after response loss", async () => {
   expect(Object.keys(repository.read().attempts)).toHaveLength(1);
 });
 
-it.each(["あ".repeat(500), "😀".repeat(250)])(
-  "counts UTF-16 units, retains overlong input and prevents POST until corrected (%#)",
+it.each(["あ".repeat(400), "😀".repeat(400)])(
+  "counts Unicode code points, retains overlong input and prevents POST until corrected (%#)",
   async (validAnswer) => {
     const view = await mount();
     const input = screen.getByLabelText("あなたの回答");
     fireEvent.change(input, { target: { value: validAnswer } });
-    await screen.findByText("500 / 500文字 · 100〜300文字がおすすめです");
+    await screen.findByText("400 / 400文字 · 150〜220文字がおすすめです");
     fireEvent.change(input, { target: { value: validAnswer + "あ" } });
-    await screen.findByText("500文字以内で入力してください。");
+    await screen.findByText("400文字以内で入力してください。");
     expect(input).toHaveValue(validAnswer + "あ");
     const button = screen.getByRole("button", { name: "回答を送信" });
     expect(button).toBeDisabled();
     fireEvent.submit(button.closest("form")!);
-    await screen.findByText("500文字以内で入力してください。");
+    await screen.findByText("400文字以内で入力してください。");
     expect(answerRequests).toBe(0);
     fireEvent.change(input, { target: { value: validAnswer } });
     await waitFor(() => expect(button).toBeEnabled());
@@ -130,7 +130,7 @@ it("restores an overlong draft across remount and allows correction", async () =
   fireEvent.change(screen.getByLabelText("あなたの回答"), {
     target: { value: answer },
   });
-  await screen.findByText("500文字以内で入力してください。");
+  await screen.findByText("400文字以内で入力してください。");
   view.unmount();
   const client = new QueryClient({
     defaultOptions: { mutations: { retry: false } },
@@ -147,15 +147,43 @@ it("restores an overlong draft across remount and allows correction", async () =
   fireEvent.submit(
     screen.getByRole("button", { name: "回答を送信" }).closest("form")!,
   );
-  await screen.findByText("500文字以内で入力してください。");
+  await screen.findByText("400文字以内で入力してください。");
   expect(answerRequests).toBe(0);
-  fireEvent.change(input, { target: { value: answer.slice(0, 500) } });
+  fireEvent.change(input, { target: { value: answer.slice(0, 400) } });
   const button = screen.getByRole("button", { name: "回答を送信" });
   await waitFor(() => expect(button).toBeEnabled());
   await userEvent.click(button);
   await screen.findByText("回答を確認しています");
   expect(answerRequests).toBe(1);
   restored.unmount();
+});
+
+it("reconfirms a valid V1 pending 500-unit answer with its original payload", async () => {
+  const original = "x".repeat(500);
+  const view = await mount((session) => {
+    save(`pocket:answer:${session.sessionId}`, {
+      version: 1,
+      questionId: session.question.id,
+      context: "1:normal",
+      draft: original,
+      pending: {
+        key: crypto.randomUUID(),
+        body: { questionId: session.question.id, answer: original },
+      },
+    });
+  });
+  expect(screen.getByLabelText("あなたの回答")).toHaveValue(original);
+  expect(answerRequests).toBe(0);
+  await userEvent.click(
+    screen.getByRole("button", { name: "送信結果を再確認" }),
+  );
+  await screen.findByText("回答を確認しています");
+  const records = Object.values(repository.read().attempts);
+  expect(records).toHaveLength(1);
+  expect(records[0].feedback.answer).toBe(original);
+  expect(records[0].feedback).not.toHaveProperty("feedbackVersion");
+  expect(answerRequests).toBe(1);
+  view.unmount();
 });
 
 it("does not restore or automatically send an obsolete overlong pending request", async () => {

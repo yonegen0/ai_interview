@@ -9,11 +9,16 @@ import {
   activeCategoryIds,
   categories,
   bankSaveSchema,
+  bankSaveSchemaForBaseline,
+  isFeedbackV2,
+  v2SubmitSchema,
   type Feedback,
   type Session,
 } from "@/lib/api/schemas";
 import type { Repository, MockState } from "../store";
+import { acceptCoaching, pollCoaching, MockConflict } from "../coaching";
 export type Scenario =
+  | CoachingScenario
   | "success"
   | "slow"
   | "never"
@@ -26,7 +31,21 @@ export type Scenario =
   | "invalid_response"
   | "evaluation_failed"
   | "state_conflict";
+// Trusted Mock scenario selection, never applicant-text magic strings.
+export type CoachingScenario =
+  | "coaching"
+  | "coaching_max"
+  | "low_score"
+  | "multiline_question"
+  | "contradiction"
+  | "invalid_provider";
 export const scenarios: Scenario[] = [
+  "coaching",
+  "coaching_max",
+  "low_score",
+  "multiline_question",
+  "contradiction",
+  "invalid_provider",
   "success",
   "slow",
   "never",
@@ -53,7 +72,7 @@ const sessionOwner = (state: MockState, id: string) =>
   state.owners[id] || "mock-user";
 export function createHandlers(
   repository: Repository,
-  scenario: () => Scenario = () => "success",
+  scenario: () => Scenario | CoachingScenario = () => "success",
   base = "*/api",
 ) {
   const fault = (state: MockState) => {
@@ -110,7 +129,7 @@ export function createHandlers(
     }
     const parsed = schema.safeParse(raw);
     if (!parsed.success) return error("VALIDATION_ERROR", 400);
-    const state = repository.read();
+    const state = structuredClone(repository.read());
     const fingerprint = `${new URL(request.url).pathname}:${JSON.stringify(parsed.data)}`;
     const scoped = `${identity.sub}:${key}`;
     const previous = state.requests[scoped];
@@ -168,6 +187,11 @@ export function createHandlers(
       mutate(request, bankSaveSchema, (state, body) => {
         if (body.expectedVersion !== state.bank.version)
           return error("QUESTION_BANK_CONFLICT", 409);
+        if (
+          !bankSaveSchemaForBaseline(state.bank.questions).safeParse(body)
+            .success
+        )
+          return error("VALIDATION_ERROR", 400);
         if (
           JSON.stringify(body.questions) !==
           JSON.stringify(state.bank.questions)
@@ -227,6 +251,32 @@ export function createHandlers(
           sessionOwner(state, String(params.id)) !== actor(request)!.sub
         )
           return error("SESSION_NOT_FOUND", 404);
+        if (body.kind !== undefined) {
+          const source =
+            "attemptId" in body
+              ? state.attempts[body.attemptId]
+              : "fromAttemptId" in body
+                ? state.attempts[body.fromAttemptId]
+                : undefined;
+          if (
+            source &&
+            sessionOwner(state, source.feedback.sessionId) !==
+              actor(request)!.sub
+          )
+            return error("ATTEMPT_NOT_FOUND", 404);
+          try {
+            return acceptCoaching(
+              state,
+              String(params.id),
+              v2SubmitSchema.parse(body),
+            );
+          } catch (cause) {
+            if (cause instanceof MockConflict)
+              return error(cause.code, cause.status);
+            throw cause;
+          }
+        }
+        if (session.activeCoaching) return error("SESSION_STATE_CONFLICT", 409);
         if (
           session.question.id !== body.questionId ||
           session.activeAttempt?.status === "processing"
@@ -254,6 +304,9 @@ export function createHandlers(
           polls: 0,
           startedAt: Date.now(),
         };
+        state.evaluations[evaluationId] = structuredClone(
+          state.attempts[attemptId],
+        );
         session.activeAttempt = {
           attemptId,
           evaluationId,
@@ -267,6 +320,14 @@ export function createHandlers(
       if (!identity) return error("UNAUTHORIZED", 401);
       await delay(50);
       const state = repository.read();
+      const v2 = state.evaluations[String(params.id)];
+      if (v2 && isFeedbackV2(v2.feedback)) {
+        if (sessionOwner(state, v2.feedback.sessionId) !== identity.sub)
+          return error("ATTEMPT_NOT_FOUND", 404);
+        const evaluated = pollCoaching(state, String(params.id), scenario());
+        repository.write(state);
+        return HttpResponse.json(evaluated);
+      }
       const record = Object.values(state.attempts).find(
         (a) => a.evaluation.evaluationId === params.id,
       );
@@ -297,6 +358,7 @@ export function createHandlers(
           if (session.activeAttempt?.attemptId === record.evaluation.attemptId)
             session.activeAttempt.status = record.evaluation.status;
         }
+        state.evaluations[String(params.id)] = structuredClone(record);
         repository.write(state);
       }
       return HttpResponse.json(record.evaluation);
@@ -305,9 +367,14 @@ export function createHandlers(
       const identity = actor(request);
       if (!identity) return error("UNAUTHORIZED", 401);
       const state = repository.read();
-      const record = state.attempts[String(params.id)];
+      const latest = state.attempts[String(params.id)];
+      const requested = new URL(request.url).searchParams.get("evaluationId");
+      if (requested !== null && !idSchema.safeParse(requested).success)
+        return error("VALIDATION_ERROR", 400);
+      const record = requested ? state.evaluations[requested] : latest;
       if (
         !record ||
+        record.feedback.attemptId !== String(params.id) ||
         sessionOwner(state, record.feedback.sessionId) !== identity.sub
       )
         return error("ATTEMPT_NOT_FOUND", 404);
@@ -326,6 +393,11 @@ export function createHandlers(
         if (
           session.activeAttempt?.attemptId !== body.fromAttemptId ||
           session.activeAttempt.status !== "completed"
+        )
+          return error("SESSION_STATE_CONFLICT", 409);
+        if (
+          session.activeCoaching &&
+          session.activeCoaching.stage !== "completed"
         )
           return error("SESSION_STATE_CONFLICT", 409);
         const pool = state.sessionQuestions[session.sessionId] || [
@@ -350,6 +422,7 @@ export function createHandlers(
           totalQuestions: pool.length,
         };
         state.sessions[session.sessionId] = next;
+        delete next.activeCoaching;
         return { status: 200, body: next };
       }),
     ),

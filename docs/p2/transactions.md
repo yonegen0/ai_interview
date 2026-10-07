@@ -1,5 +1,9 @@
 # P2-204・205 TransactionとDurable Acceptance
 
+2026-10-07: [コーチングV2](../COACHING_V2_IMPLEMENTATION.md)では初回/再挑戦・深掘り・評価再試行・終端・次問に現在進行のCAS付きPutを加える。
+APIが判断に使う可変レコードを一括保存へ含め、新しいUSER領域ConditionCheck権限を追加しない。
+固定入力・履歴・count・pointer・202/冪等記録を原子確定し、応答消失時は既存予算内で元応答を確認する。
+
 状態: 設計確定（2026-09-12）。[属性](entity-model.md)、[物理操作](dynamodb-design.md)、
 [状態遷移](state-machine.md)を同時に満たす。ここでの「更新」はCAS付きPutによるitem全置換を指す。
 

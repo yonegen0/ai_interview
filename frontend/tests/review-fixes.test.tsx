@@ -31,6 +31,7 @@ import {
   operationSchema,
   readSaved,
   recoverySchema,
+  answerRecoverySchema,
   recoveryForScope,
   removeSaved,
   resetRecoveryMemoryForTests,
@@ -358,7 +359,7 @@ it("retains the exact pending answer when acceptance arrives after unmount", asy
   });
   await waitFor(() => expect(send).toHaveBeenCalledTimes(1));
   const key = `pocket:answer:${session.sessionId}`;
-  const original = readSaved(key, recoverySchema);
+  const original = readSaved(key, answerRecoverySchema);
   unmount();
   await act(async () => {
     reply.resolve(
@@ -373,8 +374,12 @@ it("retains the exact pending answer when acceptance arrives after unmount", asy
     );
     await pending;
   });
-  expect(readSaved(key, recoverySchema)).toEqual(original);
-  expect(original?.pending?.body.answer).toBe("遅延応答でも保持する回答");
+  expect(readSaved(key, answerRecoverySchema)).toEqual(original);
+  expect(
+    original?.pending && "answer" in original.pending.body
+      ? original.pending.body.answer
+      : undefined,
+  ).toBe("遅延応答でも保持する回答");
 });
 
 it.each([false, true])(
@@ -632,11 +637,14 @@ it("repairs unscoped receipts in an already migrated v2 store without replacing 
     body: { sessionId: storyIds.session },
   };
   state.requests[key] = receipt;
-  sessionStorage.setItem("pocket:mock:v2", JSON.stringify(state));
+  sessionStorage.setItem(
+    "pocket:mock:v2",
+    JSON.stringify({ ...state, version: 2 }),
+  );
   expect(repository.read().requests[`mock-user:${key}`]).toEqual(receipt);
   const current = { ...receipt, fingerprint: "already scoped request" };
   state.requests[`mock-user:${key}`] = current;
-  sessionStorage.setItem("pocket:mock:v2", JSON.stringify(state));
+  sessionStorage.setItem("pocket:mock:v3", JSON.stringify(state));
   expect(repository.read().requests[`mock-user:${key}`]).toEqual(current);
 });
 

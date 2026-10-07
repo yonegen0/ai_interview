@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getQuestionBank, saveQuestionBank } from "@/lib/api/admin";
 import {
   bankSaveSchema,
+  bankSaveSchemaForBaseline,
   type BankSave,
   type QuestionBank,
 } from "@/lib/api/schemas";
@@ -42,9 +43,9 @@ export function useQuestionManagement() {
       return saveQuestionBank(body, key);
     },
   });
-  const editor = useQuestionBankEditor();
-  const { form, fields, draft } = editor;
   const [baseline, setBaseline] = useState<QuestionBank | null>(null);
+  const editor = useQuestionBankEditor(baseline?.questions ?? []);
+  const { form, fields, draft } = editor;
   const [comparison, setComparison] = useState<QuestionBank | null>(null);
   const [previousDraft, setPreviousDraft] = useState<BankSave | null>(null);
   const [preview, setPreview] = useState(false);
@@ -110,9 +111,11 @@ export function useQuestionManagement() {
       (!pending.current && stage !== "confirm")
     )
       return;
-    const validated = bankSaveSchema.safeParse(
-      pending.current?.body ?? confirmation,
-    );
+    const validated = (
+      pending.current
+        ? bankSaveSchema
+        : bankSaveSchemaForBaseline(baseline?.questions ?? [])
+    ).safeParse(pending.current?.body ?? confirmation);
     if (!validated.success) {
       transition("editable");
       return;

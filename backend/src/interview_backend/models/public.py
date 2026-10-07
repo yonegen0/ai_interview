@@ -14,6 +14,8 @@ from pydantic import (
     model_validator,
 )
 
+from interview_backend.text_limits import code_point_length, score_values
+
 ANSWER_MAX_LENGTH = 500
 
 # z.uuid(): RFC variant/version, plus the nil and max UUIDs; retain original spelling.
@@ -194,6 +196,7 @@ class SessionResponse(Model):
     question: Question
     questionNumber: PositiveInt
     activeAttempt: ActiveAttempt | None
+    activeCoaching: ActiveCoaching = Field(default=None, validate_default=False)
     mode: Literal["full", "category", "legacy"] = Field(default=None, validate_default=False)
     totalQuestions: PositiveInt = Field(default=None, validate_default=False)
     hasNext: bool = Field(default=None, validate_default=False)
@@ -215,6 +218,13 @@ class SessionResponse(Model):
 class SubmitRequest(AnswerFields):
     questionId: Identifier
 
+    @model_validator(mode="before")
+    @classmethod
+    def legacy_only(cls, value):
+        if isinstance(value, dict) and "kind" in value:
+            raise ValueError("V2 cannot fall back to V1")
+        return value
+
 
 class NextRequest(Model):
     fromAttemptId: Identifier
@@ -224,12 +234,14 @@ class Processing(Model):
     evaluationId: Identifier
     attemptId: Identifier
     status: Literal["processing"]
+    feedbackVersion: Literal[2] = Field(default=None, validate_default=False)
 
 
 class Completed(Model):
     evaluationId: Identifier
     attemptId: Identifier
     status: Literal["completed"]
+    feedbackVersion: Literal[2] = Field(default=None, validate_default=False)
 
 
 class Failed(Model):
@@ -237,6 +249,7 @@ class Failed(Model):
     attemptId: Identifier
     status: Literal["failed"]
     error: ErrorBody
+    feedbackVersion: Literal[2] = Field(default=None, validate_default=False)
 
 
 EvaluationResponse = Annotated[Processing | Completed | Failed, Field(discriminator="status")]
@@ -277,3 +290,192 @@ class Feedback(EvaluationResult, AnswerFields):
             raise ValueError("Expected UTC ISO date")
         datetime.fromisoformat(value)
         return value
+
+
+def limited_text(value: str, maximum: int) -> str:
+    if not value.strip(JS_WHITESPACE) or not 1 <= code_point_length(value) <= maximum:
+        raise ValueError("Invalid text length")
+    return value
+
+
+CoachingAnswer = Annotated[
+    str,
+    AfterValidator(lambda v: limited_text(v, 400)),
+    Field(json_schema_extra={"minLength": 1, "maxLength": 400}),
+]
+CoachingQuestion = Annotated[
+    str,
+    AfterValidator(lambda v: limited_text(v, 200)),
+    Field(json_schema_extra={"minLength": 1, "maxLength": 200}),
+]
+
+
+class StrictModel(Model):
+    model_config = ConfigDict(strict=True, extra="forbid")
+
+
+class InitialAnswerRequest(StrictModel):
+    kind: Literal["initial_answer"]
+    questionId: Identifier
+    answer: CoachingAnswer
+
+
+class CoachingAnswerRequest(StrictModel):
+    kind: Literal["coaching_answer"]
+    questionId: Identifier
+    answer: CoachingAnswer
+    attemptId: Identifier
+    fromEvaluationId: Identifier
+
+
+class RetryEvaluationRequest(StrictModel):
+    kind: Literal["retry_evaluation"]
+    attemptId: Identifier
+    fromEvaluationId: Identifier
+
+
+class RetryAttemptRequest(StrictModel):
+    kind: Literal["retry_attempt"]
+    questionId: Identifier
+    answer: CoachingAnswer
+    fromAttemptId: Identifier
+    fromEvaluationId: Identifier
+
+
+V2Request = Annotated[
+    InitialAnswerRequest | CoachingAnswerRequest | RetryEvaluationRequest | RetryAttemptRequest,
+    Field(discriminator="kind"),
+]
+v2_request_adapter = TypeAdapter(V2Request)
+
+
+def parse_submit_request(value):
+    # Raw key presence, including null/unknown kinds, is authoritative.
+    if isinstance(value, dict) and "kind" in value:
+        return v2_request_adapter.validate_python(value)
+    return SubmitRequest.model_validate(value)
+
+
+class CoachingHistoryItem(StrictModel):
+    question: CoachingQuestion
+    answer: CoachingAnswer
+
+
+class CoachingInput(StrictModel):
+    model_config = ConfigDict(strict=True, extra="forbid", frozen=True)
+    question: Question
+    initial_answer: CoachingAnswer
+    coaching_history: tuple[CoachingHistoryItem, ...]
+    latest_answer: CoachingAnswer
+    coaching_count: Annotated[int, Field(ge=0, le=3)]
+    can_ask_follow_up: bool
+    unavailable_questions: tuple[CoachingQuestion, ...]
+
+    @model_validator(mode="after")
+    def consistent(self):
+        latest = self.coaching_history[-1].answer if self.coaching_history else self.initial_answer
+        if (
+            len(self.coaching_history) != self.coaching_count
+            or self.latest_answer != latest
+            or self.can_ask_follow_up != (self.coaching_count < 3)
+        ):
+            raise ValueError("Invalid coaching input")
+        if any(
+            q not in {h.question for h in self.coaching_history} for q in self.unavailable_questions
+        ):
+            raise ValueError("Invalid unavailable question")
+        return self
+
+
+class CoachingResult(StrictModel):
+    status: Literal["coaching", "completed"]
+    conclusion_score: Annotated[int, Field(ge=0, le=10)]
+    specificity_score: Annotated[int, Field(ge=0, le=10)]
+    reasoning_score: Annotated[int, Field(ge=0, le=10)]
+    good_point: CoachingQuestion
+    improvement: CoachingQuestion
+    follow_up_question: CoachingQuestion | None
+    example: CoachingAnswer | None
+
+    _integer = field_validator(
+        "conclusion_score", "specificity_score", "reasoning_score", mode="before"
+    )(EvaluationResult.integer_score.__func__)
+
+    @model_validator(mode="after")
+    def coherent_status(self):
+        if self.status == "coaching":
+            if self.follow_up_question is None or self.example is not None:
+                raise ValueError("Invalid coaching result")
+        elif self.follow_up_question is not None or self.example is None:
+            raise ValueError("Invalid completed result")
+        return self
+
+
+class FeedbackV2(StrictModel):
+    feedbackVersion: Literal[2]
+    attemptId: Identifier
+    evaluationId: Identifier
+    sessionId: Identifier
+    question: Question
+    questionNumber: PositiveInt
+    answer: CoachingAnswer
+    latestAnswer: CoachingAnswer
+    coachingHistory: list[CoachingHistoryItem]
+    coachingCount: Annotated[int, Field(ge=0, le=3)]
+    result: CoachingResult
+    answerLength: int
+    lengthPenalty: int
+    baseScore: int
+    totalScore: int
+    rank: Literal["S", "A", "B", "C"]
+    createdAt: str
+
+    _date = field_validator("createdAt")(Feedback.utc_datetime.__func__)
+
+    @model_validator(mode="after")
+    def aggregate(self):
+        scores = score_values(
+            self.answer,
+            self.result.conclusion_score,
+            self.result.specificity_score,
+            self.result.reasoning_score,
+        )
+        if any(getattr(self, k) != v for k, v in scores.items()):
+            raise ValueError("Invalid aggregate score")
+        latest = self.coachingHistory[-1].answer if self.coachingHistory else self.answer
+        if self.coachingCount != len(self.coachingHistory) or latest != self.latestAnswer:
+            raise ValueError("Invalid feedback history")
+        if self.coachingCount == 3 and self.result.status == "coaching":
+            raise ValueError("Coaching limit")
+        return self
+
+
+class ActiveCoaching(StrictModel):
+    attemptId: Identifier
+    evaluationId: Identifier
+    stage: Literal["evaluating", "awaiting_answer", "completed", "failed"]
+    initialAnswer: CoachingAnswer
+    latestAnswer: CoachingAnswer
+    coachingHistory: list[CoachingHistoryItem]
+    coachingCount: Annotated[int, Field(ge=0, le=3)]
+    followUpQuestion: CoachingQuestion | None
+    lastSuccessfulEvaluationId: Identifier | None
+
+    @model_validator(mode="after")
+    def consistent(self):
+        latest = self.coachingHistory[-1].answer if self.coachingHistory else self.initialAnswer
+        if (
+            self.coachingCount != len(self.coachingHistory)
+            or self.latestAnswer != latest
+            or (self.stage == "awaiting_answer") != (self.followUpQuestion is not None)
+            or (self.coachingCount == 3 and self.stage == "awaiting_answer")
+            or (
+                self.stage in {"awaiting_answer", "completed"}
+                and self.lastSuccessfulEvaluationId != self.evaluationId
+            )
+        ):
+            raise ValueError("Invalid active coaching")
+        return self
+
+
+SessionResponse.model_rebuild()

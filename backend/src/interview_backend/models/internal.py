@@ -5,7 +5,13 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal
 
-from interview_backend.models.public import ActiveAttempt, Feedback, Question
+from interview_backend.models.public import (
+    ActiveAttempt,
+    CoachingInput,
+    Feedback,
+    FeedbackV2,
+    Question,
+)
 
 
 class BusinessError(Exception):
@@ -68,6 +74,31 @@ class Attempt:
     question_number: int
     answer: str
     created_at: int = 0
+    coaching_contract_version: Literal[2] | None = None
+
+
+@dataclass(frozen=True)
+class CoachingTurn:
+    question: str
+    answer: str
+    source_evaluation_id: str
+    accepted_at: int
+
+
+@dataclass
+class AttemptCoaching:
+    owner: str
+    id: str
+    session_id: str
+    current_evaluation_id: str
+    stage: Literal["evaluating", "awaiting_answer", "completed", "failed"] = "evaluating"
+    history: tuple[CoachingTurn, ...] = ()
+    coaching_count: int = 0
+    pending_question: str | None = None
+    last_successful_evaluation_id: str | None = None
+    unavailable_questions: tuple[str, ...] = ()
+    created_at: int = 0
+    updated_at: int = 0
 
 
 @dataclass
@@ -77,7 +108,7 @@ class Evaluation:
     attempt_id: str
     worker_state: Literal["pending", "running", "terminal"] = "pending"
     status: Literal["processing", "completed", "failed"] = "processing"
-    feedback: Feedback | None = None
+    feedback: Feedback | FeedbackV2 | None = None
     error: dict | None = None
     prompt_version: str | None = None
     created_at: int = 0
@@ -90,6 +121,10 @@ class Evaluation:
     call_started_at: int | None = None
     execution_config: ExecutionConfig | None = None
     finished_at: int | None = None
+    coaching_contract_version: Literal[2] | None = None
+    coaching_input: CoachingInput | None = None
+    round_index: int | None = None
+    retry_of_evaluation_id: str | None = None
 
 
 @dataclass
@@ -143,6 +178,7 @@ class LeaseClaim:
     deadline_at: int
     generation: int
     execution_config: ExecutionConfig
+    coaching_input: CoachingInput | None = None
 
 
 @dataclass(frozen=True)
@@ -260,3 +296,4 @@ class State:
     cursors: dict[str, RecoveryCursor] = field(default_factory=dict)
     question_banks: dict[str, QuestionBank] = field(default_factory=dict)
     question_bank_changes: dict[tuple[str, str], QuestionBankChange] = field(default_factory=dict)
+    coachings: dict[str, AttemptCoaching] = field(default_factory=dict)

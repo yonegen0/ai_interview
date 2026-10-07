@@ -197,9 +197,9 @@ export function AnswerPresentation({
   const answer = useWatch({ control: form.control, name: "answer" }) ?? "";
   const bindings = {
     field: form.register("answer"),
-    count: answer.length,
+    count: Array.from(answer).length,
     phase,
-    valid: !!answer.trim() && answer.length <= 500 && !inputError,
+    valid: !!answer.trim() && Array.from(answer).length <= 400 && !inputError,
     inputError,
     error: null,
     onSubmit: form.handleSubmit(fn()),

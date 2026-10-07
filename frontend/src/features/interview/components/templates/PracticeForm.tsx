@@ -6,6 +6,7 @@ import { Button } from "@/components/atoms/Button";
 import { Link } from "@/components/atoms/Link";
 import { Actions } from "@/components/atoms/Actions";
 import { Dialog } from "@/components/organisms/Dialog";
+import { ErrorView } from "@/components/organisms/ErrorView";
 import { MascotCoachCard } from "@/components/molecules/MascotCoachCard";
 import { QuestionCard } from "../molecules/QuestionCard";
 import { EvaluationLoading } from "../organisms/EvaluationLoading";
@@ -50,11 +51,29 @@ export const PracticeForm = ({ view, form, actions }: PracticeFormProps) => (
         }
         actions={
           <Button variant="contained" color="primary" onClick={actions.retry}>
-            同じ質問に再挑戦
+            {view.session.activeCoaching
+              ? "同じ回答で評価を再試行"
+              : "同じ質問に再挑戦"}
           </Button>
         }
       >
-        <Text>もう一度、同じ質問に回答して練習できます。</Text>
+        {form.error && <ErrorView error={form.error} />}
+        <Text>
+          {view.session.activeCoaching
+            ? "送信した回答と履歴を保持しています。評価だけを再試行できます。"
+            : "もう一度、同じ質問に回答して練習できます。"}
+        </Text>
+        {view.session.activeCoaching && (
+          <>
+            <Text>初回回答：{view.session.activeCoaching.initialAnswer}</Text>
+            {view.session.activeCoaching.coachingHistory.map((h, i) => (
+              <div key={i}>
+                <Text>{h.question}</Text>
+                <Text>{h.answer}</Text>
+              </div>
+            ))}
+          </>
+        )}
       </MascotCoachCard>
     ) : (
       <AnswerSubmission {...form} />

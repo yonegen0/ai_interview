@@ -3,13 +3,13 @@
 import { useForm, useWatch, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  bankSaveSchema,
+  bankSaveSchemaForBaseline,
   type BankSave,
   type QuestionBank,
 } from "@/lib/api/schemas";
-export function useQuestionBankEditor() {
+export function useQuestionBankEditor(baseline: BankSave["questions"] = []) {
   const form = useForm<BankSave>({
-    resolver: zodResolver(bankSaveSchema),
+    resolver: zodResolver(bankSaveSchemaForBaseline(baseline)),
     defaultValues: { expectedVersion: 0, questions: [] },
     mode: "onChange",
   });
