@@ -39,6 +39,7 @@ class AWSFederation:
                 client = boto3.client(
                     "sts",
                     region_name=self.region,
+                    endpoint_url=f"https://sts.{self.region}.amazonaws.com",
                     config=Config(
                         retries={"total_max_attempts": 1},
                         connect_timeout=timeout,
@@ -110,6 +111,7 @@ class SecretAuthentication:
                 client = boto3.client(
                     "secretsmanager",
                     region_name=self.region,
+                    endpoint_url=f"https://secretsmanager.{self.region}.amazonaws.com",
                     config=Config(
                         retries={"total_max_attempts": 1},
                         connect_timeout=timeout,

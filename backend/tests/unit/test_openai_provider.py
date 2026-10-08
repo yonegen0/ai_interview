@@ -359,3 +359,34 @@ def test_v1_nullable_example_preserves_public_contract(runtime):
 def test_transport_endpoint_allowlist():
     with pytest.raises(ProviderFailure, match="CONFIGURATION"):
         HTTPTransport().post("example.com", "/v1/responses", {}, {}, Deadline(40, lambda: 0))
+
+
+def test_aws_auth_endpoint_and_single_attempt_are_pinned(monkeypatch):
+    import boto3
+
+    seen = []
+
+    def client(name, **kwargs):
+        seen.append((name, kwargs))
+        return SimpleNamespace(
+            get_web_identity_token=lambda **_: {"WebIdentityToken": "offline-subject-placeholder"},
+            get_secret_value=lambda **_: {"SecretString": '{"api_key":"offline-placeholder"}'},
+        )
+
+    monkeypatch.setattr(boto3, "client", client)
+    transport = Transport(
+        {"token_type": "bearer", "access_token": "offline-placeholder", "expires_at": 500}
+    )
+    assert (
+        AWSFederation(
+            "ap-northeast-1", "idp", "sa", transport=transport, wall_clock=lambda: 0
+        ).token(Deadline(40, lambda: 0))
+        == "offline-placeholder"
+    )
+    auth = SecretAuthentication(
+        "ap-northeast-1", "arn:aws:secretsmanager:ap-northeast-1:123456789012:secret:offline"
+    )
+    assert auth.token(Deadline(40, lambda: 0)) == "offline-placeholder"
+    for name, params in seen:
+        assert params["endpoint_url"] == f"https://{name}.ap-northeast-1.amazonaws.com"
+        assert params["config"].retries["total_max_attempts"] == 1
