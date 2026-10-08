@@ -10,6 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 sys.path[:0] = [str(ROOT / "backend/src"), str(Path(__file__).resolve().parent)]
 
+from closure_readiness import bound_callback_ready  # noqa: E402
 from coaching_live import Run, admin_flow, coaching_flow, run_with_closure  # noqa: E402
 
 
@@ -81,6 +82,9 @@ def approval_binding(raw, digest, manifest_raw, *, run_id, account, callbacks):
         3,
     ):
         raise ValueError("ApprovedRoundsRequired")
+    from suite_binding import validate_scenario
+
+    validate_scenario(approval, environment)
     if type(approval.get("admin_writes")) is not bool:
         raise ValueError("ExplicitAdminScopeRequired")
     if approval["admin_writes"] and approval.get("exclusive_test_window_verified") is not True:
@@ -121,9 +125,10 @@ def execute_bound(
         raw, digest, manifest_raw, run_id=run_id, account=account, callbacks=callbacks
     )
     for name, callback in {"audit": audit, "authenticate": authenticate, "close": close}.items():
-        source = inspect.getsourcefile(callback)
+        source = inspect.getsourcefile(callback if inspect.isfunction(callback) else type(callback))
         if source is None or Path(source).resolve() != Path(callbacks[name]).resolve():
             raise ValueError("CallbackSourceMismatch")
+    bound_callback_ready(close, approval, audit, authenticate)
     if audit(manifest, approval) is not True:
         raise ValueError("SafeSuccessfulEnablementAuditRequired")
     path = Path(journal).resolve()
@@ -145,11 +150,18 @@ def execute_bound(
                     apis[label] = api
                     if actual != subject:
                         raise ValueError("AuthenticatedSubjectMismatch")
-                options = {"expected_rounds": approval["expected_rounds"]}
+                options = {
+                    "expected_rounds": approval["expected_rounds"],
+                    "expected_failure": approval.get("scenario") == "fake_failure",
+                }
                 if wait is not None:
                     options["wait"] = wait
                 coaching_flow(apis["USER_A"], apis["USER_B"], run, **options)
+                if audit(manifest, approval) is not True:
+                    raise ValueError("FreshPreAdminAuditRequired")
                 admin_flow(apis["USER_A"], apis["ADMIN"], run, writes=approval["admin_writes"])
+                if hasattr(audit, "observe_transactions"):
+                    audit.observe_transactions(manifest, approval, run)
             except Exception:
                 run.record("suite", "failed")
                 raise

@@ -20,8 +20,8 @@ def canonical_policy(value):
     return normalize(value)
 
 
-def boundary_policy(account, region):
-    return {
+def boundary_policy(account, region, *, worker_wif_enabled=False):
+    result = {
         "Version": "2012-10-17",
         "Statement": [
             {
@@ -64,6 +64,11 @@ def boundary_policy(account, region):
             },
         ],
     }
+    if worker_wif_enabled:
+        from wif_policy import worker_statement
+
+        result["Statement"].append(worker_statement(account, boundary=True))
+    return result
 
 
 def trust_policy(provider, subject):

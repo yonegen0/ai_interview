@@ -73,8 +73,9 @@ def test_invalid_binding_prevents_callbacks(tmp_path, bad):
         )
 
 
-def test_auth_failure_closes_and_journal_blocks_replay(tmp_path):
+def test_auth_failure_closes_and_journal_blocks_replay(tmp_path, monkeypatch):
     binding = tool("coaching_binding")
+    monkeypatch.setattr(binding, "bound_callback_ready", lambda *args: True)
     approval, manifest, callbacks = inputs(tmp_path)
     raw = json.dumps(approval).encode()
     calls = []
@@ -117,8 +118,9 @@ def test_auth_failure_closes_and_journal_blocks_replay(tmp_path):
     assert calls == ["close"]
 
 
-def test_unsafe_audit_stops_without_auth_or_closure(tmp_path):
+def test_unsafe_audit_stops_without_auth_or_closure(tmp_path, monkeypatch):
     binding = tool("coaching_binding")
+    monkeypatch.setattr(binding, "bound_callback_ready", lambda *args: True)
     approval, manifest, callbacks = inputs(tmp_path)
     raw = json.dumps(approval).encode()
 

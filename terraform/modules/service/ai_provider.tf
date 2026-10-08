@@ -9,7 +9,8 @@ variable "worker_ai_environment" {
       "INTERVIEW_OPENAI_SECRET_ARN", "INTERVIEW_OPENAI_EFFORT",
       "INTERVIEW_OPENAI_MAX_OUTPUT_TOKENS", "INTERVIEW_OPENAI_MONTHLY_USER_LIMIT",
       "INTERVIEW_OPENAI_MONTHLY_GLOBAL_LIMIT",
-      "INTERVIEW_FAKE_SCENARIO", "INTERVIEW_VALIDATION_ONLY", "INTERVIEW_VALIDATION_OWNER_HASHES"
+      "INTERVIEW_FAKE_SCENARIO", "INTERVIEW_VALIDATION_ONLY", "INTERVIEW_VALIDATION_OWNER_HASHES",
+      "INTERVIEW_WIF_SMOKE_ENABLED", "INTERVIEW_WIF_SMOKE_RUN_ID", "INTERVIEW_OPENAI_AWS_ISSUER"
     ], k)])
     error_message = "Only non-secret, server-owned provider configuration keys are accepted."
   }
@@ -19,5 +20,15 @@ variable "worker_ai_environment" {
       (lookup(var.worker_ai_environment, "INTERVIEW_AI_PROVIDER", "") != "openai" || lookup(var.worker_ai_environment, "INTERVIEW_OPENAI_ENABLED", "false") == "true")
     )
     error_message = "An explicit provider selection and explicit OpenAI enablement are required."
+  }
+  validation {
+    condition = lookup(var.worker_ai_environment, "INTERVIEW_AI_PROVIDER", "fake") != "openai" || (
+      (lookup(var.worker_ai_environment, "INTERVIEW_OPENAI_AUTH", "wif") == "wif") == var.worker_wif_enabled
+    )
+    error_message = "OpenAI WIF requires the explicit Worker grant; Secret mode must not keep a WIF grant."
+  }
+  validation {
+    condition     = lookup(var.worker_ai_environment, "INTERVIEW_WIF_SMOKE_ENABLED", "false") != "true" || (var.worker_wif_enabled && lookup(var.worker_ai_environment, "INTERVIEW_AI_PROVIDER", "") == "fake" && lookup(var.worker_ai_environment, "INTERVIEW_VALIDATION_ONLY", "false") == "true")
+    error_message = "WIF Smoke requires an explicit dev Worker grant and validation-only Fake configuration."
   }
 }

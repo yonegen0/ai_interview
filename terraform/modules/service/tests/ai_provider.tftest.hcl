@@ -28,6 +28,7 @@ run "reject_plaintext_credentials" {
 run "openai_configuration_worker_only" {
   command = plan
   variables {
+    worker_wif_enabled = true
     worker_ai_environment = {
       INTERVIEW_AI_PROVIDER                 = "openai"
       INTERVIEW_OPENAI_ENABLED              = "true"

@@ -6,11 +6,25 @@ import json
 import os
 import statistics
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 from time import monotonic
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "backend/src"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from eval_budget import (  # noqa: E402
+    Budget,
+    ReservedTransport,
+    bind_authentication,
+    checked_pricing,
+    count_request,
+    money,
+    pricing_hash,
+    request_payload,
+    sha,
+)
 
 from interview_backend.assets import load_questions  # noqa: E402
 from interview_backend.evaluation.openai_provider import (  # noqa: E402
@@ -155,6 +169,10 @@ def main():
             "paid_calls": 0,
             "reference_labels": "Proposals requiring human calibration",
             "live_results": None,
+            "pricing_sha256": pricing_hash(),
+            "budget_control": (
+                "count exact messages/schema, reserve all calls, stop on unknown usage"
+            ),
         }
         with output.open("x", encoding="utf-8") as f:
             json.dump(report, f, indent=2)
@@ -169,21 +187,70 @@ def main():
     if (
         approval.get("model") != "gpt-6-luna"
         or approval.get("paid_eval_authorized") is not True
-        or approval.get("max_calls", 0) < 2 * len(cases)
+        or type(approval.get("max_calls")) is not int
+        or not 2 * len(cases) <= approval["max_calls"] <= 38
+        or approval.get("token_count_authorized") is not True
+        or approval.get("max_count_requests") != 2 * len(cases)
+        or not 0 < money(approval.get("max_cost_usd")) <= money("1.00")
     ):
         raise ValueError("ExplicitPaidEvaluationApprovalRequired")
+    if approval.get("pricing_verified_on") != datetime.now(UTC).date().isoformat():
+        raise ValueError("SameDayOfficialPricingReviewRequired")
+    checked_pricing(approval.get("pricing_sha256"))
+    mapping_raw = Path(approval["authentication_readback_path"]).read_bytes()
+    if hashlib.sha256(mapping_raw).hexdigest() != approval.get(
+        "authentication_readback_sha256"
+    ) or json.loads(mapping_raw) != approval.get("authentication"):
+        raise ValueError("ObservedApprovedAuthenticationRequired")
+    providers, payloads = {}, []
+    for effort in ("low", "medium"):
+        provider = select_provider(dict(os.environ, INTERVIEW_OPENAI_EFFORT=effort))
+        if not isinstance(provider, OpenAIProvider):
+            raise ValueError("ExplicitOpenAISelectionRequired")
+        providers[effort] = provider
+        bind_authentication(provider.authentication, approval["authentication"])
+        payloads.extend(request_payload(provider, prompt) for _, prompt in cases)
+    if approval.get("requests_sha256") != sha(payloads):
+        raise ValueError("ApprovedCorpusRequestsRequired")
     annotations = json.loads(Path(args.annotations).read_bytes()) if args.annotations else {}
     rows = []
+    budget_directory = private / "eval-budgets"
+    budget_directory.mkdir(exist_ok=True)
+    budget_path = budget_directory / (args.approval_sha256 + ".jsonl")
+    # One durable ledger per exact approval, independent of selected result path.
+    with budget_path.open("x", encoding="utf-8") as ledger:
+        ledger.write(
+            json.dumps(
+                {"status": "TOKEN_PREFLIGHT_STARTED", "approval_sha256": args.approval_sha256}
+            )
+            + "\n"
+        )
+        ledger.flush()
+        os.fsync(ledger.fileno())
+        counts = []
+        for index, payload in enumerate(payloads):
+            effort = "low" if index < len(cases) else "medium"
+            count = count_request(payload, providers[effort].authentication)
+            counts.append(count)
+            ledger.write(json.dumps({"token_count": count}) + "\n")
+            ledger.flush()
+            os.fsync(ledger.fileno())
+        budget = Budget(
+            ledger, payloads, counts, approval["max_cost_usd"], max_calls=approval["max_calls"]
+        )
+        for provider in providers.values():
+            provider.transport = ReservedTransport(budget, provider.transport)
+        run_reserved(output, cases, providers, budget, annotations, rows)
+
+
+def run_reserved(output, cases, providers, budget, annotations, rows):
     # An exclusive started journal prevents replay after an uncertain paid run.
     with output.open("x", encoding="utf-8") as stream:
         stream.write(json.dumps({"status": "STARTED", "max_calls": 2 * len(cases)}) + "\n")
         stream.flush()
         os.fsync(stream.fileno())
         for effort in ("low", "medium"):
-            env = dict(os.environ, INTERVIEW_OPENAI_EFFORT=effort)
-            provider = select_provider(env)
-            if not isinstance(provider, OpenAIProvider):
-                raise ValueError("ExplicitOpenAISelectionRequired")
+            provider = providers[effort]
             for fixture, prompt in cases:
                 stream.write(json.dumps({"started": fixture["name"], "effort": effort}) + "\n")
                 stream.flush()
@@ -195,6 +262,13 @@ def main():
                 rows.append(row)
                 stream.write(json.dumps(row) + "\n")
                 stream.flush()
+                os.fsync(stream.fileno())
+                # Auth/HTTP/refusal failures with missing numeric usage halt remaining calls.
+                if budget.pending is None:
+                    budget.frozen = True
+                    budget.record("NO_GENERATION_USAGE_STOP")
+                    raise ValueError("NoObservedPaidCallNoFurtherCalls")
+                budget.settle(provider.last_observation)
         stream.write(
             json.dumps(
                 {

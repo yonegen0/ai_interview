@@ -187,6 +187,15 @@ def execute(operation, input_path, directory, approved_hash=None, *, progress=No
     root = PROJECT / "terraform" / "environments" / "dev"
     env = terraform_environment(root, os.environ, account, region)
     values = inputs(input_path, account, region)
+    if operation == "apply" and any(
+        values[k] for k in ("api_enabled", "worker_enabled", "streams_enabled", "scheduler_enabled")
+    ):
+        from closure_readiness import require_closure_ready
+
+        require_closure_ready(
+            os.environ.get("P4_CLOSURE_VALIDATION_PATH"),
+            os.environ.get("P4_CLOSURE_VALIDATION_SHA256"),
+        )
     for key, value in values.items():
         encoded = value if isinstance(value, str) else json.dumps(value)
         name = f"TF_VAR_{key}"

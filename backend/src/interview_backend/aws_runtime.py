@@ -77,6 +77,10 @@ class WorkerEntry:
     def __call__(self, event, context):
         try:
             self.settings.require_invocation(context, {"live"})
+            if isinstance(event, dict) and event.get("operation") == "wif_smoke":
+                from interview_backend.evaluation.wif_smoke import smoke
+
+                return smoke(self.settings, os.environ, event)
             return self.handlers.sqs(event, context)
         except Exception:
             self.metrics.emit("InternalInvocationFailed")

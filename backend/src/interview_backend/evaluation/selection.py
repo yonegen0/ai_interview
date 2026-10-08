@@ -17,6 +17,9 @@ WORKER_AI_KEYS = frozenset(
         "INTERVIEW_FAKE_SCENARIO",
         "INTERVIEW_VALIDATION_ONLY",
         "INTERVIEW_VALIDATION_OWNER_HASHES",
+        "INTERVIEW_WIF_SMOKE_ENABLED",
+        "INTERVIEW_WIF_SMOKE_RUN_ID",
+        "INTERVIEW_OPENAI_AWS_ISSUER",
     }
 )
 
@@ -39,12 +42,45 @@ def checked_provider_environment(values, account, region):
     if region != "ap-northeast-1":
         raise ValueError("InvalidProviderEnvironment")
     if provider == "fake":
-        if set(values) - {
+        allowed = {
             "INTERVIEW_AI_PROVIDER",
             "INTERVIEW_FAKE_SCENARIO",
             "INTERVIEW_VALIDATION_ONLY",
             "INTERVIEW_VALIDATION_OWNER_HASHES",
-        }:
+        }
+        if values.get("INTERVIEW_WIF_SMOKE_ENABLED") == "true":
+            allowed |= {
+                "INTERVIEW_WIF_SMOKE_ENABLED",
+                "INTERVIEW_WIF_SMOKE_RUN_ID",
+                "INTERVIEW_OPENAI_AWS_ISSUER",
+                "INTERVIEW_OPENAI_AUTH",
+                "INTERVIEW_OPENAI_ENABLED",
+                "INTERVIEW_OPENAI_IDENTITY_PROVIDER_ID",
+                "INTERVIEW_OPENAI_SERVICE_ACCOUNT_ID",
+            }
+            if (
+                values.get("INTERVIEW_VALIDATION_ONLY") != "true"
+                or values.get("INTERVIEW_OPENAI_AUTH") != "wif"
+                or values.get("INTERVIEW_OPENAI_ENABLED") != "true"
+                or "INTERVIEW_FAKE_SCENARIO" in values
+            ):
+                raise ValueError("InvalidWIFSmokeConfiguration")
+            if not re.fullmatch(
+                r"[a-z0-9-]{1,24}", values.get("INTERVIEW_WIF_SMOKE_RUN_ID", "")
+            ) or not re.fullmatch(
+                r"https://[A-Za-z0-9-]+\.tokens\.sts\.global\.api\.aws",
+                values.get("INTERVIEW_OPENAI_AWS_ISSUER", ""),
+            ):
+                raise ValueError("InvalidWIFSmokeConfiguration")
+            if not all(
+                re.fullmatch(r"[A-Za-z0-9_-]{1,128}", values.get(k, ""))
+                for k in (
+                    "INTERVIEW_OPENAI_IDENTITY_PROVIDER_ID",
+                    "INTERVIEW_OPENAI_SERVICE_ACCOUNT_ID",
+                )
+            ):
+                raise ValueError("InvalidWIFSmokeConfiguration")
+        if set(values) - allowed:
             raise ValueError("InvalidProviderEnvironment")
         if "INTERVIEW_FAKE_SCENARIO" in values:
             from interview_backend.evaluation.validation_scenarios import ValidationScenario

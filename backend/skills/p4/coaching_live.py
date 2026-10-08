@@ -56,7 +56,7 @@ def poll(api, eid, *, clock=time.monotonic, sleep=time.sleep, timeout=180):
         sleep(2)
 
 
-def coaching_flow(a, b, run, *, expected_rounds=0, wait=poll):
+def coaching_flow(a, b, run, *, expected_rounds=0, expected_failure=False, wait=poll):
     key = run.key("session")
     payload = {"mode": "category", "category": "career", "difficulty": "standard"}
     status, created, _ = a.call("POST", "/sessions", payload, key)
@@ -87,6 +87,7 @@ def coaching_flow(a, b, run, *, expected_rounds=0, wait=poll):
         )
         outcome = wait(a, eid)
         if outcome["status"] == "failed":
+            run.expect(expected_failure, "expected-provider-failure")
             run.record("provider-failed")
             retry = {"kind": "retry_evaluation", "attemptId": aid, "fromEvaluationId": eid}
             rk = run.key("evaluation-retry")
@@ -96,8 +97,10 @@ def coaching_flow(a, b, run, *, expected_rounds=0, wait=poll):
             run.record(
                 "retry-evaluation-created", evaluation_id=retried["evaluationId"], request_key=rk
             )
-            run.record("retry-success-result", "not_run")
+            retried_outcome = wait(a, retried["evaluationId"])
+            run.expect(retried_outcome["status"] == "failed", "same-failure-config-retry-terminal")
             return
+        run.expect(not expected_failure, "expected-provider-success")
         fs, feedback, _ = a.call("GET", f"/attempts/{aid}/feedback?evaluationId={eid}")
         run.expect(fs == 200 and feedback.get("feedbackVersion") == 2, "v2-feedback")
         run.expect(feedback["coachingCount"] == round_index, "coaching-count")

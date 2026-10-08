@@ -20,6 +20,7 @@ class AWSFederation:
     client_factory: object = field(default=None, repr=False)
     transport: object = field(default=None, repr=False)
     wall_clock: object = field(default=time, repr=False)
+    subject_observer: object = field(default=None, repr=False)
 
     def token(self, deadline):
         if (
@@ -55,6 +56,8 @@ class AWSFederation:
             )["WebIdentityToken"]
             if not isinstance(subject, str) or not subject:
                 raise ProviderFailure("AUTHENTICATION")
+            if self.subject_observer is not None:
+                self.subject_observer(subject)
             deadline.seconds()
             status, raw = (self.transport or HTTPTransport()).post(
                 "auth.openai.com",

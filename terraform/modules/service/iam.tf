@@ -33,5 +33,5 @@ resource "aws_iam_role_policy" "runtime" {
   for_each = local.function_arns
   name     = "business"
   role     = aws_iam_role.lambda[each.key].id
-  policy   = jsonencode({ Version = "2012-10-17", Statement = concat(local.base_statements[each.key], [for s in local.worker_statements : s if each.key == "worker"], [for s in local.dispatcher_statements : s if each.key == "dispatcher"]) })
+  policy   = jsonencode({ Version = "2012-10-17", Statement = concat(local.base_statements[each.key], [for s in local.worker_statements : s if each.key == "worker"], [for s in local.worker_wif_statements : s if each.key == "worker"], [for s in local.dispatcher_statements : s if each.key == "dispatcher"]) })
 }

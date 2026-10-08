@@ -15,6 +15,15 @@ variables {
   ses_from_email    = "sender@example.invalid"
 }
 
+run "wif_boundary_exact_worker_only" {
+  command = plan
+  variables { worker_wif_enabled = true }
+  assert {
+    condition     = jsondecode(aws_iam_policy.runtime_boundary.policy).Statement[5].Condition.ArnEquals["aws:PrincipalArn"] == "arn:aws:iam::123456789012:role/ai-interview-dev-worker-runtime"
+    error_message = "Shared boundary WIF addition must restrict the exact dev Worker."
+  }
+}
+
 run "bootstrap_policy_contract" {
   command = apply
   assert {

@@ -79,13 +79,13 @@ resource "aws_iam_openid_connect_provider" "github" {
 }
 resource "aws_iam_policy" "runtime_boundary" {
   name = "ai-interview-runtime-boundary"
-  policy = jsonencode({ Version = "2012-10-17", Statement = [
+  policy = jsonencode({ Version = "2012-10-17", Statement = concat([
     { Effect = "Allow", Action = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:ConditionCheckItem", "dynamodb:Query", "dynamodb:DescribeStream", "dynamodb:GetRecords", "dynamodb:GetShardIterator"], Resource = ["arn:aws:dynamodb:${var.region}:${var.account_id}:table/ai-interview-*"] },
     { Effect = "Allow", Action = ["dynamodb:ListStreams"], Resource = ["*"] },
     { Effect = "Allow", Action = ["sqs:SendMessage", "sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"], Resource = ["arn:aws:sqs:${var.region}:${var.account_id}:ai-interview-*"] },
     { Effect = "Allow", Action = ["logs:CreateLogStream", "logs:PutLogEvents"], Resource = ["arn:aws:logs:${var.region}:${var.account_id}:log-group:/aws/lambda/ai-interview-*:*"] },
     { Effect = "Allow", Action = ["lambda:InvokeFunction"], Resource = ["arn:aws:lambda:${var.region}:${var.account_id}:function:ai-interview-*-dispatcher:recovery"] }
-  ] })
+  ], local.worker_wif_boundary_statements) })
   tags = local.tags
 }
 resource "aws_iam_role" "ci" {

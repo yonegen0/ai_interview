@@ -1,0 +1,378 @@
+"""Saved-plan-only conditional Closure with no retry after an apply attempt."""
+
+import hashlib
+import json
+import os
+import re
+from copy import deepcopy
+from pathlib import Path
+
+FLAGS = ("api_enabled", "worker_enabled", "streams_enabled", "scheduler_enabled")
+UPDATES = {
+    "module.service.aws_apigatewayv2_api.main": ("disable_execute_api_endpoint", False, True),
+    "module.service.aws_lambda_event_source_mapping.worker": ("enabled", True, False),
+    "module.service.aws_lambda_event_source_mapping.streams": ("enabled", True, False),
+    "module.service.aws_scheduler_schedule.recovery": ("state", "ENABLED", "DISABLED"),
+}
+
+
+def digest(raw):
+    return hashlib.sha256(raw).hexdigest()
+
+
+def write(path, value):
+    with Path(path).open("x", encoding="utf-8") as stream:
+        json.dump(value, stream, sort_keys=True)
+        stream.flush()
+        os.fsync(stream.fileno())
+
+
+def closed_inputs(inputs):
+    if any(inputs.get(k) is not True for k in FLAGS):
+        raise ValueError("FourActiveFlagsRequired")
+    return deepcopy(inputs) | dict.fromkeys(FLAGS, False)
+
+
+def state_addresses(state):
+    addresses = set()
+    for resource in state["resources"]:
+        prefix = resource.get("module", "")
+        prefix = prefix + "." if prefix else ""
+        prefix += "data." if resource.get("mode") == "data" else ""
+        base = prefix + resource["type"] + "." + resource["name"]
+        for instance in resource["instances"]:
+            index = instance.get("index_key")
+            address = base if index is None else base + "[" + json.dumps(index) + "]"
+            addresses.add(address)
+    return addresses
+
+
+def unknown(value):
+    if isinstance(value, dict):
+        return any(unknown(v) for v in value.values())
+    if isinstance(value, list):
+        return any(unknown(v) for v in value)
+    return value is True
+
+
+def audit_plan(review, state, alarm_addresses):
+    """Every saved-plan entry is audited, including refresh drift and outputs."""
+    if review.get("errored") or review.get("resource_drift") or review.get("deferred_changes"):
+        raise ValueError("PlanDriftOrDeferredChange")
+    entries = review.get("resource_changes", [])
+    addresses = [e["address"] for e in entries]
+    if len(set(addresses)) != len(addresses) or set(addresses) != state_addresses(state):
+        raise ValueError("FullStatePlanAuditRequired")
+    updates, deletes = set(), set()
+    for entry in entries:
+        address, change = entry["address"], entry["change"]
+        actions = change["actions"]
+        if unknown(change.get("after_unknown", {})) or change.get("replace_paths"):
+            raise ValueError("UnknownOrReplacementForbidden")
+        if actions == ["no-op"]:
+            if change["before"] != change["after"]:
+                raise ValueError("BaselineNoOpMismatch")
+        elif address in UPDATES and actions == ["update"]:
+            key, before, after = UPDATES[address]
+            original, result = change["before"], change["after"]
+            if (
+                type(original.get(key)) is not type(before)
+                or original[key] != before
+                or result != original | {key: after}
+            ):
+                raise ValueError("UnexpectedClosureUpdate")
+            updates.add(address)
+        elif address in alarm_addresses and actions == ["delete"]:
+            if (
+                entry.get("type") != "aws_cloudwatch_metric_alarm"
+                or change["after"] is not None
+                or change["before"].get("alarm_name") != alarm_addresses[address]
+            ):
+                raise ValueError("AlarmDeletionScopeMismatch")
+            deletes.add(address)
+        else:
+            raise ValueError("ClosureWhitelistDeviation:" + address)
+    if updates != set(UPDATES) or deletes != set(alarm_addresses):
+        raise ValueError("FourUpdatesAndApprovedAlarmDeletesRequired")
+    outputs = review.get("output_changes", {})
+    if (
+        "manifest" not in outputs
+        or outputs["manifest"]["before"] != state["outputs"]["manifest"]["value"]
+    ):
+        raise ValueError("FullManifestOutputAuditRequired")
+    for name, change in outputs.items():
+        if unknown(change.get("after_unknown", {})):
+            raise ValueError("UnknownClosureOutput")
+        expected = deepcopy(change["before"])
+        if name == "manifest":
+            expected["configuration"].update(dict.fromkeys(FLAGS, False))
+        if change["after"] != expected:
+            raise ValueError("ClosureOutputMismatch")
+    return {
+        "create": 0,
+        "replace": 0,
+        "update": 4,
+        "destroy": len(deletes),
+        "audited": len(entries),
+    }
+
+
+def bind_enablement(approval, receipt, inputs_raw, manifest_raw, enablement_plan):
+    """No placeholders accepted; a real successful receipt must bind actual bytes."""
+    inputs, manifest = json.loads(inputs_raw), json.loads(manifest_raw)
+    if approval.get("conditional_closure_authorized") is not True or approval.get(
+        "closure_source_sha256"
+    ) != digest(Path(__file__).read_bytes()):
+        raise ValueError("ApprovedClosureSourceRequired")
+    if approval.get("driver_source_sha256") != digest(
+        Path(__file__).with_name("closure_aws.py").read_bytes()
+    ):
+        raise ValueError("ApprovedClosureDriverRequired")
+    if (
+        receipt.get("status") != "ENABLEMENT_READBACK_VERIFIED"
+        or receipt.get("partial_failure") is not False
+    ):
+        raise ValueError("SuccessfulEnablementReceiptRequired")
+    if approval.get("enablement_plan_sha256") != digest(enablement_plan) or receipt.get(
+        "plan_sha256"
+    ) != digest(enablement_plan):
+        raise ValueError("EnablementSavedPlanMismatch")
+    for key in ("account_id", "region", "code_sha", "lock_sha256"):
+        if not approval.get(key) or receipt.get(key) != approval[key]:
+            raise ValueError("EnablementReceiptBindingMismatch")
+    if (
+        not re.fullmatch(r"\d{12}", approval["account_id"])
+        or approval["region"] != "ap-northeast-1"
+    ):
+        raise ValueError("AccountRegionMismatch")
+    if (
+        manifest.get("account_id") != approval["account_id"]
+        or manifest.get("region") != approval["region"]
+        or manifest.get("environment") != "dev"
+    ):
+        raise ValueError("DevManifestRequired")
+    if receipt.get("inputs_sha256") != digest(inputs_raw) or receipt.get(
+        "manifest_sha256"
+    ) != digest(manifest_raw):
+        raise ValueError("LatestSuccessfulInputsRequired")
+    if (
+        receipt.get("artifact") != manifest.get("artifact")
+        or receipt.get("versions") != manifest.get("versions")
+        or receipt.get("aliases") != manifest.get("aliases")
+    ):
+        raise ValueError("LatestArtifactVersionsAliasesRequired")
+    expected_artifact = {
+        "bucket": inputs.get("artifact_bucket"),
+        "key": inputs.get("artifact_key"),
+        "version": inputs.get("artifact_version"),
+        "sha256_base64": inputs.get("artifact_sha256_base64"),
+    }
+    if expected_artifact != manifest["artifact"]:
+        raise ValueError("ArtifactInputMismatch")
+    if receipt.get("worker_ai_environment", {}) != inputs.get(
+        "worker_ai_environment", {}
+    ) or manifest.get("worker_ai_environment", {}) != inputs.get("worker_ai_environment", {}):
+        raise ValueError("ProviderConfigurationMismatch")
+    if receipt.get("worker_wif_enabled", False) != inputs.get("worker_wif_enabled", False):
+        raise ValueError("WorkerGrantConfigurationMismatch")
+    if manifest.get("worker_wif_enabled", False) != inputs.get("worker_wif_enabled", False):
+        raise ValueError("WorkerGrantManifestMismatch")
+    for key in FLAGS:
+        if inputs.get(key) is not True or manifest.get("configuration", {}).get(key) is not True:
+            raise ValueError("SuccessfulActiveEnablementRequired")
+    state_before, state_after = receipt.get("state_before", {}), receipt.get("state_after", {})
+    if (
+        state_before != approval.get("state_before")
+        or state_after.get("lineage") != state_before.get("lineage")
+        or type(state_after.get("serial")) is not int
+        or state_after["serial"] <= state_before.get("serial", -1)
+    ):
+        raise ValueError("EnablementStateReceiptMismatch")
+    return inputs, manifest
+
+
+def require_snapshot(snapshot, receipt, manifest):
+    identity = snapshot["identity"]
+    if (
+        identity != receipt["state_after"]
+        or snapshot.get("active_lock") is not False
+        or snapshot.get("state_outside_dev_resources") != 0
+        or snapshot.get("manifest") != manifest
+    ):
+        raise ValueError("CurrentStateOrNamespaceMismatch")
+
+
+def execute_closure(
+    approval_raw,
+    approval_sha256,
+    receipt_raw,
+    inputs_raw,
+    manifest_raw,
+    enablement_plan,
+    directory,
+    driver,
+):
+    """driver is the concrete TerraformAWS driver; tests use a network-free fixture."""
+    if digest(approval_raw) != approval_sha256:
+        raise ValueError("ClosureApprovalHashMismatch")
+    approval, receipt = json.loads(approval_raw), json.loads(receipt_raw)
+    inputs, active = bind_enablement(approval, receipt, inputs_raw, manifest_raw, enablement_plan)
+    directory = Path(directory).resolve()
+    private = Path(__file__).resolve().parents[2] / ".p4-artifacts"
+    if not directory.is_relative_to(private.resolve()):
+        raise ValueError("PrivateClosureDirectoryRequired")
+    directory.mkdir(exist_ok=False)
+    attempts = private / "closure-attempts"
+    attempts.mkdir(exist_ok=True)
+    write(
+        attempts / (digest(enablement_plan) + ".json"),
+        {"approval_sha256": approval_sha256, "directory": str(directory)},
+    )
+    write(
+        directory / "started.json",
+        {"approval_sha256": approval_sha256, "receipt_sha256": digest(receipt_raw)},
+    )
+    try:
+        before = driver.snapshot(active)
+        require_snapshot(before, receipt, active)
+        if len(state_addresses(before["state"])) != 61 + len(approval["validation_alarms"]):
+            raise ValueError("Baseline61AndApprovedAlarmsRequired")
+        closed = closed_inputs(inputs)
+        plan, review = driver.plan(closed, directory)
+        summary = audit_plan(review, before["state"], approval["validation_alarms"])
+        plan_hash = digest(plan.read_bytes())
+        if (
+            approval.get("closure_plan_sha256") is not None
+            and approval["closure_plan_sha256"] != plan_hash
+        ):
+            raise ValueError("ClosureSavedPlanHashMismatch")
+        write(directory / "audit.json", summary | {"plan_sha256": plan_hash})
+        require_snapshot(driver.snapshot(active), receipt, active)
+        if digest(plan.read_bytes()) != plan_hash:
+            raise ValueError("ClosurePlanChangedAfterAudit")
+        write(directory / "apply-started.json", {"plan_sha256": plan_hash})
+        # No retry, replan, destroy, state surgery or manual repair on any failure.
+        driver.apply(plan, plan_hash)
+        write(directory / "apply-completed.json", {"plan_sha256": plan_hash})
+        expected = deepcopy(active)
+        expected["configuration"].update(dict.fromkeys(FLAGS, False))
+        after = driver.snapshot(expected)
+        if len(state_addresses(after["state"])) != 61:
+            raise ValueError("ClosedBaseline61Required")
+        if (
+            after.get("active_lock") is not False
+            or after.get("state_outside_dev_resources") != 0
+            or after["manifest"] != expected
+            or after["identity"]["lineage"] != before["identity"]["lineage"]
+            or after["identity"]["serial"] <= before["identity"]["serial"]
+        ):
+            raise ValueError("ClosureReadbackMismatch")
+        evidence = {
+            "status": "CLOSED_READBACK_VERIFIED",
+            "api_disabled": True,
+            "worker_disabled": True,
+            "streams_disabled": True,
+            "scheduler_disabled": True,
+            "validation_alarm_count": 0,
+            "active_lock": False,
+            "state_outside_dev_resources": 0,
+            "plan_sha256": plan_hash,
+            "state": after["identity"],
+        }
+        write(directory / "closed-readback.json", evidence)
+        return evidence
+    except Exception:
+        write(
+            directory / "stopped.json",
+            {
+                "status": "READ_ONLY_DIAGNOSIS_REQUIRED",
+                "apply_started": (directory / "apply-started.json").exists(),
+                "active_may_remain": True,
+            },
+        )
+        raise
+
+
+def save_enablement_receipt(directory, approval, inputs_raw, manifest_raw, plan, before, driver):
+    """Normalize real successful apply evidence only; never called in preparation."""
+    directory = Path(directory)
+    started = json.loads((directory / "apply-started.json").read_bytes())
+    completed = json.loads((directory / "apply-completed.json").read_bytes())
+    plan_hash = digest(Path(plan).read_bytes())
+    if (
+        started.get("plan_sha256") != plan_hash
+        or completed.get("plan_sha256") != plan_hash
+        or approval["enablement_plan_sha256"] != plan_hash
+    ):
+        raise ValueError("RealSuccessfulApplyEvidenceRequired")
+    manifest = json.loads(manifest_raw)
+    after = driver.snapshot(manifest)
+    receipt = {
+        "status": "ENABLEMENT_READBACK_VERIFIED",
+        "partial_failure": False,
+        "plan_sha256": plan_hash,
+        "inputs_sha256": digest(inputs_raw),
+        "manifest_sha256": digest(manifest_raw),
+        "state_before": before,
+        "state_after": after["identity"],
+        "artifact": manifest["artifact"],
+        "versions": manifest["versions"],
+        "aliases": manifest["aliases"],
+        "worker_ai_environment": manifest.get("worker_ai_environment", {}),
+        "worker_wif_enabled": json.loads(inputs_raw).get("worker_wif_enabled", False),
+        **{k: approval[k] for k in ("account_id", "region", "code_sha", "lock_sha256")},
+    }
+    bind_enablement(approval, receipt, inputs_raw, manifest_raw, Path(plan).read_bytes())
+    write(directory / "enablement-receipt.json", receipt)
+    return receipt
+
+
+class BoundClosure:
+    """Runtime paths are mandatory bindings; absent future receipt fails closed."""
+
+    def __init__(
+        self,
+        *,
+        approval_path,
+        approval_sha256,
+        receipt_path,
+        inputs_path,
+        manifest_path,
+        enablement_plan_path,
+        directory,
+        terraform_root,
+        environment=None,
+    ):
+        self.approval_path, self.approval_sha256 = Path(approval_path), approval_sha256
+        self.receipt_path, self.inputs_path = receipt_path, inputs_path
+        self.manifest_path, self.enablement_plan_path = manifest_path, enablement_plan_path
+        self.directory, self.terraform_root, self.environment = (
+            directory,
+            terraform_root,
+            environment,
+        )
+
+    def __call__(self, manifest, live_approval):
+        from closure_aws import TerraformAWS
+
+        raw = self.approval_path.read_bytes()
+        if digest(raw) != self.approval_sha256:
+            raise ValueError("ClosureApprovalHashMismatch")
+        active_raw = Path(self.manifest_path).read_bytes()
+        if (
+            json.loads(active_raw) != manifest
+            or live_approval.get("closure_approval_sha256") != self.approval_sha256
+        ):
+            raise ValueError("LiveClosureManifestBindingMismatch")
+        approval = json.loads(raw)
+        driver = TerraformAWS(self.terraform_root, approval, self.environment)
+        return execute_closure(
+            raw,
+            self.approval_sha256,
+            Path(self.receipt_path).read_bytes(),
+            Path(self.inputs_path).read_bytes(),
+            active_raw,
+            Path(self.enablement_plan_path).read_bytes(),
+            self.directory,
+            driver,
+        )

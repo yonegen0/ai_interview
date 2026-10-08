@@ -105,8 +105,13 @@ def inputs(path, account, region):
         values = json.loads(Path(path).read_text(encoding="utf-8"))
     except OSError, UnicodeError, json.JSONDecodeError:
         raise DeploymentError("BootstrapInputsUnavailable") from None
-    if not isinstance(values, dict) or values.keys() != INPUT_KEYS:
+    if not isinstance(values, dict) or set(values) not in (
+        set(INPUT_KEYS),
+        set(INPUT_KEYS) | {"worker_wif_enabled"},
+    ):
         raise DeploymentError("ExplicitBootstrapInputsRequired")
+    if type(values.get("worker_wif_enabled", False)) is not bool:
+        raise DeploymentError("ExplicitWorkerFederationFlagRequired")
     subjects = values.get("oidc_subjects")
     if (
         not isinstance(subjects, dict)
@@ -227,7 +232,11 @@ def verify_created_resources(session, outputs, account, region, values=None):
         )["PolicyVersion"]
         if not version["IsDefaultVersion"] or canonical_policy(
             version["Document"]
-        ) != canonical_policy(boundary_policy(account, region)):
+        ) != canonical_policy(
+            boundary_policy(
+                account, region, worker_wif_enabled=(values or {}).get("worker_wif_enabled", False)
+            )
+        ):
             raise ValueError
         provider = iam.get_open_id_connect_provider(
             OpenIDConnectProviderArn=outputs["oidc_provider_arn"]
