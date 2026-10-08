@@ -99,6 +99,7 @@ def test_auth_failure_closes_and_journal_blocks_replay(tmp_path):
         }
 
     path = Path(__file__).parents[2] / ".p4-artifacts" / ("binding-test-" + str(uuid4()) + ".jsonl")
+    path.parent.mkdir(parents=True, exist_ok=True)
     kwargs = dict(
         run_id=approval["run_id"],
         account=approval["account_id"],

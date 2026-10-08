@@ -158,3 +158,7 @@ Ruff check/format成功。Backendは1102 passed/57 deselected。最終gate修正
 24 passed（追加11件）。承認不一致/主体重複/callback改変/未承認課金/非排他的Admin/manifest差分拒否、
 認証失敗後のClosure、journal再実行拒否、不安全State停止、限定key照合を検証した。
 AWS実機成功や採点品質のPASSは付けない。Terraform/Frontend配備入力に変更はなく、最新commitのCIで確認する。
+
+初回commitのCIでPYTHONPATH未指定時の隣接suite import不足が判明し、既存ツールと同じ
+repository基準の探索path設定へ修正した。テストprivate保存先も明示作成する。
+PYTHONPATH未指定の関連24件/Ruffが成功した。初回CI失敗を最終commitの成功へ流用しない。

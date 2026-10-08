@@ -4,9 +4,13 @@ import hashlib
 import inspect
 import json
 import os
+import sys
 from pathlib import Path
 
-from coaching_live import Run, admin_flow, coaching_flow, run_with_closure
+ROOT = Path(__file__).resolve().parents[3]
+sys.path[:0] = [str(ROOT / "backend/src"), str(Path(__file__).resolve().parent)]
+
+from coaching_live import Run, admin_flow, coaching_flow, run_with_closure  # noqa: E402
 
 
 def authenticate_existing(client, manifest, email):
