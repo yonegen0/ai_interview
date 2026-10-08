@@ -30,7 +30,12 @@ def corpus():
     for r in rows:
         history = tuple(CoachingHistoryItem(**h) for h in r.get("history", []))
         context = CoachingInput(
-            question=load_questions()[0],
+            question=load_questions()[0].model_copy(
+                update={
+                    "category": "motivation",
+                    "question": "志望する仕事と、その理由・本人の経験を教えてください。",
+                }
+            ),
             initial_answer=r["initial"],
             coaching_history=history,
             latest_answer=history[-1].answer if history else r["initial"],

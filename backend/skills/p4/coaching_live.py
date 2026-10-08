@@ -216,7 +216,23 @@ def run_with_closure(test, close, run):
     try:
         test()
     finally:
-        close()
+        evidence = close()
+        required = {
+            "status": "CLOSED_READBACK_VERIFIED",
+            "api_disabled": True,
+            "worker_disabled": True,
+            "streams_disabled": True,
+            "scheduler_disabled": True,
+            "validation_alarm_count": 0,
+            "active_lock": False,
+            "state_outside_dev_resources": 0,
+        }
+        if not isinstance(evidence, dict) or any(
+            key not in evidence or type(evidence[key]) is not type(value) or evidence[key] != value
+            for key, value in required.items()
+        ):
+            run.record("closed-readback", "failed")
+            raise ValueError("VerifiedClosureReadbackRequired")
         run.record("closed-readback")
 
 

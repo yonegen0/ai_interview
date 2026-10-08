@@ -97,10 +97,31 @@ def test_failed_validation_always_invokes_closure_callback():
     def failed():
         raise AssertionError("synthetic")
 
+    def closed():
+        calls.append("closed")
+        return {
+            "status": "CLOSED_READBACK_VERIFIED",
+            "api_disabled": True,
+            "worker_disabled": True,
+            "streams_disabled": True,
+            "scheduler_disabled": True,
+            "validation_alarm_count": 0,
+            "active_lock": False,
+            "state_outside_dev_resources": 0,
+        }
+
     with pytest.raises(AssertionError):
-        live.run_with_closure(failed, lambda: calls.append("closed"), run)
+        live.run_with_closure(failed, closed, run)
     assert calls == ["closed"]
     assert run.rows[-1]["check"] == "closed-readback"
+
+
+def test_closure_callback_return_without_readback_never_passes():
+    live = tool("coaching_live")
+    run = live.Run("offline-no-proof")
+    with pytest.raises(ValueError, match="VerifiedClosureReadbackRequired"):
+        live.run_with_closure(lambda: None, lambda: None, run)
+    assert run.rows[-1]["status"] == "failed"
 
 
 def test_fake_scenario_requires_operator_settings_and_owner_allowlist():
