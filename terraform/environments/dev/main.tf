@@ -27,5 +27,6 @@ module "service" {
   streams_enabled        = var.streams_enabled
   scheduler_enabled      = var.scheduler_enabled
   api_enabled            = var.api_enabled
+  worker_ai_environment  = var.worker_ai_environment
 }
 output "manifest" { value = module.service.manifest }

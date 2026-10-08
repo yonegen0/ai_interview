@@ -138,6 +138,10 @@ def verify_live_manifest(session, manifest, *, require_api_enabled=True, approve
         if manifest["schema_version"] not in {2, 3}:
             raise ValueError
         if approved_inputs is not None:
+            if manifest.get("worker_ai_environment", {}) != approved_inputs.get(
+                "worker_ai_environment", {}
+            ):
+                raise ValueError
             expected = {key: approved_inputs[key] for key in manifest["configuration"]}
             expected["monthly_budget_usd"] = str(expected["monthly_budget_usd"])
             if manifest["configuration"] != expected:

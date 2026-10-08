@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "threshold_status": "proposal_for_live_calibration_not_formal_gate",
+  "scored_cases": [
+    {"name":"clear-conclusion","initial":"顧客の課題を解決したいので営業職を志望します。相談を聞いて改善案を作り、必要な支援へつなげました。","scores":[8,8,8],"status":"completed"},
+    {"name":"conclusion-information-missing","initial":"相談を聞いて改善案を作り、必要な支援へつなげました。","scores":[5,8,7],"status":"coaching"},
+    {"name":"conclusion-expression-only","initial":"顧客支援。それを仕事にしたいです。相談を聞いて支援につなげました。理由は困っている顧客の力になりたいからです。","scores":[6,8,8],"status":"completed"},
+    {"name":"specificity-only-missing","initial":"顧客の力になりたいので営業職を志望します。以前から相手の役に立つことにやりがいを感じていました。","scores":[8,5,8],"status":"coaching"},
+    {"name":"reasoning-only-missing","initial":"営業職を志望します。顧客の相談を聞き、改善案を作り、必要な支援へつなげました。","scores":[8,8,5],"status":"coaching"},
+    {"name":"specificity-six-boundary","initial":"営業職を志望します。顧客を支援しました。困っている顧客の役に立つことが仕事のやりがいです。","scores":[8,6,8],"status":"coaching"},
+    {"name":"specificity-seven-boundary","initial":"営業職を志望します。顧客の相談を聞き、改善案を作りました。困っている顧客の役に立つことが仕事のやりがいです。","scores":[8,7,8],"status":"completed"},
+    {"name":"reasoning-six-boundary","initial":"営業職を志望します。顧客の相談を聞き、改善案を作りました。そのような仕事が好きです。","scores":[8,8,6],"status":"coaching"},
+    {"name":"reasoning-seven-boundary","initial":"営業職を志望します。顧客の相談を聞き、改善案を作りました。困っている顧客に解決策を届けることにやりがいを感じます。","scores":[8,8,7],"status":"completed"},
+    {"name":"unknown-no-invention","initial":"営業職を志望します。理由は分かりません。経験は特にありません。","scores":[8,2,2],"status":null}
+  ],
+  "manual_annotation_fields": ["unnecessary_question","semantic_duplicate","invented_or_misread_fact","correction_or_withdrawal_respected"],
+  "notes": "Merge all nine existing coaching-v2 facts fixtures. Reference scores/status are proposed labels for human calibration. Lexical checks and offline mock results cannot prove semantic quality."
+}

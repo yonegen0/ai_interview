@@ -11,7 +11,7 @@ from interview_backend.assets import load_questions
 from interview_backend.aws_settings import AwsSettings
 from interview_backend.evaluation.dispatch import Dispatcher, Recovery, SQSPublisher
 from interview_backend.evaluation.events import InternalHandlers
-from interview_backend.evaluation.provider import FakeProvider
+from interview_backend.evaluation.selection import select_provider
 from interview_backend.evaluation.worker import Worker
 from interview_backend.observability import Metrics, ObservedRepository
 from interview_backend.repositories.budget import storage_budget
@@ -130,7 +130,9 @@ def build_entry(component):
         return ApiEntry(settings, AdminHandler(repository, load_questions()), metrics)
     if component == "worker":
         return WorkerEntry(
-            settings, Worker(repository, FakeProvider(), metric=metrics.classification), metrics
+            settings,
+            Worker(repository, select_provider(os.environ), metric=metrics.classification),
+            metrics,
         )
     publisher = SQSPublisher.for_aws(settings.region, settings.queue_url)
     dispatcher = Dispatcher(repository, publisher)

@@ -24,6 +24,7 @@ from interview_backend.repositories.codec import (
 from interview_backend.repositories.domain import DomainRepository, utc_ms
 
 COLLECTIONS = {
+    "ProviderUsage": "provider_usage",
     "AttemptCoaching": "coachings",
     "Session": "sessions",
     "Attempt": "attempts",

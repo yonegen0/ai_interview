@@ -3,7 +3,7 @@
 from copy import deepcopy
 from dataclasses import replace
 from datetime import UTC, datetime
-from uuid import uuid4
+from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from interview_backend.models.internal import (
     Attempt,
@@ -19,6 +19,7 @@ from interview_backend.models.internal import (
     ItemTooLarge,
     LeaseClaim,
     MutationResult,
+    ProviderUsage,
     QuestionBank,
     QuestionBankChange,
     RecoveryCursor,
@@ -607,6 +608,50 @@ class DomainRepository(CoachingRepositoryMixin):
             and e.lease_version == lease.lease_version
             and now < min(e.lock_expires_at, e.deadline_at)
         )
+
+    def reserve_provider_call(self, lease, monthly_limit, global_limit=3000):
+        """Atomic per-owner UTC-month cap; retries of the same Evaluation consume once."""
+        if (
+            type(monthly_limit) is not int
+            or not 1 <= monthly_limit <= 1000
+            or type(global_limit) is not int
+            or not 1 <= global_limit <= 10000
+        ):
+            raise ValueError("provider_usage_limit")
+
+        def run(tx):
+            at = self.clock()
+            related = self._related(tx, lease.owner, lease.evaluation_id)
+            if related is None or not self._has_lease(*related[:2], lease, at):
+                return MutationResult("lost_lease")
+            e = related[0]
+            if e.provider_usage_month is not None:
+                return MutationResult("already_reserved")
+            month = datetime.fromtimestamp(at / 1000, UTC).strftime("%Y-%m")
+            identifier = str(uuid5(NAMESPACE_URL, "interview-provider-usage:" + month))
+            usage = tx.get(ref("ProviderUsage", lease.owner, identifier))
+            if usage is None:
+                usage = ProviderUsage(lease.owner, identifier, month)
+            if usage.month != month:
+                raise IntegrityError("provider_usage_month")
+            if usage.calls >= monthly_limit:
+                return MutationResult("limited")
+            global_owner = "@ai-global-budget"
+            global_usage = tx.get(ref("ProviderUsage", global_owner, identifier))
+            if global_usage is None:
+                global_usage = ProviderUsage(global_owner, identifier, month)
+            if global_usage.month != month:
+                raise IntegrityError("provider_usage_month")
+            if global_usage.calls >= global_limit:
+                return MutationResult("limited")
+            usage.calls += 1
+            global_usage.calls += 1
+            e.provider_usage_month = month
+            tx.window = CommitWindow(upper=min(e.lock_expires_at, e.deadline_at))
+            self._save(tx, e, usage, global_usage)
+            return MutationResult("reserved")
+
+        return self._atomic(run, temporal=True)
 
     def mark_call_started(self, lease, now=None):
         def run(tx):

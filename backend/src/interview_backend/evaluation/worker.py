@@ -1,5 +1,7 @@
 """Lease-fenced single Provider call; only storage may be retried after starting."""
 
+import logging
+from dataclasses import replace
 from datetime import UTC, datetime
 from time import monotonic
 from uuid import uuid4
@@ -33,9 +35,13 @@ class Worker:
     ):
         self.repository, self.provider, self.clock = repository, provider, clock
         self.monotonic, self.new_execution_id = monotonic_clock, new_execution_id
-        self.config = config or ExecutionConfig(prompt_version=PROMPT_VERSION)
-        self.coaching_config = ExecutionConfig(
-            prompt_version=COACHING_PROMPT_VERSION, result_schema_version=2
+        self.config = config or ExecutionConfig(
+            provider_id=getattr(provider, "provider_id", "fake"),
+            model_id=getattr(provider, "model_id", "fake"),
+            prompt_version=PROMPT_VERSION,
+        )
+        self.coaching_config = replace(
+            self.config, prompt_version=COACHING_PROMPT_VERSION, result_schema_version=2
         )
         self.metric = metric
 
@@ -71,8 +77,8 @@ class Worker:
                 lease.execution_config != config
                 or config.prompt_version
                 != (COACHING_PROMPT_VERSION if version == 2 else PROMPT_VERSION)
-                or config.provider_id != "fake"
-                or config.model_id != "fake"
+                or config.provider_id != getattr(self.provider, "provider_id", "fake")
+                or config.model_id != getattr(self.provider, "model_id", "fake")
             ):
                 raise ValueError("execution_config")
             prompt = (
@@ -80,6 +86,8 @@ class Worker:
                 if version == 2
                 else build_prompt(lease.attempt.question, lease.attempt.answer)
             )
+            if hasattr(self.provider, "authorize_owner"):
+                self.provider.authorize_owner(lease.owner)
         except Exception:
             return self.repository.finish(lease, reason="PREPARATION_FAILED").status in {
                 "applied",
@@ -90,6 +98,19 @@ class Worker:
                 "applied",
                 "already_terminal",
             }
+        if config.provider_id.startswith("openai"):
+            quota = self.repository.reserve_provider_call(
+                lease,
+                self.provider.settings.monthly_user_limit,
+                self.provider.settings.monthly_global_limit,
+            )
+            if quota.status == "limited":
+                return self.repository.finish(lease, reason="PREPARATION_FAILED").status in {
+                    "applied",
+                    "already_terminal",
+                }
+            if quota.status not in {"reserved", "already_reserved"}:
+                return False
         marked = self.repository.mark_call_started(lease)
         if marked.status not in {"applied", "confirmed_same_execution"}:
             return False
@@ -104,7 +125,22 @@ class Worker:
                 raise RuntimeError("already_called")
             entered = True
             called_at = self.monotonic()
-            raw = self.provider.evaluate(prompt)
+            if config.provider_id.startswith("openai"):
+                from interview_backend.evaluation.openai_provider import Deadline
+
+                budget = min(
+                    config.provider_timeout_ms,
+                    remaining() - 10000,
+                    lease.expires_at - self.clock() - 10000,
+                    lease.deadline_at - self.clock() - 10000,
+                )
+                raw = self.provider.evaluate_with_deadline(
+                    prompt, Deadline(called_at + budget / 1000, self.monotonic)
+                )
+            elif hasattr(self.provider, "evaluate_for_owner"):
+                raw = self.provider.evaluate_for_owner(prompt, lease.owner)
+            else:
+                raw = self.provider.evaluate(prompt)
             if (self.monotonic() - called_at) * 1000 >= config.provider_timeout_ms:
                 raise TimeoutError
             result = (CoachingResult if version == 2 else EvaluationResult).model_validate(raw)
@@ -148,7 +184,21 @@ class Worker:
             reason = "PROVIDER_TIMEOUT"
         except ValidationError, InvalidCoachingResult:
             reason = "INVALID_RESULT"
-        except Exception:
-            reason = "PROVIDER_FAILED"
+        except Exception as error:
+            from interview_backend.evaluation.openai_provider import ProviderFailure
+
+            if isinstance(error, ProviderFailure):
+                logging.getLogger(__name__).warning("provider_failure=%s", error.kind)
+                reason = (
+                    "OUTCOME_UNKNOWN"
+                    if error.uncertain
+                    else "PROVIDER_TIMEOUT"
+                    if error.kind == "TIMEOUT"
+                    else "INVALID_RESULT"
+                    if error.kind in {"INVALID_JSON", "INVALID_SCHEMA"}
+                    else "PROVIDER_FAILED"
+                )
+            else:
+                reason = "PROVIDER_FAILED"
         result = self.repository.finish(lease, feedback, reason)
         return result.status in {"applied", "already_terminal"}

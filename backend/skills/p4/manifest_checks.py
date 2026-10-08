@@ -125,6 +125,11 @@ def verify_configuration(session, manifest, config):
         else ("api", "worker", "dispatcher")
     )
     role_env["admin"] = role_env["api"]
+    provider_env = m.get("worker_ai_environment", {})
+    from interview_backend.evaluation.selection import checked_provider_environment
+
+    provider_env = checked_provider_environment(provider_env, account, region)
+    role_env["worker"].update(provider_env)
     for role in roles:
         name = f"{prefix}-{role}"
         deployed = lambdas.get_function_configuration(

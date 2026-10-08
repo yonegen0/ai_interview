@@ -1,5 +1,5 @@
 output "manifest" {
-  value = {
+  value = merge({
     schema_version = 3
     configuration = {
       boundary_arn       = var.boundary_arn
@@ -34,5 +34,5 @@ output "manifest" {
     artifact           = { bucket = var.artifact_bucket, key = var.artifact_key, version = var.artifact_version, sha256_base64 = var.artifact_sha256_base64 }
     log_groups         = { for k, g in aws_cloudwatch_log_group.lambda : k => g.name }
     alarm_topic_arn    = aws_sns_topic.alarms.arn
-  }
+  }, length(var.worker_ai_environment) == 0 ? {} : { worker_ai_environment = var.worker_ai_environment })
 }

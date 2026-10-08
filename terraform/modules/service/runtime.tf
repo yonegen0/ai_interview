@@ -30,7 +30,7 @@ locals {
       INTERVIEW_API_ID       = aws_apigatewayv2_api.main.id
       INTERVIEW_STAGE        = "dev"
     }
-    worker = { INTERVIEW_QUEUE_ARN = aws_sqs_queue.main.arn }
+    worker = merge({ INTERVIEW_QUEUE_ARN = aws_sqs_queue.main.arn }, var.worker_ai_environment)
     dispatcher = {
       INTERVIEW_QUEUE_ARN    = aws_sqs_queue.main.arn
       INTERVIEW_QUEUE_URL    = aws_sqs_queue.main.url

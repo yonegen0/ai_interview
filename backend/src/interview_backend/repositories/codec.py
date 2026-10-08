@@ -21,6 +21,7 @@ from interview_backend.models.internal import (
     IdempotentReply,
     IntegrityError,
     ItemTooLarge,
+    ProviderUsage,
     QuestionBank,
     QuestionBankChange,
     RecoveryCursor,
@@ -56,6 +57,8 @@ PREFIXES = dict(
 KINDS.update(QuestionBank=QuestionBank, QuestionBankChange=QuestionBankChange)
 KINDS["AttemptCoaching"] = AttemptCoaching
 PREFIXES["AttemptCoaching"] = "COACHING"
+KINDS["ProviderUsage"] = ProviderUsage
+PREFIXES["ProviderUsage"] = "PROVIDER_USAGE"
 MAX_TIME = 9999999999999
 MAX_ITEM_BYTES = 350 * 1024
 FAILURE = {"code": "EVALUATION_FAILED", "message": "Evaluation could not be completed."}
@@ -148,6 +151,13 @@ def validate(record):
                 validate_id(getattr(record, name))
             except ValueError:
                 raise StorageFormatError("invalid_id") from None
+    if isinstance(record, ProviderUsage) and not re.fullmatch(
+        r"\d{4}-(?:0[1-9]|1[0-2])", record.month
+    ):
+        raise StorageFormatError("provider_usage_month")
+    if isinstance(record, Evaluation) and record.provider_usage_month is not None:
+        if not re.fullmatch(r"\d{4}-(?:0[1-9]|1[0-2])", record.provider_usage_month):
+            raise StorageFormatError("provider_usage_month")
     if isinstance(record, Session):
         if not record.questions or record.number < 1 or record.updated_at < record.created_at:
             raise IntegrityError("session_state")

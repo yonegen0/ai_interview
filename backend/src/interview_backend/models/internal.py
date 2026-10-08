@@ -125,6 +125,15 @@ class Evaluation:
     coaching_input: CoachingInput | None = None
     round_index: int | None = None
     retry_of_evaluation_id: str | None = None
+    provider_usage_month: str | None = None
+
+
+@dataclass
+class ProviderUsage:
+    owner: str
+    id: str
+    month: str
+    calls: int = 0
 
 
 @dataclass
@@ -297,3 +306,4 @@ class State:
     question_banks: dict[str, QuestionBank] = field(default_factory=dict)
     question_bank_changes: dict[tuple[str, str], QuestionBankChange] = field(default_factory=dict)
     coachings: dict[str, AttemptCoaching] = field(default_factory=dict)
+    provider_usage: dict[str, ProviderUsage] = field(default_factory=dict)
