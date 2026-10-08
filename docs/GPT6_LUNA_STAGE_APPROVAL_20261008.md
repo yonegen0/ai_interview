@@ -80,6 +80,8 @@ SHA `2982d8d049f17543aa25ab01ec8376bcc1bdf21c557d78a977ab2dec5d1d81aa` は保全
 明示承認し、[公式count endpoint](https://developers.openai.com/api/reference/resources/responses/subresources/input_tokens/methods/count)に
 実際のmessages＋JSON schemaを送る。計測前には生成要求を送らない。現工程の実token計測は未実行。
 実payload群のSHA、認証読戻しSHA、Project/SA/issuer/subject/モデル権限を承認へ結合する。
+WIF Evalでは、同Accountの実Worker Smoke成功読戻しSHAも必須。成功していないWorker Smokeを
+ローカルprincipalの接続成功で代用せず、課金要求前に停止する。
 
 2026-10-08の[公式モデル料金](https://developers.openai.com/api/docs/models/gpt-6-luna)を基準に、
 Fast×long context×regional uplift、cache-writeの最大単価も保守的に含める。
@@ -167,3 +169,14 @@ cleanupは実取引後に得たexact-key snapshotだけを承認対象にする�
 
 現工程のfeature有効化/token発行/credential登録/IAM変更/OpenAI mapping作成/upload/apply/
 Enablement/有料要求/実データ削除はすべて未実施。
+
+## 固定した新候補と検証結果
+
+新候補source=`2d62ce2b04396d740cdc988b9a92e1abb4d1e011`、size=19,094,901 bytes、
+SHA-256=`758c5c309226ac182fb5f5166074169d32e2b2fddba8311d97913a636b03a3bc`。
+`backend/.p4-artifacts/gpt6-luna-wif-candidate-20261008-01/app.zip`。
+2回生成hash一致、37appファイルのGit bytes一致、依存bytesは既存正式ZIPと一致。
+Linux3.14.4/x86_64/nativeABI/4handler/V1/V2/Mock Responses/WIF成功。socket/SDK送信を禁止して検証した。
+Source commitのBackend/P4 package/Frontend CIは全success（Backend1160/2skip、Terraform40+2、
+Frontend654＋E2E24、契約102）。後続のoperator/doc変更ではZIPの再生成をせず同一入力を確認する。
+最新commitのCI結果はprivate completionに記録し、source commitの成功と区別する。

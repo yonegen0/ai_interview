@@ -202,6 +202,24 @@ def main():
         "authentication_readback_sha256"
     ) or json.loads(mapping_raw) != approval.get("authentication"):
         raise ValueError("ObservedApprovedAuthenticationRequired")
+    if approval["authentication"].get("mode") == "wif":
+        smoke_raw = Path(approval["worker_smoke_readback_path"]).read_bytes()
+        smoke = json.loads(smoke_raw)
+        account = approval.get("account_id")
+        expected_subject = f"arn:aws:iam::{account}:role/ai-interview-dev-worker-runtime"
+        if (
+            hashlib.sha256(smoke_raw).hexdigest() != approval.get("worker_smoke_readback_sha256")
+            or smoke.get("status") != "WORKER_WIF_SMOKE_VERIFIED"
+            or smoke.get("openai_exchange_verified") is not True
+            or smoke.get("paid_responses_calls") != 0
+            or smoke.get("subject") != expected_subject
+            or smoke.get("issuer") != approval["authentication"].get("issuer")
+            or not approval["authentication"]
+            .get("subject", "")
+            .startswith(f"arn:aws:iam::{account}:")
+            or approval.get("region") != "ap-northeast-1"
+        ):
+            raise ValueError("SuccessfulSameAccountWorkerWIFSmokeRequired")
     providers, payloads = {}, []
     for effort in ("low", "medium"):
         provider = select_provider(dict(os.environ, INTERVIEW_OPENAI_EFFORT=effort))

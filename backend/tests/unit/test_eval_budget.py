@@ -207,3 +207,63 @@ def test_runner_stale_pricing_approval_stops_before_auth(tmp_path, monkeypatch):
     with pytest.raises(ValueError, match="SameDayOfficialPricingReviewRequired"):
         evaluation.main()
     assert not output.exists()
+
+
+def test_runner_failed_worker_smoke_stops_before_local_auth(tmp_path, monkeypatch):
+    import hashlib
+    import sys
+    from datetime import UTC, datetime
+    from pathlib import Path
+    from uuid import uuid4
+
+    evaluation = tool("provider_eval")
+    monkeypatch.setattr(evaluation, "checked_pricing", lambda value: None)
+    budget = tool("eval_budget")
+    auth = {"mode": "wif", "issuer": "observed", "subject": "arn:aws:iam::123456789012:role/eval"}
+    auth_path, smoke_path = tmp_path / "auth", tmp_path / "smoke"
+    auth_raw, smoke_raw = json.dumps(auth).encode(), json.dumps({"status": "FAILED"}).encode()
+    auth_path.write_bytes(auth_raw)
+    smoke_path.write_bytes(smoke_raw)
+    approval = {
+        "model": "gpt-6-luna",
+        "paid_eval_authorized": True,
+        "max_calls": 38,
+        "token_count_authorized": True,
+        "max_count_requests": 38,
+        "max_cost_usd": "1.00",
+        "pricing_verified_on": datetime.now(UTC).date().isoformat(),
+        "pricing_sha256": budget.pricing_hash(),
+        "authentication": auth,
+        "authentication_readback_path": str(auth_path),
+        "authentication_readback_sha256": hashlib.sha256(auth_raw).hexdigest(),
+        "worker_smoke_readback_path": str(smoke_path),
+        "worker_smoke_readback_sha256": hashlib.sha256(smoke_raw).hexdigest(),
+        "account_id": "123456789012",
+        "region": "ap-northeast-1",
+    }
+    raw = json.dumps(approval).encode()
+    path = tmp_path / "approval"
+    path.write_bytes(raw)
+    output = Path(__file__).parents[2] / ".p4-artifacts" / (str(uuid4()) + ".json")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "provider_eval",
+            "--live",
+            "--output",
+            str(output),
+            "--approval",
+            str(path),
+            "--approval-sha256",
+            hashlib.sha256(raw).hexdigest(),
+        ],
+    )
+    monkeypatch.setattr(
+        evaluation,
+        "select_provider",
+        lambda env: pytest.fail("No auth permitted after failed Worker Smoke"),
+    )
+    with pytest.raises(ValueError, match="SuccessfulSameAccountWorkerWIFSmokeRequired"):
+        evaluation.main()
+    assert not output.exists()
