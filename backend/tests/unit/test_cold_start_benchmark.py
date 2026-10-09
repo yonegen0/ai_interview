@@ -5,7 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from cold_start_benchmark import CHILD, environment
+from test_p4_tools import tool
 
 
 def test_proxy_environment_excludes_inherited_credentials(monkeypatch):
@@ -14,7 +14,7 @@ def test_proxy_environment_excludes_inherited_credentials(monkeypatch):
     monkeypatch.setenv("P4_AWS_EXECUTION_READY", "true")
     monkeypatch.setenv("GH_TOKEN", "synthetic-token")
     root = Path(__file__).resolve().parents[3]
-    env = environment(root)
+    env = tool("cold_start_benchmark").environment(root)
     assert "AWS_PROFILE" not in env
     assert "INTERVIEW_OPENAI_ENABLED" not in env
     assert "P4_AWS_EXECUTION_READY" not in env
@@ -23,10 +23,11 @@ def test_proxy_environment_excludes_inherited_credentials(monkeypatch):
 
 def test_fresh_proxy_can_compose_and_reject_auth_without_sdk_client():
     root = Path(__file__).resolve().parents[3]
+    benchmark = tool("cold_start_benchmark")
     result = subprocess.run(
-        [sys.executable, "-B", "-c", CHILD],
+        [sys.executable, "-B", "-c", benchmark.CHILD],
         cwd=root,
-        env=environment(root),
+        env=benchmark.environment(root),
         capture_output=True,
         check=True,
         timeout=30,
