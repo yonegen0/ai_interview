@@ -22,7 +22,8 @@ CloudでPhase 1/2と安全なPhase 3を実装した。AWS照会・変更、SSO�
 | 相関／秘匿 | `backend/src/interview_backend/{operational_logs,observability,aws_runtime}.py`, `evaluation/events.py` | 評価ID、attempt ID、Lambda/Gateway request IDを受付→配送→claim→終端に連携。固定event/field allowlist、本文/JWT/token/email/例外文字列を出さない。warm context reset、logging失敗でも業務処理を再試行しない |
 | 既存履歴再利用 | `backend/src/interview_backend/support_history.py`, `backend/skills/p4/support_history.py` | 既存exact-owner Evaluation snapshotをprivate summaryに変換。回答・採点本文を含めない。新item/table/write/TTLなし。過去provider不明はunknown |
 | test drain補助 | `backend/skills/p4/test_monitoring_closure.py` | 読取り専用、全入口停止のmanifest/live照合、3queue（main+2DLQ）のvisible/inflight/delayedとWorkIndex全3partitionを2回60秒間隔で確認、manifest hash付きprivate観測記録 |
-| 試験 | `backend/tests/unit/test_{operational_logs,p4_cost_controls}.py`, `test_p4_{artifact_inputs,ci_readiness}.py`, `terraform/modules/service/tests/*.tftest.hcl` | 新34試験、旧入力fixture更新、schema4/2/3・相関/秘匿/失敗/120日後/owner・Closure whitelist、保持/Alarm/gate mock |
+| 試験 | `backend/tests/unit/test_{operational_logs,p4_cost_controls}.py`, `test_p4_serverless.py`, `test_p4_{artifact_inputs,ci_readiness}.py`, `terraform/modules/service/tests/*.tftest.hcl` | 新39試験（ログ・監視34＋CI分岐5）、旧入力fixture更新、schema4/2/3・相関/秘匿/失敗/120日後/owner・Closure whitelist、保持/Alarm/gate mock |
+| CI判定 | `backend/skills/p4/package_changes.py`, `backend/tests/unit/test_p4_serverless.py` | 新branch初回pushのbefore=0かつcreated/after/head整合時、比較元を推測せず必ずfull package検証。通常push/PR/manualの祖先検査を維持 |
 | 文書 | 本書、`docs/P4_COST_LOG_OPTIMIZATION_PLAN_20261009.md`, `.csv`, `.json`, `docs/P4_TERRAFORM_RUNBOOK.md` | 実装状況、モデル費用、AWS未検証、既存runbookの新入力／manifest追記 |
 
 Worker MaximumConcurrency=2、毎分Recovery、SQS retries/DLQ、DDB PAY_PER_REQUEST・冪等transaction・Streams、Cognito/JWT/owner、IAM/boundary/WIF、State方式を変更していない。SQS event形式は変えず既存evaluationIdを再利用する。IAM権限追加・新サービスは0。既存dev Closure実行器を変更していない。
@@ -35,7 +36,7 @@ Phase 3では正常GETの重複通常ログを抑制し、必要なEMFとGateway
 
 | コマンド／検証 | 結果 |
 |---|---|
-| Backend `.venv/bin/pytest -q -m "not dynamodb and not aws_e2e"`（backend cwd） | **1195 passed、2 skipped、57 deselected、0 failed**。AWS/socket接続禁止fixtureを維持。skipは既存条件付き試験、deselectedはAWS依存 |
+| Backend `.venv/bin/pytest -q -m "not dynamodb and not aws_e2e"`（backend cwd） | **1200 passed、2 skipped、57 deselected、0 failed**。AWS/socket接続禁止fixtureを維持。skipは既存条件付き試験、deselectedはAWS依存 |
 | `.venv/bin/ruff check .` / `ruff format --check src tests skills` / `interview-demo` | 成功 |
 | Terraform1.14.9 `fmt -check -recursive terraform` | 成功 |
 | `offline_terraform.py`方式：隔離コピーで4root `init -backend=false -input=false -lockfile=readonly` / `validate` | bootstrap/dev/test/serviceすべて成功。実StateもAWSも使わない。AWS Provider lock/signature維持 |
@@ -145,7 +146,9 @@ testの監視停止はdev Closure実行器とは別。test専用の入口停止s
 
 ```powershell
 Set-Location backend
-# 既存runbookのAWS execution guard・Account/Region/profileを設定したWindowsだけで実行。
+# 全writer停止・既存read権限・Account/Region確認後、Windowsだけで明示する。
+$env:AWS_PROFILE = $P4Profile
+$env:P4_AWS_EXECUTION_READY = "true"
 uv run --locked python skills/p4/test_monitoring_closure.py --manifest <private-test-deployment.json> --account <承認Account> --region ap-northeast-1 --output <backend/.p4-artifacts/新規drain-observation.json>
 ```
 
@@ -153,7 +156,7 @@ uv run --locked python skills/p4/test_monitoring_closure.py --manifest <private-
 
 ### 6. 14日を超える問い合わせ
 
-利用者のJWTから得た正確なownerとevaluationIdを照合し、既存tableのexact GetItemを承認済みprivate端末へ保存する。scan・全user dump・新IAM権限は使わない。既存正本のPK/SK/codecは`docs/p2/entity-model.md`とrepositoryのencode/key実装を確認する。回答本文が含まれる原snapshotを共有/commitしない。
+利用者のJWTから得た正確なownerとevaluationIdを照合し、既存tableのexact GetItemを承認済みprivate端末へ保存する。scan・全user dump・新IAM権限は使わない。既存EvaluationキーはPK=`USER#<ownerSub>`、SK=`EVALUATION#<evaluationId>`。大文字小文字を変更せず、ConsistentRead=trueのexact GetItemを使う（`docs/p2/dynamodb-design.md`）。回答本文が含まれる原snapshotを共有/commitしない。
 
 ```powershell
 Set-Location backend
@@ -175,4 +178,18 @@ owner不一致・codec不明・古いrecordに必要情報が無ければ推測�
 
 ## 成果物確定記録
 
-この項目は検証・commit・push・CI確認後に追記する。AWS側の残作業はD/Eに記載し、AWS変更の承認は未取得。
+- 実装commit: `9d7f9846efcbb6bbafc6c869b1d2356a882f399d` (`feat: optimize P4 logging monitoring and cost controls`)。
+- 通常`git push -u origin codex/p4-cost-log-optimization-20261009`成功。`git ls-remote`で実装commitの一致を確認。後続は検証記録／引き継ぎ文書のみのcommitを追加する。CI補修commitは`7e6cd45c3ccb2be24172a723cfb30f6a855887f1`（`fix: verify full Lambda package on initial branch pushes`）で通常push／remote一致確認済み。最新HEADは上記AのGitコマンドとPR headで確認する。
+- [PR #1](https://github.com/yonegen0/ai_interview/pull/1)、draft、未merge。CIの実装元／補修commitの確認状態は下記。書面作成後の最新文書commitの結果はPR Checksでhead SHAごとに確認する。
+- Cloud最終試験: Backend **1200 pass/0 fail/2 skip/57 deselect**、新39試験（ログ・監視34＋CI分岐5）を含む。Terraform **49 pass/0 fail**、全4root validate/fmt成功。Frontend全suiteはsystem Chromium補助で**654 pass/0 fail/61 files**、E2E **24 pass/0 fail**。正規unit265 pass、lint/typecheck、production/mock/Storybook build成功。
+- 一時browser config削除済み、Frontend source/lock/workflow差分0。全変更38filesのみの初回commit、秘密key/State/Artifact混入なし、git diff --check成功。CSVは**48費用行＋16感度行**でJSON数値と一致。既存INFRASTRUCTURE_OVERVIEWの変更はhash不変で除外。
+- Linux x86_64 CPython3.14 locked production ZIP: Git raw source blobs一致、2回のZIP byte一致、4handler/15questions/socket禁止展開import成功。ZIP sha256 `477af7dcef0e5c2a691bdfe87bbacf468555bb9696ad4d9c5c9cdff78b440c9b`、19,044,373bytes。Cloud検証用ZIPは`/tmp/p4-implementation/validated-1.zip`（session一時成果物、Git未格納／S3未upload）。Windowsで正式経路に従い再構築／source・依存・hashを再照合し、新承認を取る。Cloud検証hashをAWS Artifact承認の代用にしない。
+- 通常git接続/pushは成功した。Cloudの`gh auth status`はGH_TOKEN invalidで失敗したため、PR/Actions readは接続済みGitHub connectorで行った。credentialの出力/設定変更をしていない。
+- AWS変更の承認は未取得。正式deployment／90日実保存／SNS／性能の未検証項目はD/Eのまま。
+
+
+### CI確認記録と継続確認
+
+- 実装commit `9d7f984` のPR [Backend](https://github.com/yonegen0/ai_interview/actions/runs/37878810277)／[P4 Terraform・Package](https://github.com/yonegen0/ai_interview/actions/runs/37878810081)はSUCCESS。初回pushの[Package判定失敗](https://github.com/yonegen0/ai_interview/actions/runs/37878760581)はbefore=0の新branchイベントが原因、ログ確認・新5試験・full package分岐の補修済み。失敗runを削除／成功へ偽装しない。
+- 補修commit `7e6cd45` の[Backend](https://github.com/yonegen0/ai_interview/actions/runs/37879087994)／[P4](https://github.com/yonegen0/ai_interview/actions/runs/37879088099)／[Frontend](https://github.com/yonegen0/ai_interview/actions/runs/37879088081)はこの書面更新時に実行中。正式Chromium版、test/build/E2Eの全step完了までCloud側で監視する。最終応答は最新headの実際の結果を報告する。
+- Windowsは[PR Checks](https://github.com/yonegen0/ai_interview/pull/1/checks)で最新head SHAと全job successを再確認する。過去SHAのsuccessだけで新変更を配備しない。

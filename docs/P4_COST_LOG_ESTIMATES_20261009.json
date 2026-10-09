@@ -2598,6 +2598,17 @@
     "ttl_added": false,
     "new_metric_names_or_dimensions": false,
     "new_dynamodb_items_or_writes": false,
-    "customer_alarm_increment_usd_per_month": 0.5
+    "customer_alarm_increment_usd_per_month": 0.5,
+    "implementation_commit": "9d7f9846efcbb6bbafc6c869b1d2356a882f399d",
+    "backend_tests_passed": 1200,
+    "backend_tests_skipped": 2,
+    "backend_tests_deselected": 57,
+    "terraform_mock_tests_passed": 49,
+    "terraform_roots_validated": 4,
+    "frontend_unit_tests_passed": 265,
+    "frontend_system_chromium_full_tests_passed": 654,
+    "frontend_system_chromium_e2e_tests_passed": 24,
+    "ci_fix_commit": "7e6cd45c3ccb2be24172a723cfb30f6a855887f1",
+    "first_branch_push_ci_failure": "before=0 lacked comparison base; fixed by mandatory full package verification with 5 new regression cases"
   }
 }
