@@ -10,6 +10,7 @@ PACKAGE_PATHS = {
     "backend/pyproject.toml",
     "backend/uv.lock",
     "backend/skills/p4/build_lambda.py",
+    "backend/skills/p4/package_changes.py",
 }
 
 
@@ -30,6 +31,22 @@ def decision(root, event, event_name, head, explicit_base=""):
         raise ValueError("PackageComparisonHeadRequired")
     if event_name == "push":
         base = event.get("before", "")
+        if base == "0" * 40:
+            # A first branch push has no ancestor. Verify the whole package;
+            # never guess a base or skip validation.
+            if (
+                event.get("created") is not True
+                or event.get("deleted") is not False
+                or event.get("after") != head
+            ):
+                raise ValueError("PackageComparisonBaseRequired")
+            git(root, "cat-file", "-e", head + "^{commit}")
+            return {
+                "base": None,
+                "head": head,
+                "build_package": True,
+                "reason": "new_branch_full_package_verification",
+            }
     elif event_name == "pull_request":
         base = event.get("pull_request", {}).get("base", {}).get("sha", "")
     else:

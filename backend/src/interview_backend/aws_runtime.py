@@ -14,6 +14,7 @@ from interview_backend.evaluation.events import InternalHandlers
 from interview_backend.evaluation.selection import select_provider
 from interview_backend.evaluation.worker import Worker
 from interview_backend.observability import Metrics, ObservedRepository
+from interview_backend.operational_logs import invocation_context, log_event
 from interview_backend.repositories.budget import storage_budget
 from interview_backend.repositories.dynamodb import DynamoDBRepository, client_for
 
@@ -25,6 +26,7 @@ class ApiEntry:
 
     def __call__(self, event, context):
         started = monotonic()
+        result = None
         try:
             self.settings.require_invocation(context, {"live"})
             request = event.get("requestContext") or {}
@@ -54,9 +56,14 @@ class ApiEntry:
             return result
         except Exception:
             self.metrics.emit("ApiFailure")
-            return error(500, "INTERNAL_SERVER_ERROR")
+            result = error(500, "INTERNAL_SERVER_ERROR")
+            return result
         finally:
-            self.metrics.emit("ApiDuration", max(0, (monotonic() - started) * 1000))
+            elapsed = max(0, (monotonic() - started) * 1000)
+            self.metrics.emit("ApiDuration", elapsed)
+            status = result["statusCode"] if result else 401
+            if status >= 400 or self.metrics.component == "admin":
+                log_event("api_completed", statusCode=status, elapsedMs=elapsed)
 
 
 class WorkerEntry:
@@ -145,10 +152,20 @@ def build_entry(component):
 
 
 def _invoke(component, event, context):
+    function = os.environ.get(
+        "AWS_LAMBDA_FUNCTION_NAME", os.environ.get("INTERVIEW_FUNCTION_NAME", "")
+    )
+    environment = "test" if "-test-" in function else "dev"
+    with invocation_context(component, environment, event, context):
+        return _invoke_entry(component, environment, event, context)
+
+
+def _invoke_entry(component, environment, event, context):
     try:
         entry = build_entry(component)
     except Exception:
-        Metrics(component).emit("InvalidConfiguration")
+        Metrics(component, environment=environment).emit("InvalidConfiguration")
+        log_event("invalid_configuration")
         if component in {"api", "admin"}:
             return error(500, "INTERNAL_SERVER_ERROR")
         raise RuntimeError("InvalidConfiguration") from None

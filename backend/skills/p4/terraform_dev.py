@@ -11,6 +11,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 from decimal import Decimal
 from pathlib import Path
 
@@ -29,6 +30,7 @@ TF_VERSION = "1.14.9"
 REPOSITORY = "yonegen0/ai_interview"
 INPUT_KEYS = frozenset(
     {
+        "log_usage",
         "boundary_arn",
         "artifact_bucket",
         "artifact_key",
@@ -107,9 +109,20 @@ def inputs(path, account, region):
     return validate_inputs(values, account, region)
 
 
-def validate_inputs(values, account, region):
+def validate_inputs(
+    values, account, region, *, previous_configuration=None, shortening_approval_hash=None
+):
     if not isinstance(values, dict) or not valid_input_keys(values):
         raise DeploymentError("ExplicitDeploymentInputsRequired")
+    if values["log_usage"] not in ("developer", "customer"):
+        raise DeploymentError("ExplicitLogUsageRequired")
+    if (
+        previous_configuration
+        and previous_configuration.get("log_usage") == "customer"
+        and values["log_usage"] == "developer"
+        and not re.fullmatch(r"[0-9a-f]{64}", shortening_approval_hash or "")
+    ):
+        raise DeploymentError("ApprovedRetentionShorteningRequired")
     result = dict(values)
     if "monthly_budget_usd" in result:
         amount = result["monthly_budget_usd"]
@@ -214,10 +227,6 @@ def execute(operation, input_path, directory, approved_hash=None, *, progress=No
     manifest = directory / "plan.json"
     if operation == "plan":
         directory.mkdir(parents=True, exist_ok=False)
-    else:
-        assert_binding(
-            json.loads(manifest.read_text(encoding="utf-8")), binding, plan, approved_hash
-        )
     env["TF_DATA_DIR"] = str(directory / ".terraform")
     env["TF_WORKSPACE"] = "default"
     version = json.loads(run(["terraform", "version", "-json"], cwd=root, env=env))
@@ -225,6 +234,27 @@ def execute(operation, input_path, directory, approved_hash=None, *, progress=No
         raise DeploymentError("TerraformVersionMismatch")
     session = checked_session(account, region, environment=env)
     env = credential_environment(session, env)
+    from deployment_guards import audit_retention, read_state_snapshot
+
+    snapshot = read_state_snapshot(
+        session, account, region, binding["state_key"], allow_absent=True
+    )
+    approval_path = os.environ.get("P4_LOG_RETENTION_APPROVAL_PATH")
+    approval_hash = os.environ.get("P4_LOG_RETENTION_APPROVAL_SHA256")
+    binding["state_identity"] = snapshot["identity"]
+    binding["log_retention_approval_sha256"] = approval_hash
+    if operation != "plan":
+        saved = json.loads(manifest.read_text(encoding="utf-8"))
+        if operation == "verify":
+            binding["state_identity"] = saved["state_identity"]
+        assert_binding(saved, binding, plan, approved_hash)
+    validate_inputs(
+        json.loads(Path(input_path).read_text()),
+        account,
+        region,
+        previous_configuration=(snapshot["manifest"] or {}).get("configuration"),
+        shortening_approval_hash=approval_hash,
+    )
     run(
         [
             "terraform",
@@ -252,6 +282,20 @@ def execute(operation, input_path, directory, approved_hash=None, *, progress=No
         from plan_summary import summarize
 
         review = json.loads(run(["terraform", "show", "-json", str(plan)], cwd=root, env=env))
+        audit_retention(
+            review,
+            snapshot["manifest"],
+            snapshot,
+            approval_path,
+            approval_hash,
+            private,
+            now=int(time.time()),
+        )
+        if (
+            read_state_snapshot(session, account, region, binding["state_key"], allow_absent=True)
+            != snapshot
+        ):
+            raise DeploymentError("StateChangedDuringPlan")
         (directory / "review.private.json").write_text(json.dumps(review), encoding="utf-8")
         summary = summarize(review)
         (directory / "summary.json").write_text(json.dumps(summary), encoding="utf-8")
@@ -261,6 +305,21 @@ def execute(operation, input_path, directory, approved_hash=None, *, progress=No
     from bootstrap_state import write_record
 
     if operation == "apply":
+        review = json.loads(run(["terraform", "show", "-json", str(plan)], cwd=root, env=env))
+        audit_retention(
+            review,
+            snapshot["manifest"],
+            snapshot,
+            approval_path,
+            approval_hash,
+            private,
+            now=int(time.time()),
+        )
+        if (
+            read_state_snapshot(session, account, region, binding["state_key"], allow_absent=True)
+            != snapshot
+        ):
+            raise DeploymentError("StateChangedBeforeApply")
         write_record(directory / "apply-attempt.json", {"plan_sha256": approved_hash})
         if progress:
             progress("apply_started")

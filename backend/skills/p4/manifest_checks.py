@@ -121,7 +121,7 @@ def verify_configuration(session, manifest, config):
     iam = client("iam")
     roles = (
         ("api", "worker", "dispatcher", "admin")
-        if m["schema_version"] == 3
+        if m["schema_version"] >= 3
         else ("api", "worker", "dispatcher")
     )
     role_env["admin"] = role_env["api"]
@@ -163,7 +163,7 @@ def verify_configuration(session, manifest, config):
             observed_role["PermissionsBoundary"],
             {"PermissionsBoundaryArn": c["boundary_arn"], "PermissionsBoundaryType": "Policy"},
         )
-    if m["schema_version"] == 3:
+    if m["schema_version"] >= 3:
         verify_question_permissions(iam, lambdas, m, prefix)
     for name in ("worker", "streams"):
         mapping = lambdas.get_event_source_mapping(UUID=m["mappings"][name])
@@ -237,7 +237,14 @@ def verify_configuration(session, manifest, config):
         ]
         if len(found) != 1:
             raise ValueError("LogGroupMissing")
-        expect(found[0], {"retentionInDays": 7 if m["environment"] == "dev" else 30})
+        expect(
+            found[0],
+            {
+                "retentionInDays": c["log_retention_days"]
+                if m["schema_version"] == 4
+                else (7 if m["environment"] == "dev" else 30)
+            },
+        )
     verify_notifications(client, m, prefix)
     from manifest_alarms import verify_alarms
 
@@ -387,16 +394,21 @@ def verify_api(api, m, prefix):
         f"arn:aws:logs:{m['region']}:{m['account_id']}:log-group:/aws/apigateway/{prefix}"
     )
     expect(stage["AccessLogSettings"], {"DestinationArn": expected_log})
-    if json.loads(stage["AccessLogSettings"]["Format"]) != {
+    access_format = {
         "requestId": "$context.requestId",
         "routeKey": "$context.routeKey",
         "status": "$context.status",
         "responseLength": "$context.responseLength",
-    }:
+    }
+    if m["schema_version"] == 4:
+        access_format.update(
+            requestTimeEpoch="$context.requestTimeEpoch", responseLatency="$context.responseLatency"
+        )
+    if json.loads(stage["AccessLogSettings"]["Format"]) != access_format:
         raise ValueError("AccessLogFormatMismatch")
     authorizers = pages(api.get_authorizers, "Items", ApiId=m["api_id"])
     integrations = pages(api.get_integrations, "Items", ApiId=m["api_id"])
-    version3 = m["schema_version"] == 3
+    version3 = m["schema_version"] >= 3
     if len(authorizers) != 1 or len(integrations) != (2 if version3 else 1):
         raise ValueError("ApiComponentsMismatch")
     auth = authorizers[0]

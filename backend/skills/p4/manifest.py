@@ -38,8 +38,14 @@ def _read_manifest(path, account, region, *, require_test=False):
     data = json.loads(Path(path).read_text(encoding="utf-8"))
     if "manifest" in data and isinstance(data["manifest"], dict) and "value" in data["manifest"]:
         data = data["manifest"]["value"]
-    if type(data.get("schema_version")) is not int or data["schema_version"] not in {2, 3}:
+    if type(data.get("schema_version")) is not int or data["schema_version"] not in {2, 3, 4}:
         raise ValueError("InvalidManifest")
+    if "monitoring_contract_version" in data and (
+        data["schema_version"] != 4
+        or type(data["monitoring_contract_version"]) is not int
+        or data["monitoring_contract_version"] != 2
+    ):
+        raise ValueError("InvalidMonitoringContract")
     if (
         not re.fullmatch(r"[0-9]{12}", account)
         or data.get("account_id") != account
@@ -61,7 +67,7 @@ def _read_manifest(path, account, region, *, require_test=False):
         ("worker", "worker", "live"),
         ("streams", "dispatcher", "streams"),
         ("recovery", "dispatcher", "recovery"),
-    ) + (("admin", "admin", "live"),) * (data["schema_version"] == 3)
+    ) + (("admin", "admin", "live"),) * (data["schema_version"] >= 3)
     if set(data.get("aliases", {})) != {entry[0] for entry in entries}:
         raise ValueError("InvalidManifestAlias")
     for key, role, alias in entries:
@@ -70,7 +76,7 @@ def _read_manifest(path, account, region, *, require_test=False):
             != f"arn:aws:lambda:{region}:{account}:function:{prefix}-{role}:{alias}"
         ):
             raise ValueError("InvalidManifestAlias")
-    if data["schema_version"] == 3:
+    if data["schema_version"] >= 3:
         roles = ("api", "worker", "dispatcher", "admin")
         if set(data.get("versions", {})) != set(roles) or data.get("log_groups") != {
             role: f"/aws/lambda/{prefix}-{role}" for role in roles
@@ -98,13 +104,13 @@ def _read_manifest(path, account, region, *, require_test=False):
         re.fullmatch(r"[1-9][0-9]*", str(data.get("versions", {}).get(k, "")))
         for k in (
             ("api", "worker", "dispatcher", "admin")
-            if data["schema_version"] == 3
+            if data["schema_version"] >= 3
             else ("api", "worker", "dispatcher")
         )
     ):
         raise ValueError("InvalidManifestVersions")
     configuration = data["configuration"]
-    if not isinstance(configuration, dict) or set(configuration) != {
+    keys = {
         "boundary_arn",
         "ses_email",
         "ses_identity_arn",
@@ -115,13 +121,25 @@ def _read_manifest(path, account, region, *, require_test=False):
         "streams_enabled",
         "scheduler_enabled",
         "api_enabled",
-    }:
+    }
+    if data["schema_version"] == 4:
+        keys |= {
+            "log_usage",
+            "log_retention_days",
+            "test_monitoring_enabled",
+            "test_closure_confirmed",
+        }
+    if not isinstance(configuration, dict) or set(configuration) != keys:
         raise ValueError("InvalidManifestConfiguration")
     if any(
         type(configuration[key]) is not bool
         for key in ("worker_enabled", "streams_enabled", "scheduler_enabled", "api_enabled")
     ):
         raise ValueError("InvalidManifestConfiguration")
+    if data["schema_version"] == 4:
+        from cost_controls import validate_configuration
+
+        validate_configuration(data)
     return data
 
 
@@ -131,18 +149,33 @@ def verify_live_manifest(session, manifest, *, require_api_enabled=True, approve
 
     config = Config(retries={"total_max_attempts": 1}, connect_timeout=5, read_timeout=5)
     try:
+        if manifest["schema_version"] == 4:
+            from cost_controls import validate_configuration
+
+            validate_configuration(manifest)
         account, region = manifest["account_id"], manifest["region"]
         validate_target(account, region)
         if session.client("sts", config=config).get_caller_identity()["Account"] != account:
             raise ValueError
-        if manifest["schema_version"] not in {2, 3}:
+        if manifest["schema_version"] not in {2, 3, 4}:
             raise ValueError
         if approved_inputs is not None:
             if manifest.get("worker_ai_environment", {}) != approved_inputs.get(
                 "worker_ai_environment", {}
             ):
                 raise ValueError
-            expected = {key: approved_inputs[key] for key in manifest["configuration"]}
+            expected = {
+                key: approved_inputs[key]
+                for key in manifest["configuration"]
+                if key
+                not in {"log_retention_days", "test_monitoring_enabled", "test_closure_confirmed"}
+            }
+            if manifest["schema_version"] == 4:
+                expected.update(
+                    log_retention_days=14 if approved_inputs["log_usage"] == "customer" else 3,
+                    test_monitoring_enabled=approved_inputs.get("test_monitoring_enabled", True),
+                    test_closure_confirmed=approved_inputs.get("test_closure_confirmed", False),
+                )
             expected["monthly_budget_usd"] = str(expected["monthly_budget_usd"])
             if manifest["configuration"] != expected:
                 raise ValueError

@@ -262,6 +262,7 @@ def test_plan_to_apply_transport(tools_path, monkeypatch, tmp_path, tamper):
     monkeypatch.setattr(module, "PROJECT", tmp_path)
     account, region, sha = "123456789012", "ap-northeast-1", "a" * 40
     config = {
+        "log_usage": "developer",
         "boundary_arn": f"arn:aws:iam::{account}:policy/ai-interview-runtime-boundary",
         "ses_email": "sender@example.invalid",
         "ses_identity_arn": f"arn:aws:ses:{region}:{account}:identity/example.invalid",

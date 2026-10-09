@@ -4,6 +4,15 @@ from manifest_checks import expect, pages
 
 
 def expected_alarms(manifest, prefix):
+    if manifest["schema_version"] == 4:
+        from cost_controls import validate_configuration
+
+        validate_configuration(manifest)
+        if (
+            manifest["environment"] == "test"
+            and not manifest["configuration"]["test_monitoring_enabled"]
+        ):
+            return {}
     topic = manifest["alarm_topic_arn"]
     common = {
         "ComparisonOperator": "GreaterThanOrEqualToThreshold",
@@ -18,9 +27,43 @@ def expected_alarms(manifest, prefix):
         "ActionsEnabled": True,
     }
     alarms = {}
+    modern = manifest.get("monitoring_contract_version") == 2
+
+    def sparse_sum(metric, expression_id, inputs, **kwargs):
+        value = {k: v for k, v in common.items() if k not in {"Period", "Statistic"}}
+        value.update(EvaluationPeriods=5, DatapointsToAlarm=1, **kwargs)
+        value["Metrics"] = [
+            {
+                "Id": expression_id,
+                "Expression": "SUM([" + ",".join(key for key, _ in inputs) + "])",
+                "ReturnData": True,
+            }
+        ]
+        for key, role in inputs:
+            value["Metrics"].append(
+                {
+                    "Id": key,
+                    "ReturnData": False,
+                    "MetricStat": {
+                        "Metric": {
+                            "Namespace": "AIInterview",
+                            "MetricName": metric,
+                            "Dimensions": [
+                                {"Name": "Project", "Value": "ai-interview"},
+                                {"Name": "Environment", "Value": manifest["environment"]},
+                                {"Name": "Component", "Value": role},
+                            ],
+                        },
+                        "Period": 60,
+                        "Stat": "Sum",
+                    },
+                }
+            )
+        return value
+
     roles = (
         ("api", "worker", "dispatcher", "admin")
-        if manifest["schema_version"] == 3
+        if manifest["schema_version"] >= 3
         else ("api", "worker", "dispatcher")
     )
 
@@ -67,6 +110,13 @@ def expected_alarms(manifest, prefix):
         ):
             emf(role + "-" + metric, role, metric, Period=300)
     emf("OutcomeUnknown")
+    if modern:
+        alarms[prefix + "-OutcomeUnknown"] = sparse_sum(
+            "OutcomeUnknown",
+            "unknown",
+            (("wo", "worker"), ("do", "dispatcher")),
+            OKActions=[topic],
+        )
     for key, suffix in (("worker", "worker-dlq"), ("stream", "stream-failure")):
         alarms[f"{prefix}-dlq-{key}"] = common | {
             "Namespace": "AWS/SQS",
@@ -133,6 +183,11 @@ def expected_alarms(manifest, prefix):
             }
         )
     alarms[prefix + "-failure-rate"] = rate
+    if modern:
+        rate.update(EvaluationPeriods=3, DatapointsToAlarm=1)
+        rate["Metrics"][0]["Expression"] = (
+            "IF(SUM([wc,wf,dc,df])>=10,100*SUM([wf,df])/SUM([wc,wf,dc,df]),0)"
+        )
     if manifest["environment"] == "dev":
         configuration = manifest["configuration"]
         if not any(
@@ -151,12 +206,53 @@ def expected_alarms(manifest, prefix):
             for role in roles
             for metric in ("Errors", "Throttles", "IntegrityError")
         }
+        if manifest["schema_version"] == 4 and configuration["log_usage"] == "customer":
+            names |= {"PendingAge", "QueuedAge"}
         alarms = {
             name: value
             for name, value in alarms.items()
             if name.removeprefix(prefix + "-") in names
         }
         alarms[prefix + "-RecoverySweepLag"]["ActionsEnabled"] = configuration["scheduler_enabled"]
+    if (
+        manifest["environment"] == "dev"
+        and manifest["schema_version"] == 4
+        and manifest["configuration"]["log_usage"] == "customer"
+    ):
+        alarms[prefix + "-api-5xx"] = common | {
+            "Namespace": "AWS/ApiGateway",
+            "MetricName": "5xx",
+            "Dimensions": [{"Name": "ApiId", "Value": manifest["api_id"]}],
+        }
+        failed = {k: v for k, v in common.items() if k not in {"Period", "Statistic"}}
+        failed["Metrics"] = [
+            {"Id": "failed", "Expression": "FILL(wf,0)+FILL(df,0)", "ReturnData": True}
+        ]
+        for key, role in (("wf", "worker"), ("df", "dispatcher")):
+            failed["Metrics"].append(
+                {
+                    "Id": key,
+                    "ReturnData": False,
+                    "MetricStat": {
+                        "Metric": {
+                            "Namespace": "AIInterview",
+                            "MetricName": "EvaluationFailed",
+                            "Dimensions": [
+                                {"Name": "Project", "Value": "ai-interview"},
+                                {"Name": "Environment", "Value": "dev"},
+                                {"Name": "Component", "Value": role},
+                            ],
+                        },
+                        "Period": 60,
+                        "Stat": "Sum",
+                    },
+                }
+            )
+        alarms[prefix + "-evaluation-failed"] = (
+            sparse_sum("EvaluationFailed", "failed", (("wf", "worker"), ("df", "dispatcher")))
+            if modern
+            else failed
+        )
     return alarms
 
 

@@ -10,7 +10,7 @@ run "admin_question_management" {
       aws_lambda_function.main["admin"].memory_size == 512 &&
       length(aws_apigatewayv2_route.admin) == 2 &&
       alltrue([for r in aws_apigatewayv2_route.admin : r.authorization_type == "JWT"]) &&
-      output.manifest.schema_version == 3 &&
+      output.manifest.schema_version == 4 &&
       aws_apigatewayv2_api.main.disable_execute_api_endpoint
     )
     error_message = "Question management requires a dedicated closed ADMIN API and manifest v3."
@@ -48,6 +48,7 @@ run "admin_question_management" {
 }
 
 variables {
+  log_usage              = "developer"
   account_id             = "123456789012"
   region                 = "ap-northeast-1"
   boundary_arn           = "arn:aws:iam::123456789012:policy/ai-interview-runtime-boundary"

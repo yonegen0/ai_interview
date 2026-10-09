@@ -35,3 +35,6 @@ worker_enabled    = false
 streams_enabled   = false
 scheduler_enabled = false
 api_enabled       = false
+
+# Explicit use: select customer before any real-user operation (14 days).
+log_usage = "developer"

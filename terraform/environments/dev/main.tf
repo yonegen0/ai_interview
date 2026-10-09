@@ -11,6 +11,7 @@ provider "aws" {
 }
 module "service" {
   source                 = "../../modules/service"
+  log_usage              = var.log_usage
   account_id             = var.account_id
   region                 = var.region
   boundary_arn           = var.boundary_arn

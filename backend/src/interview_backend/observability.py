@@ -5,6 +5,7 @@ import math
 from time import time
 
 from interview_backend.models.internal import IntegrityError, StorageError, StorageFormatError
+from interview_backend.operational_logs import log_event
 
 UNITS = {
     **dict.fromkeys(
@@ -106,13 +107,30 @@ class ObservedRepository:
             return target
 
         def invoke(*args, **kwargs):
+            evaluation_id = kwargs.get("evaluation_id")
+            if args and name in {
+                "finish",
+                "mark_call_started",
+                "confirm_delivery",
+                "fail_delivery",
+            }:
+                evaluation_id = getattr(args[0], "evaluation_id", None)
+            elif len(args) > 1 and name in {
+                "recover",
+                "claim",
+                "acquire_delivery",
+                "evaluation_contract_version",
+            }:
+                evaluation_id = args[1]
             try:
                 result = target(*args, **kwargs)
             except IntegrityError, StorageFormatError:
                 self.metrics.emit("IntegrityError")
+                log_event("storage_failure", evaluationId=evaluation_id)
                 raise
             except StorageError:
                 self.metrics.emit("DBError")
+                log_event("storage_failure", evaluationId=evaluation_id)
                 raise
             status = getattr(result, "status", None)
             evaluation = getattr(result, "evaluation", None)
@@ -129,14 +147,48 @@ class ObservedRepository:
                 self.metrics.emit(
                     "EvaluationLatency", max(0, evaluation.finished_at - evaluation.created_at)
                 )
+                provider_id = getattr(evaluation.execution_config, "provider_id", None)
+                log_event(
+                    "evaluation_terminal",
+                    evaluationId=evaluation.id,
+                    attemptId=evaluation.attempt_id,
+                    status=evaluation.status,
+                    failureReason=evaluation.failure_reason,
+                    elapsedMs=max(0, evaluation.finished_at - evaluation.created_at),
+                    provider="openai"
+                    if provider_id and provider_id.startswith("openai")
+                    else ("fake" if provider_id == "fake" else "unknown"),
+                )
                 if evaluation.failure_reason == "OUTCOME_UNKNOWN":
                     self.metrics.emit("OutcomeUnknown")
+            if name == "claim" and status == "acquired":
+                lease = getattr(result, "lease", None)
+                log_event(
+                    "worker_claimed",
+                    evaluationId=evaluation_id,
+                    generation=getattr(lease, "generation", None),
+                )
             if status == "lost_lease":
                 self.metrics.emit("LostLease")
             if name == "claim" and status in {"busy", "terminal", "stale"}:
                 self.metrics.emit("DuplicateSuppressed")
             if name == "fail_delivery" and status == "applied":
                 self.metrics.emit("DeliveryFailure")
+            body = getattr(result, "body", None)
+            if name.startswith("accept") or name.startswith("retry_coaching"):
+                if isinstance(body, dict) and getattr(result, "status", None) == 202:
+                    log_event(
+                        "evaluation_accepted",
+                        evaluationId=body.get("evaluationId"),
+                        attemptId=body.get("attemptId"),
+                    )
+            if name in {"confirm_delivery", "fail_delivery"} and status == "applied":
+                log_event(
+                    "dispatch_confirmed" if name == "confirm_delivery" else "dispatch_deferred",
+                    evaluationId=evaluation_id,
+                )
+            if name == "recover" and status == "requeued":
+                log_event("work_requeued", evaluationId=evaluation_id)
             return result
 
         return invoke

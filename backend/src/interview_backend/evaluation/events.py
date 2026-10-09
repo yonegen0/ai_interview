@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from interview_backend.models.internal import StorageError
 from interview_backend.models.public import Identifier
+from interview_backend.operational_logs import log_event
 from interview_backend.repositories.budget import storage_budget
 from interview_backend.repositories.codec import decode, from_wire
 
@@ -67,6 +68,7 @@ class InternalHandlers:
                 or not record["messageId"]
             ):
                 raise ValueError("InvalidEvent")
+            message = None
             try:
                 if (
                     record.get("eventSource") != "aws:sqs"
@@ -85,6 +87,9 @@ class InternalHandlers:
                 failures.append({"itemIdentifier": record["messageId"]})
             except StorageError:
                 self.metric("WorkerBatchFailure")
+                log_event(
+                    "internal_batch_failure", evaluationId=message.evaluationId if message else None
+                )
                 failures.append({"itemIdentifier": record["messageId"]})
         return {"batchItemFailures": failures}
 
@@ -105,6 +110,7 @@ class InternalHandlers:
                 or not record["dynamodb"]["SequenceNumber"]
             ):
                 raise ValueError("InvalidEvent")
+            message = None
             try:
                 if (
                     record.get("eventSource") != "aws:dynamodb"
@@ -144,6 +150,9 @@ class InternalHandlers:
                 failures.append({"itemIdentifier": record["dynamodb"]["SequenceNumber"]})
             except StorageError:
                 self.metric("StreamBatchFailure")
+                log_event(
+                    "internal_batch_failure", evaluationId=message.evaluationId if message else None
+                )
                 failures.append({"itemIdentifier": record["dynamodb"]["SequenceNumber"]})
         return {"batchItemFailures": failures}
 

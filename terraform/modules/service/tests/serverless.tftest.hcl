@@ -1,6 +1,7 @@
 mock_provider "aws" {}
 
 variables {
+  log_usage              = "developer"
   account_id             = "123456789012"
   region                 = "ap-northeast-1"
   boundary_arn           = "arn:aws:iam::123456789012:policy/ai-interview-runtime-boundary"
@@ -26,8 +27,8 @@ run "closed_dev" {
     error_message = "Closed dev must have no billable alarms."
   }
   assert {
-    condition     = aws_cloudwatch_log_group.api.retention_in_days == 7 && alltrue([for g in aws_cloudwatch_log_group.lambda : g.retention_in_days == 7])
-    error_message = "Dev logs retain seven days."
+    condition     = aws_cloudwatch_log_group.api.retention_in_days == 3 && alltrue([for g in aws_cloudwatch_log_group.lambda : g.retention_in_days == 3])
+    error_message = "Dev logs retain three days."
   }
   assert {
     condition     = alltrue([for f in aws_lambda_function.main : f.tracing_config[0].mode == "PassThrough" && length(f.vpc_config) == 0 && f.memory_size == 512 && length(f.architectures) == 1 && contains(f.architectures, "x86_64") && f.reserved_concurrent_executions == -1])
@@ -40,7 +41,7 @@ run "worker_only" {
   variables { worker_enabled = true }
   assert {
     condition     = toset(keys(aws_cloudwatch_metric_alarm.emf)) == toset(["api-IntegrityError", "worker-IntegrityError", "dispatcher-IntegrityError", "admin-IntegrityError", "OutcomeUnknown", "RecoveryHeartbeat", "RecoverySweepLag"]) && length(aws_cloudwatch_metric_alarm.lambda) == 8 && length(aws_cloudwatch_metric_alarm.dlq) == 2 && length(aws_cloudwatch_metric_alarm.iterator) == 0 && length(aws_cloudwatch_metric_alarm.failure_rate) == 0
-    error_message = "Any active dev component requires the fourteen attended-test alarms."
+    error_message = "Any active dev component requires the seventeen developer alarms."
   }
   assert {
     condition     = !aws_cloudwatch_metric_alarm.emf["RecoveryHeartbeat"].actions_enabled && !aws_cloudwatch_metric_alarm.emf["RecoverySweepLag"].actions_enabled
@@ -85,7 +86,7 @@ run "fully_active_dev" {
   }
   assert {
     condition     = length(aws_cloudwatch_metric_alarm.emf) + length(aws_cloudwatch_metric_alarm.lambda) + length(aws_cloudwatch_metric_alarm.dlq) == 17 && alltrue([for a in aws_cloudwatch_metric_alarm.emf : a.actions_enabled])
-    error_message = "Active dev has fourteen enabled alarms."
+    error_message = "Active dev has seventeen enabled alarms."
   }
   assert {
     condition     = !aws_apigatewayv2_api.main.disable_execute_api_endpoint && aws_lambda_event_source_mapping.worker.enabled && aws_lambda_event_source_mapping.streams.enabled && aws_scheduler_schedule.recovery.state == "ENABLED" && aws_scheduler_schedule.recovery.schedule_expression == "rate(1 minute)"
@@ -110,10 +111,10 @@ run "full_test_monitoring" {
   variables { run_id = "synthetic" }
   assert {
     condition     = length(aws_cloudwatch_metric_alarm.emf) == 27 && length(aws_cloudwatch_metric_alarm.lambda) == 8 && length(aws_cloudwatch_metric_alarm.dlq) == 2 && length(aws_cloudwatch_metric_alarm.iterator) == 1 && length(aws_cloudwatch_metric_alarm.failure_rate) == 1
-    error_message = "Test keeps all thirty-two alarms."
+    error_message = "Test keeps all thirty-nine alarms."
   }
   assert {
-    condition     = aws_cloudwatch_log_group.api.retention_in_days == 30 && alltrue([for g in aws_cloudwatch_log_group.lambda : g.retention_in_days == 30]) && aws_cloudwatch_metric_alarm.emf["RecoverySweepLag"].actions_enabled
-    error_message = "Test log retention and sweep behavior remain unchanged."
+    condition     = aws_cloudwatch_log_group.api.retention_in_days == 3 && alltrue([for g in aws_cloudwatch_log_group.lambda : g.retention_in_days == 3]) && aws_cloudwatch_metric_alarm.emf["RecoverySweepLag"].actions_enabled
+    error_message = "Test logs retain three days while validation monitoring remains enabled."
   }
 }

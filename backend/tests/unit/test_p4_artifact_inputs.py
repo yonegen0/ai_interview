@@ -11,6 +11,7 @@ from test_p4_tools import tool
 
 def valid_inputs():
     return {
+        "log_usage": "developer",
         "artifact_bucket": "ai-interview-artifacts-123456789012-ap-northeast-1",
         "artifact_key": "lambda/preflight/app.zip",
         "artifact_version": "preflight",

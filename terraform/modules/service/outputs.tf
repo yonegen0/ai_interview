@@ -1,17 +1,27 @@
 output "manifest" {
+  precondition {
+    condition     = var.test_monitoring_enabled || try(timecmp(timestamp(), local.test_closure_evidence.expires_at) < 0 && timecmp(timestamp(), local.test_closure_evidence.issued_at) >= 0, false)
+    error_message = "Test drain approval expired before apply. Reobserve and approve; never auto-retry."
+  }
   value = merge({
-    schema_version = 3
+    schema_version               = 4
+    monitoring_contract_version  = 2
+    test_closure_evidence_sha256 = var.test_closure_evidence_sha256
     configuration = {
-      boundary_arn       = var.boundary_arn
-      ses_email          = var.ses_email
-      ses_identity_arn   = var.ses_identity_arn
-      alarm_email        = var.alarm_email
-      monthly_budget_usd = tostring(var.monthly_budget_usd)
-      cors_origins       = sort(tolist(var.cors_origins))
-      worker_enabled     = var.worker_enabled
-      streams_enabled    = var.streams_enabled
-      scheduler_enabled  = var.scheduler_enabled
-      api_enabled        = var.api_enabled
+      log_usage               = var.log_usage
+      log_retention_days      = local.log_retention_days
+      test_monitoring_enabled = var.test_monitoring_enabled
+      test_closure_confirmed  = var.test_closure_confirmed
+      boundary_arn            = var.boundary_arn
+      ses_email               = var.ses_email
+      ses_identity_arn        = var.ses_identity_arn
+      alarm_email             = var.alarm_email
+      monthly_budget_usd      = tostring(var.monthly_budget_usd)
+      cors_origins            = sort(tolist(var.cors_origins))
+      worker_enabled          = var.worker_enabled
+      streams_enabled         = var.streams_enabled
+      scheduler_enabled       = var.scheduler_enabled
+      api_enabled             = var.api_enabled
     }
     account_id         = var.account_id
     region             = var.region

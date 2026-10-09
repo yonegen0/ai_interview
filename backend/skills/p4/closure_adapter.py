@@ -33,8 +33,9 @@ def closed_inputs(inputs):
     return deepcopy(inputs) | dict.fromkeys(FLAGS, False)
 
 
-def state_addresses(state):
-    addresses = set()
+def state_instances(state):
+    """Exact address -> attributes; duplicate instances cannot disappear in a set."""
+    instances = {}
     for resource in state["resources"]:
         prefix = resource.get("module", "")
         prefix = prefix + "." if prefix else ""
@@ -43,8 +44,57 @@ def state_addresses(state):
         for instance in resource["instances"]:
             index = instance.get("index_key")
             address = base if index is None else base + "[" + json.dumps(index) + "]"
-            addresses.add(address)
-    return addresses
+            if address in instances:
+                raise ValueError("DuplicateStateAddress")
+            instances[address] = instance["attributes"]
+    return instances
+
+
+def state_addresses(state):
+    return set(state_instances(state))
+
+
+def readback_inventory(state):
+    """Mapping service status metadata changes when the approved enabled flag closes.
+
+    Only these read-only provider fields of the two approved mapping resources
+    are excluded. All identities/configuration and every baseline resource stay
+    exact; the mapping's final state is still required to become Disabled.
+    """
+    result = deepcopy(state_instances(state))
+    for address in UPDATES:
+        if ".aws_lambda_event_source_mapping." in address and address in result:
+            for name in ("last_modified", "last_processing_result", "state_transition_reason"):
+                result[address].pop(name, None)
+    return result
+
+
+def closed_inventory(state, alarm_addresses):
+    """Derive the closure result from the bound authoritative State, never a count."""
+    original = state_instances(state)
+    actual_alarms = {
+        address: attrs.get("alarm_name")
+        for address, attrs in original.items()
+        if address.startswith("module.service.aws_cloudwatch_metric_alarm.")
+    }
+    if (
+        not isinstance(alarm_addresses, dict)
+        or not alarm_addresses
+        or actual_alarms != alarm_addresses
+        or len(set(alarm_addresses.values())) != len(alarm_addresses)
+        or not set(UPDATES) <= original.keys()
+    ):
+        raise ValueError("AuthoritativeStateAndApprovedAlarmsRequired")
+    expected = {a: v for a, v in readback_inventory(state).items() if a not in alarm_addresses}
+    for address, (key, before, after) in UPDATES.items():
+        if type(expected[address].get(key)) is not type(before) or expected[address][key] != before:
+            raise ValueError("ActiveClosureStateRequired")
+        expected[address][key] = after
+        if ".aws_lambda_event_source_mapping." in address and "state" in expected[address]:
+            if expected[address]["state"] != "Enabled":
+                raise ValueError("ActiveMappingStateRequired")
+            expected[address]["state"] = "Disabled"
+    return expected
 
 
 def unknown(value):
@@ -64,9 +114,12 @@ def audit_plan(review, state, alarm_addresses):
     if len(set(addresses)) != len(addresses) or set(addresses) != state_addresses(state):
         raise ValueError("FullStatePlanAuditRequired")
     updates, deletes = set(), set()
+    state_values = state_instances(state)
     for entry in entries:
         address, change = entry["address"], entry["change"]
         actions = change["actions"]
+        if change.get("before") != state_values[address]:
+            raise ValueError("SavedPlanBeforeStateMismatch")
         if unknown(change.get("after_unknown", {})) or change.get("replace_paths"):
             raise ValueError("UnknownOrReplacementForbidden")
         if actions == ["no-op"]:
@@ -198,6 +251,10 @@ def require_snapshot(snapshot, receipt, manifest):
         or snapshot.get("active_lock") is not False
         or snapshot.get("state_outside_dev_resources") != 0
         or snapshot.get("manifest") != manifest
+        or (
+            "state_addresses" in receipt
+            and sorted(state_addresses(snapshot["state"])) != receipt["state_addresses"]
+        )
     ):
         raise ValueError("CurrentStateOrNamespaceMismatch")
 
@@ -235,8 +292,7 @@ def execute_closure(
     try:
         before = driver.snapshot(active)
         require_snapshot(before, receipt, active)
-        if len(state_addresses(before["state"])) != 61 + len(approval["validation_alarms"]):
-            raise ValueError("Baseline61AndApprovedAlarmsRequired")
+        expected_inventory = closed_inventory(before["state"], approval["validation_alarms"])
         closed = closed_inputs(inputs)
         plan, review = driver.plan(closed, directory)
         summary = audit_plan(review, before["state"], approval["validation_alarms"])
@@ -247,7 +303,10 @@ def execute_closure(
         ):
             raise ValueError("ClosureSavedPlanHashMismatch")
         write(directory / "audit.json", summary | {"plan_sha256": plan_hash})
-        require_snapshot(driver.snapshot(active), receipt, active)
+        immediately_before = driver.snapshot(active)
+        require_snapshot(immediately_before, receipt, active)
+        if immediately_before["state"] != before["state"]:
+            raise ValueError("ClosureStateChangedBeforeApply")
         if digest(plan.read_bytes()) != plan_hash:
             raise ValueError("ClosurePlanChangedAfterAudit")
         write(directory / "apply-started.json", {"plan_sha256": plan_hash})
@@ -257,8 +316,8 @@ def execute_closure(
         expected = deepcopy(active)
         expected["configuration"].update(dict.fromkeys(FLAGS, False))
         after = driver.snapshot(expected)
-        if len(state_addresses(after["state"])) != 61:
-            raise ValueError("ClosedBaseline61Required")
+        if readback_inventory(after["state"]) != expected_inventory:
+            raise ValueError("ClosedStateInventoryMismatch")
         if (
             after.get("active_lock") is not False
             or after.get("state_outside_dev_resources") != 0
@@ -315,6 +374,7 @@ def save_enablement_receipt(directory, approval, inputs_raw, manifest_raw, plan,
         "manifest_sha256": digest(manifest_raw),
         "state_before": before,
         "state_after": after["identity"],
+        "state_addresses": sorted(state_addresses(after["state"])),
         "artifact": manifest["artifact"],
         "versions": manifest["versions"],
         "aliases": manifest["aliases"],
