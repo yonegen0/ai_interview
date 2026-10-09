@@ -1,4 +1,4 @@
-# test閉鎖ガードのread権限修正案 — 2026-10-09
+# test閉鎖・固定Version Stateのread権限修正案 — 2026-10-09
 
 本書はTerraformコードのレビュー用。IAM実環境変更、bootstrap plan/apply、test作成/閉鎖/再開の承認ではない。PR #1のsource `f1756a79af4c115da0d04dfe911ab998ea45d646` を基に独立branchで準備した。
 
@@ -13,7 +13,7 @@
 
 ## 実装差分
 
-既存 `aws_iam_role_policy.tests` (`synthetic-tests`) だけに、次の5statementを追加した。plan/deploy/artifact Role、OIDC subject/audience、runtime boundary、WIF署名条件、既存write権限、backend/providerは変更しない。
+既存 `aws_iam_role_policy.tests` (`synthetic-tests`) に次の5statementを追加した。さらに実plan/deploy Roleのpolicy読取りでcanonical dev Stateの `s3:GetObjectVersion` Allow不足を確認したため、両Roleの `state-and-artifacts` policyに**exact `dev/terraform.tfstate` のGetObjectVersionだけ**を追加した。Scan/async readはtest Roleだけ。artifact Role、OIDC subject/audience、runtime boundary、WIF署名条件、既存write権限、backend/providerは変更しない。
 
 | Sid | Action | Resource |
 | --- | --- | --- |
@@ -36,10 +36,10 @@ AWS credential/metadata/backendを除いた新規コピーで、Terraform 1.14.9
 ## 残る配備条件
 
 1. この独立branchをレビューし、別承認でmainへ反映する。
-2. bootstrapの現在State/入力/Role/trust/boundary/WIFをread-only照合し、正式runbookで新saved planを作成、全件差分・SHAを固定する。想定は既存test inline policy1件update、他baseline no-op。実planはまだない。
+2. bootstrapの現在State/入力/Role/trust/boundary/WIFをread-only照合し、正式runbookで新saved planを作成、全件差分・SHAを固定する。想定は既存test inline policy1件とplan/deployのState policy2件、計3update、他baseline no-op。実planはまだない。
 3. Account/Region・plan SHA・policy差分に結合したIAM変更承認を得てから1回applyし、読戻しする。今回はapplyしていない。
 4. 専用testに対して実ガードを受入する。新readが揃っても、writer停止、ledger、async lifetime+timeout、全ページScan、15分proof、39 Alarm限定delete、再apply禁止を維持する。
 
-**canonical test Stateのwrite/lock権限は本案では追加していない。** 現在の `runs/*` write scopeと `test/<run>/terraform.tfstate` の不一致により、このtest Roleをそのまま正式test applyへ使えるとは判定しない。必要なら承認runのexact State/lockに絞った別のbackend write案をレビューする。read不足の解消を理由にwrite scopeやruntime boundaryを自動拡張しない。dev runnerの固定Version State read権限も、実行Roleごとに別途照合する。
+**canonical test Stateのwrite/lock権限は本案では追加していない。** 現在の `runs/*` write scopeと `test/<run>/terraform.tfstate` の不一致により、このtest Roleをそのまま正式test applyへ使えるとは判定しない。必要なら承認runのexact State/lockに絞った別のbackend write案をレビューする。read不足の解消を理由にwrite scopeやruntime boundaryを自動拡張しない。dev固定Version State readの実効権限も、案の実適用後に実行Roleごとに別途照合する。
 
 State keyの変更/migration、State surgery、ガードの403無視やScan省略は行っていない。必要な観測を証明できなければ、test Alarm削除は引き続き禁止する。

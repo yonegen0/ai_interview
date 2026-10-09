@@ -48,6 +48,11 @@ run "test_drain_read_scope" {
     error_message = "Absent lock metadata needs the one bucket; other CI roles must not gain drain reads."
   }
   assert {
+    condition = alltrue([for role in ["plan", "deploy"] : jsondecode(aws_iam_role_policy.state[role].policy).Statement[5].Action == ["s3:GetObjectVersion"] &&
+    jsondecode(aws_iam_role_policy.state[role].policy).Statement[5].Resource == ["${aws_s3_bucket.storage["state"].arn}/dev/terraform.tfstate"]]) && length(jsondecode(aws_iam_role_policy.state["test"].policy).Statement) == 5
+    error_message = "Dev versioned State read must cover one canonical object only; preserve test legacy write scope."
+  }
+  assert {
     condition = (alltrue([for role in values(aws_iam_role.ci) : jsondecode(role.assume_role_policy).Statement[0].Condition.StringEquals["token.actions.githubusercontent.com:aud"] == "sts.amazonaws.com" &&
       jsondecode(role.assume_role_policy).Statement[0].Condition.StringEquals["token.actions.githubusercontent.com:sub"] == "repo:yonegen0/ai_interview:environment:dev"]) &&
     !contains(flatten([for s in jsondecode(aws_iam_policy.runtime_boundary.policy).Statement : s.Action]), "dynamodb:Scan"))
