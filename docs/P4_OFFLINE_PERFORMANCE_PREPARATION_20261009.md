@@ -74,4 +74,6 @@ python skills/p4/concurrency_probe.py --participants 30 --provider-delay 0.02 --
 
 Backend全offline **1322 passed / 57 deselected**（既存1317＋新5）、Ruff check/format PASS。回帰はsocket/SDK禁止fixture下で実行。初回追加toolsのCIではテストの直接importがskills用ローカルPATHへ依存していたため、既存tool loader方式へ修正。追加skills PATHなしで全回帰を再実行し、1322 PASS（84.86秒）を確認した。新試験はcredential隔離、fresh-process composition/401、2lane HTTP campaign、待ち行列下限、参加人数制限を検証する。Frontend/製品Python/依存/TF差分はないため、元P4 SHAの既存CI・Artifact証跡を再利用する。
 
+GitHubの混雑したrunnerで短いFake処理が1laneだけで完了する正当なケースも確認したため、新試験は実測peakが常に2であるという誤った最低利用率要求を除き、2lane設定と同時実行の上限2を検査する。製品のMaximumConcurrency=2や正式性能Gateを緩和する変更ではない。
+
 CloudWatch/SNS、test閉鎖/再開、Cognito/JWT、90日実保存、PITR/削除運用、正式cold Gate、実AI30人は未受入。分析branchをmergeしてもAWSの性能改善や公開準備完了は意味しない。

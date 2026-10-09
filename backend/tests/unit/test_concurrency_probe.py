@@ -8,7 +8,10 @@ def test_fake_campaign_respects_two_lanes_and_http_contract():
     )
     assert result["accepted"] == result["completed"] == result["feedback_ok"] == 6
     assert result["provider_calls"] == 6
-    assert result["peak_provider_concurrency"] == 2
+    assert result["worker_lanes"] == 2
+    # Short Fake calls may finish before the second lane is scheduled on a busy
+    # runner. MaximumConcurrency is a ceiling, not a minimum utilization promise.
+    assert 1 <= result["peak_provider_concurrency"] <= 2
     assert result["failed"] == result["unobserved"] == result["paid_ai_calls"] == 0
 
 
