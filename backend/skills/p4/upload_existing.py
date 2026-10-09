@@ -97,28 +97,49 @@ def artifact(root, source, provenance_path, approval):
         require(provenance[field] == approval[field], "ProvenanceBindingMismatch")
     for name, expected in provenance["evidence_files"].items():
         require(sha256(safe_file(source, name).read_bytes()) == expected, "EvidenceHashMismatch")
-    final = json.loads(
-        safe_file(source, "final-validation-20261003/final.private.json").read_bytes()
-    )
+    schema = approval.get("schema_version", 1)
+    require(type(schema) is int and schema in {1, 2}, "ApprovalSchemaUnsupported")
+    if schema == 2:
+        final_path = "validation/final.private.json"
+        baseline_path = "validation/baseline.private.json"
+        source_count = approval["source_blob_count"]
+        entry_count = approval["zip_entry_count"]
+        require(
+            type(source_count) is int
+            and source_count > 0
+            and type(entry_count) is int
+            and entry_count > 0,
+            "ArtifactInventoryRequired",
+        )
+        all_paths = git(root, "ls-tree", "-r", "--name-only", source_sha).decode().splitlines()
+        require(len(all_paths) == source_count, "SourceInventoryMismatch")
+        require("reproduction.zip" in provenance["evidence_files"], "ReproductionEvidenceRequired")
+        require(
+            sha256(safe_file(source, "reproduction.zip").read_bytes()) == approval["zip_sha256"],
+            "ReproductionHashMismatch",
+        )
+    else:
+        final_path = "final-validation-20261003/final.private.json"
+        baseline_path = "final-validation-20261003/baseline.private.json"
+        source_count, entry_count = 287, 2366
+    final = json.loads(safe_file(source, final_path).read_bytes())
     require(
         final["status"] == "P4_LAMBDA_ARTIFACT_READY"
         and final["code_sha"] == source_sha
-        and final["source_blob_matches"] == 287
+        and final["source_blob_matches"] == source_count
         and final["security"]["zip_sha256"] == approval["zip_sha256"]
         and final["security"]["manifest_sha256"] == approval["manifest_sha256"]
         and final["security"]["status"] == "LAMBDA_ARTIFACT_SECURITY_PASS"
         and final["security"]["unknown_findings"] == []
-        and final["security"]["entries_scanned"] == 2366,
+        and final["security"]["entries_scanned"] == entry_count,
         "ArtifactReadinessUnproved",
     )
     require(
-        "final-validation-20261003/final.private.json" in provenance["evidence_files"]
-        and "final-validation-20261003/baseline.private.json" in provenance["evidence_files"],
+        final_path in provenance["evidence_files"]
+        and baseline_path in provenance["evidence_files"],
         "ProvenanceEvidenceRequired",
     )
-    baseline = json.loads(
-        safe_file(source, "final-validation-20261003/baseline.private.json").read_bytes()
-    )
+    baseline = json.loads(safe_file(source, baseline_path).read_bytes())
     require(
         baseline["binding"]["code_sha"] == source_sha
         and baseline["binding"]["official_origin_verified"] is True
@@ -141,7 +162,7 @@ def artifact(root, source, provenance_path, approval):
     require(len(paths) == final["security"]["app_head_blob_matches"], "SourceFileSetMismatch")
     with zipfile.ZipFile(io.BytesIO(package)) as archive:
         names = archive.namelist()
-        require(len(names) == len(set(names)) == 2366, "ZipEntrySetMismatch")
+        require(len(names) == len(set(names)) == entry_count, "ZipEntrySetMismatch")
         expected_names = {"interview_backend/" + path.removeprefix(APP_ROOT) for path in paths}
         require(
             {name for name in names if name.startswith("interview_backend/")} == expected_names,
@@ -154,6 +175,26 @@ def artifact(root, source, provenance_path, approval):
                 "SourceBlobMismatch",
             )
     return package
+
+
+def approved_configuration(env):
+    """A new artifact uses a separately approved, hash-pinned local descriptor."""
+    if "P4_UPLOAD_APPROVAL_PATH" not in env:
+        legacy = json.loads(Path(__file__).with_name("upload_existing.approval.json").read_bytes())
+        require(legacy.get("schema_version") == 1, "LocalDescriptorRequired")
+        return legacy
+    path = Path(env["P4_UPLOAD_APPROVAL_PATH"])
+    require(path.is_absolute(), "ApprovalPathRequired")
+    raw = safe_file(path.parent, path.name).read_bytes()
+    expected = env.get("P4_APPROVED_ARTIFACT_APPROVAL_SHA256", "")
+    require(re.fullmatch(r"[0-9a-f]{64}", expected), "ApprovalDigestRequired")
+    require(sha256(raw) == expected, "ApprovalDigestMismatch")
+    value = json.loads(raw)
+    require(
+        value.get("schema_version") == 2 and value.get("approved") is True,
+        "ExplicitArtifactApprovalRequired",
+    )
+    return value
 
 
 def json_get(url, token):
@@ -516,9 +557,7 @@ def main():
     try:
         env = dict(os.environ)
         root = Path(__file__).resolve().parents[3]
-        approval = json.loads(
-            Path(__file__).with_name("upload_existing.approval.json").read_bytes()
-        )
+        approval = approved_configuration(env)
         require(approval["region"] == REGION, "ApprovalRegionMismatch")
         require(
             approval["bucket"] == f"ai-interview-artifacts-{approval['aws_account']}-{REGION}",
