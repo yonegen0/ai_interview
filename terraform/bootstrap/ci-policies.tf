@@ -64,6 +64,20 @@ resource "aws_iam_role_policy" "tests" {
   role = aws_iam_role.ci["test"].id
   name = "synthetic-tests"
   policy = jsonencode({ Version = "2012-10-17", Statement = [
+    # The drain guard scans only synthetic test base tables, never dev or indexes.
+    { Sid = "TestDrainInventory", Effect = "Allow", Action = ["dynamodb:Scan"], Resource = ["arn:aws:dynamodb:${var.region}:${var.account_id}:table/ai-interview-test-*-main"] },
+    { Sid = "TestDrainAsyncLifetime", Effect = "Allow", Action = ["lambda:GetFunctionEventInvokeConfig"], Resource = [
+      "arn:aws:lambda:${var.region}:${var.account_id}:function:ai-interview-test-*-api:live",
+      "arn:aws:lambda:${var.region}:${var.account_id}:function:ai-interview-test-*-admin:live",
+      "arn:aws:lambda:${var.region}:${var.account_id}:function:ai-interview-test-*-worker:live",
+      "arn:aws:lambda:${var.region}:${var.account_id}:function:ai-interview-test-*-dispatcher:streams",
+      "arn:aws:lambda:${var.region}:${var.account_id}:function:ai-interview-test-*-dispatcher:recovery"
+    ] },
+    # ListBucket is needed for HeadObject to distinguish absent locks (404) from
+    # denied reads (403). Object contents remain restricted to canonical test State.
+    { Sid = "TestStateAbsenceRead", Effect = "Allow", Action = ["s3:ListBucket"], Resource = [local.state_arn] },
+    { Sid = "TestVersionedStateRead", Effect = "Allow", Action = ["s3:GetObject", "s3:GetObjectVersion"], Resource = ["${local.state_arn}/test/*/terraform.tfstate"] },
+    { Sid = "TestLockRead", Effect = "Allow", Action = ["s3:GetObject"], Resource = ["${local.state_arn}/test/*/terraform.tfstate.tflock"] },
     { Effect = "Allow", Action = ["dynamodb:CreateTable", "dynamodb:DeleteTable", "dynamodb:DescribeTable", "dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:ConditionCheckItem", "dynamodb:Query"], Resource = ["arn:aws:dynamodb:${var.region}:${var.account_id}:table/interview-p3-test-*", "arn:aws:dynamodb:${var.region}:${var.account_id}:table/ai-interview-test-*"] },
     { Effect = "Allow", Action = ["sqs:SendMessage", "sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"], Resource = ["arn:aws:sqs:${var.region}:${var.account_id}:ai-interview-test-*"] },
     { Effect = "Allow", Action = ["logs:FilterLogEvents", "logs:GetLogEvents", "logs:DescribeLogStreams"], Resource = ["arn:aws:logs:${var.region}:${var.account_id}:log-group:/aws/lambda/ai-interview-test-*"] },
