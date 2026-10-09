@@ -115,4 +115,66 @@ PITRは元State/tableを上書きせず新tableへの復旧となるため、今
 - Frontend production/Storybook/mock build成功、E2E24 passed/0 failed。一時browser設定を削除し、製品tracked差分なし。
 - Lambda候補ZIP19,044,650bytes、固定依存で2回hash一致。runtime/asset importはsocket禁止で成功。候補はCloud tempのみ、正式S3/既存Artifact未変更。
 - Terraform Provider lock/State/Artifactのtracked変更なし。4validate/49mock、fmt、Ruff、diff --check、秘密情報監査成功。
-- 正式GitHub CIは通常push後に確認し、その観測結果を本節へ追記する。未実行/未完了をPASSと扱わない。
+- 正式GitHub CIはコード・成果物HEADの5実行すべて成功。実測run一覧を以下に記録する。未実行/未完了をPASSと扱わない。
+
+### GitHub正式CI実測
+
+コード・成果物HEAD `6e4f5bea7a7aab8cd3f102f9b55325de95469695` の通常push後、以下5実行の `completed/success` を確認した。PRはopen/Draft、remote HEAD一致、mainは開始時SHAのまま。Node22/uv0.11.8の正式runnerでも成功。両P4実行でTerraformとLambda packageの実行成功（skipではない）を確認し、Frontendではlint/typecheck/test/production build/Storybook/mock build/E2Eの全工程が成功した。
+
+| event | workflow | run | 結果 |
+| --- | --- | --- | --- |
+| pull_request | Frontend | [37910371100](https://github.com/yonegen0/ai_interview/actions/runs/37910371100) | PASS |
+| pull_request | Backend | [37910371018](https://github.com/yonegen0/ai_interview/actions/runs/37910371018) | PASS |
+| pull_request | P4 offline infrastructure and package checks | [37910371016](https://github.com/yonegen0/ai_interview/actions/runs/37910371016) | PASS |
+| push | Backend | [37910365816](https://github.com/yonegen0/ai_interview/actions/runs/37910365816) | PASS |
+| push | P4 offline infrastructure and package checks | [37910365858](https://github.com/yonegen0/ai_interview/actions/runs/37910365858) | PASS |
+
+このCI記録追記だけのcommitも通常pushし、最新HEADのchecksを最終回答で別途確認する。将来の別SHAのCIまでPASSと推測しない。
+
+### 全修正ファイル一覧
+
+引継ぎremote HEADからの差分は以下41ファイル。Frontend、CI workflow、Provider lockにはtracked変更なし。private証跡、State本文、候補ZIPは含めない。
+
+```text
+backend/skills/p4/auth_e2e.py
+backend/skills/p4/closure_adapter.py
+backend/skills/p4/cost_controls.py
+backend/skills/p4/deployment_guards.py
+backend/skills/p4/manifest.py
+backend/skills/p4/manifest_alarms.py
+backend/skills/p4/runtime_receipts.py
+backend/skills/p4/support_history.py
+backend/skills/p4/terraform_dev.py
+backend/skills/p4/test_closure_apply.py
+backend/skills/p4/test_closure_guard.py
+backend/skills/p4/test_monitoring_closure.py
+backend/skills/p4/test_reopen_preflight.py
+backend/src/interview_backend/support_history.py
+backend/tests/unit/test_alarm_delivery.py
+backend/tests/unit/test_closure_adapter.py
+backend/tests/unit/test_closure_inventory.py
+backend/tests/unit/test_closure_transport_cleanup.py
+backend/tests/unit/test_deployment_guards.py
+backend/tests/unit/test_operational_logs.py
+backend/tests/unit/test_p4_cost_controls.py
+backend/tests/unit/test_revision_cost_model.py
+backend/tests/unit/test_state_snapshot_guards.py
+backend/tests/unit/test_support_retention.py
+backend/tests/unit/test_validation_contract_fixes.py
+docs/P4_COST_LOG_ESTIMATES_20261009.csv
+docs/P4_COST_LOG_ESTIMATES_20261009.json
+docs/P4_COST_LOG_OPTIMIZATION_PLAN_20261009.md
+docs/P4_COST_LOG_WINDOWS_HANDOFF_20261009.md
+docs/P4_FIX_AWS_ACCEPTANCE_20261009.md
+docs/P4_FIX_WINDOWS_HANDOFF_20261009.md
+docs/P4_TERRAFORM_RUNBOOK.md
+docs/P4_TOTAL_FIX_REPORT_20261009.md
+terraform/environments/test/main.tf
+terraform/environments/test/variables.tf
+terraform/modules/service/auth.tf
+terraform/modules/service/monitoring.tf
+terraform/modules/service/outputs.tf
+terraform/modules/service/runtime.tf
+terraform/modules/service/tests/cost_logs.tftest.hcl
+terraform/modules/service/variables.tf
+```
