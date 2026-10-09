@@ -468,3 +468,8 @@ reasoningを出力と二重計上しない。入力6,000＋出力上限4,096な�
 - **不採用**：無料枠10件へ合わせる監視削除、周期延長／並列削減、性能容量制限、回答・採点結果／処理レコードへのTTL、新履歴table／ログ掃除サービス、無条件S3／Lambda版削除、高カーディナリティDimension、待ち時間を変えるBatch／Flex、実測なしのmemory／ARM／Provisioned Concurrency変更。
 
 **30人は実行系の無料枠に収まる可能性が高いというモデル結果だが、完全無料ではない。** 枠が残ってもDDBオンデマンド要求、10枠を超えるAlarm、SES、HTTP API／S3などが残る。testの実残存が十分長い場合だけ全体費用が現行より下がる。最終推奨はAWS約$5.61／月（枠あり約$1.62）＋OpenAI別、必須実装3～5人日。Cloudで実装・オフライン検証・Git成果保存まで進めた。AWS認証・正式Artifact配備・実State plan・通知／性能検証はWindowsへ引き継ぎ、AWS変更は別承認を待つ。
+
+
+### 実機監視受入の追加確認（公式仕様）
+
+業務失敗AlarmのFILL(wf,0)+FILL(df,0)/60秒/1期間は承認計画どおり実装した。[AWS公式metric math](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/using-metric-math.html)にある「遅配で最新期間が欠測のときFILLで状態固定」のリスクは、mock/producer試験では否定できない。Windowsの別承認専用testで単発Worker/Dispatcher失敗と60秒以上遅配・正常無通信を試験し、ALARM/SNS到達を顧客運用の受入条件にする。未検知なら公開受入を止め、1-of-Nなどの評価窓変更を別レビュー・saved planで審査する。閾値/計画の評価期間をCloudで無断変更せず、4Alarm/5参照・費用+$0.50は維持する。

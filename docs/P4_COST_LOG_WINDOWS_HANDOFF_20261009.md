@@ -62,6 +62,7 @@ Playwright公式Chromium153(v1243)の取得は配布domainのHTTP403で失敗。
 - Git/main/source SHA、Provider lock、正式ZIP source/hash、S3 key/VersionId、Lambda CodeSha256/published version/aliasを照合。Python変更のため**新Artifactが必要**。既存Artifactを無断上書き／旧版へ巻戻さない。
 - 新用途入力を全5group、Alarm、manifest4へ一致させる。旧schema2/3の実配備証跡はそのまま保持する。
 - saved planの全resourceを監査。Log Groupはretention update、Gateway access format update、customer稼働なら追加4Alarmだけを期待。承認済み新Artifactに伴うLambda version/alias更新は別の明示範囲。DDB/SQS/Cognito/IAM/boundary/WIF/Streams/backend replace/destroy・説明不能な差分は禁止。
+- **業務失敗Alarmの実機受入必須**：承認計画どおりFILL(wf,0)+FILL(df,0)、60秒/1期間を実装したが、[AWS公式metric math](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/using-metric-math.html)は遅配で最新期間が欠測の場合FILLがOK固定を起こし得ると説明する。offline試験はproducer/定義の検証で、CloudWatchの時刻評価を証明しない。Workerだけ／Dispatcherだけ／両方の単発失敗、正常無通信、60秒以上遅配した失敗を検証し、実際のALARM/SNS到達を確認する。検知しなければ公開受入を停止し、1-of-N等を別レビュー・saved planで修正する（4Alarm/5参照の料金は不変、計画の評価期間を無断変更しない）。
 - SNS subscription Confirmed/通知到達、Missing Data/一時失敗/復旧、API5xx・EvaluationFailed・Pending/QueuedAge・Heartbeatを実機検証。故障注入は別承認の専用testを優先、顧客データを破壊しない。
 - testは39Alarmを残して入口閉鎖・残務処理完了を確認。queue近似値／GSIはeventualなため、2回0だけで完全drainを保証しない。全writer停止、active Lambda、将来due work、DLQ原因・未解決障害、証跡の鮮度を確認する。
 - 無料枠残量・AWS請求／Tokyo SKU、実取り込みbytes/custom metric hours/Alarm存在時間を取得してモデルを更新。新規credit型と常設枠を区別。OpenAI費用は別。
@@ -193,3 +194,9 @@ owner不一致・codec不明・古いrecordに必要情報が無ければ推測�
 - 実装commit `9d7f984` のPR [Backend](https://github.com/yonegen0/ai_interview/actions/runs/37878810277)／[P4 Terraform・Package](https://github.com/yonegen0/ai_interview/actions/runs/37878810081)はSUCCESS。初回pushの[Package判定失敗](https://github.com/yonegen0/ai_interview/actions/runs/37878760581)はbefore=0の新branchイベントが原因、ログ確認・新5試験・full package分岐の補修済み。失敗runを削除／成功へ偽装しない。
 - 補修commit `7e6cd45` の[Backend](https://github.com/yonegen0/ai_interview/actions/runs/37879087994)／[P4](https://github.com/yonegen0/ai_interview/actions/runs/37879088099)／[Frontend](https://github.com/yonegen0/ai_interview/actions/runs/37879088081)はこの書面更新時に実行中。正式Chromium版、test/build/E2Eの全step完了までCloud側で監視する。最終応答は最新headの実際の結果を報告する。
 - Windowsは[PR Checks](https://github.com/yonegen0/ai_interview/pull/1/checks)で最新head SHAと全job successを再確認する。過去SHAのsuccessだけで新変更を配備しない。
+
+### 最終文書commit直前の読戻し
+
+- Cloud HEAD/remote一致確認済み: **`82ae05922c79d0d1f40a046e9bc636664477a76c`**（文書記録commit）。本追記は文書だけの後続commitに格納するため、自身のSHAはAのGitコマンドで解決する。実装source=9d7f984、CI補修=7e6cd45、文書=82ae059＋本追記という順序で、通常pushのみ、mainは未merge。
+- このHEADの[Backend PR](https://github.com/yonegen0/ai_interview/actions/runs/37879234553)／[P4 PR](https://github.com/yonegen0/ai_interview/actions/runs/37879234663)、pushのBackend/P4は**SUCCESS**。Frontendの正式Chromium取得・lint/typecheck・全test・production/Storybook/mock buildは成功、[E2E](https://github.com/yonegen0/ai_interview/actions/runs/37879234688)は書面更新時進行中。実装元9d7f984の正式[Frontend全CI](https://github.com/yonegen0/ai_interview/actions/runs/37878810097)は**SUCCESS**。
+- 本追記以降のruntime/Terraform/frontendの差分は0。Cloudは最終pushのCIも完了まで監視し、終了時の最新結果を最終応答へ記載する。Windowsは必ずPR Checksから最新SHAを再照合する。
