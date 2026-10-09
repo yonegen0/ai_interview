@@ -87,7 +87,7 @@ resource "aws_apigatewayv2_route" "preflight" {
 }
 resource "aws_cloudwatch_log_group" "api" {
   name              = "/aws/apigateway/${local.prefix}"
-  retention_in_days = local.environment == "dev" ? 7 : 30
+  retention_in_days = local.log_retention_days
   tags              = local.tags
 }
 resource "aws_apigatewayv2_stage" "dev" {
@@ -100,7 +100,7 @@ resource "aws_apigatewayv2_stage" "dev" {
   }
   access_log_settings {
     destination_arn = aws_cloudwatch_log_group.api.arn
-    format          = jsonencode({ requestId = "$context.requestId", routeKey = "$context.routeKey", status = "$context.status", responseLength = "$context.responseLength" })
+    format          = jsonencode({ requestId = "$context.requestId", routeKey = "$context.routeKey", status = "$context.status", responseLength = "$context.responseLength", requestTimeEpoch = "$context.requestTimeEpoch", responseLatency = "$context.responseLatency" })
   }
   tags = local.tags
 }

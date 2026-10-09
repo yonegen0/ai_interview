@@ -1,17 +1,21 @@
 output "manifest" {
   value = merge({
-    schema_version = 3
+    schema_version = 4
     configuration = {
-      boundary_arn       = var.boundary_arn
-      ses_email          = var.ses_email
-      ses_identity_arn   = var.ses_identity_arn
-      alarm_email        = var.alarm_email
-      monthly_budget_usd = tostring(var.monthly_budget_usd)
-      cors_origins       = sort(tolist(var.cors_origins))
-      worker_enabled     = var.worker_enabled
-      streams_enabled    = var.streams_enabled
-      scheduler_enabled  = var.scheduler_enabled
-      api_enabled        = var.api_enabled
+      log_usage               = var.log_usage
+      log_retention_days      = local.log_retention_days
+      test_monitoring_enabled = var.test_monitoring_enabled
+      test_closure_confirmed  = var.test_closure_confirmed
+      boundary_arn            = var.boundary_arn
+      ses_email               = var.ses_email
+      ses_identity_arn        = var.ses_identity_arn
+      alarm_email             = var.alarm_email
+      monthly_budget_usd      = tostring(var.monthly_budget_usd)
+      cors_origins            = sort(tolist(var.cors_origins))
+      worker_enabled          = var.worker_enabled
+      streams_enabled         = var.streams_enabled
+      scheduler_enabled       = var.scheduler_enabled
+      api_enabled             = var.api_enabled
     }
     account_id         = var.account_id
     region             = var.region

@@ -26,3 +26,11 @@ variable "api_enabled" {
   type    = bool
   default = false
 }
+
+variable "log_usage" {
+  type = string
+  validation {
+    condition     = contains(["developer", "customer"], var.log_usage)
+    error_message = "Declare developer-only or customer use explicitly; customer logs retain 14 days."
+  }
+}

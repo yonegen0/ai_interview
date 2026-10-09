@@ -29,6 +29,7 @@ TF_VERSION = "1.14.9"
 REPOSITORY = "yonegen0/ai_interview"
 INPUT_KEYS = frozenset(
     {
+        "log_usage",
         "boundary_arn",
         "artifact_bucket",
         "artifact_key",
@@ -110,6 +111,8 @@ def inputs(path, account, region):
 def validate_inputs(values, account, region):
     if not isinstance(values, dict) or not valid_input_keys(values):
         raise DeploymentError("ExplicitDeploymentInputsRequired")
+    if values["log_usage"] not in ("developer", "customer"):
+        raise DeploymentError("ExplicitLogUsageRequired")
     result = dict(values)
     if "monthly_budget_usd" in result:
         amount = result["monthly_budget_usd"]

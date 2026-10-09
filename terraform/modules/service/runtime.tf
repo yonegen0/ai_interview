@@ -1,7 +1,7 @@
 resource "aws_cloudwatch_log_group" "lambda" {
   for_each          = local.function_arns
   name              = "/aws/lambda/${local.prefix}-${each.key}"
-  retention_in_days = local.environment == "dev" ? 7 : 30
+  retention_in_days = local.log_retention_days
   tags              = local.tags
 }
 resource "aws_iam_role" "lambda" {

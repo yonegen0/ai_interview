@@ -634,6 +634,7 @@ WindowsでのLinux wheel ZIP生成はLinux import成功の代用にしない。
 
 ```json
 {
+  "log_usage": "developer",
   "boundary_arn": "arn:aws:iam::<Account>:policy/ai-interview-runtime-boundary",
   "ses_email": "<承認済み送信元>",
   "ses_identity_arn": "arn:aws:ses:ap-northeast-1:<Account>:identity/<承認済みIdentity>",
@@ -673,3 +674,16 @@ mainのSHAが変わった場合は旧runを自動流用しない。
 private成果物を保持し、実行ゲートを無効へ戻す。破壊的cleanupは行わない。
 結果は「閉鎖状態dev配備」として記録し、P4完了・公開可能・OTP/通知到達成功と記載しない。
 実DB、IAM smoke、段階的有効化、AU/AS、運用試験は別の明示承認と実機証拠を必要とする。
+
+
+## P4 2026-10-09 コスト・ログ変更の配備前確認
+
+現在の実装はmanifest **schema4**（2/3の旧証跡もそのまま読める）。上のschema2／旧Alarm数は当時の記録で、新planの期待値ではない。実装とWindows手順は[引き継ぎ](P4_COST_LOG_WINDOWS_HANDOFF_20261009.md)を参照。
+
+- 新dev入力は`log_usage`必須。開発専用`developer`=3日、実利用者利用`customer`=14日を明示する。module省略時はcustomer14日、test root省略時はdeveloper3日。将来prodはcustomerを指定する（prod rootは未作成）。Terraformは実際の利用者を自動識別できないため、公開前に承認入力と用途を照合する。
+- API/Admin/Worker/Dispatcher/HTTPアクセスの5group名とaddressは維持。短縮は既存ログが失われるため必要な証跡を先にprivate保全する。retention更新だけでreplaceは認めない。
+- developer dev稼働17件、customer21件／22参照、dev閉鎖0。test検証39件／42参照、defaultは39を保持。testだけ`test_monitoring_enabled=false`かつ`test_closure_confirmed=true`と全4flags falseで0にできる。明示確認は実AWS残務が無い証跡を取った後に限る。
+- test閉鎖は既存dev Closureのwhitelistへ混入しない。監視を残して入口を閉じる→全writer/queue/DLQ/WorkIndexのdrainと障害解消→新鮮なprivate証跡とStateを確認→Alarmだけの削除saved planを別レビュー・承認する。削除Lambda/新Scheduler/無条件destroyを作らない。
+- Phase 2のPythonは新しい正式Artifactが必要。旧`upload_existing.approval.json`をP4新ZIPの承認に流用しない。CIのmain制限／WIF制限を維持し、branchをmainへ無断mergeしない。
+- 保持・新Artifactの基盤変更を既存Enablement/Closure saved planへ混ぜない。Closureは4update＋明示承認Alarm delete以外no-op、最新Artifact/version/alias保持、partial failure時停止を維持する。
+- 今回のCloud許可はGit pushまで。AWS read/planはWindowsで、AWS write/upload/apply/Enablement/Closureはそれぞれ別途許可を確認する。

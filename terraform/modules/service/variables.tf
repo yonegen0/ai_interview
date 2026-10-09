@@ -83,10 +83,32 @@ variable "monthly_budget_usd" {
   }
 }
 locals {
-  prefix        = var.run_id == "" ? "ai-interview-dev" : "ai-interview-test-${var.run_id}"
-  environment   = var.run_id == "" ? "dev" : "test"
-  tags          = { Project = "ai-interview", Environment = local.environment, ManagedBy = "Terraform", RunId = var.run_id }
-  table_arn     = "arn:aws:dynamodb:${var.region}:${var.account_id}:table/${local.prefix}-main"
-  schedule_arn  = "arn:aws:scheduler:${var.region}:${var.account_id}:schedule/${local.prefix}/recovery"
-  function_arns = { for role in ["api", "worker", "dispatcher", "admin"] : role => "arn:aws:lambda:${var.region}:${var.account_id}:function:${local.prefix}-${role}" }
+  log_retention_days = var.log_usage == "customer" ? 14 : 3
+  prefix             = var.run_id == "" ? "ai-interview-dev" : "ai-interview-test-${var.run_id}"
+  environment        = var.run_id == "" ? "dev" : "test"
+  tags               = { Project = "ai-interview", Environment = local.environment, ManagedBy = "Terraform", RunId = var.run_id }
+  table_arn          = "arn:aws:dynamodb:${var.region}:${var.account_id}:table/${local.prefix}-main"
+  schedule_arn       = "arn:aws:scheduler:${var.region}:${var.account_id}:schedule/${local.prefix}/recovery"
+  function_arns      = { for role in ["api", "worker", "dispatcher", "admin"] : role => "arn:aws:lambda:${var.region}:${var.account_id}:function:${local.prefix}-${role}" }
+}
+
+variable "log_usage" {
+  type    = string
+  default = "customer"
+  validation {
+    condition     = contains(["developer", "customer"], var.log_usage)
+    error_message = "Declare developer-only or customer use explicitly; customer logs retain 14 days."
+  }
+}
+variable "test_monitoring_enabled" {
+  type    = bool
+  default = true
+  validation {
+    condition     = (var.test_monitoring_enabled || (var.run_id != "" && var.test_closure_confirmed && !anytrue([var.api_enabled, var.worker_enabled, var.streams_enabled, var.scheduler_enabled]))) && (!var.test_closure_confirmed || (var.run_id != "" && !anytrue([var.api_enabled, var.worker_enabled, var.streams_enabled, var.scheduler_enabled])))
+    error_message = "Test alarms may close only after verified closure with all four entry flags disabled."
+  }
+}
+variable "test_closure_confirmed" {
+  type    = bool
+  default = false
 }

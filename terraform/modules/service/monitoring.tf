@@ -12,7 +12,7 @@ resource "aws_sns_topic_policy" "alarms" {
   policy = jsonencode({ Version = "2012-10-17", Statement = [{ Effect = "Allow", Principal = { Service = "cloudwatch.amazonaws.com" }, Action = "sns:Publish", Resource = aws_sns_topic.alarms.arn, Condition = { StringEquals = { "aws:SourceAccount" = var.account_id }, ArnLike = { "aws:SourceArn" = "arn:aws:cloudwatch:${var.region}:${var.account_id}:alarm:${local.prefix}-*" } } }] })
 }
 locals {
-  monitoring_enabled  = local.environment != "dev" || anytrue([var.api_enabled, var.worker_enabled, var.streams_enabled, var.scheduler_enabled])
+  monitoring_enabled  = local.environment == "test" ? var.test_monitoring_enabled : anytrue([var.api_enabled, var.worker_enabled, var.streams_enabled, var.scheduler_enabled])
   dev_emf_alarm_names = toset(["api-IntegrityError", "worker-IntegrityError", "dispatcher-IntegrityError", "admin-IntegrityError", "OutcomeUnknown", "RecoveryHeartbeat", "RecoverySweepLag"])
   emf_alarms = merge(
     { for n in ["PendingAge", "QueuedAge"] : n => { metric = n, component = "dispatcher", threshold = 120, comparison = "GreaterThanThreshold", periods = 1, period = 60, stat = "Maximum", missing = "notBreaching" } },
@@ -24,7 +24,7 @@ locals {
   )
 }
 resource "aws_cloudwatch_metric_alarm" "emf" {
-  for_each            = { for name, alarm in local.emf_alarms : name => alarm if local.monitoring_enabled && (local.environment != "dev" || contains(local.dev_emf_alarm_names, name)) }
+  for_each            = { for name, alarm in local.emf_alarms : name => alarm if local.monitoring_enabled && (local.environment != "dev" || contains(setunion(local.dev_emf_alarm_names, var.log_usage == "customer" ? toset(["PendingAge", "QueuedAge"]) : toset([])), name)) }
   alarm_name          = "${local.prefix}-${each.key}"
   namespace           = "AIInterview"
   metric_name         = each.value.metric
@@ -71,7 +71,7 @@ resource "aws_cloudwatch_metric_alarm" "lambda" {
   tags                = local.tags
 }
 resource "aws_cloudwatch_metric_alarm" "iterator" {
-  count               = local.environment == "dev" ? 0 : 1
+  count               = local.environment == "test" && local.monitoring_enabled ? 1 : 0
   alarm_name          = "${local.prefix}-iterator-age"
   namespace           = "AWS/Lambda"
   metric_name         = "IteratorAge"
@@ -87,7 +87,7 @@ resource "aws_cloudwatch_metric_alarm" "iterator" {
   tags                = local.tags
 }
 resource "aws_cloudwatch_metric_alarm" "failure_rate" {
-  count               = local.environment == "dev" ? 0 : 1
+  count               = local.environment == "test" && local.monitoring_enabled ? 1 : 0
   alarm_name          = "${local.prefix}-failure-rate"
   comparison_operator = "GreaterThanThreshold"
   threshold           = 20
@@ -143,4 +143,50 @@ moved {
 moved {
   from = aws_cloudwatch_metric_alarm.failure_rate
   to   = aws_cloudwatch_metric_alarm.failure_rate[0]
+}
+
+# Standard API-wide metrics: no route-level detailed metrics or new EMF series.
+resource "aws_cloudwatch_metric_alarm" "api_5xx" {
+  count               = local.environment == "dev" && var.log_usage == "customer" && local.monitoring_enabled ? 1 : 0
+  alarm_name          = "${local.prefix}-api-5xx"
+  namespace           = "AWS/ApiGateway"
+  metric_name         = "5xx"
+  dimensions          = { ApiId = aws_apigatewayv2_api.main.id }
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  threshold           = 1
+  evaluation_periods  = 1
+  period              = 60
+  statistic           = "Sum"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = [aws_sns_topic.alarms.arn]
+  tags                = local.tags
+}
+resource "aws_cloudwatch_metric_alarm" "evaluation_failed" {
+  count               = local.environment == "dev" && var.log_usage == "customer" && local.monitoring_enabled ? 1 : 0
+  alarm_name          = "${local.prefix}-evaluation-failed"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  threshold           = 1
+  evaluation_periods  = 1
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = [aws_sns_topic.alarms.arn]
+  metric_query {
+    id          = "failed"
+    expression  = "FILL(wf,0)+FILL(df,0)"
+    return_data = true
+  }
+  dynamic "metric_query" {
+    for_each = { wf = "worker", df = "dispatcher" }
+    content {
+      id          = metric_query.key
+      return_data = false
+      metric {
+        namespace   = "AIInterview"
+        metric_name = "EvaluationFailed"
+        dimensions  = { Project = "ai-interview", Environment = local.environment, Component = metric_query.value }
+        period      = 60
+        stat        = "Sum"
+      }
+    }
+  }
+  tags = local.tags
 }

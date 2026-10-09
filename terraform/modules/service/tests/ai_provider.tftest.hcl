@@ -1,5 +1,6 @@
 mock_provider "aws" {}
 variables {
+  log_usage              = "developer"
   account_id             = "123456789012"
   region                 = "ap-northeast-1"
   boundary_arn           = "arn:aws:iam::123456789012:policy/ai-interview-runtime-boundary"
