@@ -181,6 +181,11 @@ def test_lifecycle_applies_once_and_records_readback_or_stop(failure):
             if closed:
                 identity["serial"] += 1
                 current_state["resources"] = current_state["resources"][:-1]
+                for resource in current_state["resources"]:
+                    address = f"module.service.{resource['type']}.{resource['name']}"
+                    if address in module.UPDATES:
+                        key, _, value = module.UPDATES[address]
+                        resource["instances"][0]["attributes"][key] = value
             return {
                 "state": current_state,
                 "identity": identity,
