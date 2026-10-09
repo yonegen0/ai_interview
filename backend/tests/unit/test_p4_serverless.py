@@ -142,3 +142,39 @@ def test_package_change_detection_over_multiple_commits(tmp_path):
     git("commit", "-m", "move runtime outside package")
     renamed_head = git("rev-parse", "HEAD")
     assert module.decision(tmp_path, {"before": head}, "push", renamed_head)["build_package"]
+
+
+@pytest.mark.parametrize("invalid", [None, "created", "deleted", "after", "missing_head"])
+def test_new_branch_runs_full_package_without_guessing_base(tmp_path, invalid):
+    module = tool("package_changes")
+    for args in (
+        ("init",),
+        ("config", "user.name", "Synthetic"),
+        ("config", "user.email", "synthetic@example.invalid"),
+    ):
+        subprocess.run(["git", *args], cwd=tmp_path, check=True, capture_output=True)
+    (tmp_path / "docs.md").write_text("docs-only new branch must still verify package")
+    subprocess.run(["git", "add", "docs.md"], cwd=tmp_path, check=True)
+    subprocess.run(
+        ["git", "commit", "-m", "synthetic"], cwd=tmp_path, check=True, capture_output=True
+    )
+    head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=tmp_path, text=True).strip()
+    event = {"before": "0" * 40, "created": True, "deleted": False, "after": head}
+    if invalid == "created":
+        event["created"] = False
+    elif invalid == "deleted":
+        event["deleted"] = True
+    elif invalid == "after":
+        event["after"] = "a" * 40
+    elif invalid == "missing_head":
+        head = event["after"] = "a" * 40
+    if invalid:
+        with pytest.raises((ValueError, subprocess.CalledProcessError)):
+            module.decision(tmp_path, event, "push", head)
+    else:
+        assert module.decision(tmp_path, event, "push", head) == {
+            "base": None,
+            "head": head,
+            "build_package": True,
+            "reason": "new_branch_full_package_verification",
+        }
