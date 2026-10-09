@@ -1,5 +1,8 @@
 # P4 コスト・ログ最適化 Windows引き継ぎ（2026-10-09）
 
+> 2026-10-09総合修正で更新済み。現在の安全条件・費用・手順は[総合修正レポート](P4_TOTAL_FIX_REPORT_20261009.md)、[Windows修正引継ぎ](P4_FIX_WINDOWS_HANDOFF_20261009.md)、[AWS受入チェックリスト](P4_FIX_AWS_ACCEPTANCE_20261009.md)を優先する。旧61固定、boolだけのtest閉鎖、FILL/1期間、17/22/42参照・旧費用は過去の計画/実装記録であり、新planへ流用しない。今回の開発工数に制約はなく、AWS受入未完了・cold FAIL・実AI30人未検証は継続。
+
+
 CloudでPhase 1/2と安全なPhase 3を実装した。AWS照会・変更、SSO、実State plan、Artifact upload、apply/destroy、Enablement/Closureは一切実施していない。Git pushの許可をAWS変更の承認に流用しない。既存cold-start性能GateのFAILは維持する。
 
 ## A. Gitと成果物
@@ -62,7 +65,7 @@ Playwright公式Chromium153(v1243)の取得は配布domainのHTTP403で失敗。
 - Git/main/source SHA、Provider lock、正式ZIP source/hash、S3 key/VersionId、Lambda CodeSha256/published version/aliasを照合。Python変更のため**新Artifactが必要**。既存Artifactを無断上書き／旧版へ巻戻さない。
 - 新用途入力を全5group、Alarm、manifest4へ一致させる。旧schema2/3の実配備証跡はそのまま保持する。
 - saved planの全resourceを監査。Log Groupはretention update、Gateway access format update、customer稼働なら追加4Alarmだけを期待。承認済み新Artifactに伴うLambda version/alias更新は別の明示範囲。DDB/SQS/Cognito/IAM/boundary/WIF/Streams/backend replace/destroy・説明不能な差分は禁止。
-- **業務失敗Alarmの実機受入必須**：承認計画どおりFILL(wf,0)+FILL(df,0)、60秒/1期間を実装したが、[AWS公式metric math](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/using-metric-math.html)は遅配で最新期間が欠測の場合FILLがOK固定を起こし得ると説明する。offline試験はproducer/定義の検証で、CloudWatchの時刻評価を証明しない。Workerだけ／Dispatcherだけ／両方の単発失敗、正常無通信、60秒以上遅配した失敗を検証し、実際のALARM/SNS到達を確認する。検知しなければ公開受入を停止し、1-of-N等を別レビュー・saved planで修正する（4Alarm/5参照の料金は不変、計画の評価期間を無断変更しない）。
+- **業務失敗Alarmの実機受入必須**：今回FILLを除去しSUM([wf,df])/60秒/1-of-5へ修正。OutcomeUnknownもWorker/Dispatcher2参照を同じ方式で集約。単発・片側・同時・遅配・欠測・復帰・SNSの実AWS受入は未完了。最新費用はcustomer21/23、test39/43。詳細は[総合レポート](P4_TOTAL_FIX_REPORT_20261009.md)。
 - SNS subscription Confirmed/通知到達、Missing Data/一時失敗/復旧、API5xx・EvaluationFailed・Pending/QueuedAge・Heartbeatを実機検証。故障注入は別承認の専用testを優先、顧客データを破壊しない。
 - testは39Alarmを残して入口閉鎖・残務処理完了を確認。queue近似値／GSIはeventualなため、2回0だけで完全drainを保証しない。全writer停止、active Lambda、将来due work、DLQ原因・未解決障害、証跡の鮮度を確認する。
 - 無料枠残量・AWS請求／Tokyo SKU、実取り込みbytes/custom metric hours/Alarm存在時間を取得してモデルを更新。新規credit型と常設枠を区別。OpenAI費用は別。
@@ -153,7 +156,7 @@ $env:P4_AWS_EXECUTION_READY = "true"
 uv run --locked python skills/p4/test_monitoring_closure.py --manifest <private-test-deployment.json> --account <承認Account> --region ap-northeast-1 --output <backend/.p4-artifacts/新規drain-observation.json>
 ```
 
-出力は削除承認ではない。manifest hash、観測時刻/run_id、全writer停止、queue近似値/GSI遅延、未解決障害なしを人が確認し、stale・不明・残務があればmonitorを保持する。その後だけ新test入力でclosure_confirmed=true/monitoring_enabled=false、全4falseを指定し、**Alarm39deleteだけ・他resource no-op**の新saved planを別承認する。apply後readback0、再開前confirmation=false/monitor=trueに戻し39を確認。Lambda/Scheduler掃除サービスを追加しない。
+出力はclosure_eligible=falseの観測で、削除承認ではない。新しい[Windows修正引継ぎ](P4_FIX_WINDOWS_HANDOFF_20261009.md)のState-bound独立承認・15分TTL・強整合base scan・async retry待機・queue/incident ledgerを使用する。confirmed=trueだけのplanは拒否される。test_closure_apply.pyでsaved planと証跡をplan/preapply照合し、39deleteのみを1回applyする。再開は4入口falseで39復元/readbackを先行する。証拠・権限不足時は39を維持する。
 
 ### 6. 14日を超える問い合わせ
 
@@ -161,7 +164,7 @@ uv run --locked python skills/p4/test_monitoring_closure.py --manifest <private-
 
 ```powershell
 Set-Location backend
-uv run --locked python skills/p4/support_history.py --record <private-GetItem.json> --owner <問い合わせownerSub> --evaluation-id <UUID> --output <backend/.p4-artifacts/新規support-summary.json>
+uv run --locked python skills/p4/support_history.py --record <backend/.p4-artifacts/private-GetItem.json> --owner <問い合わせownerSub> --evaluation-id <UUID> --identity-proof <private本人確認.json> --identity-proof-sha256 <承認SHA256> --output <backend/.p4-artifacts/新規support-summary.json>
 ```
 
 owner不一致・codec不明・古いrecordに必要情報が無ければ推測せず停止／unknownとする。private summaryにもuserIdが含まれるため最小担当者だけに共有し、既存ユーザー削除方針に従う。回答/採点/処理recordにTTLを設定しない。

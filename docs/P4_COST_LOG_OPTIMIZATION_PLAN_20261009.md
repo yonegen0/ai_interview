@@ -1,5 +1,8 @@
 # P4 AWSインフラ：コスト最適化・ログ管理改善計画（最終レビュー版）
 
+> 2026-10-09総合修正で更新済み。現在の安全条件・費用・手順は[総合修正レポート](P4_TOTAL_FIX_REPORT_20261009.md)、[Windows修正引継ぎ](P4_FIX_WINDOWS_HANDOFF_20261009.md)、[AWS受入チェックリスト](P4_FIX_AWS_ACCEPTANCE_20261009.md)を優先する。旧61固定、boolだけのtest閉鎖、FILL/1期間、17/22/42参照・旧費用は過去の計画/実装記録であり、新planへ流用しない。今回の開発工数に制約はなく、AWS受入未完了・cold FAIL・実AI30人未検証は継続。
+
+
 更新日：2026-10-09。状態：Codex Cloud実装・オフライン検証済み。AWS配備は別承認待ち。実行結果は[Windows引き継ぎ](P4_COST_LOG_WINDOWS_HANDOFF_20261009.md)を正本とする。
 
 ## 0. 最終判断とレビュー範囲
@@ -424,7 +427,7 @@ reasoningを出力と二重計上しない。入力6,000＋出力上限4,096な�
 2. 最小の入力／manifest契約・旧2／3互換・readbackを整えてから、全5groupretentionとtest gateを実装する。schema番号を増やす以外の大型移行／旧証跡書換えは不要。unknown入力を許可せず、新用途入力を承認bindingへ含める。
 3. Phase 1は**新しい基盤変更plan**で配備候補を作る。既存Closureの4update＋指定Alarm delete以外no-op契約にretention変更を混入しない。事前証跡保全後、Log Group replace0、DDB／SQS replace0、artifact／version／alias／runtime差分0を受入条件にする。
 4. Phase 2は監視・ログ・privacy試験を一緒に実装し、customer Alarm準備→機能有効化の順にする。新Pythonコードは新承認ZIP・SHA256・S3 VersionId・Lambda versionが必要。旧Artifactやsaved planを再利用・上書きしない。
-5. テスト：Terraform mockでdeveloper3／customer14、全5group、dev閉鎖0／開発17／顧客21、test安全閉鎖0／検証39、17／22／42参照。Worker2、毎分、retry／DLQ／認証を維持。旧schema2／3、新契約、strict input、readback、正確なAlarm delete whitelist、baseline61＋承認Alarmの一致を確認する。単に固定数を増やしてguardを通さない。
+5. テスト：Terraform mockでdeveloper3／customer14、全5group、dev閉鎖0／開発17／顧客21、test安全閉鎖0／検証39、17／22／42参照。Worker2、毎分、retry／DLQ／認証を維持。旧schema2／3、新契約、strict input、readback、正確なAlarm delete whitelist、正式Stateから導出したbaseline集合＋承認Alarm集合の一致を確認する。単に固定数を増やしてguardを通さない。
 6. `serverless.tftest.hcl`／関連contract・scheduler tests、`test_p4_manifest_v2/v3.py`／新契約test、`test_p4_runtime.py`、`test_p4_serverless.py`、`test_closure_adapter.py`、`test_closure_transport_cleanup.py`、guard／CI readiness／privacy／owner／冪等testを更新する。旧件数14／32のerror_messageも17／39等へ実態に合わせる。CIは既存`.github/workflows/{p4-static,backend,p4-deploy}.yml`の境界を維持し、通常pytestへ実AWS／cleanupを混ぜない。
 7. 別承認のlive検証ではEnablementと条件付きClosureを同時承認し、現State／lock／Account／Region／artifact／plan差分を確認。partial failureは再applyしない。fault通知、正常負荷、cold／warmの正式性能Gate、ログbytes／custom hours／問い合わせ演習を証跡へ保存する。
 8. API p95<=2秒、30評価の結果確認<=30秒、429／5xx／timeoutなし、継続backlog／DLQなしという既存Gateを維持する。今のcold FAILと実AI20秒モデルの限界を解決・検証するまで顧客運用受入PASSとしない。閾値・同時実行数・Scheduler・再試行を変更して合格にしない。

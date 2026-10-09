@@ -1,5 +1,8 @@
 # P4：閉鎖状態のdev初回配備手順
 
+> 2026-10-09総合修正で更新済み。現在の安全条件・費用・手順は[総合修正レポート](P4_TOTAL_FIX_REPORT_20261009.md)、[Windows修正引継ぎ](P4_FIX_WINDOWS_HANDOFF_20261009.md)、[AWS受入チェックリスト](P4_FIX_AWS_ACCEPTANCE_20261009.md)を優先する。旧61固定、boolだけのtest閉鎖、FILL/1期間、17/22/42参照・旧費用は過去の計画/実装記録であり、新planへ流用しない。今回の開発工数に制約はなく、AWS受入未完了・cold FAIL・実AI30人未検証は継続。
+
+
 対象はbootstrap → S3 State移行 → CI保存plan → 閉鎖状態のdev apply。
 AWS操作・GitHub設定変更・commit/pushは、この文書の存在だけでは承認されない。
 最新の実装・検証状態は [P4_VERIFICATION.md](P4_VERIFICATION.md) を先に確認する。
@@ -681,8 +684,8 @@ private成果物を保持し、実行ゲートを無効へ戻す。破壊的clea
 現在の実装はmanifest **schema4**（2/3の旧証跡もそのまま読める）。上のschema2／旧Alarm数は当時の記録で、新planの期待値ではない。実装とWindows手順は[引き継ぎ](P4_COST_LOG_WINDOWS_HANDOFF_20261009.md)を参照。
 
 - 新dev入力は`log_usage`必須。開発専用`developer`=3日、実利用者利用`customer`=14日を明示する。module省略時はcustomer14日、test root省略時はdeveloper3日。将来prodはcustomerを指定する（prod rootは未作成）。Terraformは実際の利用者を自動識別できないため、公開前に承認入力と用途を照合する。
-- API/Admin/Worker/Dispatcher/HTTPアクセスの5group名とaddressは維持。短縮は既存ログが失われるため必要な証跡を先にprivate保全する。retention更新だけでreplaceは認めない。
-- developer dev稼働17件、customer21件／22参照、dev閉鎖0。test検証39件／42参照、defaultは39を保持。testだけ`test_monitoring_enabled=false`かつ`test_closure_confirmed=true`と全4flags falseで0にできる。明示確認は実AWS残務が無い証跡を取った後に限る。
+- API/Admin/Worker/Dispatcher/HTTPアクセスの5group名/addressを維持。正式terraform_dev runnerはState用途・plan・apply直前を照合し、14→3その他短縮をP4_LOG_RETENTION_APPROVAL_PATH/SHA256のprivate承認とincidents/support/audit保全資料で検証する。資料やrunner配置がない場合は短縮拒否。replace/destroy/rename/address変更禁止。
+- developer dev17件／18参照、customer21件／23参照、dev閉鎖0。test39件／43参照を保持。bool confirmed=trueだけの閉鎖は拒否。private証跡path/hash、State/Account/Region/run/manifest一致、独立drain承認・15分TTLとtest_closure_apply.pyのpreapply guardを必須とする。再開は4入口falseで39復元/readbackを先行。
 - test閉鎖は既存dev Closureのwhitelistへ混入しない。監視を残して入口を閉じる→全writer/queue/DLQ/WorkIndexのdrainと障害解消→新鮮なprivate証跡とStateを確認→Alarmだけの削除saved planを別レビュー・承認する。削除Lambda/新Scheduler/無条件destroyを作らない。
 - Phase 2のPythonは新しい正式Artifactが必要。旧`upload_existing.approval.json`をP4新ZIPの承認に流用しない。CIのmain制限／WIF制限を維持し、branchをmainへ無断mergeしない。
 - 保持・新Artifactの基盤変更を既存Enablement/Closure saved planへ混ぜない。Closureは4update＋明示承認Alarm delete以外no-op、最新Artifact/version/alias保持、partial failure時停止を維持する。
