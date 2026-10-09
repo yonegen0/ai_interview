@@ -40,6 +40,12 @@ def _read_manifest(path, account, region, *, require_test=False):
         data = data["manifest"]["value"]
     if type(data.get("schema_version")) is not int or data["schema_version"] not in {2, 3, 4}:
         raise ValueError("InvalidManifest")
+    if "monitoring_contract_version" in data and (
+        data["schema_version"] != 4
+        or type(data["monitoring_contract_version"]) is not int
+        or data["monitoring_contract_version"] != 2
+    ):
+        raise ValueError("InvalidMonitoringContract")
     if (
         not re.fullmatch(r"[0-9]{12}", account)
         or data.get("account_id") != account

@@ -1,5 +1,7 @@
 """Strict schema-4 cost settings; legacy receipts keep their original contracts."""
 
+import re
+
 FLAGS = ("api_enabled", "worker_enabled", "streams_enabled", "scheduler_enabled")
 
 
@@ -22,3 +24,10 @@ def validate_configuration(manifest):
         not test or active or not configuration["test_closure_confirmed"]
     ):
         raise ValueError("VerifiedTestClosureRequired")
+
+    if (
+        manifest.get("monitoring_contract_version") == 2
+        and not configuration["test_monitoring_enabled"]
+        and not re.fullmatch(r"[0-9a-f]{64}", manifest.get("test_closure_evidence_sha256", ""))
+    ):
+        raise ValueError("StateBoundTestClosureEvidenceRequired")

@@ -16,6 +16,7 @@ from botocore.config import Config
 from manifest import read_manifest, verify_live_manifest
 
 from interview_backend.deployment import account_settings, checked_session, require_aws_execution
+from interview_backend.models.public import SessionResponse
 
 
 class NoRedirect(HTTPRedirectHandler):
@@ -84,15 +85,28 @@ def check(condition):
         raise AssertionError("LiveApiAssertionFailed")
 
 
-def flow(api):
+def flow(api, *, category=None):
+    """Default full practice remains usable when an administrator removes a category."""
     create_key = str(uuid4())
-    payload = {"category": "career", "difficulty": "standard"}
+    status, options, _ = api.call("GET", "/practice-options")
+    check(status == 200 and isinstance(options, dict))
+    check(type(options.get("totalQuestions")) is int and options["totalQuestions"] > 0)
+    check(isinstance(options.get("categories"), list))
+    available = {c["id"] for c in options["categories"]}
+    payload = {"mode": "full", "difficulty": "standard"}
+    if category is not None:
+        payload.update(mode="category", category=category)
     status, created, _ = api.call("POST", "/sessions", payload, create_key)
+    if category is not None and category not in available:
+        check(status == 409 and created.get("code") == "CATEGORY_UNAVAILABLE")
+        check(api.call("POST", "/sessions", payload, create_key)[:2] == (status, created))
+        return None, None
     check(status == 201)
     check(api.call("POST", "/sessions", payload, create_key)[:2] == (201, created))
     sid = created["sessionId"]
     status, question, _ = api.call("GET", f"/sessions/{sid}/question")
     check(status == 200)
+    progress = SessionResponse.model_validate(question)
     answer_key = str(uuid4())
     answer = {"questionId": question["question"]["id"], "answer": "synthetic P4 answer"}
     path = f"/sessions/{sid}/answers"
@@ -114,8 +128,21 @@ def flow(api):
     next_path = f"/sessions/{sid}/questions/next"
     next_payload = {"fromAttemptId": accepted["attemptId"]}
     status, next_question, _ = api.call("POST", next_path, next_payload, next_key)
-    check(status == 200 and next_question["questionNumber"] == 2)
-    check(api.call("POST", next_path, next_payload, next_key)[:2] == (200, next_question))
+    if progress.hasNext:
+        check(status == 200)
+        next_progress = SessionResponse.model_validate(next_question)
+        check(next_progress.questionNumber == 2 and next_progress.sessionId == sid)
+    else:
+        check(status == 409 and next_question.get("code") == "SESSION_COMPLETED")
+    check(api.call("POST", next_path, next_payload, next_key)[:2] == (status, next_question))
+    # A successful key can never be replayed with a different accepted attempt.
+    altered = {"fromAttemptId": str(uuid4())}
+    retry_status, retry_body, _ = api.call("POST", next_path, altered, next_key)
+    check(retry_status == 409)
+    check(
+        retry_body.get("code")
+        == ("IDEMPOTENCY_CONFLICT" if progress.hasNext else "SESSION_STATE_CONFLICT")
+    )
     check(api.call("POST", path, answer, answer_key)[:2] == (202, accepted))
     check(api.call("GET", "/unknown")[0] == 404)
     status, _, headers = api.call("DELETE", f"/sessions/{sid}/question")

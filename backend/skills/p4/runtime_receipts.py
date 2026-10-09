@@ -1,6 +1,33 @@
 """Observe runtime transaction records through run-owned exact GetItem keys only."""
 
-from interview_backend.repositories.codec import PARTITIONS, from_wire, key
+from interview_backend.models.internal import QuestionBankChange, StorageError
+from interview_backend.models.public import validate_id
+from interview_backend.repositories.codec import PARTITIONS, decode, from_wire, key
+
+
+def admin_change_status(client, table, admin, request_keys):
+    """Committed business records are evidence of a save, not direct IAM observations."""
+    if not request_keys:
+        return "not_run"
+    missing = False
+    try:
+        for request_key in sorted(request_keys):
+            validate_id(request_key)
+            item = read_exact(client, table, key("QuestionBankChange", admin, request_key))
+            if item is None:
+                missing = True
+                continue
+            record, _ = decode(item)
+            if (
+                not isinstance(record, QuestionBankChange)
+                or record.owner != admin
+                or record.key != request_key
+                or record.reply.status != 200
+            ):
+                return "failed"
+    except StorageError, ValueError, TypeError, KeyError:
+        return "failed"
+    return "not_run" if missing else "passed"
 
 
 def read_exact(client, table, native_key):
@@ -48,18 +75,21 @@ def collect(client, manifest, approval, run, before_cursors):
     after = cursor_revisions(client, table)
     recovered = before_cursors is not None and all(after[p] > before_cursors[p] for p in PARTITIONS)
     run.record("Recovery-checkpoint-transaction-observed", "passed" if recovered else "not_run")
-    # A successful ADMIN transaction contains the narrow USER-key ConditionCheck.
+    # The ConditionCheck tests absence of a USER key; success writes a SYSTEM change record.
     admin = approval["subjects"]["ADMIN"]
+    successful_operations = {row["check"] for row in run.rows if row["status"] == "passed"}
     admin_keys = {
-        r["request_key"] for r in run.rows if r["check"].startswith("admin-") and "request_key" in r
+        r["request_key"]
+        for r in run.rows
+        if r["check"]
+        in {"admin-add-record", "admin-edit-record", "admin-delete-record", "admin-reorder-record"}
+        and r["check"].removesuffix("-record") in successful_operations
+        and r["status"] == "passed"
+        and "request_key" in r
     }
-    conditioncheck = False
-    for request_key in sorted(admin_keys):
-        item = read_exact(client, table, key("IdempotencyRecord", admin, request_key))
-        if item and item.get("kind") == "IdempotencyRecord":
-            conditioncheck = True
     run.record(
-        "ADMIN-ConditionCheck-business-record-observed", "passed" if conditioncheck else "not_run"
+        "ADMIN-QuestionBankChange-business-record-observed",
+        admin_change_status(client, table, admin, admin_keys),
     )
     # Reclaim, ACK-loss, lease/deadline and the independent IAM simulator case stay separate.
     run.record("Recovery-reclaim-lease-boundary", "not_run")

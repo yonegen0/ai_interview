@@ -1,6 +1,12 @@
 output "manifest" {
+  precondition {
+    condition     = var.test_monitoring_enabled || try(timecmp(timestamp(), local.test_closure_evidence.expires_at) < 0 && timecmp(timestamp(), local.test_closure_evidence.issued_at) >= 0, false)
+    error_message = "Test drain approval expired before apply. Reobserve and approve; never auto-retry."
+  }
   value = merge({
-    schema_version = 4
+    schema_version               = 4
+    monitoring_contract_version  = 2
+    test_closure_evidence_sha256 = var.test_closure_evidence_sha256
     configuration = {
       log_usage               = var.log_usage
       log_retention_days      = local.log_retention_days

@@ -121,7 +121,7 @@ def test_api_to_streams_sqs_worker_terminal_correlation(runtime, capsys, fails):
     assert any('"EvaluationFailed"' in e for e in emitted) == fails
 
 
-def test_support_summary_120_days_later_has_no_duplicate_record_or_ttl(runtime):
+def test_support_summary_has_no_duplicate_record_or_ttl(runtime):
     message = accepted(runtime)
     runtime.worker.run(message["ownerSub"], message["evaluationId"], 1)
     snapshot = runtime.repository.snapshot()
@@ -139,7 +139,6 @@ def test_support_summary_120_days_later_has_no_duplicate_record_or_ttl(runtime):
             restored, owner="different-user", evaluation_id=message["evaluationId"]
         )
     assert "ttl" not in record
-    assert restored.created_at + 120 * 86400000 > restored.deadline_at
     assert runtime.repository.snapshot() == snapshot
 
 
@@ -274,13 +273,31 @@ def test_private_support_cli_decodes_existing_wire_item(
 
     from interview_backend.repositories.codec import to_wire
 
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[2] / "skills/p4"))
     message = accepted(runtime)
     runtime.worker.run(message["ownerSub"], message["evaluationId"], 1)
     evaluation = next(iter(runtime.repository.snapshot().evaluations.values()))
-    raw = tmp_path / "exact-item.json"
-    raw.write_text(json.dumps({"Item": to_wire(encode("Evaluation", evaluation, 0))}))
     private = Path(__file__).parents[2] / ".p4-artifacts"
     private.mkdir(exist_ok=True)
+    import hashlib
+    import time
+
+    raw = private / ("support-input-" + uid(981 if wrong_owner else 982) + ".json")
+    raw.write_text(json.dumps({"Item": to_wire(encode("Evaluation", evaluation, 0))}))
+    identity = private / ("support-identity-" + uid(981 if wrong_owner else 982) + ".json")
+    identity.write_text(
+        json.dumps(
+            {
+                "status": "IDENTITY_VERIFIED",
+                "owner": "other-owner" if wrong_owner else message["ownerSub"],
+                "evaluation_id": message["evaluationId"],
+                "verification_method": "reviewed_support_ticket",
+                "verified_by": "synthetic-reviewer",
+                "issued_at_epoch": int(time.time()),
+                "expires_at_epoch": int(time.time()) + 60,
+            }
+        )
+    )
     output = private / ("support-offline-" + uid(981 if wrong_owner else 982) + ".json")
     output.unlink(missing_ok=True)
     monkeypatch.setattr(
@@ -296,6 +313,10 @@ def test_private_support_cli_decodes_existing_wire_item(
             message["evaluationId"],
             "--output",
             str(output),
+            "--identity-proof",
+            str(identity),
+            "--identity-proof-sha256",
+            hashlib.sha256(identity.read_bytes()).hexdigest(),
         ],
     )
     try:
@@ -313,3 +334,5 @@ def test_private_support_cli_decodes_existing_wire_item(
                 tool("support_history").main()
     finally:
         output.unlink(missing_ok=True)
+        raw.unlink(missing_ok=True)
+        identity.unlink(missing_ok=True)

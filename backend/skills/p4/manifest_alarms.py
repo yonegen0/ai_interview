@@ -27,6 +27,40 @@ def expected_alarms(manifest, prefix):
         "ActionsEnabled": True,
     }
     alarms = {}
+    modern = manifest.get("monitoring_contract_version") == 2
+
+    def sparse_sum(metric, expression_id, inputs, **kwargs):
+        value = {k: v for k, v in common.items() if k not in {"Period", "Statistic"}}
+        value.update(EvaluationPeriods=5, DatapointsToAlarm=1, **kwargs)
+        value["Metrics"] = [
+            {
+                "Id": expression_id,
+                "Expression": "SUM([" + ",".join(key for key, _ in inputs) + "])",
+                "ReturnData": True,
+            }
+        ]
+        for key, role in inputs:
+            value["Metrics"].append(
+                {
+                    "Id": key,
+                    "ReturnData": False,
+                    "MetricStat": {
+                        "Metric": {
+                            "Namespace": "AIInterview",
+                            "MetricName": metric,
+                            "Dimensions": [
+                                {"Name": "Project", "Value": "ai-interview"},
+                                {"Name": "Environment", "Value": manifest["environment"]},
+                                {"Name": "Component", "Value": role},
+                            ],
+                        },
+                        "Period": 60,
+                        "Stat": "Sum",
+                    },
+                }
+            )
+        return value
+
     roles = (
         ("api", "worker", "dispatcher", "admin")
         if manifest["schema_version"] >= 3
@@ -76,6 +110,13 @@ def expected_alarms(manifest, prefix):
         ):
             emf(role + "-" + metric, role, metric, Period=300)
     emf("OutcomeUnknown")
+    if modern:
+        alarms[prefix + "-OutcomeUnknown"] = sparse_sum(
+            "OutcomeUnknown",
+            "unknown",
+            (("wo", "worker"), ("do", "dispatcher")),
+            OKActions=[topic],
+        )
     for key, suffix in (("worker", "worker-dlq"), ("stream", "stream-failure")):
         alarms[f"{prefix}-dlq-{key}"] = common | {
             "Namespace": "AWS/SQS",
@@ -142,6 +183,11 @@ def expected_alarms(manifest, prefix):
             }
         )
     alarms[prefix + "-failure-rate"] = rate
+    if modern:
+        rate.update(EvaluationPeriods=3, DatapointsToAlarm=1)
+        rate["Metrics"][0]["Expression"] = (
+            "IF(SUM([wc,wf,dc,df])>=10,100*SUM([wf,df])/SUM([wc,wf,dc,df]),0)"
+        )
     if manifest["environment"] == "dev":
         configuration = manifest["configuration"]
         if not any(
@@ -202,7 +248,11 @@ def expected_alarms(manifest, prefix):
                     },
                 }
             )
-        alarms[prefix + "-evaluation-failed"] = failed
+        alarms[prefix + "-evaluation-failed"] = (
+            sparse_sum("EvaluationFailed", "failed", (("wf", "worker"), ("df", "dispatcher")))
+            if modern
+            else failed
+        )
     return alarms
 
 

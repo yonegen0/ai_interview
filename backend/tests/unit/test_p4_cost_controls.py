@@ -22,6 +22,7 @@ def tools_path(monkeypatch):
 def cost_deployment(admin_deployment):
     m, data, session = admin_deployment
     m["schema_version"] = 4
+    m["monitoring_contract_version"] = 2
     m["configuration"].update(
         log_usage="customer",
         log_retention_days=14,
@@ -91,12 +92,12 @@ def test_customer_keeps_existing17_adds_four_with_five_references(cost_deploymen
         sum("MetricStat" in q for q in a["Metrics"]) if "Metrics" in a else 1
         for a in alarms.values()
     )
-    assert references == 22
+    assert references == 23
     assert alarms["dev-api-5xx"]["MetricName"] == "5xx"
     assert alarms["dev-api-5xx"]["Dimensions"] == [{"Name": "ApiId", "Value": m["api_id"]}]
     failed = alarms["dev-evaluation-failed"]
     assert failed["Threshold"] == 1
-    assert failed["Metrics"][0]["Expression"] == "FILL(wf,0)+FILL(df,0)"
+    assert failed["Metrics"][0]["Expression"] == "SUM([wf,df])"
     for key in set(alarms) - set(original):
         assert alarms[key]["TreatMissingData"] == "notBreaching"
         assert alarms[key]["AlarmActions"] == [m["alarm_topic_arn"]]
@@ -112,6 +113,9 @@ def test_schema4_cannot_hide_live_test_alarms(cost_deployment):
     with pytest.raises(ValueError, match="VerifiedTestClosure"):
         tool("manifest_alarms").expected_alarms(m, "test")
     m["configuration"]["test_closure_confirmed"] = True
+    with pytest.raises(ValueError, match="StateBoundTestClosureEvidence"):
+        tool("manifest_alarms").expected_alarms(m, "test")
+    m["test_closure_evidence_sha256"] = "a" * 64
     assert tool("manifest_alarms").expected_alarms(m, "test") == {}
     m["configuration"]["worker_enabled"] = True
     with pytest.raises(ValueError, match="ClosedTest"):

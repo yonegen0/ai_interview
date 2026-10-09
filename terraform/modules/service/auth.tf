@@ -36,7 +36,7 @@ resource "aws_cognito_user_group" "groups" {
   user_pool_id = aws_cognito_user_pool.main.id
 }
 resource "aws_apigatewayv2_api" "main" {
-  depends_on                   = [aws_cloudwatch_metric_alarm.emf, aws_cloudwatch_metric_alarm.lambda, aws_cloudwatch_metric_alarm.dlq, aws_sns_topic_policy.alarms, aws_sns_topic_subscription.email]
+  depends_on                   = [aws_cloudwatch_metric_alarm.emf, aws_cloudwatch_metric_alarm.lambda, aws_cloudwatch_metric_alarm.dlq, aws_cloudwatch_metric_alarm.iterator, aws_cloudwatch_metric_alarm.failure_rate, aws_sns_topic_policy.alarms, aws_sns_topic_subscription.email]
   name                         = "${local.prefix}-api"
   protocol_type                = "HTTP"
   disable_execute_api_endpoint = !var.api_enabled

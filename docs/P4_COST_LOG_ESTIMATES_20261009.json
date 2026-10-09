@@ -57,7 +57,7 @@
     "test_custom_free_credit": "not applied to incremental test; conservative upper cost, avoid double credits",
     "test_increment_case": "24h; 2 synthetic MAU; 40 evaluations; 2 emails; shared 0.1GB S3 not repeated; retain new test data 0.0008GB for a full month upper estimate",
     "test_residual_duration_measured": false,
-    "test_alarm_savings_formula": "sum(42*0.10*safe_avoidable_residual_hours/actual_month_hours); deduct remaining alarm credits if no dev; serial runs not double-counted",
+    "test_alarm_savings_formula": "sum(43*0.10*safe_avoidable_residual_hours/actual_month_hours); deduct remaining alarm credits if no dev; serial runs not double-counted",
     "p3_savings_in_recommended_case": false,
     "sns_free_status": "Monthly Standard API 1M allowance assumed; current dynamic quota values not retrieved. Email deliveries are conservatively charged even with free_remaining=true. At modeled usage, any correction is under USD0.005 per environment and does not change the need for alarms."
   },
@@ -210,9 +210,9 @@
       "logs_average_gb": 0.010440000000000001,
       "metric_month_equivalent": 5.397966304513086,
       "alarm_objects": 17,
-      "alarm_metric_references": 17,
-      "alarm_metric_hours": 12240,
-      "alarm_chargeable_metric_hours": 12240,
+      "alarm_metric_references": 18,
+      "alarm_metric_hours": 12960.0,
+      "alarm_chargeable_metric_hours": 12960.0,
       "test_active_hours": 0,
       "costs": {
         "Lambda": 0.24228046200000003,
@@ -224,7 +224,7 @@
         "Scheduler": 0.0432,
         "Logs ingestion": 0.07934400000000001,
         "Logs storage": 0.00034452000000000007,
-        "Alarms": 1.7000000000000002,
+        "Alarms": 1.8000000000000003,
         "Custom metrics": 1.6193898913539257,
         "Cognito": 0.44999999999999996,
         "SES": 0.09043200000000001,
@@ -232,8 +232,8 @@
         "SNS": 0.00405,
         "Data transfer": 0.00342
       },
-      "total_usd": 5.107848873353926,
-      "cost_delta_vs_B_usd": -0.0004593599999997977
+      "total_usd": 5.207848873353926,
+      "cost_delta_vs_B_usd": 0.09954064000000074
     },
     {
       "row_kind": "cost",
@@ -258,9 +258,9 @@
       "logs_average_gb": 0.010440000000000001,
       "metric_month_equivalent": 5.397966304513086,
       "alarm_objects": 17,
-      "alarm_metric_references": 17,
-      "alarm_metric_hours": 12240,
-      "alarm_chargeable_metric_hours": 5040,
+      "alarm_metric_references": 18,
+      "alarm_metric_hours": 12960.0,
+      "alarm_chargeable_metric_hours": 5760.0,
       "test_active_hours": 0,
       "costs": {
         "Lambda": 0.0,
@@ -272,7 +272,7 @@
         "Scheduler": 0.0,
         "Logs ingestion": 0.0,
         "Logs storage": 0.0,
-        "Alarms": 0.7000000000000001,
+        "Alarms": 0.8,
         "Custom metrics": 0.0008333333333333334,
         "Cognito": 0.0,
         "SES": 0.09043200000000001,
@@ -280,8 +280,8 @@
         "SNS": 0.004,
         "Data transfer": 0
       },
-      "total_usd": 1.1240233333333334,
-      "cost_delta_vs_B_usd": 0.0
+      "total_usd": 1.2240233333333335,
+      "cost_delta_vs_B_usd": 0.10000000000000009
     },
     {
       "row_kind": "cost",
@@ -306,9 +306,9 @@
       "logs_average_gb": 0.04872,
       "metric_month_equivalent": 5.397966304513086,
       "alarm_objects": 17,
-      "alarm_metric_references": 17,
-      "alarm_metric_hours": 12240,
-      "alarm_chargeable_metric_hours": 12240,
+      "alarm_metric_references": 18,
+      "alarm_metric_hours": 12960.0,
+      "alarm_chargeable_metric_hours": 12960.0,
       "test_active_hours": 0,
       "costs": {
         "Lambda": 0.24228046200000003,
@@ -320,7 +320,7 @@
         "Scheduler": 0.0432,
         "Logs ingestion": 0.07934400000000001,
         "Logs storage": 0.00160776,
-        "Alarms": 1.7000000000000002,
+        "Alarms": 1.8000000000000003,
         "Custom metrics": 1.6193898913539257,
         "Cognito": 0.44999999999999996,
         "SES": 0.09043200000000001,
@@ -328,8 +328,8 @@
         "SNS": 0.00405,
         "Data transfer": 0.00342
       },
-      "total_usd": 5.109112113353926,
-      "cost_delta_vs_B_usd": 0.0008038800000003121
+      "total_usd": 5.209112113353926,
+      "cost_delta_vs_B_usd": 0.10080388000000085
     },
     {
       "row_kind": "cost",
@@ -354,9 +354,9 @@
       "logs_average_gb": 0.04872,
       "metric_month_equivalent": 5.397966304513086,
       "alarm_objects": 17,
-      "alarm_metric_references": 17,
-      "alarm_metric_hours": 12240,
-      "alarm_chargeable_metric_hours": 5040,
+      "alarm_metric_references": 18,
+      "alarm_metric_hours": 12960.0,
+      "alarm_chargeable_metric_hours": 5760.0,
       "test_active_hours": 0,
       "costs": {
         "Lambda": 0.0,
@@ -368,7 +368,7 @@
         "Scheduler": 0.0,
         "Logs ingestion": 0.0,
         "Logs storage": 0.0,
-        "Alarms": 0.7000000000000001,
+        "Alarms": 0.8,
         "Custom metrics": 0.0008333333333333334,
         "Cognito": 0.0,
         "SES": 0.09043200000000001,
@@ -376,8 +376,8 @@
         "SNS": 0.004,
         "Data transfer": 0
       },
-      "total_usd": 1.1240233333333334,
-      "cost_delta_vs_B_usd": 0.0
+      "total_usd": 1.2240233333333335,
+      "cost_delta_vs_B_usd": 0.10000000000000009
     },
     {
       "row_kind": "cost",
@@ -402,9 +402,9 @@
       "logs_average_gb": 0.04984,
       "metric_month_equivalent": 5.397966304513086,
       "alarm_objects": 21,
-      "alarm_metric_references": 22,
-      "alarm_metric_hours": 15840,
-      "alarm_chargeable_metric_hours": 15840,
+      "alarm_metric_references": 23,
+      "alarm_metric_hours": 16560.0,
+      "alarm_chargeable_metric_hours": 16560.0,
       "test_active_hours": 0,
       "costs": {
         "Lambda": 0.24228046200000003,
@@ -416,7 +416,7 @@
         "Scheduler": 0.0432,
         "Logs ingestion": 0.081168,
         "Logs storage": 0.0016447200000000001,
-        "Alarms": 2.2,
+        "Alarms": 2.3000000000000003,
         "Custom metrics": 1.6193898913539257,
         "Cognito": 0.44999999999999996,
         "SES": 0.09043200000000001,
@@ -424,8 +424,8 @@
         "SNS": 0.00405,
         "Data transfer": 0.00342
       },
-      "total_usd": 5.610973073353926,
-      "cost_delta_vs_B_usd": 0.5026648400000004
+      "total_usd": 5.710973073353926,
+      "cost_delta_vs_B_usd": 0.6026648400000001
     },
     {
       "row_kind": "cost",
@@ -450,9 +450,9 @@
       "logs_average_gb": 0.04984,
       "metric_month_equivalent": 5.397966304513086,
       "alarm_objects": 21,
-      "alarm_metric_references": 22,
-      "alarm_metric_hours": 15840,
-      "alarm_chargeable_metric_hours": 8640,
+      "alarm_metric_references": 23,
+      "alarm_metric_hours": 16560.0,
+      "alarm_chargeable_metric_hours": 9360.0,
       "test_active_hours": 0,
       "costs": {
         "Lambda": 0.0,
@@ -464,7 +464,7 @@
         "Scheduler": 0.0,
         "Logs ingestion": 0.0,
         "Logs storage": 0.0,
-        "Alarms": 1.2000000000000002,
+        "Alarms": 1.3000000000000003,
         "Custom metrics": 0.0008333333333333334,
         "Cognito": 0.0,
         "SES": 0.09043200000000001,
@@ -472,8 +472,8 @@
         "SNS": 0.004,
         "Data transfer": 0
       },
-      "total_usd": 1.6240233333333336,
-      "cost_delta_vs_B_usd": 0.5000000000000002
+      "total_usd": 1.7240233333333337,
+      "cost_delta_vs_B_usd": 0.6000000000000003
     },
     {
       "row_kind": "cost",
@@ -592,9 +592,9 @@
       "logs_average_gb": 0.014640000000000002,
       "metric_month_equivalent": 7.632496411422858,
       "alarm_objects": 17,
-      "alarm_metric_references": 17,
-      "alarm_metric_hours": 12240,
-      "alarm_chargeable_metric_hours": 12240,
+      "alarm_metric_references": 18,
+      "alarm_metric_hours": 12960.0,
+      "alarm_chargeable_metric_hours": 12960.0,
       "test_active_hours": 0,
       "costs": {
         "Lambda": 0.535441036,
@@ -606,7 +606,7 @@
         "Scheduler": 0.0432,
         "Logs ingestion": 0.111264,
         "Logs storage": 0.0004831200000000001,
-        "Alarms": 1.7000000000000002,
+        "Alarms": 1.8000000000000003,
         "Custom metrics": 2.2897489234268575,
         "Cognito": 1.5,
         "SES": 0.30144000000000004,
@@ -614,8 +614,8 @@
         "SNS": 0.00405,
         "Data transfer": 0.0114
       },
-      "total_usd": 7.547457079426858,
-      "cost_delta_vs_B_usd": -0.0006441600000002268
+      "total_usd": 7.647457079426858,
+      "cost_delta_vs_B_usd": 0.0993558400000003
     },
     {
       "row_kind": "cost",
@@ -640,9 +640,9 @@
       "logs_average_gb": 0.014640000000000002,
       "metric_month_equivalent": 7.632496411422858,
       "alarm_objects": 17,
-      "alarm_metric_references": 17,
-      "alarm_metric_hours": 12240,
-      "alarm_chargeable_metric_hours": 5040,
+      "alarm_metric_references": 18,
+      "alarm_metric_hours": 12960.0,
+      "alarm_chargeable_metric_hours": 5760.0,
       "test_active_hours": 0,
       "costs": {
         "Lambda": 0.0,
@@ -654,7 +654,7 @@
         "Scheduler": 0.0,
         "Logs ingestion": 0.0,
         "Logs storage": 0.0,
-        "Alarms": 0.7000000000000001,
+        "Alarms": 0.8,
         "Custom metrics": 0.0008333333333333334,
         "Cognito": 0.0,
         "SES": 0.30144000000000004,
@@ -662,8 +662,8 @@
         "SNS": 0.004,
         "Data transfer": 0
       },
-      "total_usd": 1.5044033333333333,
-      "cost_delta_vs_B_usd": 0.0
+      "total_usd": 1.6044033333333334,
+      "cost_delta_vs_B_usd": 0.10000000000000009
     },
     {
       "row_kind": "cost",
@@ -688,9 +688,9 @@
       "logs_average_gb": 0.06831999999999999,
       "metric_month_equivalent": 7.632496411422858,
       "alarm_objects": 17,
-      "alarm_metric_references": 17,
-      "alarm_metric_hours": 12240,
-      "alarm_chargeable_metric_hours": 12240,
+      "alarm_metric_references": 18,
+      "alarm_metric_hours": 12960.0,
+      "alarm_chargeable_metric_hours": 12960.0,
       "test_active_hours": 0,
       "costs": {
         "Lambda": 0.535441036,
@@ -702,7 +702,7 @@
         "Scheduler": 0.0432,
         "Logs ingestion": 0.111264,
         "Logs storage": 0.0022545599999999996,
-        "Alarms": 1.7000000000000002,
+        "Alarms": 1.8000000000000003,
         "Custom metrics": 2.2897489234268575,
         "Cognito": 1.5,
         "SES": 0.30144000000000004,
@@ -710,8 +710,8 @@
         "SNS": 0.00405,
         "Data transfer": 0.0114
       },
-      "total_usd": 7.549228519426857,
-      "cost_delta_vs_B_usd": 0.0011272799999995087
+      "total_usd": 7.649228519426858,
+      "cost_delta_vs_B_usd": 0.10112728000000004
     },
     {
       "row_kind": "cost",
@@ -736,9 +736,9 @@
       "logs_average_gb": 0.06831999999999999,
       "metric_month_equivalent": 7.632496411422858,
       "alarm_objects": 17,
-      "alarm_metric_references": 17,
-      "alarm_metric_hours": 12240,
-      "alarm_chargeable_metric_hours": 5040,
+      "alarm_metric_references": 18,
+      "alarm_metric_hours": 12960.0,
+      "alarm_chargeable_metric_hours": 5760.0,
       "test_active_hours": 0,
       "costs": {
         "Lambda": 0.0,
@@ -750,7 +750,7 @@
         "Scheduler": 0.0,
         "Logs ingestion": 0.0,
         "Logs storage": 0.0,
-        "Alarms": 0.7000000000000001,
+        "Alarms": 0.8,
         "Custom metrics": 0.0008333333333333334,
         "Cognito": 0.0,
         "SES": 0.30144000000000004,
@@ -758,8 +758,8 @@
         "SNS": 0.004,
         "Data transfer": 0
       },
-      "total_usd": 1.5044033333333333,
-      "cost_delta_vs_B_usd": 0.0
+      "total_usd": 1.6044033333333334,
+      "cost_delta_vs_B_usd": 0.10000000000000009
     },
     {
       "row_kind": "cost",
@@ -784,9 +784,9 @@
       "logs_average_gb": 0.07205333333333333,
       "metric_month_equivalent": 7.632496411422858,
       "alarm_objects": 21,
-      "alarm_metric_references": 22,
-      "alarm_metric_hours": 15840,
-      "alarm_chargeable_metric_hours": 15840,
+      "alarm_metric_references": 23,
+      "alarm_metric_hours": 16560.0,
+      "alarm_chargeable_metric_hours": 16560.0,
       "test_active_hours": 0,
       "costs": {
         "Lambda": 0.535441036,
@@ -798,7 +798,7 @@
         "Scheduler": 0.0432,
         "Logs ingestion": 0.117344,
         "Logs storage": 0.00237776,
-        "Alarms": 2.2,
+        "Alarms": 2.3000000000000003,
         "Custom metrics": 2.2897489234268575,
         "Cognito": 1.5,
         "SES": 0.30144000000000004,
@@ -806,8 +806,8 @@
         "SNS": 0.00405,
         "Data transfer": 0.0114
       },
-      "total_usd": 8.055431719426858,
-      "cost_delta_vs_B_usd": 0.5073304800000003
+      "total_usd": 8.155431719426858,
+      "cost_delta_vs_B_usd": 0.6073304799999999
     },
     {
       "row_kind": "cost",
@@ -832,9 +832,9 @@
       "logs_average_gb": 0.07205333333333333,
       "metric_month_equivalent": 7.632496411422858,
       "alarm_objects": 21,
-      "alarm_metric_references": 22,
-      "alarm_metric_hours": 15840,
-      "alarm_chargeable_metric_hours": 8640,
+      "alarm_metric_references": 23,
+      "alarm_metric_hours": 16560.0,
+      "alarm_chargeable_metric_hours": 9360.0,
       "test_active_hours": 0,
       "costs": {
         "Lambda": 0.0,
@@ -846,7 +846,7 @@
         "Scheduler": 0.0,
         "Logs ingestion": 0.0,
         "Logs storage": 0.0,
-        "Alarms": 1.2000000000000002,
+        "Alarms": 1.3000000000000003,
         "Custom metrics": 0.0008333333333333334,
         "Cognito": 0.0,
         "SES": 0.30144000000000004,
@@ -854,8 +854,8 @@
         "SNS": 0.004,
         "Data transfer": 0
       },
-      "total_usd": 2.0044033333333333,
-      "cost_delta_vs_B_usd": 0.5
+      "total_usd": 2.1044033333333334,
+      "cost_delta_vs_B_usd": 0.6000000000000001
     },
     {
       "row_kind": "cost",
@@ -974,9 +974,9 @@
       "logs_average_gb": 0.026640000000000004,
       "metric_month_equivalent": 8.004113338697039,
       "alarm_objects": 17,
-      "alarm_metric_references": 17,
-      "alarm_metric_hours": 12240,
-      "alarm_chargeable_metric_hours": 12240,
+      "alarm_metric_references": 18,
+      "alarm_metric_hours": 12960.0,
+      "alarm_chargeable_metric_hours": 12960.0,
       "test_active_hours": 0,
       "costs": {
         "Lambda": 1.373042676,
@@ -988,7 +988,7 @@
         "Scheduler": 0.0432,
         "Logs ingestion": 0.20246400000000003,
         "Logs storage": 0.0008791200000000002,
-        "Alarms": 1.7000000000000002,
+        "Alarms": 1.8000000000000003,
         "Custom metrics": 2.4012340016091116,
         "Cognito": 4.5,
         "SES": 0.90432,
@@ -996,8 +996,8 @@
         "SNS": 0.00405,
         "Data transfer": 0.0342
       },
-      "total_usd": 12.713939797609111,
-      "cost_delta_vs_B_usd": -0.001172160000001199
+      "total_usd": 12.813939797609113,
+      "cost_delta_vs_B_usd": 0.09882784000000022
     },
     {
       "row_kind": "cost",
@@ -1022,9 +1022,9 @@
       "logs_average_gb": 0.026640000000000004,
       "metric_month_equivalent": 8.004113338697039,
       "alarm_objects": 17,
-      "alarm_metric_references": 17,
-      "alarm_metric_hours": 12240,
-      "alarm_chargeable_metric_hours": 5040,
+      "alarm_metric_references": 18,
+      "alarm_metric_hours": 12960.0,
+      "alarm_chargeable_metric_hours": 5760.0,
       "test_active_hours": 0,
       "costs": {
         "Lambda": 0.0,
@@ -1036,7 +1036,7 @@
         "Scheduler": 0.0,
         "Logs ingestion": 0.0,
         "Logs storage": 0.0,
-        "Alarms": 0.7000000000000001,
+        "Alarms": 0.8,
         "Custom metrics": 0.0008333333333333334,
         "Cognito": 0.0,
         "SES": 0.90432,
@@ -1044,8 +1044,8 @@
         "SNS": 0.004,
         "Data transfer": 0
       },
-      "total_usd": 2.5912033333333335,
-      "cost_delta_vs_B_usd": 0.0
+      "total_usd": 2.6912033333333336,
+      "cost_delta_vs_B_usd": 0.10000000000000009
     },
     {
       "row_kind": "cost",
@@ -1070,9 +1070,9 @@
       "logs_average_gb": 0.12432000000000001,
       "metric_month_equivalent": 8.004113338697039,
       "alarm_objects": 17,
-      "alarm_metric_references": 17,
-      "alarm_metric_hours": 12240,
-      "alarm_chargeable_metric_hours": 12240,
+      "alarm_metric_references": 18,
+      "alarm_metric_hours": 12960.0,
+      "alarm_chargeable_metric_hours": 12960.0,
       "test_active_hours": 0,
       "costs": {
         "Lambda": 1.373042676,
@@ -1084,7 +1084,7 @@
         "Scheduler": 0.0432,
         "Logs ingestion": 0.20246400000000003,
         "Logs storage": 0.004102560000000001,
-        "Alarms": 1.7000000000000002,
+        "Alarms": 1.8000000000000003,
         "Custom metrics": 2.4012340016091116,
         "Cognito": 4.5,
         "SES": 0.90432,
@@ -1092,8 +1092,8 @@
         "SNS": 0.00405,
         "Data transfer": 0.0342
       },
-      "total_usd": 12.717163237609112,
-      "cost_delta_vs_B_usd": 0.0020512799999998776
+      "total_usd": 12.817163237609112,
+      "cost_delta_vs_B_usd": 0.10205127999999952
     },
     {
       "row_kind": "cost",
@@ -1118,9 +1118,9 @@
       "logs_average_gb": 0.12432000000000001,
       "metric_month_equivalent": 8.004113338697039,
       "alarm_objects": 17,
-      "alarm_metric_references": 17,
-      "alarm_metric_hours": 12240,
-      "alarm_chargeable_metric_hours": 5040,
+      "alarm_metric_references": 18,
+      "alarm_metric_hours": 12960.0,
+      "alarm_chargeable_metric_hours": 5760.0,
       "test_active_hours": 0,
       "costs": {
         "Lambda": 0.0,
@@ -1132,7 +1132,7 @@
         "Scheduler": 0.0,
         "Logs ingestion": 0.0,
         "Logs storage": 0.0,
-        "Alarms": 0.7000000000000001,
+        "Alarms": 0.8,
         "Custom metrics": 0.0008333333333333334,
         "Cognito": 0.0,
         "SES": 0.90432,
@@ -1140,8 +1140,8 @@
         "SNS": 0.004,
         "Data transfer": 0
       },
-      "total_usd": 2.5912033333333335,
-      "cost_delta_vs_B_usd": 0.0
+      "total_usd": 2.6912033333333336,
+      "cost_delta_vs_B_usd": 0.10000000000000009
     },
     {
       "row_kind": "cost",
@@ -1166,9 +1166,9 @@
       "logs_average_gb": 0.13552,
       "metric_month_equivalent": 8.004113338697039,
       "alarm_objects": 21,
-      "alarm_metric_references": 22,
-      "alarm_metric_hours": 15840,
-      "alarm_chargeable_metric_hours": 15840,
+      "alarm_metric_references": 23,
+      "alarm_metric_hours": 16560.0,
+      "alarm_chargeable_metric_hours": 16560.0,
       "test_active_hours": 0,
       "costs": {
         "Lambda": 1.373042676,
@@ -1180,7 +1180,7 @@
         "Scheduler": 0.0432,
         "Logs ingestion": 0.22070399999999998,
         "Logs storage": 0.00447216,
-        "Alarms": 2.2,
+        "Alarms": 2.3000000000000003,
         "Custom metrics": 2.4012340016091116,
         "Cognito": 4.5,
         "SES": 0.90432,
@@ -1188,8 +1188,8 @@
         "SNS": 0.00405,
         "Data transfer": 0.0342
       },
-      "total_usd": 13.235772837609112,
-      "cost_delta_vs_B_usd": 0.5206608799999994
+      "total_usd": 13.335772837609111,
+      "cost_delta_vs_B_usd": 0.6206608799999991
     },
     {
       "row_kind": "cost",
@@ -1214,9 +1214,9 @@
       "logs_average_gb": 0.13552,
       "metric_month_equivalent": 8.004113338697039,
       "alarm_objects": 21,
-      "alarm_metric_references": 22,
-      "alarm_metric_hours": 15840,
-      "alarm_chargeable_metric_hours": 8640,
+      "alarm_metric_references": 23,
+      "alarm_metric_hours": 16560.0,
+      "alarm_chargeable_metric_hours": 9360.0,
       "test_active_hours": 0,
       "costs": {
         "Lambda": 0.0,
@@ -1228,7 +1228,7 @@
         "Scheduler": 0.0,
         "Logs ingestion": 0.0,
         "Logs storage": 0.0,
-        "Alarms": 1.2000000000000002,
+        "Alarms": 1.3000000000000003,
         "Custom metrics": 0.0008333333333333334,
         "Cognito": 0.0,
         "SES": 0.90432,
@@ -1236,8 +1236,8 @@
         "SNS": 0.004,
         "Data transfer": 0
       },
-      "total_usd": 3.0912033333333335,
-      "cost_delta_vs_B_usd": 0.5
+      "total_usd": 3.1912033333333336,
+      "cost_delta_vs_B_usd": 0.6000000000000001
     },
     {
       "row_kind": "cost",
@@ -1356,9 +1356,9 @@
       "logs_average_gb": 0.03864,
       "metric_month_equivalent": 8.005549980060357,
       "alarm_objects": 17,
-      "alarm_metric_references": 17,
-      "alarm_metric_hours": 12240,
-      "alarm_chargeable_metric_hours": 12240,
+      "alarm_metric_references": 18,
+      "alarm_metric_hours": 12960.0,
+      "alarm_chargeable_metric_hours": 12960.0,
       "test_active_hours": 0,
       "costs": {
         "Lambda": 2.2106443159999998,
@@ -1370,7 +1370,7 @@
         "Scheduler": 0.0432,
         "Logs ingestion": 0.29366400000000004,
         "Logs storage": 0.00127512,
-        "Alarms": 1.7000000000000002,
+        "Alarms": 1.8000000000000003,
         "Custom metrics": 2.4016649940181067,
         "Cognito": 7.5,
         "SES": 1.5072,
@@ -1378,8 +1378,8 @@
         "SNS": 0.00405,
         "Data transfer": 0.057
       },
-      "total_usd": 17.76936843001811,
-      "cost_delta_vs_B_usd": -0.0017001599999986183
+      "total_usd": 17.869368430018106,
+      "cost_delta_vs_B_usd": 0.09829983999999925
     },
     {
       "row_kind": "cost",
@@ -1404,9 +1404,9 @@
       "logs_average_gb": 0.03864,
       "metric_month_equivalent": 8.005549980060357,
       "alarm_objects": 17,
-      "alarm_metric_references": 17,
-      "alarm_metric_hours": 12240,
-      "alarm_chargeable_metric_hours": 5040,
+      "alarm_metric_references": 18,
+      "alarm_metric_hours": 12960.0,
+      "alarm_chargeable_metric_hours": 5760.0,
       "test_active_hours": 0,
       "costs": {
         "Lambda": 0.0,
@@ -1418,7 +1418,7 @@
         "Scheduler": 0.0,
         "Logs ingestion": 0.0,
         "Logs storage": 0.0,
-        "Alarms": 0.7000000000000001,
+        "Alarms": 0.8,
         "Custom metrics": 0.0008333333333333334,
         "Cognito": 0.0,
         "SES": 1.5072,
@@ -1426,8 +1426,8 @@
         "SNS": 0.004,
         "Data transfer": 0
       },
-      "total_usd": 3.6780033333333337,
-      "cost_delta_vs_B_usd": 0.0
+      "total_usd": 3.778003333333334,
+      "cost_delta_vs_B_usd": 0.10000000000000009
     },
     {
       "row_kind": "cost",
@@ -1452,9 +1452,9 @@
       "logs_average_gb": 0.18032,
       "metric_month_equivalent": 8.005549980060357,
       "alarm_objects": 17,
-      "alarm_metric_references": 17,
-      "alarm_metric_hours": 12240,
-      "alarm_chargeable_metric_hours": 12240,
+      "alarm_metric_references": 18,
+      "alarm_metric_hours": 12960.0,
+      "alarm_chargeable_metric_hours": 12960.0,
       "test_active_hours": 0,
       "costs": {
         "Lambda": 2.2106443159999998,
@@ -1466,7 +1466,7 @@
         "Scheduler": 0.0432,
         "Logs ingestion": 0.29366400000000004,
         "Logs storage": 0.005950560000000001,
-        "Alarms": 1.7000000000000002,
+        "Alarms": 1.8000000000000003,
         "Custom metrics": 2.4016649940181067,
         "Cognito": 7.5,
         "SES": 1.5072,
@@ -1474,8 +1474,8 @@
         "SNS": 0.00405,
         "Data transfer": 0.057
       },
-      "total_usd": 17.774043870018108,
-      "cost_delta_vs_B_usd": 0.002975280000001135
+      "total_usd": 17.874043870018106,
+      "cost_delta_vs_B_usd": 0.102975279999999
     },
     {
       "row_kind": "cost",
@@ -1500,9 +1500,9 @@
       "logs_average_gb": 0.18032,
       "metric_month_equivalent": 8.005549980060357,
       "alarm_objects": 17,
-      "alarm_metric_references": 17,
-      "alarm_metric_hours": 12240,
-      "alarm_chargeable_metric_hours": 5040,
+      "alarm_metric_references": 18,
+      "alarm_metric_hours": 12960.0,
+      "alarm_chargeable_metric_hours": 5760.0,
       "test_active_hours": 0,
       "costs": {
         "Lambda": 0.0,
@@ -1514,7 +1514,7 @@
         "Scheduler": 0.0,
         "Logs ingestion": 0.0,
         "Logs storage": 0.0,
-        "Alarms": 0.7000000000000001,
+        "Alarms": 0.8,
         "Custom metrics": 0.0008333333333333334,
         "Cognito": 0.0,
         "SES": 1.5072,
@@ -1522,8 +1522,8 @@
         "SNS": 0.004,
         "Data transfer": 0
       },
-      "total_usd": 3.6780033333333337,
-      "cost_delta_vs_B_usd": 0.0
+      "total_usd": 3.778003333333334,
+      "cost_delta_vs_B_usd": 0.10000000000000009
     },
     {
       "row_kind": "cost",
@@ -1548,9 +1548,9 @@
       "logs_average_gb": 0.19898666666666667,
       "metric_month_equivalent": 8.005549980060357,
       "alarm_objects": 21,
-      "alarm_metric_references": 22,
-      "alarm_metric_hours": 15840,
-      "alarm_chargeable_metric_hours": 15840,
+      "alarm_metric_references": 23,
+      "alarm_metric_hours": 16560.0,
+      "alarm_chargeable_metric_hours": 16560.0,
       "test_active_hours": 0,
       "costs": {
         "Lambda": 2.2106443159999998,
@@ -1562,7 +1562,7 @@
         "Scheduler": 0.0432,
         "Logs ingestion": 0.324064,
         "Logs storage": 0.006566560000000001,
-        "Alarms": 2.2,
+        "Alarms": 2.3000000000000003,
         "Custom metrics": 2.4016649940181067,
         "Cognito": 7.5,
         "SES": 1.5072,
@@ -1570,8 +1570,8 @@
         "SNS": 0.00405,
         "Data transfer": 0.057
       },
-      "total_usd": 18.305059870018106,
-      "cost_delta_vs_B_usd": 0.5339912799999986
+      "total_usd": 18.405059870018107,
+      "cost_delta_vs_B_usd": 0.63399128
     },
     {
       "row_kind": "cost",
@@ -1596,9 +1596,9 @@
       "logs_average_gb": 0.19898666666666667,
       "metric_month_equivalent": 8.005549980060357,
       "alarm_objects": 21,
-      "alarm_metric_references": 22,
-      "alarm_metric_hours": 15840,
-      "alarm_chargeable_metric_hours": 8640,
+      "alarm_metric_references": 23,
+      "alarm_metric_hours": 16560.0,
+      "alarm_chargeable_metric_hours": 9360.0,
       "test_active_hours": 0,
       "costs": {
         "Lambda": 0.0,
@@ -1610,7 +1610,7 @@
         "Scheduler": 0.0,
         "Logs ingestion": 0.0,
         "Logs storage": 0.0,
-        "Alarms": 1.2000000000000002,
+        "Alarms": 1.3000000000000003,
         "Custom metrics": 0.0008333333333333334,
         "Cognito": 0.0,
         "SES": 1.5072,
@@ -1618,8 +1618,8 @@
         "SNS": 0.004,
         "Data transfer": 0
       },
-      "total_usd": 4.178003333333334,
-      "cost_delta_vs_B_usd": 0.5
+      "total_usd": 4.278003333333334,
+      "cost_delta_vs_B_usd": 0.6000000000000005
     },
     {
       "row_kind": "cost",
@@ -1738,9 +1738,9 @@
       "logs_average_gb": 0.06864,
       "metric_month_equivalent": 8.005555555550375,
       "alarm_objects": 17,
-      "alarm_metric_references": 17,
-      "alarm_metric_hours": 12240,
-      "alarm_chargeable_metric_hours": 12240,
+      "alarm_metric_references": 18,
+      "alarm_metric_hours": 12960.0,
+      "alarm_chargeable_metric_hours": 12960.0,
       "test_active_hours": 0,
       "costs": {
         "Lambda": 4.304648416,
@@ -1752,7 +1752,7 @@
         "Scheduler": 0.0432,
         "Logs ingestion": 0.521664,
         "Logs storage": 0.0022651200000000002,
-        "Alarms": 1.7000000000000002,
+        "Alarms": 1.8000000000000003,
         "Custom metrics": 2.4016666666651125,
         "Cognito": 15.0,
         "SES": 3.0144,
@@ -1760,8 +1760,8 @@
         "SNS": 0.00405,
         "Data transfer": 0.114
       },
-      "total_usd": 30.406864202665112,
-      "cost_delta_vs_B_usd": -0.003020160000001937
+      "total_usd": 30.506864202665113,
+      "cost_delta_vs_B_usd": 0.09697983999999948
     },
     {
       "row_kind": "cost",
@@ -1786,9 +1786,9 @@
       "logs_average_gb": 0.06864,
       "metric_month_equivalent": 8.005555555550375,
       "alarm_objects": 17,
-      "alarm_metric_references": 17,
-      "alarm_metric_hours": 12240,
-      "alarm_chargeable_metric_hours": 5040,
+      "alarm_metric_references": 18,
+      "alarm_metric_hours": 12960.0,
+      "alarm_chargeable_metric_hours": 5760.0,
       "test_active_hours": 0,
       "costs": {
         "Lambda": 0.0,
@@ -1800,7 +1800,7 @@
         "Scheduler": 0.0,
         "Logs ingestion": 0.0,
         "Logs storage": 0.0,
-        "Alarms": 0.7000000000000001,
+        "Alarms": 0.8,
         "Custom metrics": 0.0008333333333333334,
         "Cognito": 0.0,
         "SES": 3.0144,
@@ -1808,8 +1808,8 @@
         "SNS": 0.004,
         "Data transfer": 0
       },
-      "total_usd": 6.395003333333333,
-      "cost_delta_vs_B_usd": 0.0
+      "total_usd": 6.495003333333334,
+      "cost_delta_vs_B_usd": 0.10000000000000053
     },
     {
       "row_kind": "cost",
@@ -1834,9 +1834,9 @@
       "logs_average_gb": 0.32032,
       "metric_month_equivalent": 8.005555555550375,
       "alarm_objects": 17,
-      "alarm_metric_references": 17,
-      "alarm_metric_hours": 12240,
-      "alarm_chargeable_metric_hours": 12240,
+      "alarm_metric_references": 18,
+      "alarm_metric_hours": 12960.0,
+      "alarm_chargeable_metric_hours": 12960.0,
       "test_active_hours": 0,
       "costs": {
         "Lambda": 4.304648416,
@@ -1848,7 +1848,7 @@
         "Scheduler": 0.0432,
         "Logs ingestion": 0.521664,
         "Logs storage": 0.01057056,
-        "Alarms": 1.7000000000000002,
+        "Alarms": 1.8000000000000003,
         "Custom metrics": 2.4016666666651125,
         "Cognito": 15.0,
         "SES": 3.0144,
@@ -1856,8 +1856,8 @@
         "SNS": 0.00405,
         "Data transfer": 0.114
       },
-      "total_usd": 30.415169642665113,
-      "cost_delta_vs_B_usd": 0.005285279999998949
+      "total_usd": 30.515169642665114,
+      "cost_delta_vs_B_usd": 0.10528528000000037
     },
     {
       "row_kind": "cost",
@@ -1882,9 +1882,9 @@
       "logs_average_gb": 0.32032,
       "metric_month_equivalent": 8.005555555550375,
       "alarm_objects": 17,
-      "alarm_metric_references": 17,
-      "alarm_metric_hours": 12240,
-      "alarm_chargeable_metric_hours": 5040,
+      "alarm_metric_references": 18,
+      "alarm_metric_hours": 12960.0,
+      "alarm_chargeable_metric_hours": 5760.0,
       "test_active_hours": 0,
       "costs": {
         "Lambda": 0.0,
@@ -1896,7 +1896,7 @@
         "Scheduler": 0.0,
         "Logs ingestion": 0.0,
         "Logs storage": 0.0,
-        "Alarms": 0.7000000000000001,
+        "Alarms": 0.8,
         "Custom metrics": 0.0008333333333333334,
         "Cognito": 0.0,
         "SES": 3.0144,
@@ -1904,8 +1904,8 @@
         "SNS": 0.004,
         "Data transfer": 0
       },
-      "total_usd": 6.395003333333333,
-      "cost_delta_vs_B_usd": 0.0
+      "total_usd": 6.495003333333334,
+      "cost_delta_vs_B_usd": 0.10000000000000053
     },
     {
       "row_kind": "cost",
@@ -1930,9 +1930,9 @@
       "logs_average_gb": 0.3576533333333333,
       "metric_month_equivalent": 8.005555555550375,
       "alarm_objects": 21,
-      "alarm_metric_references": 22,
-      "alarm_metric_hours": 15840,
-      "alarm_chargeable_metric_hours": 15840,
+      "alarm_metric_references": 23,
+      "alarm_metric_hours": 16560.0,
+      "alarm_chargeable_metric_hours": 16560.0,
       "test_active_hours": 0,
       "costs": {
         "Lambda": 4.304648416,
@@ -1944,7 +1944,7 @@
         "Scheduler": 0.0432,
         "Logs ingestion": 0.582464,
         "Logs storage": 0.01180256,
-        "Alarms": 2.2,
+        "Alarms": 2.3000000000000003,
         "Custom metrics": 2.4016666666651125,
         "Cognito": 15.0,
         "SES": 3.0144,
@@ -1952,8 +1952,8 @@
         "SNS": 0.00405,
         "Data transfer": 0.114
       },
-      "total_usd": 30.97720164266511,
-      "cost_delta_vs_B_usd": 0.5673172799999975
+      "total_usd": 31.077201642665113,
+      "cost_delta_vs_B_usd": 0.6673172799999989
     },
     {
       "row_kind": "cost",
@@ -1978,9 +1978,9 @@
       "logs_average_gb": 0.3576533333333333,
       "metric_month_equivalent": 8.005555555550375,
       "alarm_objects": 21,
-      "alarm_metric_references": 22,
-      "alarm_metric_hours": 15840,
-      "alarm_chargeable_metric_hours": 8640,
+      "alarm_metric_references": 23,
+      "alarm_metric_hours": 16560.0,
+      "alarm_chargeable_metric_hours": 9360.0,
       "test_active_hours": 0,
       "costs": {
         "Lambda": 0.0,
@@ -1992,7 +1992,7 @@
         "Scheduler": 0.0,
         "Logs ingestion": 0.0,
         "Logs storage": 0.0,
-        "Alarms": 1.2000000000000002,
+        "Alarms": 1.3000000000000003,
         "Custom metrics": 0.0008333333333333334,
         "Cognito": 0.0,
         "SES": 3.0144,
@@ -2000,8 +2000,8 @@
         "SNS": 0.004,
         "Data transfer": 0
       },
-      "total_usd": 6.895003333333333,
-      "cost_delta_vs_B_usd": 0.5
+      "total_usd": 6.995003333333334,
+      "cost_delta_vs_B_usd": 0.6000000000000005
     },
     {
       "row_kind": "cost",
@@ -2214,9 +2214,9 @@
       "logs_average_gb": 0.00040800000000000005,
       "metric_month_equivalent": 0.2344471016547099,
       "alarm_objects": 39,
-      "alarm_metric_references": 42,
-      "alarm_metric_hours": 1008,
-      "alarm_chargeable_metric_hours": 1008,
+      "alarm_metric_references": 43,
+      "alarm_metric_hours": 1032.0,
+      "alarm_chargeable_metric_hours": 1032.0,
       "test_active_hours": 24,
       "costs": {
         "Lambda": 0.0122640236,
@@ -2228,7 +2228,7 @@
         "Scheduler": 0.00144,
         "Logs ingestion": 0.0031008000000000003,
         "Logs storage": 1.3464000000000002e-05,
-        "Alarms": 0.13999999999999999,
+        "Alarms": 0.1433333333333333,
         "Custom metrics": 0.07033413049641296,
         "Cognito": 0.03,
         "SES": 0.00020096,
@@ -2236,7 +2236,7 @@
         "SNS": 0.00405,
         "Data transfer": 0.000228
       },
-      "total_usd": 0.28406057809641294
+      "total_usd": 0.2873939114297463
     },
     {
       "row_kind": "cost",
@@ -2261,9 +2261,9 @@
       "logs_average_gb": 0.00040800000000000005,
       "metric_month_equivalent": 0.2344471016547099,
       "alarm_objects": 39,
-      "alarm_metric_references": 42,
-      "alarm_metric_hours": 1008,
-      "alarm_chargeable_metric_hours": 1008,
+      "alarm_metric_references": 43,
+      "alarm_metric_hours": 1032.0,
+      "alarm_chargeable_metric_hours": 1032.0,
       "test_active_hours": 24,
       "costs": {
         "Lambda": 0.0,
@@ -2275,7 +2275,7 @@
         "Scheduler": 0.0,
         "Logs ingestion": 0.0,
         "Logs storage": 0.0,
-        "Alarms": 0.13999999999999999,
+        "Alarms": 0.1433333333333333,
         "Custom metrics": 0.07033413049641296,
         "Cognito": 0.0,
         "SES": 0.00020096,
@@ -2283,7 +2283,7 @@
         "SNS": 0.004,
         "Data transfer": 0
       },
-      "total_usd": 0.22804829049641295
+      "total_usd": 0.23138162382974628
     },
     {
       "row_kind": "cost",
@@ -2297,9 +2297,9 @@
       "free_allocation": "shared_increment_not_second_free_account",
       "log_retention_days": "dev14_test3",
       "alarm_objects": 60,
-      "alarm_metric_references": 64,
-      "alarm_metric_hours": 16848,
-      "alarm_chargeable_metric_hours": 16848,
+      "alarm_metric_references": 66,
+      "alarm_metric_hours": 17592.0,
+      "alarm_chargeable_metric_hours": 17592.0,
       "test_active_hours": 24,
       "costs": {
         "Lambda": 0.25454448560000004,
@@ -2311,7 +2311,7 @@
         "Scheduler": 0.04464,
         "Logs ingestion": 0.0842688,
         "Logs storage": 0.001658184,
-        "Alarms": 2.3400000000000003,
+        "Alarms": 2.443333333333334,
         "Custom metrics": 1.6897240218503387,
         "Cognito": 0.48,
         "SES": 0.09063296000000001,
@@ -2319,7 +2319,7 @@
         "SNS": 0.0081,
         "Data transfer": 0.0036479999999999998
       },
-      "total_usd": 5.895033651450339
+      "total_usd": 5.998366984783672
     },
     {
       "row_kind": "cost",
@@ -2333,9 +2333,9 @@
       "free_allocation": "shared_increment_not_second_free_account",
       "log_retention_days": "dev14_test3",
       "alarm_objects": 60,
-      "alarm_metric_references": 64,
-      "alarm_metric_hours": 16848,
-      "alarm_chargeable_metric_hours": 9648,
+      "alarm_metric_references": 66,
+      "alarm_metric_hours": 17592.0,
+      "alarm_chargeable_metric_hours": 10392.0,
       "test_active_hours": 24,
       "costs": {
         "Lambda": 0.0,
@@ -2347,7 +2347,7 @@
         "Scheduler": 0.0,
         "Logs ingestion": 0.0,
         "Logs storage": 0.0,
-        "Alarms": 1.34,
+        "Alarms": 1.4433333333333334,
         "Custom metrics": 0.0711674638297463,
         "Cognito": 0.0,
         "SES": 0.09063296000000001,
@@ -2355,7 +2355,7 @@
         "SNS": 0.008,
         "Data transfer": 0
       },
-      "total_usd": 1.8520716238297465
+      "total_usd": 1.9554049571630798
     },
     {
       "row_kind": "savings_sensitivity",
@@ -2366,8 +2366,8 @@
       "free_allocation": "no_remaining_alarm_credits",
       "test_residual_hours": 0,
       "alarm_objects": 39,
-      "alarm_metric_references": 42,
-      "alarm_chargeable_references": 42,
+      "alarm_metric_references": 43,
+      "alarm_chargeable_references": 43,
       "alarm_savings_usd": 0.0
     },
     {
@@ -2379,8 +2379,8 @@
       "free_allocation": "all_10_alarm_credits_to_test",
       "test_residual_hours": 0,
       "alarm_objects": 39,
-      "alarm_metric_references": 42,
-      "alarm_chargeable_references": 32,
+      "alarm_metric_references": 43,
+      "alarm_chargeable_references": 33,
       "alarm_savings_usd": 0.0
     },
     {
@@ -2392,9 +2392,9 @@
       "free_allocation": "no_remaining_alarm_credits",
       "test_residual_hours": 1,
       "alarm_objects": 39,
-      "alarm_metric_references": 42,
-      "alarm_chargeable_references": 42,
-      "alarm_savings_usd": 0.005833333333333334
+      "alarm_metric_references": 43,
+      "alarm_chargeable_references": 43,
+      "alarm_savings_usd": 0.005972222222222222
     },
     {
       "row_kind": "savings_sensitivity",
@@ -2405,9 +2405,9 @@
       "free_allocation": "all_10_alarm_credits_to_test",
       "test_residual_hours": 1,
       "alarm_objects": 39,
-      "alarm_metric_references": 42,
-      "alarm_chargeable_references": 32,
-      "alarm_savings_usd": 0.0044444444444444444
+      "alarm_metric_references": 43,
+      "alarm_chargeable_references": 33,
+      "alarm_savings_usd": 0.004583333333333333
     },
     {
       "row_kind": "savings_sensitivity",
@@ -2418,9 +2418,9 @@
       "free_allocation": "no_remaining_alarm_credits",
       "test_residual_hours": 6,
       "alarm_objects": 39,
-      "alarm_metric_references": 42,
-      "alarm_chargeable_references": 42,
-      "alarm_savings_usd": 0.035
+      "alarm_metric_references": 43,
+      "alarm_chargeable_references": 43,
+      "alarm_savings_usd": 0.03583333333333333
     },
     {
       "row_kind": "savings_sensitivity",
@@ -2431,9 +2431,9 @@
       "free_allocation": "all_10_alarm_credits_to_test",
       "test_residual_hours": 6,
       "alarm_objects": 39,
-      "alarm_metric_references": 42,
-      "alarm_chargeable_references": 32,
-      "alarm_savings_usd": 0.026666666666666672
+      "alarm_metric_references": 43,
+      "alarm_chargeable_references": 33,
+      "alarm_savings_usd": 0.0275
     },
     {
       "row_kind": "savings_sensitivity",
@@ -2444,9 +2444,9 @@
       "free_allocation": "no_remaining_alarm_credits",
       "test_residual_hours": 24,
       "alarm_objects": 39,
-      "alarm_metric_references": 42,
-      "alarm_chargeable_references": 42,
-      "alarm_savings_usd": 0.14
+      "alarm_metric_references": 43,
+      "alarm_chargeable_references": 43,
+      "alarm_savings_usd": 0.1433333333333333
     },
     {
       "row_kind": "savings_sensitivity",
@@ -2457,9 +2457,9 @@
       "free_allocation": "all_10_alarm_credits_to_test",
       "test_residual_hours": 24,
       "alarm_objects": 39,
-      "alarm_metric_references": 42,
-      "alarm_chargeable_references": 32,
-      "alarm_savings_usd": 0.10666666666666669
+      "alarm_metric_references": 43,
+      "alarm_chargeable_references": 33,
+      "alarm_savings_usd": 0.11
     },
     {
       "row_kind": "savings_sensitivity",
@@ -2470,9 +2470,9 @@
       "free_allocation": "no_remaining_alarm_credits",
       "test_residual_hours": 72,
       "alarm_objects": 39,
-      "alarm_metric_references": 42,
-      "alarm_chargeable_references": 42,
-      "alarm_savings_usd": 0.42000000000000004
+      "alarm_metric_references": 43,
+      "alarm_chargeable_references": 43,
+      "alarm_savings_usd": 0.42999999999999994
     },
     {
       "row_kind": "savings_sensitivity",
@@ -2483,9 +2483,9 @@
       "free_allocation": "all_10_alarm_credits_to_test",
       "test_residual_hours": 72,
       "alarm_objects": 39,
-      "alarm_metric_references": 42,
-      "alarm_chargeable_references": 32,
-      "alarm_savings_usd": 0.32
+      "alarm_metric_references": 43,
+      "alarm_chargeable_references": 33,
+      "alarm_savings_usd": 0.33
     },
     {
       "row_kind": "savings_sensitivity",
@@ -2496,9 +2496,9 @@
       "free_allocation": "no_remaining_alarm_credits",
       "test_residual_hours": 168,
       "alarm_objects": 39,
-      "alarm_metric_references": 42,
-      "alarm_chargeable_references": 42,
-      "alarm_savings_usd": 0.98
+      "alarm_metric_references": 43,
+      "alarm_chargeable_references": 43,
+      "alarm_savings_usd": 1.0033333333333334
     },
     {
       "row_kind": "savings_sensitivity",
@@ -2509,9 +2509,9 @@
       "free_allocation": "all_10_alarm_credits_to_test",
       "test_residual_hours": 168,
       "alarm_objects": 39,
-      "alarm_metric_references": 42,
-      "alarm_chargeable_references": 32,
-      "alarm_savings_usd": 0.7466666666666667
+      "alarm_metric_references": 43,
+      "alarm_chargeable_references": 33,
+      "alarm_savings_usd": 0.7700000000000001
     },
     {
       "row_kind": "savings_sensitivity",
@@ -2522,9 +2522,9 @@
       "free_allocation": "no_remaining_alarm_credits",
       "test_residual_hours": 696,
       "alarm_objects": 39,
-      "alarm_metric_references": 42,
-      "alarm_chargeable_references": 42,
-      "alarm_savings_usd": 4.0600000000000005
+      "alarm_metric_references": 43,
+      "alarm_chargeable_references": 43,
+      "alarm_savings_usd": 4.156666666666666
     },
     {
       "row_kind": "savings_sensitivity",
@@ -2535,9 +2535,9 @@
       "free_allocation": "all_10_alarm_credits_to_test",
       "test_residual_hours": 696,
       "alarm_objects": 39,
-      "alarm_metric_references": 42,
-      "alarm_chargeable_references": 32,
-      "alarm_savings_usd": 3.0933333333333337
+      "alarm_metric_references": 43,
+      "alarm_chargeable_references": 33,
+      "alarm_savings_usd": 3.1900000000000004
     },
     {
       "row_kind": "savings_sensitivity",
@@ -2548,9 +2548,9 @@
       "free_allocation": "no_remaining_alarm_credits",
       "test_residual_hours": 720,
       "alarm_objects": 39,
-      "alarm_metric_references": 42,
-      "alarm_chargeable_references": 42,
-      "alarm_savings_usd": 4.2
+      "alarm_metric_references": 43,
+      "alarm_chargeable_references": 43,
+      "alarm_savings_usd": 4.3
     },
     {
       "row_kind": "savings_sensitivity",
@@ -2561,9 +2561,9 @@
       "free_allocation": "all_10_alarm_credits_to_test",
       "test_residual_hours": 720,
       "alarm_objects": 39,
-      "alarm_metric_references": 42,
-      "alarm_chargeable_references": 32,
-      "alarm_savings_usd": 3.2
+      "alarm_metric_references": 43,
+      "alarm_chargeable_references": 33,
+      "alarm_savings_usd": 3.3
     }
   ],
   "local_review_verification": {
@@ -2609,6 +2609,26 @@
     "frontend_system_chromium_full_tests_passed": 654,
     "frontend_system_chromium_e2e_tests_passed": 24,
     "ci_fix_commit": "7e6cd45c3ccb2be24172a723cfb30f6a855887f1",
-    "first_branch_push_ci_failure": "before=0 lacked comparison base; fixed by mandatory full package verification with 5 new regression cases"
+    "first_branch_push_ci_failure": "before=0 lacked comparison base; fixed by mandatory full package verification with 5 new regression cases",
+    "historical_pre_revision": true
+  },
+  "revision_review": {
+    "base_sha": "4eac384dc54e5c66f4b5df4157d678c9e8bd05f4",
+    "monitoring_contract_version": 2,
+    "active_dev_developer_alarm_objects": 17,
+    "active_dev_developer_metric_references": 18,
+    "active_dev_customer_alarm_objects": 21,
+    "active_dev_customer_metric_references": 23,
+    "active_test_alarm_objects": 39,
+    "active_test_metric_references": 43,
+    "new_alarm_objects": 0,
+    "new_metric_names_or_dimensions": false,
+    "alarm_increment_dev_usd_per_720_hours": 0.1,
+    "alarm_increment_test_usd_per_24_hours": 0.0033333333333333335,
+    "evaluation_window_minutes": 5,
+    "datapoints_to_alarm": 1,
+    "aws_verified": false,
+    "pricing_reverified": false,
+    "pitr_enabled": false
   }
 }

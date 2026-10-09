@@ -169,7 +169,8 @@ def test_runtime_receipts_use_exact_keys_and_keep_reclaim_unverified():
 
     run = live.Run("runtime-offline")
     run.record("evaluation-created", evaluation_id="e")
-    run.record("admin-add-record", request_key="r")
+    run.record("admin-add")
+    run.record("admin-add-record", request_key=str(uuid4()))
     module.collect(
         SimpleNamespace(get_item=get),
         {"table_name": "synthetic"},
@@ -182,5 +183,5 @@ def test_runtime_receipts_use_exact_keys_and_keep_reclaim_unverified():
         for r in run.rows
     )
     assert run.rows[-2]["status"] == "not_run" and run.rows[-1]["status"] == "not_run"
-    assert all(k["PK"] in {"USER#a", "USER#admin", "SYSTEM#RECOVERY"} for k in seen)
+    assert all(k["PK"] in {"USER#a", "SYSTEM#QUESTION_BANK", "SYSTEM#RECOVERY"} for k in seen)
     assert all(not k["SK"].startswith("CURSOR#WORK#") for k in seen)

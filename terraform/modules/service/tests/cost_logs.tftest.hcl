@@ -33,6 +33,11 @@ run "active_customer" {
     scheduler_enabled = true
     log_usage         = "customer"
   }
+
+  assert {
+    condition     = aws_cloudwatch_metric_alarm.emf["OutcomeUnknown"].evaluation_periods == 5 && aws_cloudwatch_metric_alarm.emf["OutcomeUnknown"].datapoints_to_alarm == 1 && length([for q in aws_cloudwatch_metric_alarm.emf["OutcomeUnknown"].metric_query : q if length(q.metric) == 1]) == 2 && length([for q in aws_cloudwatch_metric_alarm.emf["OutcomeUnknown"].metric_query : q if q.expression == "SUM([wo,do])"]) == 1
+    error_message = "Existing OutcomeUnknown must cover both components without FILL or additional alarm resources."
+  }
   assert {
     condition     = length(aws_cloudwatch_metric_alarm.emf) == 9 && length(aws_cloudwatch_metric_alarm.lambda) == 8 && length(aws_cloudwatch_metric_alarm.dlq) == 2 && length(aws_cloudwatch_metric_alarm.api_5xx) == 1 && length(aws_cloudwatch_metric_alarm.evaluation_failed) == 1
     error_message = "Customer dev requires 21 alarms, retaining every existing 17."
@@ -42,7 +47,7 @@ run "active_customer" {
     error_message = "Caught API failures require standard API-wide 5xx with explicit missing data."
   }
   assert {
-    condition     = length([for q in aws_cloudwatch_metric_alarm.evaluation_failed[0].metric_query : q if length(q.metric) == 1]) == 2 && length([for q in aws_cloudwatch_metric_alarm.evaluation_failed[0].metric_query : q if q.expression == "FILL(wf,0)+FILL(df,0)"]) == 1 && aws_cloudwatch_metric_alarm.evaluation_failed[0].threshold == 1 && aws_cloudwatch_metric_alarm.evaluation_failed[0].treat_missing_data == "notBreaching"
+    condition     = length([for q in aws_cloudwatch_metric_alarm.evaluation_failed[0].metric_query : q if length(q.metric) == 1]) == 2 && length([for q in aws_cloudwatch_metric_alarm.evaluation_failed[0].metric_query : q if q.expression == "SUM([wf,df])"]) == 1 && aws_cloudwatch_metric_alarm.evaluation_failed[0].evaluation_periods == 5 && aws_cloudwatch_metric_alarm.evaluation_failed[0].datapoints_to_alarm == 1 && aws_cloudwatch_metric_alarm.evaluation_failed[0].threshold == 1 && aws_cloudwatch_metric_alarm.evaluation_failed[0].treat_missing_data == "notBreaching"
     error_message = "Single business failure must alarm on two existing metric references, without a minimum sample gate."
   }
   assert {
@@ -74,7 +79,7 @@ run "active_test_close_rejected" {
   }
   expect_failures = [var.test_monitoring_enabled]
 }
-run "confirmed_test_closed" {
+run "self_confirmed_test_close_rejected" {
   command = plan
   variables {
     run_id                  = "cost-close"
@@ -82,10 +87,8 @@ run "confirmed_test_closed" {
     test_monitoring_enabled = false
     test_closure_confirmed  = true
   }
-  assert {
-    condition     = length(aws_cloudwatch_metric_alarm.emf) + length(aws_cloudwatch_metric_alarm.lambda) + length(aws_cloudwatch_metric_alarm.dlq) + length(aws_cloudwatch_metric_alarm.iterator) + length(aws_cloudwatch_metric_alarm.failure_rate) == 0 && aws_cloudwatch_log_group.api.retention_in_days == 3 && alltrue([for g in aws_cloudwatch_log_group.lambda : g.retention_in_days == 3])
-    error_message = "Verified closed test retains data and logs but no validation alarms."
-  }
+  expect_failures = [var.test_monitoring_enabled]
+
 }
 run "test_reopened" {
   command = plan

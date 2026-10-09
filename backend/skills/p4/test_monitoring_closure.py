@@ -3,10 +3,15 @@
 import argparse
 import hashlib
 import json
+import os
+import sys
 import time
+from datetime import UTC, datetime
 from pathlib import Path
 
+from bootstrap_state import private_path
 from cost_controls import FLAGS
+from deployment_guards import read_state_snapshot
 from manifest import read_manifest, verify_live_manifest
 
 from interview_backend.deployment import checked_session, require_aws_execution
@@ -51,6 +56,12 @@ def verify_idle(session, manifest, *, sleep=time.sleep):
             sleep(60)
     return {
         "status": "TEST_DRAIN_OBSERVED",
+        "closure_eligible": False,
+        "limitations": [
+            "SQS_APPROXIMATE_COUNTS",
+            "EVENTUALLY_CONSISTENT_GSI",
+            "INFLIGHT_OR_FUTURE_WORK_UNPROVEN",
+        ],
         "account_id": manifest["account_id"],
         "region": manifest["region"],
         "run_id": manifest["run_id"],
@@ -74,13 +85,34 @@ def main():
     require_aws_execution()
     manifest = read_manifest(args.manifest, args.account, args.region, require_test=True)
     private = (Path(__file__).resolve().parents[2] / ".p4-artifacts").resolve()
-    output = Path(args.output).resolve()
-    if not output.is_relative_to(private) or not output.parent.is_dir():
+    output = private_path(args.output, private)
+    if not output.parent.is_dir():
         raise ValueError("ExistingPrivateOutputDirectoryRequired")
-    result = verify_idle(checked_session(args.account, args.region), manifest)
-    with output.open("x", encoding="utf-8") as stream:
+    session = checked_session(args.account, args.region)
+    state_key = f"test/{manifest['run_id']}/terraform.tfstate"
+    before = read_state_snapshot(session, args.account, args.region, state_key)
+    if before["manifest"] != manifest:
+        raise ValueError("CurrentTestStateManifestRequired")
+    result = verify_idle(session, manifest)
+    if read_state_snapshot(session, args.account, args.region, state_key) != before:
+        raise ValueError("TestStateChangedDuringDrainObservation")
+    issued = result["observed_at_epoch"]
+    result.update(
+        state_identity=before["identity"],
+        issued_at_epoch=issued,
+        expires_at_epoch=issued + 900,
+        issued_at=datetime.fromtimestamp(issued, UTC).isoformat(),
+        expires_at=datetime.fromtimestamp(issued + 900, UTC).isoformat(),
+    )
+    with os.fdopen(
+        os.open(output, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "w", encoding="utf-8"
+    ) as stream:
         json.dump(result, stream, sort_keys=True)
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception:
+        print("TestDrainObservationFailed", file=sys.stderr)
+        raise SystemExit(1) from None
