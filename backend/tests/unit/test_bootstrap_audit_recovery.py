@@ -723,3 +723,36 @@ def test_expired_original_approval_is_validated_at_original_attempt(recovery_har
         ]["no_op"]
         == 30
     )
+
+
+@pytest.mark.parametrize("mutation", ["unapproved", "expired", "binding", "write-scope", "target"])
+def test_apply_readonly_gate_rejects_invalid_local_approval_before_aws(
+    recovery_harness, monkeypatch, mutation
+):
+    h = recovery_harness
+    recover(h)  # Synthetic fixture only; no real resources or operational journals.
+    value = recovered_apply_inputs(h)[0]
+    if mutation == "unapproved":
+        value["approved"] = False
+    elif mutation == "expired":
+        value["expires_at"] = (datetime.now(UTC) - timedelta(seconds=1)).isoformat()
+    elif mutation == "binding":
+        value["binding_sha256"] = "f" * 64
+    elif mutation == "write-scope":
+        value["canonical_state_writes_approved"] = False
+    else:
+        value["original_source_sha"] = "f" * 40
+    path = h.private / "invalid-apply.json"
+    path.write_bytes(h.contract.encoded(value))
+    calls = []
+
+    def forbidden(*args):
+        calls.append("aws-reader")
+        raise RuntimeError("UnexpectedAwsReadBeforeApproval")
+
+    monkeypatch.setattr(h.recovery, "reader_for", forbidden)
+    with pytest.raises(ValueError):
+        h.recovery.verify_apply(
+            path, h.contract.hashed(path.read_bytes()), repository=h.source, environment={}
+        )
+    assert calls == []

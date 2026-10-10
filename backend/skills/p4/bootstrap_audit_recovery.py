@@ -281,6 +281,24 @@ def verify_apply(approval_path, approval_sha, *, repository=PROJECT, environment
         (recovery / "review.private.json").read_bytes() == artifacts["show.stdout.private.log"],
         "RecoveryCopiedReviewChanged",
     )
+    binding_raw = (recovery / "binding.private.json").read_bytes()
+    # Validate authorization and all historical bindings before any paid/live AWS read.
+    # Historical snapshot acceptance here does not replace the fresh readback below.
+    validate_recovered_apply(
+        apply_value,
+        binding_raw,
+        recovery_raw,
+        started,
+        completed,
+        artifacts,
+        journal,
+        original_actor,
+        files,
+        bundle["snapshot"],
+        json.loads(original_actor)["actor"],
+        identity,
+        apply_already_started=(claim / "apply-started.private.json").exists(),
+    )
     reader = reader_for(private, account, region, parent)
     actor = reader.actor(value["principal_role_arn"])
     snapshot = reader.snapshot()
