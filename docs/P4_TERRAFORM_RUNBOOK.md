@@ -674,6 +674,14 @@ mainのSHAが変わった場合は旧runを自動流用しない。
 
 ## 9. 終了後
 
+### Canonical bootstrap Stateの更新保守
+
+初期構築・復旧migration完了後のIAM最小修正は、新規の
+[`bootstrap_maintenance.py`保守手順](P4_BOOTSTRAP_MAINTENANCE.md)を使う。
+初期構築器のlocal State plan/replan、旧recovery runの上書き、公開bootstrap rootからの
+直接Planを流用しない。read-only inspect、正式Planのみ、実plan SHA指定Applyを分離する。
+今回の実装・mock/CI成功はmain mergeやAWS書込みの承認ではない。
+
 private成果物を保持し、実行ゲートを無効へ戻す。破壊的cleanupは行わない。
 結果は「閉鎖状態dev配備」として記録し、P4完了・公開可能・OTP/通知到達成功と記載しない。
 実DB、IAM smoke、段階的有効化、AU/AS、運用試験は別の明示承認と実機証拠を必要とする。
