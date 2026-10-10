@@ -25,3 +25,23 @@
   閉鎖後の分析は既存証跡・コード・公式資料の読取りで行い、再有効化や再負荷試験は別の明示承認まで行わない。
 
 2026-10-06のユーザー指示で、この条件付き自動Closure運用へ変更済み。
+
+# 自律開発・例外時停止（Ver.2.0、2026-10-11）
+
+詳細は[自律実行ルール](docs/CODEX_AUTONOMY_RULES.md)を参照する。
+- 依頼範囲内の調査・実装・原因修正・重点検証・隔離worktree・資料更新は個別確認せず完了する。
+  成功済み検証はHEAD・依存・入力・条件の一致を確認して再利用する。
+- 権限と安全Gateが成立する作業branchの通常commit/push、Draft PR作成・更新・解除、
+  低リスクmain mergeと事後CI確認は自律実行する。force/direct main push、保護bypass、無断branch削除は禁止。
+- main mergeはP0/P1未解決0、全必須CI成功、最新HEAD/base一致、競合・未解決レビューなし、
+  保護遵守、未承認の外部副作用なし、高リスク変更なし、互換性維持をすべて要求する。
+- 再現可能な不具合は根本原因・最小修正・回帰検証で解消して再開する。
+  約3つの異なる修正案で解消しない、影響が拡大する、P0/困難なP1・証跡不整合は停止する。
+- 実AWS接続・State読取りも承認されたAccount/Region/資源/目的に限定する。
+  Terraform Apply、State変更、重要IAM変更、配備/Enablement、有料OpenAI、破壊的・不可逆操作、
+  重大セキュリティ変更、課金上限を保証できない操作は具体的な明示承認を得る。
+- 高リスク工程の承認は事前Gate・対象hash・回数/費用・本処理・事後検証・証跡・必要なClosureを一括する。
+  承認内の軽微な判断で再承認を求めない。partial failure/結果不明/Closure失敗は成功扱いせず停止する。
+- Coaching V2の30点採点/深掘り、V1互換、STAR Ver.1.4、本人分離/冪等性/Recovery、
+  Session/Attempt/Evaluation、Git/worktree、Plan/State/journal/private ledger/監査証跡を保持する。
+  sandbox・承認ポリシーを緩和しない。Bootstrap復旧承認をApply/STAR配備/OpenAIへ拡大しない。
