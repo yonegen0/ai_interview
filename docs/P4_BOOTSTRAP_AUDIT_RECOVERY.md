@@ -33,6 +33,8 @@ Terraformの[JSON形式仕様](https://developer.hashicorp.com/terraform/interna
 
 新監査のfull Git SHAと、監査依存11ファイルのGit blob SHA-256を固定する。指定repositoryのclean main、remote main、実行中module bytesを照合する。CRLF/LFはPythonの改行表現としてのみ正規化し、Git blobのhashを記録する。元revisionのbootstrap構成とprovider lockはGit blobから読み、新mainの同構成とbyte-for-byte同一でなければ拒否する。元Planのsourceを新revisionへリラベルしない。
 
+正式復旧の実行元は、既存Windows repositoryとGit common-dirを共有する新しいclean main worktreeを指定する。Windows本体の既存変更は維持し、共通repositoryの`.p4-artifacts`をprivate rootとする。元Planが存在する独立cloneとそのprivate領域も、この共通private rootの内部にあるため、元path/journalを動かさず読める。新main同期後にclean main worktreeを準備してpathを新承認へ固定し、両checkoutで並行Git/運用操作を行わない。独立cloneの外にあるprivate証跡を読むための任意path overrideやsymlinkは提供しない。元Plan用cloneのHEADを新監査revisionへ変更する必要はない。
+
 将来生成するbindingはschema 2、kind=`p4-bootstrap-recovered-plan-binding`。元source/Plan/承認/journal/actor/全artifact/State identity/version inventory/input/provider/backendと、新監査source/code manifest/復旧承認/復旧開始journalを結ぶ。既存schema 1の正常Plan bindingへ偽装せず、元runへ書かない。
 
 ## 独立した正式復旧経路（今回は未承認・未実行）
