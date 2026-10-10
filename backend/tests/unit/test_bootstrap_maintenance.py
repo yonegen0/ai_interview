@@ -140,11 +140,12 @@ def review_for(contract, fixture):
         "resource_changes": changes,
         "prior_state": {
             "values": {
+                "outputs": copy.deepcopy(fixture.state["outputs"]),
                 "root_module": {
                     "resources": [
                         {"address": a, "mode": "managed", "values": v} for a, v in old.items()
                     ]
-                }
+                },
             }
         },
         "planned_values": {

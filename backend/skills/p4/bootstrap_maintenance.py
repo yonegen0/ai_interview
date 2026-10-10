@@ -132,6 +132,12 @@ def source_files(root, approval, *, require_main):
             git(root, "ls-remote", "origin", "refs/heads/main").decode().split()[0] == sha,
             "MaintenanceRemoteMainChanged",
         )
+    return configuration_files(root, sha, approval["provider_lock_sha256"])
+
+
+def configuration_files(root, sha, provider_lock_sha256):
+    """Read immutable configuration blobs without rewriting an original descriptor."""
+    require(bool(re.fullmatch(r"[0-9a-f]{40}", sha)), "MaintenanceSourceSha")
     names = git(root, "ls-tree", "-r", "--name-only", sha, "--", "terraform/bootstrap").decode()
     files = {}
     for name in names.splitlines():
@@ -153,7 +159,7 @@ def source_files(root, approval, *, require_main):
             files[path.name] = git(root, "show", sha + ":" + name)
     require(files and ".terraform.lock.hcl" in files, "MaintenanceSourceFiles")
     require(
-        hashed(files[".terraform.lock.hcl"]) == approval["provider_lock_sha256"],
+        hashed(files[".terraform.lock.hcl"]) == provider_lock_sha256,
         "MaintenanceProviderLockMismatch",
     )
     lock = parse_lock(files[".terraform.lock.hcl"].decode())

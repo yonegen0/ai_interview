@@ -682,6 +682,11 @@ mainのSHAが変わった場合は旧runを自動流用しない。
 直接Planを流用しない。read-only inspect、正式Planのみ、実plan SHA指定Applyを分離する。
 今回の実装・mock/CI成功はmain mergeやAWS書込みの承認ではない。
 
+正式saved Planが生成済みで監査だけが停止した場合は、
+[saved Plan監査復旧](P4_BOOTSTRAP_AUDIT_RECOVERY.md)を使う。元のPlan source SHAと新監査revisionを
+別々に固定し、旧Plan/失敗journalを保持する。正式復旧・binding生成・Applyは別承認。
+通常Planの再実行、元descriptorのsource書換え、ledger削除で回避しない。
+
 private成果物を保持し、実行ゲートを無効へ戻す。破壊的cleanupは行わない。
 結果は「閉鎖状態dev配備」として記録し、P4完了・公開可能・OTP/通知到達成功と記載しない。
 実DB、IAM smoke、段階的有効化、AU/AS、運用試験は別の明示承認と実機証拠を必要とする。

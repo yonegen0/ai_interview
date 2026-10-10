@@ -1,5 +1,8 @@
 # Canonical bootstrap S3 State保守
 
+saved Planが成功し後続監査だけが停止した場合は、[独立した監査復旧設計](P4_BOOTSTRAP_AUDIT_RECOVERY.md)を参照する。
+元Plan/descriptor/journalを維持し、再Planや旧journalの完了補作を行わない。復旧の正式実行とbinding生成は別承認が必要。
+
 `bootstrap_maintenance.py`は既存canonical bootstrap Stateに対するplan/deployのexact dev `s3:GetObjectVersion`追加専用実行器。初期構築器・移行adapter・Terraform資源addressを変更せず、new moduleも作らない。新コードの存在、inspect成功、CI成功は正式Plan/Applyの承認ではない。
 
 ## 採用した構成
