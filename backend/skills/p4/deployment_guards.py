@@ -30,6 +30,34 @@ def approved_json(path, approved_hash, private):
     return raw, value
 
 
+def exact_key_absent(s3, args):
+    """Prove absence with an authorized prefix; a 403 alone never proves absence."""
+    request = {k: args[k] for k in ("Bucket", "ExpectedBucketOwner")}
+    request.update(Prefix=args["Key"], MaxKeys=1000)
+    seen = set()
+    while True:
+        page = s3.list_objects_v2(**request)
+        contents = page.get("Contents", [])
+        if type(page.get("IsTruncated")) is not bool or not isinstance(contents, list):
+            raise ValueError("StateLockReadUnavailable")
+        for item in contents:
+            if (
+                not isinstance(item, dict)
+                or not isinstance(item.get("Key"), str)
+                or not item["Key"].startswith(args["Key"])
+            ):
+                raise ValueError("StateLockReadUnavailable")
+            if item["Key"] == args["Key"]:
+                return False
+        if page["IsTruncated"] is False:
+            return True
+        token = page.get("NextContinuationToken")
+        if not isinstance(token, str) or not token or token in seen:
+            raise ValueError("StateLockReadUnavailable")
+        seen.add(token)
+        request["ContinuationToken"] = token
+
+
 def read_state_snapshot(session, account, region, state_key, *, allow_absent=False):
     """Read a fixed S3 VersionId, and reject a lock or a concurrently changed State."""
     if not re.fullmatch(r"[0-9]{12}", account) or region != "ap-northeast-1":
@@ -47,7 +75,15 @@ def read_state_snapshot(session, account, region, state_key, *, allow_absent=Fal
     try:
         s3.head_object(**(args | {"Key": state_key + ".tflock"}))
     except ClientError as exc:
-        if exc.response["Error"]["Code"] not in {"404", "NoSuchKey", "NotFound"}:
+        code = exc.response["Error"]["Code"]
+        if code in {"403", "AccessDenied", "Forbidden"}:
+            try:
+                absent = exact_key_absent(s3, args | {"Key": state_key + ".tflock"})
+            except ClientError, ValueError, AttributeError, TypeError, KeyError:
+                raise ValueError("StateLockReadUnavailable") from None
+            if not absent:
+                raise ValueError("ActiveStateLock") from None
+        elif code not in {"404", "NoSuchKey", "NotFound"}:
             raise ValueError("StateLockReadUnavailable") from None
     else:
         raise ValueError("ActiveStateLock")

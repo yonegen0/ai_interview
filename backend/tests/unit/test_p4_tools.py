@@ -358,16 +358,25 @@ def test_ci_artifact_requires_creation_and_version(monkeypatch):
     monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[2] / "skills/p4"))
     module = tool("ci_deploy")
     calls = []
+    import io
+
+    bucket = "ai-interview-artifacts-123456789012-ap-northeast-1"
     client = SimpleNamespace(
-        put_object=lambda **request: calls.append(request) or {"VersionId": "v1"}
+        put_object=lambda **request: calls.append(request) or {"VersionId": "v1"},
+        get_object=lambda **kw: {
+            "VersionId": "v1",
+            "ServerSideEncryption": "AES256",
+            "ContentLength": 3,
+            "Body": io.BytesIO(b"zip"),
+        },
     )
-    assert module.put(client, "bucket", "lambda/run/app.zip", b"zip") == "v1"
+    assert module.put(client, bucket, "lambda/run/app.zip", b"zip") == "v1"
     assert calls[0]["IfNoneMatch"] == "*"
     assert calls[0]["ServerSideEncryption"] == "AES256"
     for response in ({}, {"VersionId": "null"}):
         with pytest.raises(ValueError, match="VersionedArtifactRequired"):
             module.put(
-                SimpleNamespace(put_object=lambda result=response, **kw: result), "b", "k", b"x"
+                SimpleNamespace(put_object=lambda result=response, **kw: result), bucket, "k", b"x"
             )
 
 
@@ -395,7 +404,9 @@ def test_ci_get_rejects_different_version_before_read(monkeypatch):
     )
     client = SimpleNamespace(get_object=lambda **kw: {"VersionId": "other", "Body": body})
     with pytest.raises(ValueError, match="ArtifactVersionMismatch"):
-        module.get(client, "bucket", "key", version="expected")
+        module.get(
+            client, "ai-interview-artifacts-123456789012-ap-northeast-1", "key", version="expected"
+        )
     assert closed == [True]
 
 
