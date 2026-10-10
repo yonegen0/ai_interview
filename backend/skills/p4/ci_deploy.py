@@ -1,5 +1,6 @@
 """Manual main/dev CI transport for immutable artifacts and saved Terraform plans."""
 
+import base64
 import hashlib
 import json
 import os
@@ -7,6 +8,7 @@ import re
 import sys
 from urllib.request import Request
 
+from botocore.config import Config
 from ci_identity import NoRedirect, assume
 from terraform_dev import (
     PROJECT,
@@ -24,6 +26,8 @@ from interview_backend.deployment import (
     require_aws_execution,
     terraform_environment,
 )
+
+PLAN_OBJECT_MAX_BYTES = 10 * 1024 * 1024
 
 PACKAGE_KEYS = frozenset(
     {"artifact_bucket", "artifact_key", "artifact_version", "artifact_sha256_base64"}
@@ -58,6 +62,10 @@ def preflight(environment):
         for key in ("worker_enabled", "streams_enabled", "scheduler_enabled", "api_enabled")
     ):
         raise DeploymentError("ClosedInitialDeploymentRequired")
+    if operation == "plan" and not re.fullmatch(
+        r"[0-9a-f]{64}", environment.get("P4_PACKAGE_SHA256", "")
+    ):
+        raise DeploymentError("ApprovedArtifactDigestRequired")
     terraform_environment(PROJECT / "terraform/environments/dev", environment, account, region)
     if any(key.startswith("TF_VAR_") for key in environment):
         raise DeploymentError("UnexpectedTerraformVariable")
@@ -104,18 +112,61 @@ def github_run(run_id):
     return str(data["run_attempt"])
 
 
+def bucket_owner(bucket):
+    match = re.fullmatch(r"ai-interview-artifacts-([0-9]{12})-ap-northeast-1", bucket)
+    if not match:
+        raise DeploymentError("ArtifactBucketMismatch")
+    return match[1]
+
+
+def s3_client(session):
+    return session.client(
+        "s3",
+        config=Config(retries={"total_max_attempts": 1}, connect_timeout=5, read_timeout=15),
+    )
+
+
+def plan_state_preflight(account, region):
+    from deployment_guards import read_state_snapshot
+
+    snapshot = read_state_snapshot(
+        role_session("plan", account, region), account, region, "dev/terraform.tfstate"
+    )
+    configuration = snapshot["manifest"]["configuration"]
+    if any(
+        configuration.get(key) is not False
+        for key in ("api_enabled", "worker_enabled", "streams_enabled", "scheduler_enabled")
+    ):
+        raise DeploymentError("ClosedExistingStateRequired")
+    return snapshot
+
+
 def put(s3, bucket, key, body):
+    if key.startswith("plans/") and len(body) > PLAN_OBJECT_MAX_BYTES:
+        raise DeploymentError("PlanObjectSizeLimitExceeded")
     response = s3.put_object(
-        Bucket=bucket, Key=key, Body=body, IfNoneMatch="*", ServerSideEncryption="AES256"
+        Bucket=bucket,
+        Key=key,
+        Body=body,
+        ExpectedBucketOwner=bucket_owner(bucket),
+        IfNoneMatch="*",
+        ServerSideEncryption="AES256",
+        ChecksumSHA256=base64.b64encode(hashlib.sha256(body).digest()).decode(),
     )
     version = response.get("VersionId")
     if not version or version == "null":
         raise DeploymentError("VersionedArtifactRequired")
+    retrieved = get(s3, bucket, key, version=version)
+    if (
+        len(retrieved) != len(body)
+        or hashlib.sha256(retrieved).digest() != hashlib.sha256(body).digest()
+    ):
+        raise DeploymentError("ArtifactReadbackMismatch")
     return version
 
 
 def get(s3, bucket, key, *, version=None):
-    args = {"Bucket": bucket, "Key": key}
+    args = {"Bucket": bucket, "Key": key, "ExpectedBucketOwner": bucket_owner(bucket)}
     if version:
         args["VersionId"] = version
     response = s3.get_object(**args)
@@ -125,8 +176,14 @@ def get(s3, bucket, key, *, version=None):
     if version is not None and response["VersionId"] != version:
         response["Body"].close()
         raise DeploymentError("ArtifactVersionMismatch")
+    if response.get("ServerSideEncryption") != "AES256":
+        response["Body"].close()
+        raise DeploymentError("ArtifactEncryptionMismatch")
     with response["Body"] as stream:
-        return stream.read()
+        raw = stream.read()
+    if response.get("ContentLength") != len(raw):
+        raise DeploymentError("ArtifactSizeMismatch")
+    return raw
 
 
 def role_session(role, account, region):
@@ -136,7 +193,7 @@ def role_session(role, account, region):
 def optional_record(s3, bucket, key):
     # A prefix-conditioned ListBucket grant need not turn a missing GetObject
     # into 404. Confirm absence with the explicitly authorized exact prefix.
-    request = {"Bucket": bucket, "Prefix": key}
+    request = {"Bucket": bucket, "Prefix": key, "ExpectedBucketOwner": bucket_owner(bucket)}
     seen = set()
     while True:
         response = s3.list_objects_v2(**request)
@@ -154,7 +211,7 @@ def optional_record(s3, bucket, key):
 def apply_saved_plan(account, region, bucket, prefix, approved, input_path, directory):
     """A durable per-plan journal prevents retries after an uncertain apply."""
     identity = {"plan_sha256": approved, "plan_prefix": prefix}
-    s3 = role_session("artifact", account, region).client("s3")
+    s3 = s3_client(role_session("artifact", account, region))
     completed = optional_record(s3, bucket, prefix + "/apply-completed.json")
     started = optional_record(s3, bucket, prefix + "/apply-started.json")
     if completed is not None:
@@ -173,7 +230,7 @@ def apply_saved_plan(account, region, bucket, prefix, approved, input_path, dire
             "apply_started": "apply-started.json",
             "apply_completed": "apply-completed.json",
         }[stage]
-        journal = role_session("artifact", account, region).client("s3")
+        journal = s3_client(role_session("artifact", account, region))
         put(journal, bucket, prefix + "/" + record_name, json.dumps(identity).encode())
         role_session("deploy", account, region)
 
@@ -259,8 +316,17 @@ def main():
         bucket = f"ai-interview-artifacts-{account}-{region}"
         plan_prefix = f"plans/{run_id}/{attempt}"
         if operation == "plan":
+            state_before = plan_state_preflight(account, region)
             package, info = build_package(directory, sha)
-            s3 = role_session("artifact", account, region).client("s3")
+            raw_digest = hashlib.sha256(package.read_bytes()).digest()
+            if (
+                raw_digest.hex() != os.environ.get("P4_PACKAGE_SHA256")
+                or base64.b64encode(raw_digest).decode() != info["sha256_base64"]
+            ):
+                raise DeploymentError("ApprovedArtifactDigestMismatch")
+            if plan_state_preflight(account, region) != state_before:
+                raise DeploymentError("StateChangedBeforeArtifactUpload")
+            s3 = s3_client(role_session("artifact", account, region))
             key = f"lambda/{sha}/{run_id}/{attempt}/app.zip"
             version = put(s3, bucket, key, package.read_bytes())
             package_info = {
@@ -276,7 +342,7 @@ def main():
             input_path.write_text(json.dumps(configuration, sort_keys=True), encoding="utf-8")
             role_session("plan", account, region)
             result = execute("plan", input_path, directory / "terraform")
-            s3 = role_session("artifact", account, region).client("s3")
+            s3 = s3_client(role_session("artifact", account, region))
             plan_version = put(
                 s3,
                 bucket,
@@ -318,7 +384,7 @@ def main():
             source_run = os.environ["P4_PLAN_RUN_ID"]
             source_attempt = github_run(source_run)
             plan_prefix = f"plans/{source_run}/{source_attempt}"
-            s3 = role_session("deploy", account, region).client("s3")
+            s3 = s3_client(role_session("deploy", account, region))
             envelope = json.loads(get(s3, bucket, f"{plan_prefix}/envelope.json"))
             approved = os.environ["P4_PLAN_HASH"]
             if (
@@ -353,7 +419,7 @@ def main():
             result = apply_saved_plan(
                 account, region, bucket, plan_prefix, approved, input_path, tf_dir
             )
-            s3 = role_session("artifact", account, region).client("s3")
+            s3 = s3_client(role_session("artifact", account, region))
             put(
                 s3,
                 bucket,

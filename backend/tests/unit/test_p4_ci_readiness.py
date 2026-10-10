@@ -116,7 +116,12 @@ def test_durable_apply_receipt_controls_retry(tools_path, monkeypatch, tmp_path,
     def get(**kw):
         if kw["Key"] not in objects:
             raise ClientError({"Error": {"Code": "NoSuchKey"}}, "GetObject")
-        return {"VersionId": "v1", "Body": BytesIO(objects[kw["Key"]])}
+        return {
+            "VersionId": "v1",
+            "ServerSideEncryption": "AES256",
+            "ContentLength": len(objects[kw["Key"]]),
+            "Body": BytesIO(objects[kw["Key"]]),
+        }
 
     s3 = SimpleNamespace(
         put_object=put,
@@ -126,7 +131,9 @@ def test_durable_apply_receipt_controls_retry(tools_path, monkeypatch, tmp_path,
             "IsTruncated": False,
         },
     )
-    monkeypatch.setattr(module, "role_session", lambda *a: SimpleNamespace(client=lambda *a: s3))
+    monkeypatch.setattr(
+        module, "role_session", lambda *a: SimpleNamespace(client=lambda *a, **kw: s3)
+    )
 
     def execute(operation, *args, progress=None):
         operations.append(operation)
@@ -143,7 +150,7 @@ def test_durable_apply_receipt_controls_retry(tools_path, monkeypatch, tmp_path,
     args = (
         "123456789012",
         "ap-northeast-1",
-        "bucket",
+        "ai-interview-artifacts-123456789012-ap-northeast-1",
         "plans/1/1",
         "a" * 64,
         tmp_path / "inputs",
@@ -172,6 +179,8 @@ def test_ci_plan_transport_commits_envelope_last(tools_path, monkeypatch, tmp_pa
     account, region, sha = "123456789012", "ap-northeast-1", "a" * 40
     monkeypatch.setattr(module, "preflight", lambda env: (account, region, "plan", {}))
     monkeypatch.setattr(module, "checked_git", lambda *a: sha)
+    monkeypatch.setattr(module, "plan_state_preflight", lambda *a: {"identity": "fixed"})
+    monkeypatch.setenv("P4_PACKAGE_SHA256", __import__("hashlib").sha256(b"same-zip").hexdigest())
     monkeypatch.setenv("GITHUB_RUN_ID", "1")
     monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "1")
     uploads = []
@@ -183,12 +192,18 @@ def test_ci_plan_transport_commits_envelope_last(tools_path, monkeypatch, tmp_pa
         return "v1"
 
     monkeypatch.setattr(module, "put", put)
-    monkeypatch.setattr(module, "role_session", lambda *a: SimpleNamespace(client=lambda *a: None))
+    monkeypatch.setattr(
+        module, "role_session", lambda *a: SimpleNamespace(client=lambda *a, **kw: None)
+    )
 
     def build(directory, sha):
         package = directory / "app.zip"
         package.write_bytes(b"same-zip")
-        return package, {"sha256_base64": "A" * 43 + "="}
+        return package, {
+            "sha256_base64": base64.b64encode(
+                __import__("hashlib").sha256(b"same-zip").digest()
+            ).decode()
+        }
 
     monkeypatch.setattr(module, "build_package", build)
 
@@ -278,6 +293,7 @@ def test_plan_to_apply_transport(tools_path, monkeypatch, tmp_path, tamper):
         module, "preflight", lambda env: (account, region, env["P4_OPERATION"], dict(config))
     )
     monkeypatch.setattr(module, "checked_git", lambda *a: sha)
+    monkeypatch.setattr(module, "plan_state_preflight", lambda *a: {"identity": "fixed"})
     monkeypatch.setattr(module, "github_run", lambda *a: "1")
     objects, operations = {}, []
 
@@ -292,8 +308,12 @@ def test_plan_to_apply_transport(tools_path, monkeypatch, tmp_path, tamper):
             raise ClientError({"Error": {"Code": "NoSuchKey"}}, "GetObject")
         return {
             "VersionId": "different"
-            if tamper == "version" and kw["Key"].endswith("dev.tfplan")
+            if tamper == "version"
+            and module.os.environ.get("P4_OPERATION") == "apply"
+            and kw["Key"].endswith("dev.tfplan")
             else "v1",
+            "ServerSideEncryption": "AES256",
+            "ContentLength": len(objects[kw["Key"]]),
             "Body": BytesIO(objects[kw["Key"]]),
         }
 
@@ -305,12 +325,16 @@ def test_plan_to_apply_transport(tools_path, monkeypatch, tmp_path, tamper):
             "IsTruncated": False,
         },
     )
-    monkeypatch.setattr(module, "role_session", lambda *a: SimpleNamespace(client=lambda *a: s3))
+    monkeypatch.setattr(
+        module, "role_session", lambda *a: SimpleNamespace(client=lambda *a, **kw: s3)
+    )
 
     def build(directory, sha):
         path = directory / "app.zip"
         path.write_bytes(b"same-zip")
-        return path, {"sha256_base64": "A" * 43 + "="}
+        return path, {
+            "sha256_base64": base64.b64encode(hashlib.sha256(b"same-zip").digest()).decode()
+        }
 
     monkeypatch.setattr(module, "build_package", build)
     hashed = hashlib.sha256(b"plan").hexdigest()
@@ -333,6 +357,7 @@ def test_plan_to_apply_transport(tools_path, monkeypatch, tmp_path, tamper):
     monkeypatch.setattr(module, "execute", execute)
     for key, value in {
         "P4_OPERATION": "plan",
+        "P4_PACKAGE_SHA256": hashlib.sha256(b"same-zip").hexdigest(),
         "GITHUB_RUN_ID": "1",
         "GITHUB_RUN_ATTEMPT": "1",
         "P4_PLAN_HASH": hashed,

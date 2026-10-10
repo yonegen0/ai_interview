@@ -20,13 +20,15 @@ resource "aws_iam_role_policy" "state" {
   for_each = { for name, role in aws_iam_role.ci : name => role if name != "artifact" }
   role     = each.value.id
   name     = "state-and-artifacts"
-  policy = jsonencode({ Version = "2012-10-17", Statement = [
+  policy = jsonencode({ Version = "2012-10-17", Statement = concat([
     { Effect = "Allow", Action = ["s3:ListBucket"], Resource = [local.state_arn], Condition = { StringLike = { "s3:prefix" = [local.state_keys[each.key]] } } },
     { Effect = "Allow", Action = ["s3:GetBucketLocation"], Resource = [local.state_arn, local.artifact_arn] },
     { Effect = "Allow", Action = each.key == "plan" ? ["s3:GetObject"] : ["s3:GetObject", "s3:PutObject"], Resource = ["${local.state_arn}/${local.state_keys[each.key]}"] },
     { Effect = "Allow", Action = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"], Resource = ["${local.state_arn}/${local.state_keys[each.key]}.tflock"] },
     { Effect = "Allow", Action = ["s3:GetObject", "s3:GetObjectVersion"], Resource = ["${local.artifact_arn}/lambda/*", "${local.artifact_arn}/plans/*"] }
-  ] })
+    ], contains(["plan", "deploy"], each.key) ? [
+    { Sid = "DevVersionedStateRead", Effect = "Allow", Action = ["s3:GetObjectVersion"], Resource = ["${local.state_arn}/dev/terraform.tfstate"] }
+  ] : []) })
 }
 resource "aws_iam_role_policy" "read" {
   for_each = { for name, role in aws_iam_role.ci : name => role if name != "artifact" }

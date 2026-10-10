@@ -15,6 +15,9 @@ on:
       plan_hash:
         type: string
         description: Reviewed SHA-256 of the saved plan (apply only)
+      package_sha256:
+        type: string
+        description: Explicitly approved SHA-256 of the ZIP to rebuild (plan only)
       package_base_sha:
         type: string
         description: Available ancestor commit for offline package comparison (plan/apply)
@@ -74,6 +77,7 @@ jobs:
           P4_OPERATION: ${{ inputs.operation }}
           P4_PLAN_RUN_ID: ${{ inputs.plan_run_id }}
           P4_PLAN_HASH: ${{ inputs.plan_hash }}
+          P4_PACKAGE_SHA256: ${{ inputs.package_sha256 }}
           GH_TOKEN: ${{ github.token }}
         run: uv run --locked python skills/p4/ci_deploy.py
   upload_existing:
