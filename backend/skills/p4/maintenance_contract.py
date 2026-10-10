@@ -254,7 +254,9 @@ def unknown(value):
         return any(unknown(v) for v in value.values())
     if isinstance(value, list):
         return any(unknown(v) for v in value)
-    return value is True
+    # Unknown masks contain only booleans and nested containers. Fail closed
+    # for malformed scalars (including 0/null), rather than treating them as false.
+    return value is not False
 
 
 def addition(account, region):
@@ -292,6 +294,46 @@ def same_attributes(a, b):
     return encoded(a) == encoded(b)
 
 
+def audit_variables(actual, expected):
+    """Only the disabled WIF flag may use Terraform's literal env representation."""
+    require(set(actual) == set(expected) == INPUT_KEYS, "MaintenancePlanInputs")
+    require(expected["worker_wif_enabled"] is False, "MaintenancePlanInputs")
+    values = {k: v["value"] for k, v in actual.items()}
+    flag = values["worker_wif_enabled"]
+    require(flag is False or type(flag) is str and flag == "false", "MaintenancePlanInputs")
+    values["worker_wif_enabled"] = False
+    require(encoded(values) == encoded(expected), "MaintenancePlanInputs")
+
+
+def audit_outputs(review, state, values):
+    """Preserve every output; permit only an omitted, known null SES-domain output."""
+    expected = {k: v["value"] for k, v in state["outputs"].items()}
+    prior = {k: v["value"] for k, v in review["prior_state"]["values"]["outputs"].items()}
+    require(encoded(prior) == encoded(expected), "MaintenanceOutputsChanged")
+    planned = {k: v["value"] for k, v in review["planned_values"]["outputs"].items()}
+    nullable = "ses_domain_verification"
+    if nullable not in expected and nullable in planned:
+        require(
+            values["ses_identity_type"] == "email"
+            and values["ses_domain"] == ""
+            and planned[nullable] is None,
+            "MaintenanceOutputsChanged",
+        )
+        expected[nullable] = None
+    require(encoded(planned) == encoded(expected), "MaintenanceOutputsChanged")
+    changes = review["output_changes"]
+    require(set(changes) == set(expected), "MaintenanceOutputsChanged")
+    for name, change in changes.items():
+        require(
+            {"actions", "before", "after", "after_unknown"} <= change.keys()
+            and change["actions"] == ["no-op"]
+            and encoded(change["before"]) == encoded(expected[name])
+            and encoded(change["after"]) == encoded(expected[name])
+            and change["after_unknown"] is False,
+            "MaintenanceOutputsChanged",
+        )
+
+
 def audit_plan(review, state, values, account, region):
     before = state_instances(state)
     require(
@@ -308,9 +350,7 @@ def audit_plan(review, state, values, account, region):
         "MaintenancePlanAddresses",
     )
     require(review.get("terraform_version") == TF_VERSION, "MaintenancePlanTerraformVersion")
-    require(
-        {k: v["value"] for k, v in review["variables"].items()} == values, "MaintenancePlanInputs"
-    )
+    audit_variables(review["variables"], values)
     prior = plan_values(review["prior_state"]["values"]["root_module"])
     planned = plan_values(review["planned_values"]["root_module"])
     require(prior.keys() == before.keys() == planned.keys(), "MaintenancePlanValuesAddresses")
@@ -340,20 +380,7 @@ def audit_plan(review, state, values, account, region):
             and same_attributes(planned[address], expected),
             "MaintenanceUnexpectedIamOrResource",
         )
-    outputs = {k: v["value"] for k, v in state["outputs"].items()}
-    require(
-        {k: v["value"] for k, v in review["planned_values"]["outputs"].items()} == outputs,
-        "MaintenanceOutputsChanged",
-    )
-    require(
-        all(
-            v["actions"] == ["no-op"]
-            and v.get("before") == v.get("after")
-            and not unknown(v.get("after_unknown"))
-            for v in review.get("output_changes", {}).values()
-        ),
-        "MaintenanceOutputsChanged",
-    )
+    audit_outputs(review, state, values)
     require(
         all(x.get("status") == "pass" for x in review.get("checks", [])), "MaintenanceChecksFailed"
     )
