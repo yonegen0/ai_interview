@@ -98,6 +98,7 @@ def revision(value):
 def validate_recovery_approval(value, now=None):
     require(
         set(value) == RECOVERY_FIELDS
+        and type(value["schema_version"]) is int
         and value["schema_version"] == 1
         and value["kind"] == "p4-bootstrap-audit-recovery"
         and type(value["approved"]) is bool
@@ -313,6 +314,7 @@ def validate_recovered_apply(
     }
     require(
         set(value) == fields
+        and type(value["schema_version"]) is int
         and value["schema_version"] == 1
         and value["kind"] == "p4-bootstrap-recovered-apply"
         and value["approved"] is True

@@ -318,6 +318,24 @@ def rewritten_request(h):
     h.request.write_bytes(h.contract.encoded(h.value))
 
 
+@pytest.mark.parametrize("schema", [True, 1.0, "1", None])
+def test_recovery_approval_requires_integer_schema(recovery_harness, schema):
+    h = recovery_harness
+    value = dict(h.value, schema_version=schema)
+    with pytest.raises(ValueError, match="RecoveryApprovalSchema"):
+        h.pure.validate_recovery_approval(value)
+
+
+@pytest.mark.parametrize("schema", [True, 1.0, "1", None])
+def test_recovered_apply_approval_requires_integer_schema(recovery_harness, schema):
+    h = recovery_harness
+    recover(h)
+    args = recovered_apply_inputs(h)
+    args[0]["schema_version"] = schema
+    with pytest.raises(ValueError, match="RecoverySeparateApplyApprovalRequired"):
+        h.pure.validate_recovered_apply(*args)
+
+
 def recovered_apply_inputs(h):
     recovery = Path(h.value["recovery_run_path"])
     binding_raw = (recovery / "binding.private.json").read_bytes()
