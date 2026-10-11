@@ -8,7 +8,7 @@ from datetime import datetime
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
-from plan_authorization import active_guard
+from plan_authorization import active_guard, session_policy
 
 from interview_backend.deployment import (
     DeploymentError,
@@ -109,11 +109,21 @@ def assume(role, account, region, *, expected_subject):
             raise ValueError
 
         def request_credentials():
+            restriction = (
+                {
+                    "Policy": json.dumps(
+                        session_policy(guard.package["expires_at_utc"]), separators=(",", ":")
+                    )
+                }
+                if guard
+                else {}
+            )
             response = sts.assume_role_with_web_identity(
                 RoleArn=f"arn:aws:iam::{account}:role/ai-interview-ci-{role}",
                 RoleSessionName=f"p4-{run_id}-{role}",
                 WebIdentityToken=token,
                 DurationSeconds=3600,
+                **restriction,
             )
             if guard:
                 guard.record(

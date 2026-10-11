@@ -34,7 +34,7 @@ def environment(configuration=None, artifact_digest="a" * 64, run_id="123"):
         "configuration_sha256": module.canonical_hash(config),
         "s3_put_limit": 6,
         "cleanup_seconds": 120,
-        "deadline_policy": "no-new-operations;inflight-normal-unlock-only",
+        "deadline_policy": "no-new-operations;cleanup-before-expiry",
         "operation_budgets_seconds": dict(module.BUDGETS),
     }
     env = {
@@ -58,6 +58,11 @@ def environment(configuration=None, artifact_digest="a" * 64, run_id="123"):
 def bind(env, descriptor):
     import plan_authorization as module
 
+    expiry = descriptor.get("expires_at_utc")
+    try:
+        descriptor["session_policy_sha256"] = module.canonical_hash(module.session_policy(expiry))
+    except ValueError:
+        descriptor["session_policy_sha256"] = "invalid-expiry"
     raw = "# Synthetic approval\n" + module.START + json.dumps(descriptor) + module.END + "\n"
     env.update(
         P4_PLAN_APPROVAL_PACKAGE=raw,
@@ -462,6 +467,9 @@ def test_ci_identity_wires_real_guard_to_separate_requests_and_stops(tmp_path, m
             raise TimeoutError("SECRET credentials unknown")
         role = kwargs["RoleArn"].split("-")[-1]
         assert kwargs["DurationSeconds"] == 3600 and kwargs["WebIdentityToken"] == token
+        assert json.loads(kwargs["Policy"]) == module.session_policy(
+            instance.package["expires_at_utc"]
+        )
         return {
             "AssumedRoleUser": {
                 "Arn": (
@@ -558,3 +566,27 @@ def test_job_first_step_mock_clock_exact_deadline_and_evidence(tmp_path, monkeyp
             exec(compile(script, "job-start-mock", "exec"), {})
     record = json.loads((tmp_path / "p4-plan-approval-job-start.private.json").read_text())
     assert record["status"] == ("passed" if offset > 0 else "refused")
+
+
+@pytest.mark.parametrize("offset", [-1, 0, 1])
+def test_server_session_policy_denies_at_exact_expiry_with_fake_evaluator(offset):
+    import plan_authorization as module
+
+    policy = module.session_policy("2026-10-11T01:00:00Z")
+    # Fake date evaluation only; no assertion about unverified live IAM permissions.
+    clause = policy["Statement"][1]
+    deadline = module.utc(clause["Condition"]["DateGreaterThanEquals"]["aws:CurrentTime"])
+    denied = deadline + timedelta(seconds=offset) >= deadline
+    assert clause["Effect"] == "Deny" and clause["Action"] == clause["Resource"] == "*"
+    assert denied == (offset >= 0)
+
+
+def test_session_policy_hash_cannot_be_replaced_in_ci():
+    import plan_authorization as module
+
+    env, descriptor = environment()
+    raw = env["P4_PLAN_APPROVAL_PACKAGE"].replace(descriptor["session_policy_sha256"], "b" * 64)
+    env["P4_PLAN_APPROVAL_PACKAGE"] = raw
+    env["P4_PLAN_APPROVAL_SHA256"] = hashlib.sha256(raw.encode()).hexdigest()
+    with pytest.raises(ValueError, match="ScopeMismatch"):
+        module.load(env)

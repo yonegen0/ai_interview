@@ -11,6 +11,7 @@ workflow_dispatchの`plan_approval_package`には承認資料の正確なUTF-8�
 `expires_at_utc`と文字列まで同一とする。資料は1組だけの
 `P4_PLAN_AUTHORIZATION_START`/`P4_PLAN_AUTHORIZATION_END`マーカー内にJSONを持つ。
 JSONの重複key、欠損、無効日時、非UTC timezone、hash・入力・source・scope不一致は拒否する。
+期限から生成する一時session policyのSHAも資料へ固定し、CIで再計算して照合する。
 `execution_ready=false`のレビュー用資料は実行拒否される。期限延長、main変更、操作範囲変更は
 必ず新しい資料全文とhashを必要とし、実行中の差替えも拒否する。
 
@@ -28,6 +29,11 @@ Terraform実行前、各Put前、各処理の完了時に検証する。55分job
 |deploy/test/指定外Role|0|0|
 
 各上限はこの1つの承認hash・最初の新規workflow RunId・Attempt 1全体に適用する。
+Plan用の両Role取得には、期限到達時から全Actionを明示Denyする一時session policyを必須とする。
+期限前のAllowは既存Role権限とのintersectionであり、新しいIAM権限を追加しない。
+Role/trust/保存policyの変更APIは呼ばない。このsession restrictionも新しい承認資料に含める。
+AWSの[session policy仕様](https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRoleWithWebIdentity.html)と
+[DateGreaterThanEquals仕様](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html)に基づく設計で、実AWSでの有効性は未検証。
 成功数ではなく送信試行数を、送信前にfsync済みjournalへ書く。失敗・timeoutも消費し、
 その場でterminal停止する。未使用枠が残っていても認証失敗を再試行しない。
 OIDC HTTPはredirectなし/timeout15秒、STSはDurationSeconds3600/東京endpoint/SDK試行1回。
@@ -67,8 +73,10 @@ job開始時のmonotonic markerを引き継ぎ、checkout/setupも55分に含め
 envelope最後を強制する。これは通常のdev `.tflock`取得・自分の通常解放とは別枠である。
 
 停止時はTerraformへSIGINTを1回だけ送り、最大120秒の通常終了を待つ。SIGKILL、2回目SIGINT、
-force-unlock、lock手動削除、State修復、再Planをしない。既に開始した処理の通常lock解放だけを
-cleanupとして許容し、期限後に新しいPlan/lock取得/Artifact Putを開始する権限はない。
+force-unlock、lock手動削除、State修復、再Planをしない。通常lock解放も期限前の120秒reserve内で
+行う。期限後に新しいPlan/lock取得/lock解放/Artifact Putを開始する権限はない。
+ローカル監視が遅れた場合もsession policyの期限DenyでAWS側の新規副作用を拒否する設計である。
+期限を越えた通常解放の例外は作らず、解放未確認・lock残存はunknownとして停止する。
 in-flight要求の完了や応答不明は成功とみなさない。正常終了を確認できない場合、外側55分timeout
 で終了してもState/lockはunknownであり、別の承認範囲内read-only診断まで停止する。
 SIGINT後の終了コードだけでlockなし/PASSとは認定しない。保存済みjournal・S3のpartial object・

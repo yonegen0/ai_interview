@@ -44,6 +44,33 @@ def canonical_hash(value):
     ).hexdigest()
 
 
+def session_policy(expiry):
+    """Intersect existing Role permissions; explicitly deny at server expiry.
+
+    This is a temporary session restriction, not an IAM Role/policy mutation.
+    Normal unlock must finish before expiry. Unknown locks are never repaired.
+    """
+    utc(expiry)
+    return {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Sid": "PreserveExistingRoleCeiling",
+                "Effect": "Allow",
+                "Action": "*",
+                "Resource": "*",
+            },
+            {
+                "Sid": "AbsoluteApprovalExpiry",
+                "Effect": "Deny",
+                "Action": "*",
+                "Resource": "*",
+                "Condition": {"DateGreaterThanEquals": {"aws:CurrentTime": expiry}},
+            },
+        ],
+    }
+
+
 def load(environment):
     raw = environment.get("P4_PLAN_APPROVAL_PACKAGE", "")
     digest = environment.get("P4_PLAN_APPROVAL_SHA256", "")
@@ -95,7 +122,9 @@ def load(environment):
             != canonical_hash(json.loads(environment["P4_DEPLOY_INPUTS"]))
             or package["s3_put_limit"] != 6
             or package["cleanup_seconds"] != CLEANUP_SECONDS
-            or package["deadline_policy"] != "no-new-operations;inflight-normal-unlock-only"
+            or package["deadline_policy"] != "no-new-operations;cleanup-before-expiry"
+            or package["session_policy_sha256"]
+            != canonical_hash(session_policy(package["expires_at_utc"]))
             or package["operation_budgets_seconds"] != BUDGETS
             or environment.get("GITHUB_RUN_ATTEMPT") != "1"
             or environment.get("GITHUB_REF") != "refs/heads/main"
@@ -324,7 +353,7 @@ class Guard:
         return self.call("s3-put", action, bucket=bucket, key=key, attempt=len(self.puts))
 
     def process(self, command, *, cwd, env, accepted=(0,)):
-        """Bound execution; interrupt once, allow only in-flight normal cleanup.
+        """Bound execution; interrupt once, reserve cleanup before expiry.
 
         Never SIGKILL/force-unlock/re-plan. If graceful exit cannot be confirmed,
         preserve journal and fail; the outer 55-minute job limit remains a final
