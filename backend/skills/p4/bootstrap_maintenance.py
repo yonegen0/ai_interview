@@ -586,6 +586,9 @@ def execute(
             )
             reader.verify_resources(immediate["state"], values)
             validate_saved(run, approval, files, values, claim)
+            final_raw, final_approval = approved_json(approval_path, approval_hash, private)
+            require(final_raw == raw and final_approval == approval, "MaintenanceApprovalChanged")
+            validate_approval(final_approval, "apply", account, region)
             write_json(
                 claim / "apply-started.private.json",
                 {
@@ -595,6 +598,10 @@ def execute(
                     "started_at": datetime.now(UTC).isoformat(),
                 },
             )
+            # Journal fsync/ACL work must not consume the remaining approval lifetime.
+            final_raw, final_approval = approved_json(approval_path, approval_hash, private)
+            require(final_raw == raw and final_approval == approval, "MaintenanceApprovalChanged")
+            validate_approval(final_approval, "apply", account, region)
             terraform(
                 run,
                 env,

@@ -269,6 +269,19 @@ def test_test_closure_rejects_changes_outside_39_alarms(bound, bad):
         tool("test_closure_guard").audit_plan(bound.review, bound.snapshot, bound.m)
 
 
+@pytest.mark.parametrize("target", ["resource", "output"])
+@pytest.mark.parametrize("mask", [None, 0, 1, "false"])
+def test_test_closure_rejects_malformed_unknown_mask(bound, target, mask):
+    change = (
+        bound.review["resource_changes"][0]["change"]
+        if target == "resource"
+        else bound.review["output_changes"]["manifest"]
+    )
+    change["after_unknown"] = mask
+    with pytest.raises(ValueError):
+        tool("test_closure_guard").audit_plan(bound.review, bound.snapshot, bound.m)
+
+
 @pytest.mark.parametrize("bad", [None, "failure", "readback", "state-change", "expired"])
 def test_apply_rechecks_state_expiry_and_never_retries(bound, monkeypatch, bad):
     monkeypatch.setattr(
