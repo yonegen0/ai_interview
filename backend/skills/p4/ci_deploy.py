@@ -10,6 +10,7 @@ from urllib.request import Request
 
 from botocore.config import Config
 from ci_identity import NoRedirect, assume
+from plan_authorization import active_guard, initialize, load
 from terraform_dev import (
     PROJECT,
     REPOSITORY,
@@ -69,6 +70,8 @@ def preflight(environment):
     terraform_environment(PROJECT / "terraform/environments/dev", environment, account, region)
     if any(key.startswith("TF_VAR_") for key in environment):
         raise DeploymentError("UnexpectedTerraformVariable")
+    if operation == "plan":
+        load(environment)
     return account, region, operation, configuration
 
 
@@ -129,9 +132,11 @@ def s3_client(session):
 def plan_state_preflight(account, region):
     from deployment_guards import read_state_snapshot
 
-    snapshot = read_state_snapshot(
-        role_session("plan", account, region), account, region, "dev/terraform.tfstate"
-    )
+    session = role_session("plan", account, region)
+    guard = active_guard()
+    if guard:
+        guard.check("state-preflight", 60)
+    snapshot = read_state_snapshot(session, account, region, "dev/terraform.tfstate")
     configuration = snapshot["manifest"]["configuration"]
     if any(
         configuration.get(key) is not False
@@ -142,6 +147,13 @@ def plan_state_preflight(account, region):
 
 
 def put(s3, bucket, key, body):
+    guard = active_guard()
+    if guard:
+        return guard.put(bucket, key, lambda: _put(s3, bucket, key, body))
+    return _put(s3, bucket, key, body)
+
+
+def _put(s3, bucket, key, body):
     if key.startswith("plans/") and len(body) > PLAN_OBJECT_MAX_BYTES:
         raise DeploymentError("PlanObjectSizeLimitExceeded")
     response = s3.put_object(
@@ -305,6 +317,7 @@ def build_package(directory, sha):
 
 
 def main():
+    guard = None
     try:
         account, region, operation, configuration = preflight(os.environ)
         run_id, attempt = os.environ["GITHUB_RUN_ID"], os.environ["GITHUB_RUN_ATTEMPT"]
@@ -312,6 +325,10 @@ def main():
             raise DeploymentError("InvalidRunIdentity")
         if operation == "plan" and attempt != "1":
             raise DeploymentError("PlanFirstAttemptRequired")
+        if operation == "plan":
+            guard = initialize(
+                os.environ, PROJECT / ".p4-artifacts" / f"plan-authorization-{run_id}-{attempt}"
+            )
         sha = checked_git(PROJECT, os.environ)
         directory = PROJECT / ".p4-artifacts" / f"ci-{run_id}-{attempt}"
         directory.mkdir(parents=True, exist_ok=False)
@@ -381,7 +398,9 @@ def main():
                 "review_version": review_version,
             }
             put(s3, bucket, f"{plan_prefix}/envelope.json", json.dumps(envelope).encode())
-            print(json.dumps(result | {"run_id": run_id, "run_attempt": attempt}))
+            guard.check("plan-transport-completed", 0)
+            guard.record("plan-transport-completed")
+            print(json.dumps({"status": "planned", "run_id": run_id, "run_attempt": attempt}))
         else:
             source_run = os.environ["P4_PLAN_RUN_ID"]
             source_attempt = github_run(source_run)
@@ -430,7 +449,9 @@ def main():
             )
             print(json.dumps(result))
         return 0
-    except Exception:
+    except Exception as error:
+        if guard:
+            guard.fail(error)
         print("P4CiDeploymentFailed", file=sys.stderr)
         return 1
     finally:

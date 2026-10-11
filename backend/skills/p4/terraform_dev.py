@@ -15,6 +15,8 @@ import time
 from decimal import Decimal
 from pathlib import Path
 
+from plan_authorization import active_guard, required_guard
+
 from interview_backend.deployment import (
     DeploymentError,
     account_settings,
@@ -61,6 +63,9 @@ def digest(path):
 
 
 def run(command, *, cwd, env, accepted=(0,)):
+    guard = active_guard()
+    if guard:
+        return guard.process(command, cwd=cwd, env=env, accepted=accepted)
     result = subprocess.run(command, cwd=cwd, env=env, capture_output=True, check=False)
     if result.returncode not in accepted:
         raise DeploymentError("TerraformOperationFailed")
@@ -196,6 +201,9 @@ def execute(operation, input_path, directory, approved_hash=None, *, progress=No
     require_aws_execution()
     if operation not in {"plan", "apply", "verify"}:
         raise DeploymentError("InvalidOperation")
+    guard = required_guard() if operation == "plan" else None
+    if guard:
+        guard.check("terraform-execution", 1920)
     account, region = account_settings(PROJECT)
     root = PROJECT / "terraform" / "environments" / "dev"
     env = terraform_environment(root, os.environ, account, region)
@@ -232,6 +240,8 @@ def execute(operation, input_path, directory, approved_hash=None, *, progress=No
     version = json.loads(run(["terraform", "version", "-json"], cwd=root, env=env))
     if version["terraform_version"] != TF_VERSION:
         raise DeploymentError("TerraformVersionMismatch")
+    if guard:
+        guard.check("terraform-identity", 25)
     session = checked_session(account, region, environment=env)
     env = credential_environment(session, env)
     from deployment_guards import audit_retention, read_state_snapshot
@@ -271,6 +281,8 @@ def execute(operation, input_path, directory, approved_hash=None, *, progress=No
         cwd=root,
         env=env,
     )
+    if guard:
+        guard.check("terraform-identity", 25)
     checked_session(account, region, environment=env)
     if operation == "plan":
         run(
@@ -291,6 +303,8 @@ def execute(operation, input_path, directory, approved_hash=None, *, progress=No
             private,
             now=int(time.time()),
         )
+        if guard:
+            guard.check("post-plan-state-read", 60)
         if (
             read_state_snapshot(session, account, region, binding["state_key"], allow_absent=True)
             != snapshot
