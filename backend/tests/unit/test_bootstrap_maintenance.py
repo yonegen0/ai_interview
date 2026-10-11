@@ -217,6 +217,15 @@ def approval_for(contract, fixture, private):
     }
 
 
+@pytest.mark.parametrize("schema", [True, 1.0, "1", None])
+def test_maintenance_approval_requires_integer_schema(tools, fixture, tmp_path, schema):
+    _, contract, _ = tools
+    value = approval_for(contract, fixture, tmp_path)
+    value["schema_version"] = schema
+    with pytest.raises(ValueError, match="MaintenanceApprovalSchema"):
+        contract.validate_approval(value, "plan", ACCOUNT, REGION)
+
+
 def test_canonical_snapshot_and_two_update_plan(tools, fixture):
     _, contract, _ = tools
     approval = {

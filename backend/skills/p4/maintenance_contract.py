@@ -174,6 +174,7 @@ def validate_approval(value, operation, account, region, now=None):
         fields |= {"run_path", "plan_sha256", "binding_sha256", "plan_approval_sha256"}
     require(
         set(value) == fields
+        and type(value["schema_version"]) is int
         and value["schema_version"] == 1
         and value["kind"] == f"p4-bootstrap-maintenance-{operation}"
         and type(value["approved"]) is bool,
