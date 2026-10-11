@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 from uuid import uuid4
@@ -10,6 +11,51 @@ import pytest
 from test_provider_validation_tools import tool
 
 from interview_backend.repositories.codec import from_wire, to_wire
+
+
+@pytest.mark.parametrize(
+    "relative,staged",
+    [
+        ("backend/src/runtime.py", False),
+        ("backend/skills/p4/helper.py", True),
+        ("terraform/modules/service/main.tf", False),
+        ("terraform/environments/dev/override.tf", False),
+        ("backend/skills/p4/new_helper.py", False),
+    ],
+)
+def test_clean_source_detects_changes_from_dev_subdirectory(tmp_path, relative, staged):
+    module = tool("closure_aws")
+
+    def git(*args):
+        return subprocess.run(["git", *args], cwd=tmp_path, capture_output=True, check=True)
+
+    for name in (
+        "backend/src/runtime.py",
+        "backend/skills/p4/helper.py",
+        "terraform/modules/service/main.tf",
+    ):
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("baseline\n")
+    dev = tmp_path / "terraform/environments/dev"
+    dev.mkdir(parents=True)
+    git("init")
+    git("add", ".")
+    git(
+        "-c",
+        "user.name=Offline test",
+        "-c",
+        "user.email=test@example.invalid",
+        "commit",
+        "-m",
+        "base",
+    )
+    module.require_clean_source(dev, {})
+    (tmp_path / relative).write_text("changed\n")
+    if staged:
+        git("add", relative)
+    with pytest.raises(ValueError, match="CleanApprovedExecutionSourceRequired"):
+        module.require_clean_source(dev, {})
 
 
 def test_concrete_saved_plan_transport_rechecks_bytes(tmp_path, monkeypatch):

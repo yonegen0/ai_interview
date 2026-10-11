@@ -14,6 +14,7 @@ UPDATES = {
     "module.service.aws_lambda_event_source_mapping.streams": ("enabled", True, False),
     "module.service.aws_scheduler_schedule.recovery": ("state", "ENABLED", "DISABLED"),
 }
+MAPPING_METADATA = ("last_modified", "last_processing_result", "state_transition_reason")
 
 
 def digest(raw):
@@ -64,7 +65,7 @@ def readback_inventory(state):
     result = deepcopy(state_instances(state))
     for address in UPDATES:
         if ".aws_lambda_event_source_mapping." in address and address in result:
-            for name in ("last_modified", "last_processing_result", "state_transition_reason"):
+            for name in MAPPING_METADATA:
                 result[address].pop(name, None)
     return result
 
@@ -107,14 +108,43 @@ def unknown(value):
 
 def audit_plan(review, state, alarm_addresses):
     """Every saved-plan entry is audited, including refresh drift and outputs."""
-    if review.get("errored") or review.get("resource_drift") or review.get("deferred_changes"):
+    if review.get("errored") or review.get("deferred_changes"):
         raise ValueError("PlanDriftOrDeferredChange")
+    state_values = deepcopy(state_instances(state))
+    refreshed = set()
+    for entry in review.get("resource_drift", []):
+        address, change = entry.get("address"), entry.get("change", {})
+        before, after = change.get("before"), change.get("after")
+        if (
+            address not in UPDATES
+            or ".aws_lambda_event_source_mapping." not in address
+            or entry.get("type") != "aws_lambda_event_source_mapping"
+            or entry.get("previous_address")
+            or entry.get("deposed")
+            or entry.get("mode", "managed") != "managed"
+            or address in refreshed
+            or change.get("actions") != ["update"]
+            or change.get("replace_paths")
+            or unknown(change.get("after_unknown", {}))
+            or not isinstance(before, dict)
+            or not isinstance(after, dict)
+            or any(
+                value.get(key) is not None and not isinstance(value[key], str)
+                for value in (before, after)
+                for key in MAPPING_METADATA
+            )
+            or before != state_values.get(address)
+            or {k: v for k, v in before.items() if k not in MAPPING_METADATA}
+            != {k: v for k, v in after.items() if k not in MAPPING_METADATA}
+        ):
+            raise ValueError("PlanDriftOrDeferredChange")
+        state_values[address] = after
+        refreshed.add(address)
     entries = review.get("resource_changes", [])
     addresses = [e["address"] for e in entries]
     if len(set(addresses)) != len(addresses) or set(addresses) != state_addresses(state):
         raise ValueError("FullStatePlanAuditRequired")
     updates, deletes = set(), set()
-    state_values = state_instances(state)
     for entry in entries:
         address, change = entry["address"], entry["change"]
         actions = change["actions"]
