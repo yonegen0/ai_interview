@@ -36,6 +36,7 @@ def environment(configuration=None, artifact_digest="a" * 64, run_id="123"):
         "cleanup_seconds": 120,
         "deadline_policy": "no-new-operations;cleanup-before-expiry",
         "operation_budgets_seconds": dict(module.BUDGETS),
+        "evidence_recipient_sha256": hashlib.sha256(b"synthetic-certificate").hexdigest(),
     }
     env = {
         "GITHUB_SHA": "a" * 40,
@@ -49,6 +50,10 @@ def environment(configuration=None, artifact_digest="a" * 64, run_id="123"):
         "P4_PACKAGE_SHA256": artifact_digest,
         "P4_DEPLOY_INPUTS": json.dumps(config),
         "P4_OPERATION": "plan",
+        "P4_PLAN_EVIDENCE_CERT_PEM": (
+            "-----BEGIN CERTIFICATE-----\nc3ludGhldGljLWNlcnRpZmljYXRl\n-----END CERTIFICATE-----\n"
+        ),
+        "P4_PLAN_EVIDENCE_CERT_SHA256": descriptor["evidence_recipient_sha256"],
         "P4_PLAN_JOB_STARTED_MONOTONIC": str(time.monotonic()),
     }
     bind(env, descriptor)
@@ -90,6 +95,9 @@ def install_transport_approval(monkeypatch, configuration=None):
     import os
 
     import github_control
+    import plan_authorization
+
+    monkeypatch.setattr(plan_authorization, "validate_recipient", lambda *a: b"synthetic")
 
     env, _ = environment(
         configuration,
@@ -130,6 +138,7 @@ def guard(tmp_path, *, seconds=7200, history=None):
         clock=lambda: clock.now,
         monotonic=lambda: clock.tick,
         github_get=lambda *a: history,
+        recipient_check=lambda *a: b"synthetic",
     )
     return instance, env, descriptor, clock
 
@@ -590,3 +599,32 @@ def test_session_policy_hash_cannot_be_replaced_in_ci():
     env["P4_PLAN_APPROVAL_SHA256"] = hashlib.sha256(raw.encode()).hexdigest()
     with pytest.raises(ValueError, match="ScopeMismatch"):
         module.load(env)
+
+
+def test_recipient_hash_substitution_is_refused_before_authentication():
+    import plan_authorization as module
+
+    env, descriptor = environment()
+    descriptor["evidence_recipient_sha256"] = "b" * 64
+    bind(env, descriptor)
+    with pytest.raises(ValueError, match="ScopeMismatch"):
+        module.load(env)
+
+
+def test_recipient_preflight_failure_stops_before_github_or_authentication(tmp_path):
+    import plan_authorization as module
+
+    env, _ = environment()
+
+    def refuse(*args):
+        raise ValueError("synthetic unavailable encryption")
+
+    with pytest.raises(ValueError, match="unavailable encryption"):
+        module.Guard(
+            env,
+            tmp_path / "journal",
+            recipient_check=refuse,
+            github_get=lambda *a: pytest.fail("external call before encryption check"),
+        )
+    evidence = "".join(p.read_text() for p in (tmp_path / "journal").glob("*.private.json"))
+    assert "unavailable encryption" not in evidence

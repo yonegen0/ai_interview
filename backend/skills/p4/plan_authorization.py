@@ -16,6 +16,8 @@ import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+from plan_evidence import certificate_der, validate_recipient
+
 from interview_backend.deployment import DeploymentError
 
 START = "<!-- P4_PLAN_AUTHORIZATION_START -->\n```json\n"
@@ -126,6 +128,8 @@ def load(environment):
             or package["session_policy_sha256"]
             != canonical_hash(session_policy(package["expires_at_utc"]))
             or package["operation_budgets_seconds"] != BUDGETS
+            or package["evidence_recipient_sha256"]
+            != hashlib.sha256(certificate_der(environment)).hexdigest()
             or environment.get("GITHUB_RUN_ATTEMPT") != "1"
             or environment.get("GITHUB_REF") != "refs/heads/main"
             or environment.get("GITHUB_REPOSITORY") != package["repository"]
@@ -187,7 +191,16 @@ def verify_run_history(package_hash, environment, github_get):
 
 
 class Guard:
-    def __init__(self, environment, directory, *, clock=None, monotonic=None, github_get=None):
+    def __init__(
+        self,
+        environment,
+        directory,
+        *,
+        clock=None,
+        monotonic=None,
+        github_get=None,
+        recipient_check=None,
+    ):
         self.environment = environment
         self.package, self.expiry, self.digest = load(environment)
         self.clock = clock or (lambda: datetime.now(UTC))
@@ -233,6 +246,7 @@ class Guard:
                 key.startswith("AWS_ENDPOINT_URL") for key in environment
             ):
                 raise DeploymentError("PlanCredentialSourceConflict")
+            (recipient_check or validate_recipient)(environment, self.directory)
             if github_get is None:
                 from github_control import github_json
 

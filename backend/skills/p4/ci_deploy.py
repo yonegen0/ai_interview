@@ -400,7 +400,7 @@ def main():
             put(s3, bucket, f"{plan_prefix}/envelope.json", json.dumps(envelope).encode())
             guard.check("plan-transport-completed", 0)
             guard.record("plan-transport-completed")
-            print(json.dumps(result | {"run_id": run_id, "run_attempt": attempt}))
+            print(json.dumps({"status": "planned", "run_id": run_id, "run_attempt": attempt}))
         else:
             source_run = os.environ["P4_PLAN_RUN_ID"]
             source_attempt = github_run(source_run)

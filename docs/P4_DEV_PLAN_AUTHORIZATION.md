@@ -6,7 +6,8 @@ Draft PRに留める。mainへ反映する承認を別途得た後、実際のma
 
 ## 承認資料のbinding
 
-workflow_dispatchの`plan_approval_package`には承認資料の正確なUTF-8全文を渡す。
+承認資料の正確なUTF-8全文はdev Environment Secret `P4_PLAN_APPROVAL_PACKAGE`から読む。
+public workflow_dispatchへ全文を渡すinputは廃止し、旧方式へfallbackしない。
 `plan_approval_sha256`はその全文bytesのSHA-256、`plan_approval_expires_at`は資料内の
 `expires_at_utc`と文字列まで同一とする。資料は1組だけの
 `P4_PLAN_AUTHORIZATION_START`/`P4_PLAN_AUTHORIZATION_END`マーカー内にJSONを持つ。
@@ -56,9 +57,10 @@ dispatch前のOperator側独立journalにもdispatch-startedを1回だけ永続�
 
 CIは実行開始・OIDC/STS別の回数・RequestId・期限拒否箇所・固定safe reason・例外型を
 private permissionの連番JSONへ追記する。raw exception、資格、メール、State、Terraform出力を
-journalやCIログへコピーしない。always stepで安全なjournalだけをGitHub Actions Artifactへ
-30日保持する。この証跡保存は新規AWS操作ではなく、期限後も許可する独立した保存工程。
-State・生のPlan・raw reviewを公開Artifactに含めない。
+journalやCIログへコピーしない。詳細journalの平文は公開Artifactへ保存しない。
+公開可能な固定summaryと、承認固定recipientへ暗号化したCMSだけを明示pathで30日保持する。
+これは新規AWS操作ではなく、期限後も許可する独立した証跡保存工程。
+State・生のPlan・raw review・承認全文・秘密鍵はArtifactに含めない。
 
 ## 長時間処理と安全な停止
 
@@ -85,3 +87,48 @@ Planファイルは削除せず、事後検証ができない条件を未確認�
 GitHub Gate=false復帰も承認期限内に行う。期限後のfalse書込みを暗黙に承認しない。
 期限内に閉鎖できない場合はGate状態をunknown/未閉鎖と報告し、新しい明示承認を必要とする。
 Apply/Enablement/Closureの既存承認、Bootstrap consumed ledger、課金・IAM境界を拡張しない。
+
+## public repositoryでの証跡・入力保護
+
+GitHub Artifactはrepository read accessの利用者がダウンロードできる。public repoで
+`.private.json`の名前、runner chmod、30日retentionは閲覧を制限しない。
+[GitHub Artifact仕様](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/download-workflow-artifacts)。
+[Runner実装](https://github.com/actions/runner/blob/main/src/Runner.Worker/Handlers/ScriptHandler.cs)は
+runの環境変数を開始ログへ表示するため、private値をvars/dispatch入力/envへ平文で渡さない。
+Secret maskingは多層防御であり、private内容をechoしてよいという保証ではない。
+
+|情報|保存・公開範囲|
+|---|---|
+|資格/token/access key/secret/private key|journal・Git・Artifactに記録しない。復号秘密鍵はrunnerへ渡さない|
+|Account/Bucket/Key/RequestId/詳細stage/内部時刻|承認固定recipientに暗号化したjournal。平文はrunner private directoryとOperator限定ACLの証跡だけ|
+|承認全文/メール等configuration/OIDC subject|dev Environment Secretsのみ。dispatchは全文SHA/期限/recipient DER SHAだけ。Git反映しない|
+|公開summary|schema_versionと固定enum evidence=encrypted/unavailableのみ|
+|run名/RunId/source SHA/承認SHA/期限/recipient fingerprint|公開workflow metadataとして許可。秘密や実識別子を埋め込まない|
+|暗号化詳細|public Artifactから暗号文は取得可能。recipient秘密鍵を持つOperatorだけが復号する設計|
+
+Planとsaved-plan applyの `AWS_DEV_ACCOUNT_ID`、`P4_OIDC_SUBJECT`、`P4_DEPLOY_INPUTS`も
+dev Environment Secretsを使い、同名varsへのfallbackをしない。Applyの明示承認境界は維持する。
+ApplyもSecret移行を実行準備の条件とし、既存varsだけでは動作させない。
+Secret未設定/不一致・証明書欠損/不一致はAWS前に拒否する。
+`evidence_recipient_sha256`を新承認descriptorへ追加し、dispatch `evidence_cert_sha256`と
+Secret `P4_PLAN_EVIDENCE_CERT_PEM`のDER SHAを照合する。RSA3072bit以上、承認期限を超える
+有効期間、OpenSSL暗号化演習を最初の認証前に検査する。実recipientと秘密鍵保管・復号能力は
+将来承認前にOperatorが確認する。テスト用鍵や過去fingerprintを実行に転用しない。
+
+[OpenSSL CMS](https://docs.openssl.org/3.5/man1/openssl-cms/)のAES-256-GCM AuthEnvelopedDataと
+RSA-OAEP/SHA256を使う。証明書fingerprintでrecipientを固定し、CA/ネットワークへ接続しない。
+CMSは`-keyid`を必須とし、issuer DN/serialを公開しない。SubjectKeyIdentifierは公開RSA鍵の
+PKCS#1 DERから導く20byte SHA1と一致することを検査し、任意の機密payloadを拒否する。
+この鍵識別子だけは暗号文metadataとして公開可能。証明書のbindingは別のSHA256で行う。
+暗号化は連番journalとjob-start記録だけ。symlink/過大/不正JSONは拒否し、入力原本を
+削除・上書きしない。公開uploadはsummary.json/journal.cmsと、checkout/setup失敗時だけの
+固定fallback summaryの明示3pathだけ。広いglobは使わない。依存なしのalways stepでfallbackを
+保存するが、checkout/setup失敗時の詳細markerの暗号化回収は保証しない。
+暗号化失敗/timeoutでは固定unavailable summaryだけを保存し、詳細証跡保全は未確認・失敗と報告。
+平文fallback、再AWS、再dispatch、再Planは禁止。runner消滅後の平文回収は保証できないため、
+暗号化失敗を成功扱いしない。新規AWS書込みは追加しない。
+
+Secretsの作成/更新、recipient登録、実runの公開露出・暗号化/復号確認は今回実施しない。
+merge承認には含めず、将来の新Plan資料で固定内容/hash・各Secret更新回数・期限・事後検証を
+明示承認する。旧未承認全文SHAや旧期限は使用不可。merge後の実main/CI/Artifactを確認してから
+新資料/新期限/全文SHA/recipientを確定し、独立レビューとユーザーのPlan承認を得る。
