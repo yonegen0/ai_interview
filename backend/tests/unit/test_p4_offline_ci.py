@@ -172,6 +172,40 @@ def test_wheel_test_helper_is_excluded_and_zip_is_deterministic(package):
         assert "interview_backend/assets/questions.json" in archive.namelist()
 
 
+def test_record_ignores_excluded_script_hashes_and_install_path(package):
+    _, _, deps, _, output = package
+    record_name = "annotated_types-1.0.dist-info/RECORD"
+    record = deps / record_name
+    metadata = "annotated_types-1.0.dist-info/METADATA,unchanged,42\n"
+    record.write_text(
+        f"bin/command,sha256=first-python-path,123\n{record_name},,\n"
+        f"annotated_types/test_cases.py,sha256=excluded-helper,22\n{metadata}"
+    )
+    first = build(package)
+    record.write_text(
+        f"{metadata}annotated_types/test_cases.py,sha256=excluded-helper,22\n"
+        f"{record_name},,\nbin/command,sha256=other-python-path,456\n"
+    )
+    second = build(package, output.with_name("other-install.zip"))
+    assert first["sha256"] == second["sha256"]
+    with zipfile.ZipFile(output) as archive:
+        assert archive.read(record_name).decode() == f"{metadata}{record_name},,\n"
+
+
+@pytest.mark.parametrize("bad", ["wrong,columns\n", "self-hash", "duplicate", "missing-self"])
+def test_malformed_packaged_record_is_rejected(package, bad):
+    _, _, deps, _, _ = package
+    name = "annotated_types-1.0.dist-info/RECORD"
+    values = {
+        "self-hash": f"{name},sha256=invalid,1\n",
+        "duplicate": f"{name},,\n{name},,\n",
+        "missing-self": "bin/command,hash,123\n",
+    }
+    (deps / name).write_text(values.get(bad, bad))
+    with pytest.raises(package[0].PackageBuildError, match="UnsafePackageContent"):
+        build(package)
+
+
 @pytest.mark.parametrize(
     "kind,reason",
     [

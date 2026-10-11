@@ -220,6 +220,26 @@ def test_ci_plan_transport_commits_envelope_last(tools_path, monkeypatch, tmp_pa
         assert not any(key.endswith("envelope.json") for key in uploads)
     else:
         assert uploads[-1] == "plans/1/1/envelope.json"
+        assert len(uploads) == 6
+
+
+@pytest.mark.parametrize("attempt", ["0", "01", "2", "3"])
+def test_plan_rerun_stops_before_git_build_or_aws(tools_path, monkeypatch, tmp_path, attempt):
+    module = tool("ci_deploy")
+    monkeypatch.setattr(module, "PROJECT", tmp_path)
+    monkeypatch.setattr(
+        module, "preflight", lambda env: ("123456789012", "ap-northeast-1", "plan", {})
+    )
+    monkeypatch.setenv("GITHUB_RUN_ID", "1")
+    monkeypatch.setenv("GITHUB_RUN_ATTEMPT", attempt)
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("Rejected Plan attempt reached an operation boundary")
+
+    for name in ("checked_git", "build_package", "plan_state_preflight", "role_session", "execute"):
+        monkeypatch.setattr(module, name, forbidden)
+    assert module.main() == 1
+    assert not (tmp_path / ".p4-artifacts").exists()
 
 
 @pytest.mark.parametrize(

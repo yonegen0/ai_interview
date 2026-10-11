@@ -82,7 +82,9 @@ token・OTP・回答・raw Stateをログに出さない。
 これは現Frontendと実Backendが共有する採用契約です。旧同期API案は不採用です。Request／Responseの型・制約はZod、HTTP・冪等性・復旧の動作は本書を正本とします。
 Schemaの正本は [schemas/index.ts](../frontend/src/lib/api/schemas/index.ts)。MSWとAPI Clientが共用し、TypeScript型をZodから導出します。
 
-Base URLは `NEXT_PUBLIC_API_BASE_URL`。Mockは `/api`。認証Headerの実装はBackend接続工程で追加します。
+Base URLは `NEXT_PUBLIC_API_BASE_URL`。Mockは `/api`。実API接続では
+`frontend/src/lib/api/client.ts`がCognito access tokenをBearer認証Headerへ設定します。
+認証更新・本人別Recoveryは実装済みで、devのlive接続確認は別承認の検証工程です。
 Request/ResponseはJSON、質問IDを含むIDはUUID、日時はUTC ISO 8601です。質問番号は1始まりです。
 FrontendはPOSTのIdempotency-Keyを生成し、BackendはsessionId・attemptId・evaluationIdを生成します。
 

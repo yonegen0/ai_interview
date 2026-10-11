@@ -307,10 +307,12 @@ def build_package(directory, sha):
 def main():
     try:
         account, region, operation, configuration = preflight(os.environ)
-        sha = checked_git(PROJECT, os.environ)
         run_id, attempt = os.environ["GITHUB_RUN_ID"], os.environ["GITHUB_RUN_ATTEMPT"]
         if not all(re.fullmatch(r"[0-9]+", value) for value in (run_id, attempt)):
             raise DeploymentError("InvalidRunIdentity")
+        if operation == "plan" and attempt != "1":
+            raise DeploymentError("PlanFirstAttemptRequired")
+        sha = checked_git(PROJECT, os.environ)
         directory = PROJECT / ".p4-artifacts" / f"ci-{run_id}-{attempt}"
         directory.mkdir(parents=True, exist_ok=False)
         bucket = f"ai-interview-artifacts-{account}-{region}"

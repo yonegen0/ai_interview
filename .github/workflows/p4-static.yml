@@ -70,6 +70,22 @@ jobs:
           uv pip install --python 3.14 --python-platform x86_64-manylinux_2_34 --target "$RUNNER_TEMP/p4-deps" --only-binary=:all: --require-hashes -r "$RUNNER_TEMP/p4-requirements.txt"
           uv run --no-project --python 3.14 python skills/p4/build_lambda.py --source src/interview_backend --dependencies "$RUNNER_TEMP/p4-deps" --lock uv.lock --output "$RUNNER_TEMP/p4.zip" --manifest "$RUNNER_TEMP/p4-package.json" --code-sha "$GITHUB_SHA"
           uv run --no-project --python 3.14 python -m zipfile -e "$RUNNER_TEMP/p4.zip" "$RUNNER_TEMP/p4-expanded"
+      - name: Record the fresh ZIP digest for offline comparison
+        env:
+          P4_PACKAGE_PATH: ${{ runner.temp }}/p4.zip
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          package = Path(os.environ["P4_PACKAGE_PATH"])
+          print(json.dumps({
+              "package_sha256": hashlib.sha256(package.read_bytes()).hexdigest(),
+              "package_bytes": package.stat().st_size,
+          }))
+          PY
       - name: Import expanded ZIP with no AWS access
         env:
           AWS_EC2_METADATA_DISABLED: 'true'
