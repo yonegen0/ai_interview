@@ -108,7 +108,10 @@ def cached_credentials(cache_directory, cache_key, account, now):
     require(path.is_file() and not path.is_symlink(), "CachedCredentialsUnavailable")
     try:
         value = json.loads(path.read_bytes())
+        require(isinstance(value, dict), "CachedCredentialsMalformed")
         credentials = value["Credentials"]
+        require(isinstance(credentials, dict), "CachedCredentialsMalformed")
+        require(isinstance(credentials.get("Expiration"), str), "CachedCredentialsMalformed")
         expiry = datetime.fromisoformat(credentials["Expiration"].replace("Z", "+00:00"))
         require(value.get("ProviderType") == "sso", "CacheProviderMismatch")
         require(credentials.get("AccountId") == account, "CacheAccountMismatch")
@@ -238,9 +241,7 @@ def diagnose(expected, configuration, environment, cache_directory, record, now,
             else "LocalDiagnosticFailed"
         )
         if isinstance(getattr(error, "response", None), dict):
-            report["actor"]["RequestId"] = error.response.get("ResponseMetadata", {}).get(
-                "RequestId"
-            )
+            report["actor"]["RequestId"] = safe_actor(error.response)["RequestId"]
         report["failure_frames"] = [
             {"file": Path(f.filename).name, "line": f.lineno, "function": f.name}
             for f in traceback.extract_tb(error.__traceback__)

@@ -287,3 +287,23 @@ def test_existing_journal_prevents_sts(module, tmp_path, expected):
     result = module.diagnose(expected, configuration(), {}, tmp_path, record, now, forbidden)
     assert result["sts_invocations"] == 0 and result["failed_condition"] == "LocalDiagnosticFailed"
     assert "NEVER_SAVE" not in json.dumps(records)
+
+
+@pytest.mark.parametrize("metadata", [None, "NEVER_SAVE", {"RequestId": {"secret": "NEVER_SAVE"}}])
+def test_malformed_exception_metadata_never_leaks_or_loses_result(
+    module, tmp_path, expected, metadata
+):
+    error = RuntimeError("NEVER_SAVE")
+    error.response = {"ResponseMetadata": metadata, "SecretAccessKey": "NEVER_SAVE"}
+    result, records = run(module, tmp_path, expected, FakeSession(None, error=error))
+    assert result["actor"]["RequestId"] is None
+    assert records["diagnostic-result.private.json"]["exception_type"] == "RuntimeError"
+
+
+@pytest.mark.parametrize("value", [[], {"Credentials": []}, {"Credentials": {"Expiration": None}}])
+def test_malformed_cache_schema_is_diagnosed_locally(module, tmp_path, expected, value):
+    now = datetime(2026, 10, 11, tzinfo=UTC)
+    key = module.profile_gate(configuration(), {}, expected)
+    (tmp_path / (key + ".json")).write_text(json.dumps(value))
+    with pytest.raises(module.IdentityDiagnosticError, match="CachedCredentialsMalformed"):
+        module.cached_credentials(tmp_path, key, expected["account_id"], now)
