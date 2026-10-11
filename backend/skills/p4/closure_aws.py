@@ -19,6 +19,17 @@ from interview_backend.deployment import (
 )
 
 
+def require_clean_source(root, environment):
+    """Root-anchored checks include untracked runtime and Terraform overlays."""
+    paths = [":(top)backend/src", ":(top)backend/skills/p4", ":(top)terraform"]
+    for arguments in (
+        ["diff", "--name-only", "HEAD", "--", *paths],
+        ["ls-files", "--others", "--exclude-standard", "--", *paths],
+    ):
+        if run(["git", *arguments], cwd=root, env=environment).strip():
+            raise ValueError("CleanApprovedExecutionSourceRequired")
+
+
 class TerraformAWS:
     def __init__(self, root, approval, environment=None):
         require_aws_execution(environment or os.environ)
@@ -38,22 +49,7 @@ class TerraformAWS:
         source = run(["git", "rev-parse", "HEAD"], cwd=self.root, env=self.env).decode().strip()
         if source != approval["code_sha"]:
             raise ValueError("ApprovedSourceRequired")
-        dirty = run(
-            [
-                "git",
-                "diff",
-                "--name-only",
-                "HEAD",
-                "--",
-                "backend/src",
-                "backend/skills/p4",
-                "terraform",
-            ],
-            cwd=self.root,
-            env=self.env,
-        )
-        if dirty.strip():
-            raise ValueError("CleanApprovedExecutionSourceRequired")
+        require_clean_source(self.root, self.env)
         version = json.loads(run(["terraform", "version", "-json"], cwd=self.root, env=self.env))
         if version["terraform_version"] != TF_VERSION:
             raise ValueError("TerraformVersionMismatch")
