@@ -28,8 +28,10 @@ checks are unchanged.
 
 [Terraform JSON documentation](https://developer.hashicorp.com/terraform/internals/json-format)
 defines resource_drift as the comparison with prior saved State.
-[AWS provider v6.64.0 source](https://raw.githubusercontent.com/hashicorp/terraform-provider-aws/v6.64.0/internal/service/lambda/event_source_mapping.go)
+[AWS provider v6.65.0 source](https://raw.githubusercontent.com/hashicorp/terraform-provider-aws/v6.65.0/internal/service/lambda/event_source_mapping.go)
 defines the three fields as computed strings and reads them from the service.
+This matches the dev lockfile; the original review's v6.64.0 definitions were
+also checked and unchanged for these fields.
 
 ## Verification and scope
 
