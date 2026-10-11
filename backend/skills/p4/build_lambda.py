@@ -2,8 +2,10 @@
 
 import argparse
 import base64
+import csv
 import hashlib
 import importlib.metadata
+import io
 import json
 import re
 import sys
@@ -109,6 +111,20 @@ def _build(source, dependencies, lock, output, code_sha):
                 raise PackageBuildError("UnsafePackageContent")
     if "interview_backend/assets/questions.json" not in files:
         raise PackageBuildError("QuestionAssetMissing")
+    # Installer RECORDs include excluded console scripts whose shebang hashes
+    # depend on the local Python path. Describe only files shipped in this ZIP.
+    for name in files:
+        if not name.endswith(".dist-info/RECORD"):
+            continue
+        rows = list(csv.reader(io.StringIO(files[name].decode("utf-8"))))
+        if any(len(row) != 3 for row in rows):
+            raise PackageBuildError("UnsafePackageContent")
+        included = [row for row in rows if row[0] in files]
+        if len({row[0] for row in included}) != len(included) or [name, "", ""] not in included:
+            raise PackageBuildError("UnsafePackageContent")
+        record = io.StringIO(newline="")
+        csv.writer(record, lineterminator="\n").writerows(sorted(included))
+        files[name] = record.getvalue().encode("utf-8")
     STAGE.set("archive")
     output.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(output, "x", zipfile.ZIP_DEFLATED) as archive:
