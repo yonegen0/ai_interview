@@ -16,10 +16,11 @@ import bootstrap_maintenance as normal
 import recovery_contract as pure
 from bootstrap_state import bootstrap_lock, private_path
 from deployment_guards import approved_json
-from maintenance_contract import check_applied, encoded, hashed, require
+from maintenance_contract import UPDATES, check_applied, encoded, hashed, require, state_instances
 
 PROJECT = Path(__file__).resolve().parents[3]
 CODE = "backend/skills/p4/bootstrap_recovered_apply.py"
+CONTROLLER_REF = "refs/heads/codex/bootstrap-recovered-apply-controller-20261011"
 FIELDS = {
     "schema_version",
     "kind",
@@ -27,6 +28,7 @@ FIELDS = {
     "expires_at",
     "cost_cap_usd",
     "controller_source_sha",
+    "controller_ref",
     "controller_code_sha256",
     "controller_repository",
     "audit_repository",
@@ -49,6 +51,7 @@ def validate_envelope(value):
         "RecoveredApplyControllerApprovalRequired",
     )
     pure.fresh(value)
+    require(value["controller_ref"] == CONTROLLER_REF, "RecoveredApplyIndependentBranchRequired")
     require(
         pure.revision(value["controller_source_sha"])
         and all(
@@ -98,6 +101,12 @@ def controller_identity(root, value, private):
         and not normal.git(root, "status", "--porcelain=v1", "--untracked-files=all").strip(),
         "RecoveredApplyCleanControllerRequired",
     )
+    require(
+        normal.git(root, "branch", "--show-current").decode().strip()
+        == CONTROLLER_REF.removeprefix("refs/heads/")
+        and normal.git(root, "ls-remote", "origin", CONTROLLER_REF).decode().split()[0] == sha,
+        "RecoveredApplyIndependentBranchChanged",
+    )
     raw = normal.git(root, "show", sha + ":" + CODE)
     require(
         hashed(raw) == value["controller_code_sha256"]
@@ -130,6 +139,75 @@ def runtime_gate(value, original):
         provider_inventory(original) == value["provider_files"],
         "RecoveredApplyProviderCacheChanged",
     )
+
+
+def apply_permissions(reader, request, bundle):
+    """Simulate only the approved State write and two inline-policy writes.
+
+    Simulation is an additional fail-closed gate, never a live authorization
+    guarantee or an actual PutObject/PutRolePolicy invocation.
+    """
+    account = request["account_id"]
+    resources = state_instances(bundle["snapshot"]["state"])
+    roles = {resources[address]["role"] for address in UPDATES}
+    require(
+        roles == {"ai-interview-ci-plan", "ai-interview-ci-deploy"},
+        "RecoveredApplyWriteTargetsChanged",
+    )
+    backend = request["backend"]
+    requests = [
+        ("s3:PutObject", f"arn:aws:s3:::{backend['bucket']}/{backend['key']}", request["region"]),
+        *[
+            ("iam:PutRolePolicy", f"arn:aws:iam::{account}:role/{role}", "us-east-1")
+            for role in sorted(roles)
+        ],
+    ]
+    observed = []
+    for action, arn, region in requests:
+        context = [
+            {
+                "ContextKeyName": "aws:SecureTransport",
+                "ContextKeyValues": ["true"],
+                "ContextKeyType": "boolean",
+            },
+            {
+                "ContextKeyName": "aws:RequestedRegion",
+                "ContextKeyValues": [region],
+                "ContextKeyType": "string",
+            },
+            {
+                "ContextKeyName": "aws:PrincipalArn",
+                "ContextKeyValues": [request["principal_role_arn"]],
+                "ContextKeyType": "string",
+            },
+        ]
+        if action == "s3:PutObject":
+            context.append(
+                {
+                    "ContextKeyName": "s3:x-amz-server-side-encryption",
+                    "ContextKeyValues": ["AES256"],
+                    "ContextKeyType": "string",
+                }
+            )
+        result = reader.iam.simulate_principal_policy(
+            PolicySourceArn=request["principal_role_arn"],
+            ActionNames=[action],
+            ResourceArns=[arn],
+            ContextEntries=context,
+        )
+        evaluations = result.get("EvaluationResults", [])
+        require(
+            len(evaluations) == 1
+            and result.get("IsTruncated") is False
+            and "Marker" not in result
+            and evaluations[0].get("EvalActionName") == action
+            and evaluations[0].get("EvalResourceName") == arn
+            and evaluations[0].get("EvalDecision") == "allowed"
+            and not evaluations[0].get("MissingContextValues"),
+            "RecoveredApplyWritePermissionsDenied",
+        )
+        observed.append({"action": action, "resource": arn, "decision": "allowed"})
+    return observed
 
 
 def local_binding(audit, value, files, claim, run, owned=None):
@@ -321,6 +399,7 @@ def execute(
             before = reader.snapshot()
             reader.verify_resources(before["state"], bundle["inputs"])
             pure.validate_recovered_apply(*args, before, actor, identity)
+            permissions_before = apply_permissions(reader, request, bundle)
             env = normal.execution_environment(output, parent, reader.session, bundle["inputs"])
             env["CHECKPOINT_DISABLE"] = "1"
             plan = original / "bootstrap.tfplan"
@@ -343,6 +422,7 @@ def execute(
             pure.validate_recovered_apply(
                 *args, immediate, reader.actor(value["principal_role_arn"]), identity
             )
+            permissions_immediate = apply_permissions(reader, request, bundle)
             pure.fresh(envelope)
             controller_identity(root, envelope, private)
             require(
@@ -390,6 +470,7 @@ def execute(
             )
             reader.actor(value["principal_role_arn"])
             reader.verify_resources(after["state"], bundle["inputs"])
+            permissions_after = apply_permissions(reader, request, bundle)
             pulled = terraform(output, env, envelope, "post-pull", ["state", "pull"], plan)
             normal.compare_state_snapshot(encoded(after["state"]), pulled)
             again = reader.snapshot()
@@ -400,7 +481,16 @@ def execute(
             normal.check_backend(output, request["backend"])
             normal.write_json(
                 output / "apply-readback.private.json",
-                {"before": before, "after": after, "operations": reader.operations},
+                {
+                    "before": before,
+                    "after": after,
+                    "operations": reader.operations,
+                    "write_permission_simulations": {
+                        "before": permissions_before,
+                        "immediate": permissions_immediate,
+                        "after": permissions_after,
+                    },
+                },
             )
             finished = {**started, "state_identity": after["identity"], "verified_updates": 2}
             normal.write_json(output / "apply-completed.private.json", finished)

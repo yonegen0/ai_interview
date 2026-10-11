@@ -13,11 +13,12 @@
    Role、通常S3 lock書込み・canonical State書込み・指定IAM policy更新、費用を明示する。
 2. 新`p4-bootstrap-recovered-apply-controller` envelope。schema_versionは厳密なinteger 1、
    kind、approved=true、expires_at（24時間以内）、cost_cap_usd="0.05"、controller_source_sha、
-   controller_code_sha256、controller_repository、audit_repository、apply_approval_sha256、
+   controller_ref、controller_code_sha256、controller_repository、audit_repository、apply_approval_sha256、
    apply_run_path、terraform_path、terraform_sha256、provider_filesを全件固定する。未知fieldは拒否。
 
 controller_repositoryはcanonical共通Git dir内のcleanなレビュー済みGit revision。
-topic branchのimmutable SHAも明示承認できるが、controller Git blobとloaded bytesの一致が必須。
+実行は方式Aを採用し、refs/heads/codex/bootstrap-recovered-apply-controller-20261011の固定SHAを承認する。
+ローカルbranch名、remote topic branch HEAD、controller Git blobとloaded bytesの完全一致が必須。
 audit_repositoryは復旧時のclean main・audit_source_sha・remote mainを既存のcode_identityで検証する。
 両checkoutはcanonical repositoryの共通Git dir/private rootを共有し、既存11監査moduleのbytesを維持する。
 復旧のaudit_source_shaを新controller SHAへ書換えない。
@@ -25,7 +26,8 @@ audit_repositoryは復旧時のclean main・audit_source_sha・remote mainを既
 mainが復旧revisionから進むと、既存code_identityのremote main Gateが成立しなくなる。
 このPRをmainへmergeする前にもその影響をレビューする。Gateを削除したり別clone/path overrideで回避したりしない。
 現行契約ではmainを復旧revisionに保ち、別のreviewed controller revisionを明示承認する実行形態を用いる。
-将来mainへ統合したうえで実行する場合は、binding/revisionの別契約レビューが必要で、このPRの承認だけでは自動移行しない。
+方式B（main統合）は実行main/旧監査revisionの連続性を結ぶ別契約・新承認が必要になる。
+既存bindingや旧revisionを再ラベルする方式は採用しない。Aは変更が最小で旧保証をそのまま維持するため、今回はBを実装しない。
 
 Terraform実行ファイルは絶対path/完全SHAとversion 1.14.9を固定する。
 provider_filesは元runのdata/providers以下の閉じたhash manifestで、hashicorp/aws 6.64.0、
@@ -36,7 +38,11 @@ HashiCorpの[backend仕様](https://developer.hashicorp.com/terraform/language/b
 Plan内のbackend設定を使い、ローカルbackend metadataは実資源Stateとは別物と説明されている。
 [saved Planの説明](https://developer.hashicorp.com/terraform/tutorials/cli/plan)はprovider versionの固定も説明する。
 ここから同じbackend metadata/provider cacheの新run利用を設計したが、FakeProviderだけではnative Terraformの
-互換性を証明しない。今回のオフラインPASSを実Apply成功保証とせず、実行前のruntimeレビューを残す。
+互換性を証明しない。2026-10-11の独立native監査ではTerraform 1.14.9/windows_amd64で、
+元Planのembedded backend全key・workspace・lockfile一致、AWS6.64.0 cache h1一致、元Plan native showと正式review JSON一致を確認した。
+隔離local backend/合成terraform_dataではsaved Plan適用・二重適用のstale拒否・cache/backend metadataコピー後のinitなし実行がPASS。
+元Planの実Applyや実AWSには接続せず、AWS ConfigureProviderを呼ばないschema-only showで検証した。
+実AWS backend locking/writeとprovider Applyは未検証のままで、承認後の事前/事後Gateで判定する。
 
 ## 1回限りの実行・保全
 
@@ -57,6 +63,13 @@ init/plan/destroy/force-unlockや任意引数はprocess境界で拒否する。
 stdout/stderrは新runへexclusive保存。timeout/nonzero/結果不明を成功扱いせず再呼出ししない。
 
 現actor/State/全32資源を確認し、Terraform version・既存backend・State pull・saved showを照合する。
+State keyのs3:PutObjectと指定plan/deploy roleのiam:PutRolePolicyもread-only simulationでbefore/immediate/after確認する。
+action/resource/decision/contextは完全一致し、MissingContext/切れた結果/Marker/非boolean IsTruncatedを拒否する。
+IAMのRequestedRegionはglobal endpointのus-east-1、S3はap-northeast-1、TLS/AES256/PrincipalArnを指定する。
+simulationは実書込みを行わず、session policy/resource policy/組織制約等を含む実許可の保証にはならない。
+仕様根拠: [IAM simulation API](https://docs.aws.amazon.com/IAM/latest/APIReference/API_SimulatePrincipalPolicy.html)、
+[IAM global条件](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_condition-keys.html#condition-keys-requestedregion)、
+[S3 backend権限](https://developer.hashicorp.com/terraform/language/backend/s3#permissions-required)。
 Apply直前に現State/主体/全32資源、全旧artifact、binding、Git/code、runtime、期限、current ownerの開始journalを再確認する。
 このlock ownerだけが自身の同一開始journalで最終再検証できる。foreign startを無視・削除・置換しない。
 runtime binary/cache hash検査の後、process起動直前にも両descriptorを同じSHAで読み戻して期限を再検査する。

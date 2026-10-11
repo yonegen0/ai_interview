@@ -83,6 +83,7 @@ def harness(tools, recovery_tools, fixture, monkeypatch, tmp_path):
         "expires_at": (datetime.now(UTC) + timedelta(hours=1)).isoformat(),
         "cost_cap_usd": "0.05",
         "controller_source_sha": "e" * 40,
+        "controller_ref": "refs/heads/codex/bootstrap-recovered-apply-controller-20261011",
         "controller_code_sha256": "f" * 64,
         "controller_repository": str(controller),
         "audit_repository": str(audit),
@@ -112,6 +113,21 @@ def harness(tools, recovery_tools, fixture, monkeypatch, tmp_path):
     )
     after["versions_sha256"] = h.contract.hashed(h.contract.encoded(after["versions"]))
     applied = [False]
+    simulations = []
+
+    def simulate(**kwargs):
+        simulations.append(kwargs)
+        return {
+            "IsTruncated": False,
+            "EvaluationResults": [
+                {
+                    "EvalActionName": kwargs["ActionNames"][0],
+                    "EvalResourceName": kwargs["ResourceArns"][0],
+                    "EvalDecision": "allowed",
+                }
+            ],
+        }
+
     reader = SimpleNamespace(
         actor=lambda arn: copy.deepcopy(h.actor),
         snapshot=lambda: copy.deepcopy(after if applied[0] else h.snapshot),
@@ -119,6 +135,7 @@ def harness(tools, recovery_tools, fixture, monkeypatch, tmp_path):
         operations=["GetObject"],
         session=object(),
         diagnose=lambda: {"repair_attempted": False},
+        iam=SimpleNamespace(simulate_principal_policy=simulate),
     )
     monkeypatch.setattr(h.recovery, "reader_for", lambda *a: events.append("reader") or reader)
     monkeypatch.setattr(
@@ -155,6 +172,8 @@ def harness(tools, recovery_tools, fixture, monkeypatch, tmp_path):
         after=after,
         fake=fake,
         applied=applied,
+        simulations=simulations,
+        reader=reader,
     )
 
 
@@ -217,6 +236,7 @@ def test_one_saved_plan_apply_preserves_old_evidence_and_claims(harness):
         ("apply_approval_sha256", "x"),
         ("controller_code_sha256", "x"),
         ("controller_source_sha", "x"),
+        ("controller_ref", "refs/heads/main"),
         ("terraform_sha256", "0" * 64),
         ("provider_files", {}),
     ],
@@ -382,6 +402,12 @@ def test_real_controller_identity_rejects_unreviewed_code(harness, monkeypatch, 
             ).encode()
         if args[0] == "status":
             return b" M modified" if failure == "dirty" else b""
+        if args[0] == "branch":
+            return b"codex/bootstrap-recovered-apply-controller-20261011\n"
+        if args[0] == "ls-remote":
+            return (
+                h.envelope["controller_source_sha"] + "\t" + h.envelope["controller_ref"]
+            ).encode()
         assert args[0] == "show"
         return b"foreign-code" if failure == "working-copy" else raw
 
@@ -478,3 +504,123 @@ def test_real_process_checks_final_authorization_after_runtime_hashes(harness, m
     with pytest.raises(ValueError, match="RecoveryApprovalExpired"):
         real(output, {}, h.envelope, "apply", args, plan, authorization=expired)
     assert not calls
+
+
+@pytest.mark.parametrize(
+    "denied", ["s3:PutObject", "ai-interview-ci-plan", "ai-interview-ci-deploy"]
+)
+@pytest.mark.parametrize("stage", ["before", "immediate"])
+def test_missing_write_permissions_never_reach_apply(harness, denied, stage):
+    h = harness
+    original = h.reader.iam.simulate_principal_policy
+    seen = []
+
+    def simulate(**kwargs):
+        seen.append(kwargs)
+        result = original(**kwargs)
+        action = kwargs["ActionNames"][0]
+        arn = kwargs["ResourceArns"][0]
+        matches = denied == action or arn.endswith("/" + denied)
+        if matches and (stage == "before" or len(seen) > 3):
+            result["EvaluationResults"][0]["EvalDecision"] = "implicitDeny"
+        return result
+
+    h.reader.iam.simulate_principal_policy = simulate
+    with pytest.raises(ValueError, match="WritePermissionsDenied"):
+        execute(h)
+    assert h.applied[0] is False
+    assert not any(x[0] == "apply" for x in h.commands)
+
+
+def test_write_simulations_have_exact_resource_scope_and_context(harness):
+    h = harness
+    execute(h)
+    assert len(h.simulations) == 9
+    for call in h.simulations:
+        assert call["PolicySourceArn"] == h.h.value["principal_role_arn"]
+        assert len(call["ActionNames"]) == len(call["ResourceArns"]) == 1
+        action = call["ActionNames"][0]
+        arn = call["ResourceArns"][0]
+        context = {x["ContextKeyName"]: x["ContextKeyValues"] for x in call["ContextEntries"]}
+        assert context["aws:SecureTransport"] == ["true"]
+        if action == "s3:PutObject":
+            assert arn.endswith("/bootstrap/terraform.tfstate")
+            assert context["aws:RequestedRegion"] == [recovery_tests.REGION]
+            assert context["s3:x-amz-server-side-encryption"] == ["AES256"]
+        else:
+            assert action == "iam:PutRolePolicy"
+            assert arn.rsplit("/", 1)[1] in {"ai-interview-ci-plan", "ai-interview-ci-deploy"}
+            assert context["aws:RequestedRegion"] == ["us-east-1"]
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "missing-context",
+        "wrong-action",
+        "wrong-resource",
+        "empty",
+        "truncated",
+        "marker",
+        "truncated-number",
+        "missing-truncated",
+    ],
+)
+def test_ambiguous_simulation_response_stops_apply(harness, mutation):
+    h = harness
+    original = h.reader.iam.simulate_principal_policy
+
+    def simulate(**kwargs):
+        result = original(**kwargs)
+        item = result["EvaluationResults"][0]
+        if mutation == "missing-context":
+            item["MissingContextValues"] = ["unknown-condition"]
+        elif mutation == "wrong-action":
+            item["EvalActionName"] = "s3:DeleteObject"
+        elif mutation == "wrong-resource":
+            item["EvalResourceName"] = "*"
+        elif mutation == "truncated":
+            result["IsTruncated"] = True
+        elif mutation == "marker":
+            result["Marker"] = "partial"
+        elif mutation == "truncated-number":
+            result["IsTruncated"] = 0
+        elif mutation == "missing-truncated":
+            del result["IsTruncated"]
+        else:
+            result["EvaluationResults"] = []
+        return result
+
+    h.reader.iam.simulate_principal_policy = simulate
+    with pytest.raises(ValueError, match="WritePermissionsDenied"):
+        execute(h)
+    assert h.applied[0] is False
+
+
+@pytest.mark.parametrize("changed", ["main-branch", "remote-tip"])
+def test_fixed_independent_branch_gate_rejects_changed_execution_source(
+    harness, monkeypatch, changed
+):
+    h = harness
+    real = importlib.reload(h.c).controller_identity
+    raw = Path(h.c.__file__).read_bytes().replace(b"\r\n", b"\n")
+    h.envelope["controller_code_sha256"] = h.h.contract.hashed(raw)
+
+    def git(root, *args):
+        if args[0] == "rev-parse":
+            return h.envelope["controller_source_sha"].encode()
+        if args[0] == "status":
+            return b""
+        if args[0] == "branch":
+            return (
+                b"main"
+                if changed == "main-branch"
+                else b"codex/bootstrap-recovered-apply-controller-20261011"
+            )
+        if args[0] == "ls-remote":
+            return ("0" * 40).encode()
+        return raw
+
+    monkeypatch.setattr(h.h.normal, "git", git)
+    with pytest.raises(ValueError, match="IndependentBranchChanged"):
+        real(h.controller, h.envelope, h.h.private)
