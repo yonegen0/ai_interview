@@ -59,6 +59,8 @@ stdout/stderrは新runへexclusive保存。timeout/nonzero/結果不明を成功
 現actor/State/全32資源を確認し、Terraform version・既存backend・State pull・saved showを照合する。
 Apply直前に現State/主体/全32資源、全旧artifact、binding、Git/code、runtime、期限、current ownerの開始journalを再確認する。
 このlock ownerだけが自身の同一開始journalで最終再検証できる。foreign startを無視・削除・置換しない。
+runtime binary/cache hash検査の後、process起動直前にも両descriptorを同じSHAで読み戻して期限を再検査する。
+事前Gate中に期限を横断するケースはApply subprocess到達0で停止する。
 
 成功後は既存check_appliedでlineage保持・serial前進・同32 address・指定2 policy以外の不変を確認し、
 version inventoryの旧version保持、新Versionのみ追加、IAM/全資源、post State pull、二重State照合、

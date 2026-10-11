@@ -127,7 +127,7 @@ def harness(tools, recovery_tools, fixture, monkeypatch, tmp_path):
         lambda *a: {"TF_DATA_DIR": str(h.private / "apply-output/data")},
     )
 
-    def fake(output, env, value, stage, args, plan):
+    def fake(output, env, value, stage, args, plan, *, authorization=None):
         commands.append((stage, args))
         if stage == "version":
             return b'{"terraform_version":"1.14.9"}'
@@ -136,6 +136,8 @@ def harness(tools, recovery_tools, fixture, monkeypatch, tmp_path):
         if stage == "pre-show":
             return h.artifacts["show.stdout.private.log"]
         assert stage == "apply"
+        assert callable(authorization)
+        authorization()
         applied[0] = True
         return b"Synthetic Apply successful"
 
@@ -152,6 +154,7 @@ def harness(tools, recovery_tools, fixture, monkeypatch, tmp_path):
         events=events,
         after=after,
         fake=fake,
+        applied=applied,
     )
 
 
@@ -264,7 +267,7 @@ def test_uncertainty_keeps_claim_and_never_retries(harness, monkeypatch, failure
     h = harness
     original = h.fake
 
-    def failing(output, env, envelope, stage, args, plan):
+    def failing(output, env, envelope, stage, args, plan, *, authorization=None):
         if stage == "pre-show" and failure == "foreign-journal":
             namespace = h.h.contract.hashed(h.h.contract.encoded(h.h.value["backend"]))
             (
@@ -274,11 +277,12 @@ def test_uncertainty_keeps_claim_and_never_retries(harness, monkeypatch, failure
                 / "apply-started.private.json"
             ).write_bytes(b"foreign-owner")
         if stage == "apply" and failure in {"timeout", "partial"}:
+            authorization()
             h.commands.append((stage, args))
             if failure == "timeout":
                 raise subprocess.TimeoutExpired("synthetic terraform", 1200)
             raise ValueError("SyntheticPartialFailure")
-        result = original(output, env, envelope, stage, args, plan)
+        result = original(output, env, envelope, stage, args, plan, authorization=authorization)
         if stage == "apply" and failure == "post-state":
             h.after["state"]["lineage"] = "foreign-lineage"
         return result
@@ -417,10 +421,60 @@ def test_real_process_adapter_logs_and_enforces_exact_command(harness, monkeypat
         assert not calls
         return
     if case == "success":
-        assert real(output, {}, h.envelope, "apply", args, plan) == b"synthetic"
+        assert (
+            real(output, {}, h.envelope, "apply", args, plan, authorization=lambda: None)
+            == b"synthetic"
+        )
     else:
         with pytest.raises(ValueError, match="ResultUnknown|TerraformFailed"):
-            real(output, {}, h.envelope, "apply", args, plan)
+            real(output, {}, h.envelope, "apply", args, plan, authorization=lambda: None)
     assert len(calls) == 1
     assert (output / "apply.stdout.private.log").exists()
     assert (output / "apply.stderr.private.log").exists()
+
+
+def test_approval_expiring_at_last_boundary_prevents_apply(harness, monkeypatch):
+    h = harness
+    h.envelope["expires_at"] = (datetime.now(UTC) + timedelta(hours=3)).isoformat()
+    rewrite(h)
+    identities = []
+
+    class AdvancedClock(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return datetime.now(tz) + timedelta(hours=2)
+
+    def identity(*args):
+        identities.append(True)
+        if len(identities) == 2:
+            monkeypatch.setattr(h.h.pure, "datetime", AdvancedClock)
+
+    monkeypatch.setattr(h.c, "controller_identity", identity)
+    with pytest.raises(ValueError, match="RecoveryApprovalExpired"):
+        execute(h)
+    # Fake adapter records entry; its subprocess effect is still unreachable.
+    assert h.applied[0] is False
+    assert h.commands[-1][0] == "apply"
+    assert not (h.h.private / "apply-output/apply-completed.private.json").exists()
+
+
+def test_real_process_checks_final_authorization_after_runtime_hashes(harness, monkeypatch):
+    h = harness
+    real = importlib.reload(h.c).terraform
+    output = h.h.private / "last-boundary"
+    h.c.prepare_run(output, h.h.original, h.h.artifacts, h.h.files, h.envelope)
+    calls = []
+
+    def forbidden(*args, **kwargs):
+        calls.append(True)
+        pytest.fail("Process reached after expired authorization")
+
+    def expired():
+        h.h.pure.fresh({"expires_at": "2000-01-01T00:00:00+00:00"})
+
+    monkeypatch.setattr(h.c.subprocess, "run", forbidden)
+    plan = h.h.original / "bootstrap.tfplan"
+    args = ["apply", "-input=false", "-lock=true", "-lock-timeout=0s", str(plan)]
+    with pytest.raises(ValueError, match="RecoveryApprovalExpired"):
+        real(output, {}, h.envelope, "apply", args, plan, authorization=expired)
+    assert not calls

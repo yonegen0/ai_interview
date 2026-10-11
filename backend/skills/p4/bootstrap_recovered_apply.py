@@ -213,7 +213,7 @@ def prepare_run(output, original, artifacts, files, envelope):
     normal.check_configuration(output, files)
 
 
-def terraform(output, env, envelope, stage, args, plan):
+def terraform(output, env, envelope, stage, args, plan, *, authorization=None):
     allowed = {
         "version": ["version", "-json"],
         "pre-pull": ["state", "pull"],
@@ -233,6 +233,9 @@ def terraform(output, env, envelope, stage, args, plan):
         provider_inventory(output) == envelope["provider_files"],
         "RecoveredApplyProviderCacheChanged",
     )
+    if stage == "apply":
+        require(callable(authorization), "RecoveredApplyFinalAuthorizationRequired")
+        authorization()
     try:
         result = subprocess.run(
             [str(binary), *args],
@@ -349,6 +352,21 @@ def execute(
             require(hashed(plan.read_bytes()) == value["plan_sha256"], "RecoveredApplyPlanChanged")
             normal.check_configuration(output, files)
             normal.check_backend(output, request["backend"])
+
+            def final_authorization():
+                # After potentially expensive runtime hashing, immediately before
+                # subprocess invocation, re-read both exact approved descriptors.
+                _, current_controller = approved_json(controller_path, controller_sha, private)
+                _, current_apply = approved_json(apply_path, apply_sha, private)
+                validate_envelope(current_controller)
+                require(encoded(current_apply) == encoded(value), "RecoveredApplyApprovalChanged")
+                pure.fresh(current_apply)
+                require(
+                    (claim / "apply-started.private.json").read_bytes() == owned
+                    and (output / "apply-started.private.json").read_bytes() == owned,
+                    "RecoveredApplyAttemptOwnershipChanged",
+                )
+
             terraform(
                 output,
                 env,
@@ -356,6 +374,7 @@ def execute(
                 "apply",
                 ["apply", "-input=false", "-lock=true", "-lock-timeout=0s", str(plan)],
                 plan,
+                authorization=final_authorization,
             )
             after = reader.snapshot()
             check_applied(before["state"], after["state"], account, region)
