@@ -159,6 +159,68 @@ def test_whitelist_deviation_stops(bad):
         module.audit_plan(review, state, approval["validation_alarms"])
 
 
+@pytest.mark.parametrize("mapping", ["worker", "streams"])
+@pytest.mark.parametrize(
+    "metadata", ["last_modified", "last_processing_result", "state_transition_reason"]
+)
+def test_mapping_computed_refresh_preserves_closure_whitelist(mapping, metadata):
+    module = tool("closure_adapter")
+    approval, _, _, _, _, state, review = fixture(module)
+    address = "module.service.aws_lambda_event_source_mapping." + mapping
+    entry = next(row for row in review["resource_changes"] if row["address"] == address)
+    attrs = module.state_instances(state)[address]
+    attrs[metadata] = "old"
+    refreshed = deepcopy(attrs) | {metadata: "new"}
+    review["resource_drift"] = [
+        {
+            "address": address,
+            "type": "aws_lambda_event_source_mapping",
+            "change": {"actions": ["update"], "before": deepcopy(attrs), "after": refreshed},
+        }
+    ]
+    entry["change"]["before"] = refreshed
+    entry["change"]["after"] = refreshed | {"enabled": False}
+    assert module.audit_plan(review, state, approval["validation_alarms"])["update"] == 4
+
+
+@pytest.mark.parametrize(
+    "bad",
+    ["identity", "enabled", "concurrency", "unknown", "replace", "duplicate", "before", "type"],
+)
+def test_mapping_refresh_rejects_configuration_or_unbound_drift(bad):
+    module = tool("closure_adapter")
+    approval, _, _, _, _, state, review = fixture(module)
+    address = "module.service.aws_lambda_event_source_mapping.worker"
+    original = deepcopy(module.state_instances(state)[address])
+    refreshed = original | {"last_processing_result": "OK"}
+    drift = {
+        "address": address,
+        "type": "aws_lambda_event_source_mapping",
+        "change": {
+            "actions": ["update"],
+            "before": original,
+            "after": refreshed,
+        },
+    }
+    review["resource_drift"] = [drift]
+    if bad in {"identity", "enabled", "concurrency"}:
+        refreshed[
+            {"identity": "uuid", "enabled": "enabled", "concurrency": "scaling_config"}[bad]
+        ] = "changed"
+    elif bad == "unknown":
+        drift["change"]["after_unknown"] = {"last_modified": True}
+    elif bad == "replace":
+        drift["change"]["actions"] = ["delete", "create"]
+    elif bad == "duplicate":
+        review["resource_drift"].append(deepcopy(drift))
+    elif bad == "before":
+        original["baseline"] = "not-state"
+    else:
+        drift["type"] = "aws_lambda_function"
+    with pytest.raises(ValueError, match="PlanDriftOrDeferredChange"):
+        module.audit_plan(review, state, approval["validation_alarms"])
+
+
 @pytest.mark.parametrize("failure", [None, "partial", "receipt", "lock", "readback", "plan-hash"])
 def test_lifecycle_applies_once_and_records_readback_or_stop(failure):
     module = tool("closure_adapter")
