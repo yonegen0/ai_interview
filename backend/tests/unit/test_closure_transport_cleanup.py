@@ -23,7 +23,8 @@ from interview_backend.repositories.codec import from_wire, to_wire
         ("backend/skills/p4/new_helper.py", False),
     ],
 )
-def test_clean_source_detects_changes_from_dev_subdirectory(tmp_path, relative, staged):
+def test_clean_source_detects_changes_from_dev_subdirectory(tmp_path, monkeypatch, relative, staged):
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[2] / "skills/p4"))
     module = tool("closure_aws")
 
     def git(*args):
