@@ -7,6 +7,7 @@ permissions:
   contents: read
 jobs:
   verify:
+    name: Backend verify
     runs-on: ubuntu-latest
     defaults:
       run:
