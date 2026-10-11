@@ -1,4 +1,5 @@
 name: P4 manual dev plan or saved-plan apply
+run-name: P4 ${{ inputs.operation }} approval-${{ inputs.plan_approval_sha256 }}
 on:
   workflow_dispatch:
     inputs:
@@ -21,6 +22,15 @@ on:
       package_base_sha:
         type: string
         description: Available ancestor commit for offline package comparison (plan/apply)
+      plan_approval_package:
+        type: string
+        description: Exact UTF-8 approval package body (plan only; no credentials)
+      plan_approval_sha256:
+        type: string
+        description: Explicitly approved full package SHA-256 (plan only)
+      plan_approval_expires_at:
+        type: string
+        description: Exact package deadline in UTC with Z or +00:00 (plan only)
 permissions:
   contents: read
 concurrency:
@@ -41,12 +51,50 @@ jobs:
     environment: dev
     runs-on: ubuntu-latest
     timeout-minutes: 55
+    env:
+      P4_PLAN_APPROVAL_PACKAGE: ${{ inputs.plan_approval_package }}
+      P4_PLAN_APPROVAL_SHA256: ${{ inputs.plan_approval_sha256 }}
+      P4_PLAN_APPROVAL_EXPIRES_AT: ${{ inputs.plan_approval_expires_at }}
     permissions:
       contents: read
       actions: read
       deployments: read
       id-token: write
     steps:
+      - name: Check absolute approval deadline at job start
+        if: inputs.operation == 'plan'
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, re, time
+          from pathlib import Path
+          from datetime import datetime, timezone
+          status = "refused"
+          try:
+              raw = os.environ["P4_PLAN_APPROVAL_PACKAGE"]
+              sha = os.environ["P4_PLAN_APPROVAL_SHA256"]
+              start = "<!-- P4_PLAN_AUTHORIZATION_START -->\n```json\n"
+              end = "\n```\n<!-- P4_PLAN_AUTHORIZATION_END -->"
+              if (not re.fullmatch(r"[0-9a-f]{64}", sha) or
+                  hashlib.sha256(raw.encode()).hexdigest() != sha or
+                  raw.count(start) != 1 or raw.count(end) != 1):
+                  raise ValueError()
+              expiry = json.loads(raw.split(start)[1].split(end)[0])["expires_at_utc"]
+              if (expiry != os.environ["P4_PLAN_APPROVAL_EXPIRES_AT"] or
+                  not re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:Z|\+00:00)", expiry)):
+                  raise ValueError()
+              if datetime.now(timezone.utc) >= datetime.fromisoformat(expiry.replace("Z", "+00:00")):
+                  raise ValueError()
+              with open(os.environ["GITHUB_ENV"], "a") as stream:
+                  stream.write(f"P4_PLAN_JOB_STARTED_MONOTONIC={time.monotonic()}\n")
+              status = "passed"
+          except Exception:
+              raise SystemExit("PlanApprovalJobStartRefused") from None
+          finally:
+              path = Path(os.environ["RUNNER_TEMP"]) / "p4-plan-approval-job-start.private.json"
+              with path.open("x") as stream:
+                  os.chmod(path, 0o600)
+                  json.dump({"status": status, "utc": datetime.now(timezone.utc).isoformat()}, stream)
+          PY
       - name: Require explicit main deployment
         env:
           P4_REF: ${{ github.ref }}
@@ -80,6 +128,17 @@ jobs:
           P4_PACKAGE_SHA256: ${{ inputs.package_sha256 }}
           GH_TOKEN: ${{ github.token }}
         run: uv run --locked python skills/p4/ci_deploy.py
+      - name: Preserve safe authorization journal even on failure
+        if: always() && inputs.operation == 'plan'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: plan-authorization-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            .p4-artifacts/plan-authorization-${{ github.run_id }}-${{ github.run_attempt }}/*.private.json
+            ${{ runner.temp }}/p4-plan-approval-job-start.private.json
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 30
   upload_existing:
     if: inputs.operation == 'upload-existing' && startsWith(inputs.upload_runner_label, 'p4-upload-existing-')
     environment: dev

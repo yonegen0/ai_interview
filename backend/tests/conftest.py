@@ -14,6 +14,15 @@ from interview_backend.bootstrap import build_runtime
 
 
 @pytest.fixture(autouse=True)
+def plan_process_state(monkeypatch):
+    """Isolate plan authorization state without changing the offline API boundary."""
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[1] / "skills/p4"))
+    import plan_authorization
+
+    monkeypatch.setattr(plan_authorization, "CURRENT", None)
+
+
+@pytest.fixture(autouse=True)
 def offline_boundary(request, monkeypatch):
     if request.node.get_closest_marker("dynamodb") or request.node.get_closest_marker("aws_e2e"):
         return

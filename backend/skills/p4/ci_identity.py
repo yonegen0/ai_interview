@@ -4,8 +4,11 @@ import base64
 import json
 import os
 import re
+from datetime import datetime
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
+
+from plan_authorization import active_guard
 
 from interview_backend.deployment import (
     DeploymentError,
@@ -56,6 +59,16 @@ def assume(role, account, region, *, expected_subject):
         raise DeploymentError("InvalidCiRole")
     if os.environ.get("GITHUB_ACTIONS") != "true":
         raise DeploymentError("GitHubOidcRequired")
+    guard = active_guard()
+    if guard and (
+        role not in {"plan", "artifact"}
+        or account != guard.package["account_id"]
+        or region != guard.package["region"]
+        or expected_subject != guard.package["oidc_subject"]
+    ):
+        error = DeploymentError("PlanAuthenticationScopeMismatch")
+        guard.fail(error)
+        raise error
     from boto3 import Session
     from botocore import UNSIGNED
     from botocore.config import Config
@@ -71,11 +84,19 @@ def assume(role, account, region, *, expected_subject):
             urlunsplit(url._replace(query=urlencode(query))),
             headers={"Authorization": "Bearer " + os.environ["ACTIONS_ID_TOKEN_REQUEST_TOKEN"]},
         )
-        with build_opener(NoRedirect()).open(request, timeout=15) as response:
-            token = json.loads(response.read(65537))["value"]
+
+        def request_token():
+            with build_opener(NoRedirect()).open(request, timeout=15) as response:
+                raw = response.read(65537)
+                if len(raw) > 65536:
+                    raise ValueError
+                return json.loads(raw)["value"]
+
+        token = guard.authenticate("oidc", role, request_token) if guard else request_token()
         validated_claims(token, expected_subject, os.environ)
         sts = Session(region_name=region).client(
             "sts",
+            endpoint_url=f"https://sts.{region}.amazonaws.com",
             config=Config(
                 signature_version=UNSIGNED,
                 retries={"total_max_attempts": 1},
@@ -86,12 +107,40 @@ def assume(role, account, region, *, expected_subject):
         run_id = os.environ.get("GITHUB_RUN_ID", "")
         if not re.fullmatch(r"[0-9]+", run_id):
             raise ValueError
-        response = sts.assume_role_with_web_identity(
-            RoleArn=f"arn:aws:iam::{account}:role/ai-interview-ci-{role}",
-            RoleSessionName=f"p4-{run_id}-{role}",
-            WebIdentityToken=token,
-            DurationSeconds=3600,
-        )["Credentials"]
+
+        def request_credentials():
+            response = sts.assume_role_with_web_identity(
+                RoleArn=f"arn:aws:iam::{account}:role/ai-interview-ci-{role}",
+                RoleSessionName=f"p4-{run_id}-{role}",
+                WebIdentityToken=token,
+                DurationSeconds=3600,
+            )
+            if guard:
+                guard.record(
+                    "sts-response",
+                    role=role,
+                    request_id=response.get("ResponseMetadata", {}).get("RequestId"),
+                )
+                expected_arn = (
+                    f"arn:aws:sts::{account}:assumed-role/ai-interview-ci-{role}/p4-{run_id}-{role}"
+                )
+                credentials = response["Credentials"]
+                if (
+                    response.get("AssumedRoleUser", {}).get("Arn") != expected_arn
+                    or not all(
+                        credentials.get(key)
+                        for key in ("AccessKeyId", "SecretAccessKey", "SessionToken")
+                    )
+                    or not isinstance(credentials.get("Expiration"), datetime)
+                    or credentials["Expiration"].tzinfo is None
+                    or credentials["Expiration"] <= guard.clock()
+                ):
+                    raise DeploymentError("PlanAuthenticationScopeMismatch")
+            return response["Credentials"]
+
+        response = (
+            guard.authenticate("sts", role, request_credentials) if guard else request_credentials()
+        )
         os.environ.update(
             {
                 "AWS_ACCESS_KEY_ID": response["AccessKeyId"],
@@ -101,6 +150,13 @@ def assume(role, account, region, *, expected_subject):
                 "AWS_DEFAULT_REGION": region,
             }
         )
-    except Exception:
+        if guard:
+            guard.check("caller-identity", 25)
+            return guard.call(
+                "caller-identity", lambda: checked_session(account, region, environment=os.environ)
+            )
+        return checked_session(account, region)
+    except Exception as error:
+        if guard:
+            guard.fail(error)
         raise DeploymentError("OidcAuthenticationFailed") from None
-    return checked_session(account, region)

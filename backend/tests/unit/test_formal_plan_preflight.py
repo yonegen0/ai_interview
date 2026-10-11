@@ -9,6 +9,8 @@ import pytest
 from botocore.exceptions import ClientError
 from test_p4_artifact_inputs import valid_inputs
 from test_p4_tools import tool
+from test_plan_authorization import environment as approval_environment
+from test_plan_authorization import install_transport_approval
 
 
 @pytest.fixture(autouse=True)
@@ -169,6 +171,7 @@ def test_ci_plan_checks_state_before_upload_and_never_retries(monkeypatch, tmp_p
     )
     monkeypatch.setenv("GITHUB_RUN_ID", "123")
     monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "1")
+    install_transport_approval(monkeypatch)
 
     def state(*args):
         counts["state"] += 1
@@ -293,6 +296,8 @@ def test_ci_preflight_requires_closed_configuration_without_artifact_override(mo
         with pytest.raises(ValueError, match="ClosedInitialDeploymentRequired"):
             module.preflight(environment)
     else:
+        approval, _ = approval_environment(values)
+        environment.update(approval)
         assert module.preflight(environment)[3] == values
 
 

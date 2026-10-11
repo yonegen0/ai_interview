@@ -8,6 +8,7 @@ from types import SimpleNamespace
 
 import pytest
 from test_p4_tools import tool
+from test_plan_authorization import install_transport_approval
 
 
 @pytest.fixture
@@ -183,6 +184,7 @@ def test_ci_plan_transport_commits_envelope_last(tools_path, monkeypatch, tmp_pa
     monkeypatch.setenv("P4_PACKAGE_SHA256", __import__("hashlib").sha256(b"same-zip").hexdigest())
     monkeypatch.setenv("GITHUB_RUN_ID", "1")
     monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "1")
+    install_transport_approval(monkeypatch)
     uploads = []
 
     def put(s3, bucket, key, body):
@@ -384,6 +386,7 @@ def test_plan_to_apply_transport(tools_path, monkeypatch, tmp_path, tamper):
         "P4_PLAN_RUN_ID": "1",
     }.items():
         monkeypatch.setenv(key, value)
+    install_transport_approval(monkeypatch, config)
     assert module.main() == 0
     if tamper == "plan":
         objects["plans/1/1/dev.tfplan"] = b"altered"
@@ -394,6 +397,9 @@ def test_plan_to_apply_transport(tools_path, monkeypatch, tmp_path, tamper):
         envelope[tamper] = "other"
         objects["plans/1/1/envelope.json"] = json.dumps(envelope).encode()
     monkeypatch.setenv("P4_OPERATION", "apply")
+    import plan_authorization
+
+    monkeypatch.setattr(plan_authorization, "CURRENT", None)  # A separate apply workflow process.
     monkeypatch.setenv("GITHUB_RUN_ID", "2")
     assert module.main() == (1 if tamper else 0)
     assert operations == (["plan"] if tamper else ["plan", "apply"])
