@@ -516,6 +516,55 @@ def test_full_plan_apply_and_replay_is_blocked(harness):
     assert len([args for _, args in h.calls if args[0] == "apply"]) == 1
 
 
+@pytest.mark.parametrize("stage", ["snapshot", "journal", "descriptor"])
+def test_apply_rechecks_approval_after_readback_and_journal(harness, monkeypatch, stage):
+    h = harness
+    plan(h)
+    path = apply_request(h)
+    expiry = datetime.fromisoformat(json.loads(path.read_bytes())["expires_at"])
+    clock = [expiry - timedelta(seconds=10)]
+
+    class Clock(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return clock[0]
+
+    monkeypatch.setattr(h.contract, "datetime", Clock)
+    if stage in {"snapshot", "descriptor"}:
+        original = h.reader.snapshot
+
+        def snapshot():
+            if stage == "snapshot":
+                clock[0] = expiry + timedelta(seconds=1)
+            else:
+                value = json.loads(path.read_bytes())
+                value["expires_at"] = (expiry + timedelta(minutes=1)).isoformat()
+                path.write_bytes(h.contract.encoded(value))
+            return original()
+
+        monkeypatch.setattr(h.reader, "snapshot", snapshot)
+    else:
+        original = h.runner.write_json
+
+        def write_json(target, value):
+            original(target, value)
+            if target.name == "apply-started.private.json":
+                clock[0] = expiry + timedelta(seconds=1)
+
+        monkeypatch.setattr(h.runner, "write_json", write_json)
+    with pytest.raises(ValueError):
+        apply(h, path)
+    assert not any(args[0] == "apply" for _, args in h.calls)
+    attempts = list(
+        (h.private / "bootstrap-maintenance-ledger").rglob("apply-started.private.json")
+    )
+    assert len(attempts) == (1 if stage == "journal" else 0)
+    if stage == "journal":
+        with pytest.raises(ValueError):
+            apply(h, path)
+        assert not any(args[0] == "apply" for _, args in h.calls)
+
+
 @pytest.mark.parametrize(
     "failure",
     [
