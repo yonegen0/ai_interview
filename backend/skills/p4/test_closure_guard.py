@@ -146,7 +146,7 @@ def audit_plan(review, snapshot, manifest):
         if (
             change.get("before") != before[address]
             or change.get("replace_paths")
-            or unknown(change.get("after_unknown"))
+            or unknown(change.get("after_unknown", {}))
             or change.get("actions") != (["delete"] if address in addresses else ["no-op"])
             or address not in addresses
             and change.get("after") != before[address]
@@ -159,7 +159,7 @@ def audit_plan(review, snapshot, manifest):
     if (
         set(output_changes) != {"manifest"}
         or output_changes["manifest"].get("before") != manifest
-        or unknown(output_changes["manifest"].get("after_unknown"))
+        or unknown(output_changes["manifest"].get("after_unknown", {}))
     ):
         raise ValueError("ExactTestManifestOutputAuditRequired")
     if not isinstance(after, dict):
