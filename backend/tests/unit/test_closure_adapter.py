@@ -160,6 +160,34 @@ def test_whitelist_deviation_stops(bad):
 
 
 @pytest.mark.parametrize("mapping", ["worker", "streams"])
+@pytest.mark.parametrize("mask", [None, 0, 1, 0.0, "false"])
+def test_computed_refresh_rejects_malformed_unknown_mask(mapping, mask):
+    module = tool("closure_adapter")
+    approval, _, _, _, _, state, review = fixture(module)
+    address = "module.service.aws_lambda_event_source_mapping." + mapping
+    entry = next(row for row in review["resource_changes"] if row["address"] == address)
+    attrs = module.state_instances(state)[address]
+    attrs["last_modified"] = "old"
+    refreshed = deepcopy(attrs) | {"last_modified": "new"}
+    review["resource_drift"] = [
+        {
+            "address": address,
+            "type": "aws_lambda_event_source_mapping",
+            "change": {
+                "actions": ["update"],
+                "before": deepcopy(attrs),
+                "after": refreshed,
+                "after_unknown": {"last_modified": mask},
+            },
+        }
+    ]
+    entry["change"]["before"] = refreshed
+    entry["change"]["after"] = refreshed | {"enabled": False}
+    with pytest.raises(ValueError, match="PlanDriftOrDeferredChange"):
+        module.audit_plan(review, state, approval["validation_alarms"])
+
+
+@pytest.mark.parametrize("mapping", ["worker", "streams"])
 @pytest.mark.parametrize(
     "metadata", ["last_modified", "last_processing_result", "state_transition_reason"]
 )

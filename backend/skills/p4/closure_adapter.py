@@ -103,7 +103,9 @@ def unknown(value):
         return any(unknown(v) for v in value.values())
     if isinstance(value, list):
         return any(unknown(v) for v in value)
-    return value is True
+    # Terraform unknown masks have boolean leaves. Malformed scalars must
+    # not become known values through Python's numeric/boolean equivalence.
+    return value is not False
 
 
 def audit_plan(review, state, alarm_addresses):
