@@ -138,6 +138,7 @@ def test_credential_free_independent_audit_network_filter():
 
 
 def test_static_role_cache_and_credential_budget(monkeypatch):
+    monkeypatch.setattr(os, "environ", os.environ.copy())
     from datetime import timedelta
     from types import SimpleNamespace
 
@@ -165,3 +166,12 @@ def test_static_role_cache_and_credential_budget(monkeypatch):
     with pytest.raises(ValueError, match="CredentialsExpiring"):
         module.session("plan", "835384817629", "ap-northeast-1", 3600)
     assert len(calls) == 1
+
+
+def test_static_role_cache_restores_credential_environment(monkeypatch):
+    for key in ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN"):
+        monkeypatch.delenv(key, raising=False)
+    before = dict(os.environ)
+    with monkeypatch.context() as isolated:
+        test_static_role_cache_and_credential_budget(isolated)
+    assert dict(os.environ) == before
