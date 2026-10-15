@@ -18,7 +18,7 @@ jobs:
   offline:
     uses: ./.github/workflows/p4-static.yml
     with:
-      package_base_sha: 4a31727a7c2eb361c0e9609bf4e51be00524547a
+      package_base_sha: 2c6bf56d8de898554385c3cbc41e8fd1c2270a00
   plan:
     needs: [backend, offline]
     environment: dev
