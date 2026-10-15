@@ -396,6 +396,10 @@ class Guard:
         """
         terraform = command[:1] == ["terraform"]
         kind = command[1] if terraform and len(command) > 1 else "build"
+        if self.environment.get("P4_CLOUD_ACTIVE") == "true":
+            import cloud_diagnostics
+
+            cloud_diagnostics.process_kind(kind)
         budget = BUDGETS.get(kind, 60)
         self.check("process-" + kind, budget + CLEANUP_SECONDS)
         if self.environment.get("P4_COMPOUND_ACTIVE") == "true":

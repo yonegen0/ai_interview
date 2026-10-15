@@ -152,6 +152,12 @@ REASONS = frozenset(
 )
 CURRENT = "entry"
 REPORTED = False
+CURRENT_COMMAND = "unknown"
+
+
+def process_kind(kind):
+    global CURRENT_COMMAND
+    CURRENT_COMMAND = kind if kind in {"version", "init", "plan", "show", "build"} else "unknown"
 
 
 def checkpoint(stage):
@@ -192,6 +198,20 @@ def emit(error):
         except BaseException:  # noqa: BLE001 - never expose a hostile exception property
             reason = "ExternalOrScopeFailure"
         stage = CURRENT if CURRENT in STAGES else "entry"
+        # Separate artifact file avoids dependence on log/annotation masking.
+        # Saving can never turn the enclosing failure into success.
+        import os
+
+        if os.environ.get("P4_CLOUD_FAILURE_JSON") == "true":
+            try:
+                from cloud_failure_json import persist
+
+                persist(stage, reason, CURRENT_COMMAND, error)
+            except BaseException:  # noqa: BLE001 - suppress private exception chains
+                try:
+                    print("P4FailureDiagnosticUnavailable", flush=True)
+                except BaseException:  # noqa: BLE001, S110 - broken output cannot leak chaining
+                    pass
         try:
             print(
                 f"::error title=P4_STAGE2_DIAGNOSTIC::P4D1|stage={stage}|reason={reason}",
