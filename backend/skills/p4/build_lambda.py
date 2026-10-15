@@ -127,10 +127,11 @@ def _build(source, dependencies, lock, output, code_sha):
         files[name] = record.getvalue().encode("utf-8")
     STAGE.set("archive")
     output.parent.mkdir(parents=True, exist_ok=True)
-    with zipfile.ZipFile(output, "x", zipfile.ZIP_DEFLATED) as archive:
+    with zipfile.ZipFile(output, "x", zipfile.ZIP_STORED) as archive:
         for name, data in sorted(files.items()):
             info = zipfile.ZipInfo(name, (2020, 1, 1, 0, 0, 0))
-            info.compress_type = zipfile.ZIP_DEFLATED
+            info.create_system = 3  # Fixed UNIX metadata on every build host.
+            info.compress_type = zipfile.ZIP_STORED
             info.external_attr = 0o100644 << 16
             archive.writestr(info, data)
     digest = hashlib.sha256(output.read_bytes()).digest()

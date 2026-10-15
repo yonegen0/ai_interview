@@ -1,0 +1,99 @@
+name: P4 hosted Linux Stage2 Plan only
+run-name: P4 cloud plan approval-${{ inputs.cloud_approval_sha256 }}
+on:
+  workflow_dispatch:
+    inputs:
+      cloud_approval_sha256:
+        type: string
+        required: true
+        description: SHA256 of the explicitly approved immutable cloud parent JSON
+permissions:
+  contents: read
+concurrency:
+  group: p4-dev-deployment
+  cancel-in-progress: false
+jobs:
+  backend:
+    uses: ./.github/workflows/backend.yml
+  offline:
+    uses: ./.github/workflows/p4-static.yml
+    with:
+      package_base_sha: 4a31727a7c2eb361c0e9609bf4e51be00524547a
+  plan:
+    needs: [backend, offline]
+    environment: dev
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    permissions:
+      contents: read
+      actions: read
+      deployments: read
+      id-token: write
+    env:
+      P4_PLAN_APPROVAL_PACKAGE: ${{ secrets.P4_PLAN_APPROVAL_PACKAGE }}
+      P4_CLOUD_PARENT_SHA256: ${{ inputs.cloud_approval_sha256 }}
+      P4_PLAN_EVIDENCE_CERT_PEM: ${{ secrets.P4_PLAN_EVIDENCE_CERT_PEM }}
+      P4_PLAN_EVIDENCE_CERT_SHA256: b73a761c3001efa2b2665e7225688106338e5cdc984b0dbd0844065ffcdbff0b
+    steps:
+      - name: Bind absolute parent deadline and job clock before setup
+        run: |
+          umask 077
+          python3 - <<'PY'
+          import hashlib,json,os,time
+          from datetime import datetime,timezone,timedelta
+          raw=os.environ['P4_PLAN_APPROVAL_PACKAGE']
+          if hashlib.sha256(raw.encode()).hexdigest()!=os.environ['P4_CLOUD_PARENT_SHA256']:
+              raise SystemExit('CloudParentHashMismatch')
+          p=json.loads(raw)
+          issued=datetime.fromisoformat(p['issued_at_utc'].replace('Z','+00:00'))
+          expiry=datetime.fromisoformat(p['expires_at_utc'].replace('Z','+00:00'))
+          if not (p['execution_ready'] is True and p['apply'] is False and expiry-issued==timedelta(hours=72) and issued<=datetime.now(timezone.utc)<expiry-timedelta(hours=1)):
+              raise SystemExit('CloudParentExpiredOrRefused')
+          with open(os.environ['GITHUB_ENV'],'a') as stream:
+              stream.write(f'P4_PLAN_JOB_STARTED_MONOTONIC={time.monotonic()}\n')
+          PY
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: '0.11.8'
+          python-version: '3.14'
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
+        with:
+          terraform_version: 1.14.9
+          terraform_wrapper: false
+      - name: Install locked dependencies
+        working-directory: backend
+        run: uv sync --locked
+      - name: Plan-only entry point
+        working-directory: backend
+        env:
+          AWS_DEV_ACCOUNT_ID: ${{ secrets.AWS_DEV_ACCOUNT_ID }}
+          AWS_REGION: ap-northeast-1
+          AWS_EC2_METADATA_DISABLED: 'true'
+          P4_OIDC_SUBJECT: ${{ secrets.P4_OIDC_SUBJECT }}
+          P4_AWS_EXECUTION_READY: ${{ vars.P4_AWS_EXECUTION_READY }}
+          P4_DEPLOY_INPUTS: ${{ secrets.P4_DEPLOY_INPUTS }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          umask 077
+          uv run --locked python skills/p4/cloud_ci.py
+      - name: Encrypt journal with existing public recipient
+        if: always()
+        working-directory: backend
+        run: |
+          umask 077
+          uv run --locked python skills/p4/cloud_evidence.py
+      - name: Publish only whitelisted result and ciphertext
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: cloud-plan-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/p4-cloud-result/result.json
+            ${{ runner.temp }}/p4-public-evidence/summary.json
+            ${{ runner.temp }}/p4-public-evidence/journal.cms
+          if-no-files-found: error
+          retention-days: 30

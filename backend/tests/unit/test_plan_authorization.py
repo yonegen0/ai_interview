@@ -350,6 +350,7 @@ def test_terraform_deadline_interrupts_once_without_force_unlock_or_retry(
     import plan_authorization as module
 
     instance, _, _, clock = guard(tmp_path)
+    monkeypatch.setattr(module, "seal", lambda *a, **k: {"status": "synthetic-encryption"})
     commands, signals = [], []
     calls = 0
 

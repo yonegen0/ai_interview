@@ -1,0 +1,59 @@
+{
+  "artifact_sha256": "cc067d535699792204e4ec038b45a19b0d018536355a49b4e0f8ce4377a8ef6d",
+  "base_commit": "4a31727a7c2eb361c0e9609bf4e51be00524547a",
+  "bootstrap_inputs_sha256": "54529b82b9ff628c3eff6b029682ff93c5603e8a588d182dab8fa6ec77ab63fb",
+  "bootstrap_state_identity": {
+    "lineage": "0a73ff6c-6e01-4a57-a0fa-32d4691dba5d",
+    "serial": 2,
+    "sha256": "89a0bb6abe39e65add0102905c8328a066c73036a7eb938b3a0a3a56890eb43b",
+    "version_id": "Rs_SO2UQLiC3t4NLT8BA2FxR366NP.06"
+  },
+  "configuration_contract": {
+    "baseline_artifact_inputs": {
+      "artifact_bucket": "ai-interview-artifacts-835384817629-ap-northeast-1",
+      "artifact_key": "lambda/1fe1647ee42631f0c7a6f8a0b397bf8103313325/coachingv2-20261008-f4bb5d72b900457aaf6babc7cbacc9ef/1/app.zip",
+      "artifact_sha256_base64": "pU2XKMSFnuV4bOeCcpmRGuUzUtobcobb1AjPjqS4hWs=",
+      "artifact_version": "V7Qv6YPMw74dbFGuyQu6uFVi.rixVWkH"
+    },
+    "baseline_manifest_schema_version": 3,
+    "manifest_configuration_sha256": "256bd027130a9ee661eb76fd8ded098bbfb0e2265071391551c2bd1085c95638",
+    "normalized_configuration_sha256": "6ddcf0bd425aa512fe9aa3143755bfd89c28bc9348ce54c53a7f94aa2d94c38d",
+    "normalizer_source_sha256": "a75c8e60d6622b28f055b6aa10a178e7a58590e240bbe299ccb901475b398f26",
+    "raw_configuration_sha256": "c9de80680451996c15d9a342fc1ef8e700602a749642733b3bf6c4922e2befb2",
+    "readback_configuration_sha256": "1384a3f0e12bd3148b096cd8bd9014dfcacb8f05c1e0ea558e21a8015fcecc72",
+    "revision": 1
+  },
+  "dev_provider_lock_sha256": "a348119995003cae3582852050dbb7dca51f1cfe54c560adc45d19c288e92570",
+  "dev_state_identity": {
+    "lineage": "bd5b3f23-d560-a915-390c-66abb53aff77",
+    "serial": 12,
+    "sha256": "490df5dae032fadbce564fa3998a86d9d06c383d71975f670493a969bca9570d",
+    "version_id": "MshE0uaoXgEaaVCNA7l5f9U1f_NpHyvL"
+  },
+  "historical_artifact_binding": {
+    "artifact": {
+      "bucket": "ai-interview-artifacts-835384817629-ap-northeast-1",
+      "key": "lambda/1fe1647ee42631f0c7a6f8a0b397bf8103313325/coachingv2-20261008-f4bb5d72b900457aaf6babc7cbacc9ef/1/app.zip",
+      "sha256_base64": "pU2XKMSFnuV4bOeCcpmRGuUzUtobcobb1AjPjqS4hWs=",
+      "version": "V7Qv6YPMw74dbFGuyQu6uFVi.rixVWkH"
+    },
+    "lambda_functions": [
+      "ai-interview-dev-admin",
+      "ai-interview-dev-api",
+      "ai-interview-dev-dispatcher",
+      "ai-interview-dev-worker"
+    ],
+    "normalization": "strict-base64-32-bytes-to-lowercase-hex-v1",
+    "schema": 1,
+    "sha256": "a54d9728c4859ee5786ce7827299911ae53352da1b7286dbd408cf8ea4b8856b",
+    "size": 19084121,
+    "state_identity": {
+      "lineage": "bd5b3f23-d560-a915-390c-66abb53aff77",
+      "serial": 12,
+      "sha256": "490df5dae032fadbce564fa3998a86d9d06c383d71975f670493a969bca9570d",
+      "version_id": "MshE0uaoXgEaaVCNA7l5f9U1f_NpHyvL"
+    }
+  },
+  "historical_artifact_sha256": "a54d9728c4859ee5786ce7827299911ae53352da1b7286dbd408cf8ea4b8856b",
+  "recipient_sha256": "b73a761c3001efa2b2665e7225688106338e5cdc984b0dbd0844065ffcdbff0b"
+}
