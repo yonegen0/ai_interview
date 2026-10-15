@@ -199,6 +199,10 @@ def get(s3, bucket, key, *, version=None):
 
 
 def role_session(role, account, region):
+    if os.environ.get("P4_CLOUD_ACTIVE") == "true":
+        from cloud_ci import session
+
+        return session(role, account, region)
     return assume(role, account, region, expected_subject=os.environ["P4_OIDC_SUBJECT"])
 
 
@@ -329,6 +333,10 @@ def main():
             guard = initialize(
                 os.environ, PROJECT / ".p4-artifacts" / f"plan-authorization-{run_id}-{attempt}"
             )
+        if os.environ.get("P4_CLOUD_ACTIVE") == "true":
+            from cloud_ci import before_plan
+
+            before_plan(guard)
         sha = checked_git(PROJECT, os.environ)
         directory = PROJECT / ".p4-artifacts" / f"ci-{run_id}-{attempt}"
         directory.mkdir(parents=True, exist_ok=False)
@@ -400,6 +408,10 @@ def main():
             put(s3, bucket, f"{plan_prefix}/envelope.json", json.dumps(envelope).encode())
             guard.check("plan-transport-completed", 0)
             guard.record("plan-transport-completed")
+            if os.environ.get("P4_CLOUD_ACTIVE") == "true":
+                from cloud_ci import after_plan
+
+                after_plan(guard, directory, envelope)
             print(json.dumps({"status": "planned", "run_id": run_id, "run_attempt": attempt}))
         else:
             source_run = os.environ["P4_PLAN_RUN_ID"]

@@ -162,9 +162,12 @@ def assume(role, account, region, *, expected_subject):
         )
         if guard:
             guard.check("caller-identity", 25)
-            return guard.call(
+            session = guard.call(
                 "caller-identity", lambda: checked_session(account, region, environment=os.environ)
             )
+            if os.environ.get("P4_CLOUD_ACTIVE") == "true":
+                session.p4_expiration = response["Expiration"]
+            return session
         return checked_session(account, region)
     except Exception as error:
         if guard:

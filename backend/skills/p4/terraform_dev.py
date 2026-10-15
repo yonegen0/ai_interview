@@ -242,7 +242,12 @@ def execute(operation, input_path, directory, approved_hash=None, *, progress=No
         raise DeploymentError("TerraformVersionMismatch")
     if guard:
         guard.check("terraform-identity", 25)
-    session = checked_session(account, region, environment=env)
+    if os.environ.get("P4_CLOUD_ACTIVE") == "true":
+        from cloud_ci import session as cloud_session
+
+        session = cloud_session("plan", account, region, required_seconds=1920)
+    else:
+        session = checked_session(account, region, environment=env)
     env = credential_environment(session, env)
     from deployment_guards import audit_retention, read_state_snapshot
 
@@ -277,16 +282,27 @@ def execute(operation, input_path, directory, approved_hash=None, *, progress=No
             '-backend-config=allowed_account_ids=["' + account + '"]',
             "-backend-config=encrypt=true",
             "-backend-config=use_lockfile=true",
+            "-backend-config=max_retries=0",
         ],
         cwd=root,
         env=env,
     )
     if guard:
         guard.check("terraform-identity", 25)
-    checked_session(account, region, environment=env)
+    if os.environ.get("P4_CLOUD_ACTIVE") == "true":
+        cloud_session("plan", account, region, required_seconds=1500)
+    else:
+        checked_session(account, region, environment=env)
     if operation == "plan":
         run(
-            ["terraform", "plan", "-input=false", "-lock-timeout=60s", f"-out={plan}"],
+            [
+                "terraform",
+                "plan",
+                "-input=false",
+                "-lock-timeout=0s",
+                "-parallelism=2",
+                f"-out={plan}",
+            ],
             cwd=root,
             env=env,
         )

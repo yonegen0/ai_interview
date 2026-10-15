@@ -16,7 +16,10 @@ import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+from approval_validity import validate_window
 from plan_evidence import certificate_der, validate_recipient
+from plan_process_diagnostics import safe_exception_type, summarize_exception, summarize_failure
+from process_output_evidence import seal
 
 from interview_backend.deployment import DeploymentError
 
@@ -53,6 +56,10 @@ def session_policy(expiry):
     Normal unlock must finish before expiry. Unknown locks are never repaired.
     """
     utc(expiry)
+    if os.environ.get("P4_CLOUD_ACTIVE") == "true":
+        from cloud_ci import policy
+
+        return policy(expiry)
     return {
         "Version": "2012-10-17",
         "Statement": [
@@ -94,6 +101,8 @@ def load(environment):
 
         package = json.loads(raw.split(START)[1].split(END)[0], object_pairs_hook=unique)
         expiry = utc(package["expires_at_utc"])
+        if "operator_execution" in package:
+            validate_window(package)
         if environment.get("P4_PLAN_APPROVAL_EXPIRES_AT") != package["expires_at_utc"]:
             raise DeploymentError("PlanApprovalDeadlineMismatch")
         integer_fields = ("schema_version", "duration_seconds", "s3_put_limit", "cleanup_seconds")
@@ -151,12 +160,18 @@ def verify_run_history(package_hash, environment, github_get):
     Deleting/renaming approval run records is forbidden by the approval scope.
     """
     title = f"P4 plan approval-{package_hash}"
+    workflow = (
+        "p4-compound.yml" if environment.get("P4_COMPOUND_ACTIVE") == "true" else "p4-deploy.yml"
+    )
+    if environment.get("P4_CLOUD_ACTIVE") == "true":
+        title = f"P4 cloud plan approval-{environment['P4_CLOUD_PARENT_SHA256']}"
+        workflow = "p4-cloud-plan.yml"
     matches = []
     total = None
     seen = set()
     for page in range(1, 11):
         data = github_get(
-            f"actions/workflows/p4-deploy.yml/runs?event=workflow_dispatch&per_page=100&page={page}",
+            f"actions/workflows/{workflow}/runs?event=workflow_dispatch&per_page=100&page={page}",
             environment,
         )
         if total is None:
@@ -183,7 +198,7 @@ def verify_run_history(package_hash, environment, github_get):
         or first.get("head_sha") != environment["GITHUB_SHA"]
         or first.get("head_branch") != "main"
         or first.get("event") != "workflow_dispatch"
-        or first.get("path") != ".github/workflows/p4-deploy.yml"
+        or first.get("path") != ".github/workflows/" + workflow
         or first.get("repository", {}).get("full_name") != REPOSITORY
     ):
         raise DeploymentError("PlanApprovalAlreadyConsumed")
@@ -213,6 +228,10 @@ class Guard:
         self.counts = {kind: {role: 0 for role in LIMITS} for kind in ("oidc", "sts")}
         self.puts = set()
         self.plan_started = False
+        if "operator_execution" in self.package:
+            issued, _ = validate_window(self.package)
+            if self.started < issued:
+                raise DeploymentError("PlanApprovalNotYetIssued")
         self.directory = Path(directory)
         # Exclusive namespace: process restarts cannot reset counters.
         self.directory.mkdir(parents=True, exist_ok=False, mode=0o700)
@@ -282,6 +301,8 @@ class Guard:
                 "PlanS3ScopeOrCountMismatch",
                 "PlanProcessDeadlineStop",
                 "PlanProcessFailed",
+                "PlanProcessDiagnosticFailed",
+                "PlanProcessJournalFailed",
                 "PlanApprovalAlreadyConsumed",
                 "ApprovalRunHistoryIncomplete",
                 "ApprovalRunHistoryChanged",
@@ -290,7 +311,7 @@ class Guard:
             }
             self.record(
                 "stopped-outcome-not-success",
-                exception_type=type(error).__name__,
+                exception_type=safe_exception_type(error),
                 reason_code=reason if reason in safe_reasons else "ExternalOrScopeFailure",
             )
 
@@ -377,6 +398,16 @@ class Guard:
         kind = command[1] if terraform and len(command) > 1 else "build"
         budget = BUDGETS.get(kind, 60)
         self.check("process-" + kind, budget + CLEANUP_SECONDS)
+        if self.environment.get("P4_COMPOUND_ACTIVE") == "true":
+            from compound_process import admit
+
+            if (
+                terraform
+                and kind in {"init", "plan"}
+                and (accepted != (0,) or any(type(c) is not int for c in accepted))
+            ):
+                raise DeploymentError("CompoundNonzeroExitAcceptanceForbidden")
+            admit(command, self.directory)
         if kind == "plan":
             if self.plan_started:
                 error = DeploymentError("FormalPlanAlreadyStarted")
@@ -384,45 +415,110 @@ class Guard:
                 raise error
             self.plan_started = True
         self.record("process-started", operation=kind, maximum_seconds=budget)
-        process = subprocess.Popen(
-            command,
-            cwd=cwd,
-            env=env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            start_new_session=True,
-        )
-        started = self.monotonic()
+        process = None
+        phase = "launch"
         try:
+            process = subprocess.Popen(
+                command,
+                cwd=cwd,
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                start_new_session=True,
+            )
+            started = self.monotonic()
+            phase = "wait"
             while True:
                 if self.monotonic() - started >= budget or self.remaining() <= CLEANUP_SECONDS:
                     raise DeploymentError("PlanProcessDeadlineStop")
                 try:
-                    stdout, _ = process.communicate(timeout=1)
+                    stdout, stderr = process.communicate(timeout=1)
                     break
                 except subprocess.TimeoutExpired:
                     continue
+            phase = "diagnostic"
+            self.record("process-exit-observed", operation=kind, returncode=process.returncode)
             if process.returncode not in accepted:
+                try:
+                    diagnostic = summarize_failure(process.returncode, stdout, stderr)
+                except Exception:
+                    raise DeploymentError("PlanProcessDiagnosticFailed") from None
+                evidence = seal(
+                    stdout,
+                    stderr,
+                    getattr(self, "environment", None),
+                    getattr(self, "directory", None),
+                    self.remaining(),
+                )
+                self.record(
+                    "process-failed",
+                    operation=kind,
+                    diagnostics=diagnostic,
+                    encrypted_output_evidence=evidence,
+                )
                 raise DeploymentError("PlanProcessFailed")
+            phase = "admission"
+            if self.environment.get("P4_CLOUD_ACTIVE") == "true":
+                from cloud_process_output import inspect
+
+                inspect(self, kind, stdout, stderr)
             self.check("process-completed", 0)
+            # Even success records the code; raw output never enters the journal.
+            self.record("process-completed", operation=kind, returncode=process.returncode)
+            return stdout
         except BaseException as error:
-            self.fail(error)
-            if process.poll() is None:
-                self.record("graceful-interrupt-requested", operation=kind)
+            journal_failed = False
+            try:
+                self.record(
+                    "process-exception",
+                    operation=kind,
+                    diagnostics=summarize_exception(error, phase),
+                )
+                self.fail(error)
+            except Exception:
+                # A journal error must never bypass interruption or permit retry.
+                self.stopped = True
+                journal_failed = True
+            if process is not None and process.poll() is None:
+                try:
+                    self.record("graceful-interrupt-requested", operation=kind)
+                except Exception:
+                    journal_failed = True
                 process.send_signal(signal.SIGINT)
                 try:
-                    process.communicate(timeout=CLEANUP_SECONDS)
-                    self.record(
-                        "interrupted-process-exited",
-                        operation=kind,
-                        returncode=process.returncode,
-                        lock_state="unverified",
-                    )
+                    stdout, stderr = process.communicate(timeout=CLEANUP_SECONDS)
+                    try:
+                        self.record(
+                            "process-exit-observed", operation=kind, returncode=process.returncode
+                        )
+                        self.record(
+                            "interrupted-process-exited",
+                            operation=kind,
+                            returncode=process.returncode,
+                            lock_state="unverified",
+                        )
+                        self.record(
+                            "process-failed",
+                            operation=kind,
+                            diagnostics=summarize_failure(process.returncode, stdout, stderr),
+                            encrypted_output_evidence=seal(
+                                stdout,
+                                stderr,
+                                getattr(self, "environment", None),
+                                getattr(self, "directory", None),
+                                self.remaining(),
+                            ),
+                        )
+                    except Exception:
+                        journal_failed = True
                 except subprocess.TimeoutExpired:
-                    self.record("process-and-lock-outcome-unknown", operation=kind)
+                    try:
+                        self.record("process-and-lock-outcome-unknown", operation=kind)
+                    except Exception:
+                        journal_failed = True
+            if journal_failed:
+                raise DeploymentError("PlanProcessJournalFailed") from None
             raise
-        self.record("process-completed", operation=kind)
-        return stdout
 
 
 def initialize(environment, directory):
