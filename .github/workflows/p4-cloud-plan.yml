@@ -34,6 +34,7 @@ jobs:
       P4_CLOUD_PARENT_SHA256: ${{ inputs.cloud_approval_sha256 }}
       P4_PLAN_EVIDENCE_CERT_PEM: ${{ secrets.P4_PLAN_EVIDENCE_CERT_PEM }}
       P4_PLAN_EVIDENCE_CERT_SHA256: b73a761c3001efa2b2665e7225688106338e5cdc984b0dbd0844065ffcdbff0b
+      P4_CLOUD_FAILURE_JSON: 'true'
     steps:
       - name: Bind absolute parent deadline and job clock before setup
         run: |
@@ -68,6 +69,7 @@ jobs:
         working-directory: backend
         run: uv sync --locked
       - name: Plan-only entry point
+        id: plan_entry
         working-directory: backend
         env:
           AWS_DEV_ACCOUNT_ID: ${{ secrets.AWS_DEV_ACCOUNT_ID }}
@@ -95,5 +97,13 @@ jobs:
             ${{ runner.temp }}/p4-cloud-result/result.json
             ${{ runner.temp }}/p4-public-evidence/summary.json
             ${{ runner.temp }}/p4-public-evidence/journal.cms
+          if-no-files-found: error
+          retention-days: 30
+      - name: Publish finite failure diagnostic
+        if: always() && steps.plan_entry.outcome == 'failure'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: cloud-plan-diagnostic-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/p4-public-diagnostic/diagnostic.json
           if-no-files-found: error
           retention-days: 30
