@@ -322,7 +322,12 @@ def build_package(directory, sha):
 
 def main():
     guard = None
+    diagnostic = None
     try:
+        if os.environ.get("P4_CLOUD_ACTIVE") == "true":
+            import cloud_diagnostics as diagnostic
+
+            diagnostic.checkpoint("deploy-preflight")
         account, region, operation, configuration = preflight(os.environ)
         run_id, attempt = os.environ["GITHUB_RUN_ID"], os.environ["GITHUB_RUN_ATTEMPT"]
         if not all(re.fullmatch(r"[0-9]+", value) for value in (run_id, attempt)):
@@ -330,6 +335,8 @@ def main():
         if operation == "plan" and attempt != "1":
             raise DeploymentError("PlanFirstAttemptRequired")
         if operation == "plan":
+            if diagnostic:
+                diagnostic.checkpoint("authorization")
             guard = initialize(
                 os.environ, PROJECT / ".p4-artifacts" / f"plan-authorization-{run_id}-{attempt}"
             )
@@ -337,14 +344,22 @@ def main():
             from cloud_ci import before_plan
 
             before_plan(guard)
+        if diagnostic:
+            diagnostic.checkpoint("source-check")
         sha = checked_git(PROJECT, os.environ)
         directory = PROJECT / ".p4-artifacts" / f"ci-{run_id}-{attempt}"
         directory.mkdir(parents=True, exist_ok=False)
         bucket = f"ai-interview-artifacts-{account}-{region}"
         plan_prefix = f"plans/{run_id}/{attempt}"
         if operation == "plan":
+            if diagnostic:
+                diagnostic.checkpoint("state-preflight")
             state_before = plan_state_preflight(account, region)
+            if diagnostic:
+                diagnostic.checkpoint("artifact-build")
             package, info = build_package(directory, sha)
+            if diagnostic:
+                diagnostic.checkpoint("artifact-binding")
             raw_digest = hashlib.sha256(package.read_bytes()).digest()
             if (
                 raw_digest.hex() != os.environ.get("P4_PACKAGE_SHA256")
@@ -353,6 +368,8 @@ def main():
                 raise DeploymentError("ApprovedArtifactDigestMismatch")
             if plan_state_preflight(account, region) != state_before:
                 raise DeploymentError("StateChangedBeforeArtifactUpload")
+            if diagnostic:
+                diagnostic.checkpoint("artifact-upload")
             s3 = s3_client(role_session("artifact", account, region))
             key = f"lambda/{sha}/{run_id}/{attempt}/app.zip"
             version = put(s3, bucket, key, package.read_bytes())
@@ -368,7 +385,11 @@ def main():
             input_path = directory / "inputs.json"
             input_path.write_text(json.dumps(configuration, sort_keys=True), encoding="utf-8")
             role_session("plan", account, region)
+            if diagnostic:
+                diagnostic.checkpoint("terraform-plan")
             result = execute("plan", input_path, directory / "terraform")
+            if diagnostic:
+                diagnostic.checkpoint("plan-transport")
             s3 = s3_client(role_session("artifact", account, region))
             plan_version = put(
                 s3,
@@ -461,7 +482,11 @@ def main():
             )
             print(json.dumps(result))
         return 0
-    except Exception as error:
+    except BaseException as error:
+        if diagnostic:
+            diagnostic.emit(error)
+        elif not isinstance(error, Exception):
+            raise
         if guard:
             guard.fail(error)
         print("P4CiDeploymentFailed", file=sys.stderr)

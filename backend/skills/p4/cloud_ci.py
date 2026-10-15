@@ -15,6 +15,8 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
+import cloud_diagnostics as diagnostic
+
 PARENT = None
 SESSIONS = {}
 READER = None
@@ -92,7 +94,10 @@ def validate_parent(raw, digest, env, tree, now=None):
         "CloudRunIdentityMissing",
     )
     need(
-        p["source_tree"] == tree and p["base_commit"] == "4a31727a7c2eb361c0e9609bf4e51be00524547a",
+        p["source_tree"] == tree
+        and p.get("baseline_base_commit", p["base_commit"])
+        == "4a31727a7c2eb361c0e9609bf4e51be00524547a"
+        and re.fullmatch("[a-f0-9]{40}", p["base_commit"]),
         "CloudSourceMismatch",
     )
     need(
@@ -196,17 +201,21 @@ def policy(expiry):
 
 def prepare(env):
     global PARENT
+    diagnostic.checkpoint("entry")
     need(
         sys.platform == "linux" and env.get("RUNNER_ENVIRONMENT") == "github-hosted",
         "FreshHostedLinuxRequired",
     )
     os.umask(0o077)
+    diagnostic.checkpoint("toolchain")
     from cloud_toolchain import qualify as qualify_toolchain
 
     qualify_toolchain()
+    diagnostic.checkpoint("private-controls")
     from cloud_private import qualify
 
     qualify(env["RUNNER_TEMP"])
+    diagnostic.checkpoint("audit-isolation")
     qualification_env = {
         k: v
         for k, v in env.items()
@@ -223,6 +232,7 @@ def prepare(env):
         timeout=15,
     )
     need(check.returncode == 0, "CloudAuditIsolationUnavailable")
+    diagnostic.checkpoint("checkout")
     root = Path(__file__).resolve().parents[3]
     for part in (root, *root.parents):
         need(not part.is_symlink(), "SourceSymlinkRejected")
@@ -239,6 +249,7 @@ def prepare(env):
     tree = subprocess.check_output(
         ["git", "rev-parse", "HEAD^{tree}"], cwd=root, text=True, timeout=15
     ).strip()
+    diagnostic.checkpoint("parent-binding")
     PARENT = validate_parent(
         env["P4_PLAN_APPROVAL_PACKAGE"], env["P4_CLOUD_PARENT_SHA256"], env, tree
     )
@@ -255,11 +266,28 @@ def prepare(env):
     )
     baseline = json.loads(Path(__file__).with_name("cloud_baseline.json").read_bytes())
     need(canonical(baseline) == PARENT["baseline_sha256"], "CloudBaselineMismatch")
+    need(
+        baseline["base_commit"] == PARENT.get("baseline_base_commit", PARENT["base_commit"]),
+        "CloudBaselineMismatch",
+    )
+    if PARENT["base_commit"] != baseline["base_commit"]:
+        need(
+            subprocess.run(
+                ["git", "merge-base", "--is-ancestor", baseline["base_commit"], "HEAD"],
+                cwd=root,
+                capture_output=True,
+                timeout=15,
+            ).returncode
+            == 0,
+            "ApprovedBaseNotAncestor",
+        )
+    diagnostic.checkpoint("configuration-binding")
     config = json.loads(env["P4_DEPLOY_INPUTS"], object_pairs_hook=unique)
     need(
         canonical(config) == baseline["configuration_contract"]["raw_configuration_sha256"],
         "ExistingSecretConfigurationMismatch",
     )
+    diagnostic.checkpoint("recipient-binding")
     from plan_authorization import BUDGETS, END, LIMITS, START
     from plan_evidence import certificate_der
 
@@ -269,6 +297,7 @@ def prepare(env):
         == PARENT["recipient_sha256"],
         "ExistingRecipientMismatch",
     )
+    diagnostic.checkpoint("descriptor")
     child = {
         "schema_version": 1,
         "operation": "plan",
@@ -386,6 +415,7 @@ class Journal:
 
 def before_plan(guard):
     global READER, BEFORE
+    diagnostic.checkpoint("state-before")
     from cloud_dev_reader import DevReader
     from cloud_read_scope import Scope
 
@@ -413,6 +443,7 @@ def before_plan(guard):
 
 
 def after_plan(guard, directory, envelope):
+    diagnostic.checkpoint("state-after")
     after = READER.snapshot("after")
     independent = READER.snapshot("independent")
     need(after == BEFORE == independent, "StateOrLiveReadbackChanged")
@@ -444,6 +475,7 @@ def after_plan(guard, directory, envelope):
         PYTHONNOUSERSITE="1",
         PYTHONDONTWRITEBYTECODE="1",
     )
+    diagnostic.checkpoint("independent-plan-audit")
     result = subprocess.run(
         [
             sys.executable,
@@ -462,6 +494,7 @@ def after_plan(guard, directory, envelope):
         "IndependentPlanAuditRejected",
     )
     guard.check("cloud-audit-completed", 120)
+    diagnostic.checkpoint("public-receipt")
     receipt = {
         "schema": 1,
         "status": "PLAN_AUDITED_GATE_CLOSURE_PENDING",
@@ -499,11 +532,14 @@ def after_plan(guard, directory, envelope):
 def main():
     try:
         prepare(os.environ)
+        diagnostic.checkpoint("deploy-import")
         from ci_deploy import main as plan
 
         need(plan() == 0, "CloudPlanFailed")
+        diagnostic.checkpoint("complete")
         return 0
-    except Exception:
+    except BaseException as error:
+        diagnostic.emit(error)
         print("P4CloudPlanRefused", file=sys.stderr)
         return 1
 
