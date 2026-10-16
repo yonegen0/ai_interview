@@ -31,5 +31,6 @@ module "service" {
   api_enabled            = var.api_enabled
   worker_ai_environment  = var.worker_ai_environment
   worker_wif_enabled     = var.worker_wif_enabled
+  worker_bedrock_enabled = var.worker_bedrock_enabled
 }
 output "manifest" { value = module.service.manifest }
