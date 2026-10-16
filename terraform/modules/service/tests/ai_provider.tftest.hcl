@@ -14,11 +14,11 @@ variables {
   cors_origins           = ["http://localhost:3000"]
   monthly_budget_usd     = 10
 }
-run "default_fake_no_provider_environment" {
+run "default_bedrock_no_privilege_environment" {
   command = plan
   assert {
     condition     = !contains(keys(aws_lambda_function.main["worker"].environment[0].variables), "INTERVIEW_AI_PROVIDER") && !aws_lambda_event_source_mapping.worker.enabled
-    error_message = "Default provider remains Fake and the environment remains closed."
+    error_message = "Absent explicit Bedrock IAM opt-in, the environment remains closed."
   }
 }
 run "reject_plaintext_credentials" {
