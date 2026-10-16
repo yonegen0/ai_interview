@@ -104,9 +104,7 @@ def main():
             denied.add(finite_event(event))
             record(
                 event,
-                "socket-operation"
-                if event.startswith("socket.")
-                else "prohibited-side-effect",
+                "socket-operation" if event.startswith("socket.") else "prohibited-side-effect",
             )
             raise PermissionError("ImportSideEffectDenied")
         if event == "open":

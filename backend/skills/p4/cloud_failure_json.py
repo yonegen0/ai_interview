@@ -61,8 +61,7 @@ def persist(stage, reason, command_kind, error):
             from process_failure_contract import validate_context
 
             binding = {
-                key: value[key]
-                for key in ("run_id", "run_attempt", "source_sha", "parent_sha256")
+                key: value[key] for key in ("run_id", "run_attempt", "source_sha", "parent_sha256")
             }
             context = validate_context(error.public_context, binding, command_kind)
             if reason != "PlanProcessFailed":

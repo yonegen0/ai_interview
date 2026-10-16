@@ -461,7 +461,9 @@ class Guard:
                     metadata = {
                         key: self.environment.get(key)
                         for key in (
-                            "GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT", "GITHUB_SHA",
+                            "GITHUB_RUN_ID",
+                            "GITHUB_RUN_ATTEMPT",
+                            "GITHUB_SHA",
                             "P4_CLOUD_PARENT_SHA256",
                         )
                     }
@@ -473,7 +475,8 @@ class Guard:
                     encrypted_output_evidence=evidence,
                     **(
                         {"public_diagnostic_context": public_context}
-                        if public_context is not None else {}
+                        if public_context is not None
+                        else {}
                     ),
                 )
                 if public_context is not None:

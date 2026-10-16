@@ -19,11 +19,7 @@ IPV6_SOURCE_SHA256 = "2633bbdb69731e5ccb5cf4e4afd65605d86c7979cc5633126f50c92d5a
 def function_code(path, names):
     code = compile(path.read_bytes(), str(path), "exec")
     for name in names:
-        matches = [
-            c
-            for c in code.co_consts
-            if isinstance(c, types.CodeType) and c.co_name == name
-        ]
+        matches = [c for c in code.co_consts if isinstance(c, types.CodeType) and c.co_name == name]
         if len(matches) != 1:
             raise ValueError("UnrecognizedImportInitializer")
         code = matches[0]

@@ -22,9 +22,7 @@ PYTHON = r"(?<![\w-])python(?:3(?:\.\d+)?)?"
 
 
 def resolve(module, roots):
-    if not isinstance(module, str) or not re.fullmatch(
-        r"[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*", module
-    ):
+    if not isinstance(module, str) or not re.fullmatch(r"[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*", module):
         return None
     if module in sys.builtin_module_names:
         return {"kind": "stdlib", "path": None}
@@ -91,10 +89,7 @@ def commands(tree, owner):
                 target = node.elts[i + 1]
                 if isinstance(target, ast.Constant) and isinstance(target.value, str):
                     yield target.value, node.lineno
-                elif (
-                    isinstance(target, ast.Attribute)
-                    and ast.unparse(target) == "__spec__.name"
-                ):
+                elif isinstance(target, ast.Attribute) and ast.unparse(target) == "__spec__.name":
                     yield owner, node.lineno
                 else:
                     yield None, node.lineno
@@ -123,17 +118,13 @@ def inspect(roots, entries, *, dependency_roots=(), probe=True):
         if path.suffix != ".py" or not any(path.is_relative_to(r) for r in roots):
             continue
         try:
-            if path.is_symlink() or any(
-                p.is_symlink() or p.is_junction() for p in path.parents
-            ):
+            if path.is_symlink() or any(p.is_symlink() or p.is_junction() for p in path.parents):
                 raise ValueError("ReparseSource")
             raw = path.read_bytes()
             tree = ast.parse(raw, filename=str(path))
             compile(tree, str(path), "exec")
-        except (SyntaxError, OSError, ValueError):
-            issues.append(
-                {"code": "SourceInvalid", "module": module, "file": str(path)}
-            )
+        except SyntaxError, OSError, ValueError:
+            issues.append({"code": "SourceInvalid", "module": module, "file": str(path)})
             continue
         checked.append(
             {
@@ -144,12 +135,7 @@ def inspect(roots, entries, *, dependency_roots=(), probe=True):
         )
         for name, line in imports(tree, module, path.name == "__init__.py"):
             # Both platform modules are valid only on their corresponding host.
-            if (
-                name == "fcntl"
-                and os.name == "nt"
-                or name == "msvcrt"
-                and os.name != "nt"
-            ):
+            if name == "fcntl" and os.name == "nt" or name == "msvcrt" and os.name != "nt":
                 continue
             found_import = resolve(name, search)
             if found_import is None:
@@ -226,16 +212,14 @@ def inspect(roots, entries, *, dependency_roots=(), probe=True):
             if result.get("passed") is not True:
                 issues.append(
                     {
-                        "code": "IsolatedImportRestricted"
-                        if denied
-                        else "IsolatedImportFailed",
+                        "code": "IsolatedImportRestricted" if denied else "IsolatedImportFailed",
                         "details": result.get("issues", [{"code": "ProbeUnavailable"}]),
                         "denied_events": denied,
                         "event_diagnostics": result.get("event_diagnostics", []),
                     }
                 )
             imported = result.get("imported", [])
-        except (subprocess.TimeoutExpired, ValueError, OSError):
+        except subprocess.TimeoutExpired, ValueError, OSError:
             issues.append({"code": "ImportProbeUnavailable"})
     return {
         "passed": not issues,
@@ -249,7 +233,9 @@ def inspect(roots, entries, *, dependency_roots=(), probe=True):
         "probe_requested": probe,
         "static_passed": static_passed,
         "import_passed": import_passed,
-        "qualification": "host-local only; no application function, credential or external operation",
+        "qualification": (
+            "host-local only; no application function, credential or external operation"
+        ),
         "READY": False,
     }
 
@@ -265,9 +251,7 @@ def workflow(source):
     if not (source / ".github/workflows").is_dir():
         issues.append({"code": "WorkflowDirectoryMissing", "file": str(source)})
     for path in sorted((source / ".github/workflows").glob("*.y*ml")):
-        inputs.append(
-            {"path": str(path), "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
-        )
+        inputs.append({"path": str(path), "sha256": hashlib.sha256(path.read_bytes()).hexdigest()})
         working = source
         heredoc, body, start = None, [], 0
         for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
@@ -276,7 +260,7 @@ def workflow(source):
                 if stripped == heredoc:
                     try:
                         compile(textwrap.dedent("\n".join(body)), str(path), "exec")
-                    except (SyntaxError, ValueError):
+                    except SyntaxError, ValueError:
                         issues.append(
                             {
                                 "code": "WorkflowInlinePythonInvalid",
@@ -343,7 +327,7 @@ def workflow(source):
                     else:
                         try:
                             compile(target.read_bytes(), str(target), "exec")
-                        except (SyntaxError, ValueError):
+                        except SyntaxError, ValueError:
                             issues.append(
                                 {
                                     "code": "WorkflowScriptInvalid",
