@@ -213,7 +213,8 @@ def test_auth_failure_never_falls_back():
 
 
 def test_selection_explicit_and_settings_bounded():
-    assert select_provider({}).__class__.__name__ == "FakeProvider"
+    assert select_provider({}).__class__.__name__ == "BedrockProvider"
+    assert select_provider({"INTERVIEW_AI_PROVIDER": "fake"}).__class__.__name__ == "FakeProvider"
     for env in ({"INTERVIEW_AI_PROVIDER": "openai"}, {"INTERVIEW_AI_PROVIDER": "unknown"}):
         with pytest.raises(ProviderFailure, match="CONFIGURATION"):
             select_provider(env)
