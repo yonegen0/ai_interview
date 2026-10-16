@@ -98,7 +98,7 @@ class Worker:
                 "applied",
                 "already_terminal",
             }
-        if config.provider_id.startswith("openai"):
+        if config.provider_id.startswith(("openai", "bedrock")):
             quota = self.repository.reserve_provider_call(
                 lease,
                 self.provider.settings.monthly_user_limit,
@@ -125,7 +125,7 @@ class Worker:
                 raise RuntimeError("already_called")
             entered = True
             called_at = self.monotonic()
-            if config.provider_id.startswith("openai"):
+            if config.provider_id.startswith(("openai", "bedrock")):
                 from interview_backend.evaluation.openai_provider import Deadline
 
                 budget = min(
