@@ -85,7 +85,7 @@ resource "aws_iam_policy" "runtime_boundary" {
     { Effect = "Allow", Action = ["sqs:SendMessage", "sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"], Resource = ["arn:aws:sqs:${var.region}:${var.account_id}:ai-interview-*"] },
     { Effect = "Allow", Action = ["logs:CreateLogStream", "logs:PutLogEvents"], Resource = ["arn:aws:logs:${var.region}:${var.account_id}:log-group:/aws/lambda/ai-interview-*:*"] },
     { Effect = "Allow", Action = ["lambda:InvokeFunction"], Resource = ["arn:aws:lambda:${var.region}:${var.account_id}:function:ai-interview-*-dispatcher:recovery"] }
-  ], local.worker_wif_boundary_statements, local.worker_bedrock_boundary_statements) })
+  ], local.worker_wif_boundary_statements) })
   tags = local.tags
 }
 resource "aws_iam_role" "ci" {

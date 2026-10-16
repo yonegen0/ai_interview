@@ -10,15 +10,13 @@ variable "worker_ai_environment" {
       "INTERVIEW_OPENAI_MAX_OUTPUT_TOKENS", "INTERVIEW_OPENAI_MONTHLY_USER_LIMIT",
       "INTERVIEW_OPENAI_MONTHLY_GLOBAL_LIMIT",
       "INTERVIEW_FAKE_SCENARIO", "INTERVIEW_VALIDATION_ONLY", "INTERVIEW_VALIDATION_OWNER_HASHES",
-      "INTERVIEW_WIF_SMOKE_ENABLED", "INTERVIEW_WIF_SMOKE_RUN_ID", "INTERVIEW_OPENAI_AWS_ISSUER",
-      "INTERVIEW_BEDROCK_EFFORT", "INTERVIEW_BEDROCK_MAX_OUTPUT_TOKENS",
-      "INTERVIEW_BEDROCK_MONTHLY_USER_LIMIT", "INTERVIEW_BEDROCK_MONTHLY_GLOBAL_LIMIT"
+      "INTERVIEW_WIF_SMOKE_ENABLED", "INTERVIEW_WIF_SMOKE_RUN_ID", "INTERVIEW_OPENAI_AWS_ISSUER"
     ], k)])
     error_message = "Only non-secret, server-owned provider configuration keys are accepted."
   }
   validation {
     condition = length(var.worker_ai_environment) == 0 || (
-      contains(["fake", "openai", "bedrock"], lookup(var.worker_ai_environment, "INTERVIEW_AI_PROVIDER", "")) &&
+      contains(["fake", "openai"], lookup(var.worker_ai_environment, "INTERVIEW_AI_PROVIDER", "")) &&
       (lookup(var.worker_ai_environment, "INTERVIEW_AI_PROVIDER", "") != "openai" || lookup(var.worker_ai_environment, "INTERVIEW_OPENAI_ENABLED", "false") == "true")
     )
     error_message = "An explicit provider selection and explicit OpenAI enablement are required."
@@ -28,14 +26,6 @@ variable "worker_ai_environment" {
       (lookup(var.worker_ai_environment, "INTERVIEW_OPENAI_AUTH", "wif") == "wif") == var.worker_wif_enabled
     )
     error_message = "OpenAI WIF requires the explicit Worker grant; Secret mode must not keep a WIF grant."
-  }
-  validation {
-    condition = !var.worker_bedrock_enabled || lookup(var.worker_ai_environment, "INTERVIEW_AI_PROVIDER", "bedrock") == "bedrock"
-    error_message = "Bedrock grant is only allowed for an explicitly Bedrock-selected Worker."
-  }
-  validation {
-    condition = lookup(var.worker_ai_environment, "INTERVIEW_AI_PROVIDER", "") != "bedrock" || var.worker_bedrock_enabled
-    error_message = "An explicit Bedrock provider environment requires the separately reviewed Worker IAM grant."
   }
   validation {
     condition     = lookup(var.worker_ai_environment, "INTERVIEW_WIF_SMOKE_ENABLED", "false") != "true" || (var.worker_wif_enabled && lookup(var.worker_ai_environment, "INTERVIEW_AI_PROVIDER", "") == "fake" && lookup(var.worker_ai_environment, "INTERVIEW_VALIDATION_ONLY", "false") == "true")

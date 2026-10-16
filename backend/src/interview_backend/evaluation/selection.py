@@ -20,10 +20,6 @@ WORKER_AI_KEYS = frozenset(
         "INTERVIEW_WIF_SMOKE_ENABLED",
         "INTERVIEW_WIF_SMOKE_RUN_ID",
         "INTERVIEW_OPENAI_AWS_ISSUER",
-        "INTERVIEW_BEDROCK_EFFORT",
-        "INTERVIEW_BEDROCK_MAX_OUTPUT_TOKENS",
-        "INTERVIEW_BEDROCK_MONTHLY_USER_LIMIT",
-        "INTERVIEW_BEDROCK_MONTHLY_GLOBAL_LIMIT",
     }
 )
 
@@ -41,30 +37,10 @@ def checked_provider_environment(values, account, region):
     if not values:
         return {}
     provider = values.get("INTERVIEW_AI_PROVIDER")
-    if provider not in {"fake", "openai", "bedrock"}:
+    if provider not in {"fake", "openai"}:
         raise ValueError("InvalidProviderEnvironment")
     if region != "ap-northeast-1":
         raise ValueError("InvalidProviderEnvironment")
-    if provider == "bedrock":
-        allowed = {
-            "INTERVIEW_AI_PROVIDER",
-            "INTERVIEW_BEDROCK_EFFORT",
-            "INTERVIEW_BEDROCK_MAX_OUTPUT_TOKENS",
-            "INTERVIEW_BEDROCK_MONTHLY_USER_LIMIT",
-            "INTERVIEW_BEDROCK_MONTHLY_GLOBAL_LIMIT",
-        }
-        if set(values) - allowed:
-            raise ValueError("InvalidProviderEnvironment")
-        from interview_backend.evaluation.bedrock_provider import BedrockSettings
-        try:
-            BedrockSettings(
-                effort=values.get("INTERVIEW_BEDROCK_EFFORT", "low"),
-                max_output_tokens=int(values.get("INTERVIEW_BEDROCK_MAX_OUTPUT_TOKENS", "2048")),
-                monthly_user_limit=int(values.get("INTERVIEW_BEDROCK_MONTHLY_USER_LIMIT", "100")),
-                monthly_global_limit=int(values.get("INTERVIEW_BEDROCK_MONTHLY_GLOBAL_LIMIT", "3000")),
-            )
-        except (ValueError, TypeError):
-            raise ValueError("InvalidProviderEnvironment") from None
     if provider == "fake":
         allowed = {
             "INTERVIEW_AI_PROVIDER",
@@ -149,7 +125,7 @@ def checked_provider_environment(values, account, region):
 
 
 def select_provider(environment):
-    selection = environment.get("INTERVIEW_AI_PROVIDER", "bedrock")
+    selection = environment.get("INTERVIEW_AI_PROVIDER", "fake")
     if selection == "fake":
         if "INTERVIEW_FAKE_SCENARIO" in environment:
             if environment.get("INTERVIEW_VALIDATION_ONLY") != "true":
@@ -161,25 +137,6 @@ def select_provider(environment):
                 environment.get("INTERVIEW_VALIDATION_OWNER_HASHES", "").split(","),
             )
         return FakeProvider()
-    if selection == "bedrock":
-        from interview_backend.evaluation.bedrock_provider import (
-            BedrockProvider,
-            BedrockSettings,
-        )
-        from interview_backend.evaluation.openai_provider import ProviderFailure
-        try:
-            settings = BedrockSettings(
-                effort=environment.get("INTERVIEW_BEDROCK_EFFORT", "low"),
-                max_output_tokens=int(environment.get("INTERVIEW_BEDROCK_MAX_OUTPUT_TOKENS", "2048")),
-                monthly_user_limit=int(environment.get("INTERVIEW_BEDROCK_MONTHLY_USER_LIMIT", "100")),
-                monthly_global_limit=int(environment.get("INTERVIEW_BEDROCK_MONTHLY_GLOBAL_LIMIT", "3000")),
-            )
-        except (ValueError, TypeError):
-            raise ProviderFailure("CONFIGURATION") from None
-        return BedrockProvider(
-            region=environment.get("INTERVIEW_REGION", "ap-northeast-1"),
-            settings=settings,
-        )
     from interview_backend.evaluation.openai_auth import AWSFederation, SecretAuthentication
     from interview_backend.evaluation.openai_provider import (
         OpenAIProvider,

@@ -6,7 +6,3 @@ variable "worker_wif_enabled" {
   type    = bool
   default = false
 }
-variable "worker_bedrock_enabled" {
-  type    = bool
-  default = false
-}
