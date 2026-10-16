@@ -43,3 +43,38 @@ run "openai_configuration_worker_only" {
     error_message = "Provider settings affect Worker only and do not enable the environment."
   }
 }
+
+run "bedrock_japan_worker_only" {
+  command = plan
+  variables {
+    worker_bedrock_enabled = true
+    worker_ai_environment = {
+      INTERVIEW_AI_PROVIDER = "bedrock"
+      INTERVIEW_BEDROCK_EFFORT = "low"
+    }
+  }
+  assert {
+    condition = (
+      aws_lambda_function.main["worker"].environment[0].variables["INTERVIEW_AI_PROVIDER"] == "bedrock" &&
+      !contains(keys(aws_lambda_function.main["api"].environment[0].variables), "INTERVIEW_AI_PROVIDER") &&
+      !contains(keys(aws_lambda_function.main["admin"].environment[0].variables), "INTERVIEW_AI_PROVIDER") &&
+      !aws_lambda_event_source_mapping.worker.enabled
+    )
+    error_message = "Bedrock must remain Worker-only and cannot enable the closed environment."
+  }
+}
+
+run "reject_bedrock_without_iam_opt_in" {
+  command = plan
+  variables { worker_ai_environment = { INTERVIEW_AI_PROVIDER = "bedrock" } }
+  expect_failures = [var.worker_ai_environment]
+}
+
+run "reject_openai_under_bedrock_grant" {
+  command = plan
+  variables {
+    worker_bedrock_enabled = true
+    worker_ai_environment = { INTERVIEW_AI_PROVIDER = "openai", INTERVIEW_OPENAI_ENABLED = "true" }
+  }
+  expect_failures = [var.worker_ai_environment]
+}
