@@ -2,7 +2,17 @@
 
 import re
 
+from interview_backend.deployment import DeploymentError
+
 COMMAND_KINDS = frozenset(("version", "init", "plan", "show", "build"))
+
+
+class ProcessFailure(DeploymentError):
+    """Only a validated finite context; never hold raw process output."""
+
+    def __init__(self, context):
+        super().__init__("PlanProcessFailed")
+        self.public_context = context
 
 
 class OutputRefusal(ValueError):

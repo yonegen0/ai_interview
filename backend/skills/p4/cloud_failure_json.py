@@ -26,7 +26,7 @@ def persist(stage, reason, command_kind, error):
     ):
         raise ValueError("FailureDiagnosticBindingInvalid")
     # Do not invoke arbitrary exception properties here.
-    from cloud_process_output import OutputRefusal
+    from cloud_process_output import OutputRefusal, ProcessFailure
 
     warning_class, warning_count = "NotApplicable", 0
     if type(error) is OutputRefusal:
@@ -52,6 +52,23 @@ def persist(stage, reason, command_kind, error):
         "warning_class": warning_class,
         "warning_count": warning_count,
     }
+    schema = env.get("P4_CLOUD_FAILURE_JSON_SCHEMA", "1")
+    if schema not in {"1", "2"}:
+        raise ValueError("FailureDiagnosticShapeInvalid")
+    if schema == "2":
+        context = None
+        if type(error) is ProcessFailure:
+            from process_failure_contract import validate_context
+
+            binding = {
+                key: value[key] for key in ("run_id", "run_attempt", "source_sha", "parent_sha256")
+            }
+            context = validate_context(error.public_context, binding, command_kind)
+            if reason != "PlanProcessFailed":
+                raise ValueError("FailureDiagnosticShapeInvalid")
+        if reason == "PlanProcessFailed" and context is None:
+            raise ValueError("FailureDiagnosticShapeInvalid")
+        value.update(schema_version=2, process_failure=context)
     root = Path(env["RUNNER_TEMP"])
     if root.is_symlink() or any(p.is_symlink() for p in root.parents):
         raise ValueError("FailureDiagnosticPathRejected")

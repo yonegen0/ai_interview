@@ -45,6 +45,7 @@ def summarize_failure(returncode, stdout, stderr):
 SAFE_EXCEPTION_TYPES = frozenset(
     (
         "DeploymentError",
+        "ProcessFailure",
         "ClientError",
         "HTTPError",
         "RuntimeError",

@@ -454,12 +454,35 @@ class Guard:
                     getattr(self, "directory", None),
                     self.remaining(),
                 )
+                public_context = None
+                if self.environment.get("P4_CLOUD_FAILURE_JSON_SCHEMA") == "2":
+                    from process_failure_contract import build_context
+
+                    metadata = {
+                        key: self.environment.get(key)
+                        for key in (
+                            "GITHUB_RUN_ID",
+                            "GITHUB_RUN_ATTEMPT",
+                            "GITHUB_SHA",
+                            "P4_CLOUD_PARENT_SHA256",
+                        )
+                    }
+                    public_context = build_context(diagnostic, metadata, kind, self.sequence + 1)
                 self.record(
                     "process-failed",
                     operation=kind,
                     diagnostics=diagnostic,
                     encrypted_output_evidence=evidence,
+                    **(
+                        {"public_diagnostic_context": public_context}
+                        if public_context is not None
+                        else {}
+                    ),
                 )
+                if public_context is not None:
+                    from cloud_process_output import ProcessFailure
+
+                    raise ProcessFailure(public_context)
                 raise DeploymentError("PlanProcessFailed")
             phase = "admission"
             if self.environment.get("P4_CLOUD_ACTIVE") == "true":
