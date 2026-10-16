@@ -10,13 +10,15 @@ variable "worker_ai_environment" {
       "INTERVIEW_OPENAI_MAX_OUTPUT_TOKENS", "INTERVIEW_OPENAI_MONTHLY_USER_LIMIT",
       "INTERVIEW_OPENAI_MONTHLY_GLOBAL_LIMIT",
       "INTERVIEW_FAKE_SCENARIO", "INTERVIEW_VALIDATION_ONLY", "INTERVIEW_VALIDATION_OWNER_HASHES",
-      "INTERVIEW_WIF_SMOKE_ENABLED", "INTERVIEW_WIF_SMOKE_RUN_ID", "INTERVIEW_OPENAI_AWS_ISSUER"
+      "INTERVIEW_WIF_SMOKE_ENABLED", "INTERVIEW_WIF_SMOKE_RUN_ID", "INTERVIEW_OPENAI_AWS_ISSUER",
+      "INTERVIEW_BEDROCK_EFFORT", "INTERVIEW_BEDROCK_MAX_OUTPUT_TOKENS",
+      "INTERVIEW_BEDROCK_MONTHLY_USER_LIMIT", "INTERVIEW_BEDROCK_MONTHLY_GLOBAL_LIMIT"
     ], k)])
     error_message = "Only non-secret, server-owned provider configuration keys are accepted."
   }
   validation {
     condition = length(var.worker_ai_environment) == 0 || (
-      contains(["fake", "openai"], lookup(var.worker_ai_environment, "INTERVIEW_AI_PROVIDER", "")) &&
+      contains(["fake", "openai", "bedrock"], lookup(var.worker_ai_environment, "INTERVIEW_AI_PROVIDER", "")) &&
       (lookup(var.worker_ai_environment, "INTERVIEW_AI_PROVIDER", "") != "openai" || lookup(var.worker_ai_environment, "INTERVIEW_OPENAI_ENABLED", "false") == "true")
     )
     error_message = "An explicit provider selection and explicit OpenAI enablement are required."
