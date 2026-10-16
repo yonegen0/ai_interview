@@ -30,6 +30,14 @@ variable "worker_ai_environment" {
     error_message = "OpenAI WIF requires the explicit Worker grant; Secret mode must not keep a WIF grant."
   }
   validation {
+    condition = !var.worker_bedrock_enabled || lookup(var.worker_ai_environment, "INTERVIEW_AI_PROVIDER", "bedrock") == "bedrock"
+    error_message = "Bedrock grant is only allowed for an explicitly Bedrock-selected Worker."
+  }
+  validation {
+    condition = lookup(var.worker_ai_environment, "INTERVIEW_AI_PROVIDER", "") != "bedrock" || var.worker_bedrock_enabled
+    error_message = "An explicit Bedrock provider environment requires the separately reviewed Worker IAM grant."
+  }
+  validation {
     condition     = lookup(var.worker_ai_environment, "INTERVIEW_WIF_SMOKE_ENABLED", "false") != "true" || (var.worker_wif_enabled && lookup(var.worker_ai_environment, "INTERVIEW_AI_PROVIDER", "") == "fake" && lookup(var.worker_ai_environment, "INTERVIEW_VALIDATION_ONLY", "false") == "true")
     error_message = "WIF Smoke requires an explicit dev Worker grant and validation-only Fake configuration."
   }
