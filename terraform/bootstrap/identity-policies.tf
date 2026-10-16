@@ -4,7 +4,7 @@ resource "aws_iam_role_policy" "identity_read" {
   name     = "identity-read"
   policy = jsonencode({ Version = "2012-10-17", Statement = [
     { Effect = "Allow", Action = ["apigateway:GET"], Resource = ["arn:aws:apigateway:${var.region}::/apis/*", "arn:aws:apigateway:${var.region}::/tags/*"] },
-    { Effect = "Allow", Action = ["cognito-idp:DescribeUserPool", "cognito-idp:DescribeUserPoolClient", "cognito-idp:GetGroup", "cognito-idp:ListTagsForResource"], Resource = ["arn:aws:cognito-idp:${var.region}:${var.account_id}:userpool/*"], Condition = { StringEquals = { "aws:ResourceTag/Project" = "ai-interview" } } },
+    { Effect = "Allow", Action = concat(["cognito-idp:DescribeUserPool", "cognito-idp:DescribeUserPoolClient", "cognito-idp:GetGroup", "cognito-idp:ListTagsForResource"], each.key == "plan" ? ["cognito-idp:GetUserPoolMfaConfig"] : []), Resource = ["arn:aws:cognito-idp:${var.region}:${var.account_id}:userpool/*"], Condition = { StringEquals = { "aws:ResourceTag/Project" = "ai-interview" } } },
     { Effect = "Allow", Action = ["budgets:ViewBudget", "budgets:ListTagsForResource"], Resource = ["arn:aws:budgets::${var.account_id}:budget/ai-interview-dev-*"] }
   ] })
 }
