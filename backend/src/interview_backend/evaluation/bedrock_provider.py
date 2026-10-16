@@ -7,7 +7,7 @@ from time import monotonic
 from pydantic import ValidationError
 
 from interview_backend.evaluation.coaching import InvalidCoachingResult, validate_coaching_result
-from interview_backend.evaluation.openai_provider import Deadline, ProviderFailure, strict_json
+from interview_backend.evaluation.openai_provider import Deadline, ProviderFailure, schema_for, strict_json
 from interview_backend.evaluation.provider import (
     CoachingPrompt,
     INSTRUCTIONS,
@@ -88,7 +88,8 @@ class BedrockProvider:
         instructions += (
             "\n出力はJSONオブジェクトのみ。Markdown・コードフェンス・説明文は禁止。"
             "必須フィールドを省略せず、余分なフィールドや本人未申告の事実を加えない。"
-            "指定された既存の評価Schemaに完全に従う。"
+            "以下のJSON Schemaに完全に従う。"
+            + json.dumps(schema_for(prompt), ensure_ascii=False, separators=(",", ":"))
         )
         request = {
             "modelId": MODEL,
@@ -104,6 +105,7 @@ class BedrockProvider:
             },
         }
         deadline.seconds()
+        attempted = False
         try:
             client = self.client
             if client is None:
@@ -122,9 +124,12 @@ class BedrockProvider:
                 )
             deadline.seconds()
             # Once called, request outcome can be unknown. Never replay.
+            attempted = True
             response = client.converse(**request)
             deadline.seconds()
-        except ProviderFailure:
+        except ProviderFailure as error:
+            if error.kind == "TIMEOUT" and attempted:
+                raise ProviderFailure("TIMEOUT", uncertain=True) from None
             raise
         except Exception:
             # No SDK exception text, credentials, prompts or response bodies in logs.
