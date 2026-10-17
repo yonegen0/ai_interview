@@ -1,0 +1,5 @@
+name: Finite result artifact
+description: Three single-attempt requests; no SDK retries
+runs:
+  using: node20
+  main: publish.cjs

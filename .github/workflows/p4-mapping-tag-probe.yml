@@ -1,0 +1,49 @@
+name: P4 exact mapping ListTags probe
+run-name: P4 mapping tag probe approval-${{ inputs.approval_sha256 }}
+on:
+  workflow_dispatch:
+    inputs:
+      approval_sha256:
+        type: string
+        required: true
+        description: SHA256 of the explicitly approved probe package
+permissions:
+  contents: read
+concurrency:
+  group: p4-dev-deployment
+  cancel-in-progress: false
+jobs:
+  probe:
+    environment: dev
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      P4_TAG_PROBE_PACKAGE: ${{ secrets.P4_TAG_PROBE_PACKAGE }}
+      P4_TAG_PROBE_SHA256: ${{ inputs.approval_sha256 }}
+      P4_AWS_EXECUTION_READY: ${{ vars.P4_AWS_EXECUTION_READY }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+      AWS_REGION: ap-northeast-1
+      AWS_DEFAULT_REGION: ap-northeast-1
+      AWS_MAX_ATTEMPTS: '1'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9
+        with:
+          version: '0.11.8'
+          python-version: '3.14'
+          enable-cache: false
+      - name: Install locked dependencies
+        working-directory: backend
+        run: uv sync --locked --no-dev
+      - name: Verify Plan Role identity and read exact mapping tags
+        working-directory: backend
+        run: uv run --locked --no-dev python -B skills/p4/mapping_tag_probe.py
+      - name: Publish finite result only
+        if: always()
+        uses: ./.github/actions/finite-artifact
