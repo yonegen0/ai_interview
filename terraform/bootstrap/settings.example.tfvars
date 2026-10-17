@@ -24,3 +24,9 @@ ses_identity_type = "REPLACE_ME"
 ses_from_email = "REPLACE_ME_SENDER_EMAIL"
 # email方式は空文字。domain方式は送信元メールと一致する所有ドメイン。
 ses_domain = ""
+
+# Existing dev mapping tag-read maintenance only: supply the separately approved
+# bootstrap-plan-tag-read.tfvars.json together with settings.tfvars. It pins the
+# exact Worker/Streams mapping ARNs; do not substitute a wildcard or omit the
+# approved file after the IAM grant has been installed. Empty is initial setup.
+# plan_event_source_mapping_arns = []

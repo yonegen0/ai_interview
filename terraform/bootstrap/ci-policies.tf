@@ -34,10 +34,10 @@ resource "aws_iam_role_policy" "read" {
   for_each = { for name, role in aws_iam_role.ci : name => role if name != "artifact" }
   role     = each.value.id
   name     = "read-project"
-  policy = jsonencode({ Version = "2012-10-17", Statement = [
+  policy = jsonencode({ Version = "2012-10-17", Statement = concat([
     { Effect = "Allow", Action = local.read_actions, Resource = concat(local.managed_arns[each.key], ["arn:aws:iam::${var.account_id}:role/${local.ci_prefix[each.key]}*-runtime", aws_iam_policy.runtime_boundary.arn]) },
     { Effect = "Allow", Action = ["sts:GetCallerIdentity", "logs:DescribeLogGroups", "cloudwatch:DescribeAlarms", "cloudwatch:ListTagsForResource", "lambda:ListEventSourceMappings", "lambda:GetEventSourceMapping", "sns:ListSubscriptionsByTopic", "ses:GetSendQuota", "ses:GetIdentityVerificationAttributes", "ses:GetIdentityDkimAttributes", "ses:GetIdentityMailFromDomainAttributes", "ses:GetIdentityNotificationAttributes", "lambda:GetAccountSettings"], Resource = ["*"] }
-  ] })
+  ], each.key == "plan" && length(var.plan_event_source_mapping_arns) > 0 ? local.plan_event_source_tag_read_policy.Statement : []) })
 }
 resource "aws_iam_role_policy" "deploy" {
   for_each = { for name, role in aws_iam_role.ci : name => role if contains(["deploy", "test"], name) }
