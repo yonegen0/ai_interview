@@ -14,6 +14,7 @@ import os
 import re
 import subprocess
 import sys
+import sysconfig
 import textwrap
 from importlib.machinery import BuiltinImporter, FrozenImporter, PathFinder
 from pathlib import Path
@@ -98,6 +99,24 @@ def commands(tree, owner):
 def inspect(roots, entries, *, dependency_roots=(), probe=True):
     roots = [Path(r).resolve() for r in roots]
     dependency_roots = [Path(r).resolve() for r in dependency_roots]
+    # uv installs the locked dependencies under backend/.venv in hosted CI.
+    # A nested installation is still a dependency, not application source.
+    # Runtime imports remain inside the unchanged restrictive audit probe.
+    dependency_roots = list(
+        dict.fromkeys(
+            [
+                *dependency_roots,
+                *[Path(sysconfig.get_path(name)).resolve() for name in ("purelib", "platlib")],
+            ]
+        )
+    )
+
+    def source_path(path):
+        path = Path(path).resolve()
+        return any(path.is_relative_to(r) for r in roots) and not any(
+            path.is_relative_to(r) for r in dependency_roots
+        )
+
     search = roots + dependency_roots + [Path(p) for p in sys.path if p]
     issues, checked, queue, seen, workers = [], [], list(entries), set(), []
     # Never execute scanned files to discover an entrypoint or a dependency.
@@ -115,7 +134,7 @@ def inspect(roots, entries, *, dependency_roots=(), probe=True):
         if found["path"] is None:
             continue
         path = Path(found["path"])
-        if path.suffix != ".py" or not any(path.is_relative_to(r) for r in roots):
+        if path.suffix != ".py" or not source_path(path):
             continue
         try:
             if path.is_symlink() or any(p.is_symlink() or p.is_junction() for p in path.parents):
@@ -147,9 +166,7 @@ def inspect(roots, entries, *, dependency_roots=(), probe=True):
                         "line": line,
                     }
                 )
-            elif found_import["path"] and any(
-                Path(found_import["path"]).is_relative_to(r) for r in roots
-            ):
+            elif found_import["path"] and source_path(found_import["path"]):
                 queue.append(name)
         for target, line in commands(tree, module):
             workers.append({"owner": module, "target": target, "line": line})
