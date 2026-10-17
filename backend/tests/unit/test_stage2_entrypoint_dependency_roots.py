@@ -5,11 +5,25 @@ from pathlib import Path
 
 import pytest
 
-from skills.p4.stage2_development import ci_entrypoint, entrypoints
+
+@pytest.fixture
+def entrypoints(monkeypatch):
+    monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[2] / "skills/p4"))
+    from stage2_development import entrypoints
+
+    return entrypoints
 
 
 @pytest.fixture
-def installed(tmp_path, monkeypatch):
+def ci_entrypoint(monkeypatch):
+    monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[2] / "skills/p4"))
+    from stage2_development import ci_entrypoint
+
+    return ci_entrypoint
+
+
+@pytest.fixture
+def installed(tmp_path, monkeypatch, entrypoints):
     backend = tmp_path / "backend"
     backend.mkdir()
     site = backend / ".venv/lib/python3.14/site-packages"
@@ -18,7 +32,7 @@ def installed(tmp_path, monkeypatch):
     return backend, site
 
 
-def test_nested_installed_dependency_is_not_application_source(installed):
+def test_nested_installed_dependency_is_not_application_source(installed, entrypoints):
     backend, site = installed
     (backend / "layout_app.py").write_text("import layout_dependency\n")
     (site / "layout_dependency.py").write_text(
@@ -30,7 +44,7 @@ def test_nested_installed_dependency_is_not_application_source(installed):
     assert result["import_passed"] is True
 
 
-def test_missing_application_import_remains_an_error(installed):
+def test_missing_application_import_remains_an_error(installed, entrypoints):
     backend, _ = installed
     (backend / "missing_app.py").write_text("import mandatory_module_not_installed\n")
     result = entrypoints.inspect([backend], ["missing_app"])
@@ -38,7 +52,7 @@ def test_missing_application_import_remains_an_error(installed):
     assert any(issue["code"] == "ImportMissing" for issue in result["issues"])
 
 
-def test_sibling_dependency_name_does_not_exclude_application_source(installed):
+def test_sibling_dependency_name_does_not_exclude_application_source(installed, entrypoints):
     backend, site = installed
     sibling = Path(str(site) + "-app")
     sibling.mkdir()
@@ -48,7 +62,7 @@ def test_sibling_dependency_name_does_not_exclude_application_source(installed):
     assert any(issue["code"] == "ImportMissing" for issue in result["issues"])
 
 
-def test_installed_dependency_side_effect_is_still_denied(installed):
+def test_installed_dependency_side_effect_is_still_denied(installed, entrypoints):
     backend, site = installed
     target = backend / "unexpected-write.txt"
     (backend / "side_effect_app.py").write_text("import side_effect_dependency\n")
@@ -60,10 +74,11 @@ def test_installed_dependency_side_effect_is_still_denied(installed):
     assert not target.exists()
 
 
-def test_qualification_failure_exports_existing_bound_finite_schema(tmp_path, monkeypatch):
+def test_qualification_failure_exports_existing_bound_finite_schema(
+    tmp_path, monkeypatch, ci_entrypoint
+):
+    import cloud_diagnostics
     import cloud_failure_json
-
-    from skills.p4 import cloud_diagnostics
 
     for key, value in {
         "RUNNER_TEMP": str(tmp_path),
@@ -88,7 +103,7 @@ def test_qualification_failure_exports_existing_bound_finite_schema(tmp_path, mo
     assert callable(cloud_failure_json.persist)
 
 
-def test_qualification_diagnostic_rejects_missing_binding(tmp_path, monkeypatch):
+def test_qualification_diagnostic_rejects_missing_binding(tmp_path, monkeypatch, ci_entrypoint):
     monkeypatch.setenv("RUNNER_TEMP", str(tmp_path))
     monkeypatch.delenv("GITHUB_RUN_ID", raising=False)
     backend = Path(__file__).resolve().parents[2]
@@ -97,7 +112,7 @@ def test_qualification_diagnostic_rejects_missing_binding(tmp_path, monkeypatch)
     assert not (tmp_path / "p4-public-diagnostic").exists()
 
 
-def test_ci_failure_persists_diagnostic_and_exports_only_codes(monkeypatch, capsys):
+def test_ci_failure_persists_diagnostic_and_exports_only_codes(monkeypatch, capsys, ci_entrypoint):
     monkeypatch.setattr("sys.argv", ["ci_entrypoint", "."])
     monkeypatch.setenv("P4_CLOUD_FAILURE_JSON", "true")
     monkeypatch.setattr(
@@ -120,7 +135,7 @@ def test_ci_failure_persists_diagnostic_and_exports_only_codes(monkeypatch, caps
     }
 
 
-def test_ci_diagnostic_failure_preserves_failed_status(monkeypatch, capsys):
+def test_ci_diagnostic_failure_preserves_failed_status(monkeypatch, capsys, ci_entrypoint):
     monkeypatch.setattr("sys.argv", ["ci_entrypoint", "."])
     monkeypatch.setenv("P4_CLOUD_FAILURE_JSON", "true")
     monkeypatch.setattr(
