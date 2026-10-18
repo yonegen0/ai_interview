@@ -28,6 +28,10 @@ class Run:
             "attempt_id",
             "evaluation_id",
             "request_key",
+            "context_id",
+            "draft_id",
+            "generation_id",
+            "application_id",
         }:
             raise ValueError("SafeEvidenceRequired")
         row = {"run_id": self.run_id, "check": check, "status": status, **identifiers}
@@ -150,6 +154,143 @@ def coaching_flow(a, b, run, *, expected_rounds=0, expected_failure=False, wait=
         run.expect(accepted["evaluationId"] != prior["evaluationId"], "new-evaluation-id")
 
 
+def poll_star(api, gid, *, clock=time.monotonic, sleep=time.sleep, timeout=180):
+    deadline = clock() + timeout
+    while True:
+        status, value, _ = api.call("GET", f"/star-assist/generations/{gid}")
+        if status != 200:
+            raise AssertionError("StarGenerationReadFailed")
+        if value["status"] not in {"QUEUED", "PREPARED", "STARTED"}:
+            return value
+        if clock() >= deadline:
+            raise TimeoutError("StarGenerationDeadline")
+        sleep(2)
+
+
+def star_corpus():
+    """Synthetic fixed inputs for a separately authorized human/model evaluation."""
+    corpus = json.loads((ROOT / "contracts/star-quality-cases.json").read_text(encoding="utf-8"))
+    for case in corpus["cases"]:
+        if recipe := case.get("notes_recipe"):
+            case["input"]["notes"][recipe["field"]] = recipe["character"] * recipe["repeat"]
+    return corpus
+
+
+def star_flow(a, b, run, *, wait=poll_star, evaluate=poll):
+    """Approved operator supplies auth/closure; never retries a failed/unknown write.
+
+    Deliberate same-key replays happen only after a known successful response.
+    The preparation CLI below never calls this function or discovers credentials.
+    """
+
+    def post(path, body, label, expected=200, headers=None):
+        key = run.key("star-" + label)
+        options = {"headers": headers} if headers else {}
+        status, receipt, _ = a.call("POST", path, body, key, **options)
+        run.expect(status == expected, "star-" + label)
+        run.record("star-receipt", request_key=key)
+        run.expect(
+            a.call("POST", path, body, key, **options)[:2] == (status, receipt),
+            "star-" + label + "-replay",
+        )
+        return receipt
+
+    session = post(
+        "/sessions",
+        {"mode": "category", "category": "career", "difficulty": "standard"},
+        "session",
+        201,
+    )
+    sid = session["sessionId"]
+    run.record("star-session", session_id=sid)
+    status, question, _ = a.call("GET", f"/sessions/{sid}/question")
+    run.expect(status == 200, "star-question")
+    qid = question["question"]["id"]
+    context = post(
+        f"/sessions/{sid}/answer-contexts",
+        {"operationKind": "initial_answer", "questionId": qid},
+        "context",
+    )
+    cid = context["contextId"]
+    run.record("star-context", context_id=cid)
+    path = f"/answer-contexts/{cid}"
+    answer = post(path + "/answer-drafts", {"answer": "", "applicationId": None}, "answer", 201)
+    value = star_corpus()["cases"][0]["input"]
+    draft = post(path + "/star-drafts", value, "draft", 201)
+    run.record("star-draft", draft_id=draft["id"])
+    run.expect(b.call("GET", path + "/drafts")[0] == 404, "star-other-owner-drafts")
+    accepted = post(
+        "/star-assist/generations",
+        {"starDraftId": draft["id"], "expectedVersion": draft["version"]},
+        "generate",
+        202,
+    )
+    gid = accepted["generationId"]
+    run.record("star-generation", generation_id=gid)
+    run.expect(
+        b.call("GET", f"/star-assist/generations/{gid}")[0] == 404, "star-other-owner-generation"
+    )
+    outcome = wait(a, gid)
+    run.expect(
+        outcome["status"] == "SUCCEEDED" and outcome["result"]["status"] == "ready",
+        "star-ready",
+    )
+    status, restored, _ = a.call("GET", path + "/drafts")
+    run.expect(status == 200, "star-restore")
+    current = restored["starDraft"]
+    generated = {k: current[k] for k in value}
+    generated.update(
+        candidates=outcome["result"]["candidates"],
+        generationId=gid,
+        expectedVersion=current["version"],
+    )
+    status, _, _ = a.call(
+        "PUT", f"/star-drafts/{draft['id']}", generated, run.key("star-save-generated")
+    )
+    run.expect(status == 200, "star-save-generated")
+    status, restored, _ = a.call("GET", path + "/drafts")
+    run.expect(status == 200, "star-generated-restore")
+    current = restored["starDraft"]
+    run.expect(len(current["candidates"]) == 3, "star-three-candidates")
+    edited = [dict(c) for c in current["candidates"]]
+    # Edit synthetic text without increasing length past the public 400-point cap.
+    edited[0]["text"] = "検証用編集。" + edited[0]["text"][:390]
+    body = {k: current[k] for k in value}
+    body.update(candidates=edited, selectedCandidateId="A", expectedVersion=current["version"])
+    status, saved, _ = a.call("PUT", f"/star-drafts/{draft['id']}", body, run.key("star-edit"))
+    run.expect(status == 200, "star-edit")
+    applied = post(
+        f"/star-drafts/{draft['id']}/applications",
+        {
+            "candidateId": "A",
+            "expectedVersion": saved["version"],
+            "answerDraftId": answer["id"],
+            "expectedAnswerVersion": answer["version"],
+        },
+        "apply",
+    )
+    run.record("star-application", application_id=applied["applicationId"])
+    status, restored, _ = a.call("GET", path + "/drafts")
+    run.expect(
+        status == 200 and restored["answerDraft"]["answer"] == edited[0]["text"],
+        "star-applied-answer-restore",
+    )
+    # Applying STAR alone must not accept a formal answer. Submit explicitly here.
+    formal = post(
+        f"/sessions/{sid}/answers",
+        {"kind": "initial_answer", "questionId": qid, "answer": edited[0]["text"]},
+        "formal-answer",
+        202,
+        headers={"X-Star-Application-Id": applied["applicationId"]},
+    )
+    eid, aid = formal["evaluationId"], formal["attemptId"]
+    run.record("star-formal-evaluation", attempt_id=aid, evaluation_id=eid)
+    result = evaluate(a, eid)
+    run.expect(result["status"] == "completed", "star-formal-completed")
+    run.expect(b.call("GET", f"/evaluations/{eid}")[0] == 404, "star-other-owner-evaluation")
+    return formal
+
+
 def admin_flow(user, admin, run, *, writes=False):
     run.expect(user.call("GET", "/admin/question-bank")[0] == 403, "USER-admin-denied")
     status, bank, _ = admin.call("GET", "/admin/question-bank")
@@ -252,7 +393,8 @@ def main():
     report = {
         "status": "AWS_LIVE_VALIDATION_PREPARED_NOT_EXECUTED",
         "run_id": run.run_id,
-        "available_flows": ["coaching_flow", "admin_flow", "run_with_closure"],
+        "available_flows": ["coaching_flow", "star_flow", "admin_flow", "run_with_closure"],
+        "star_quality_cases": len(star_corpus()["cases"]),
         "authentication_adapter": "existing auth_e2e.login/Api; tokens remain memory-only",
         "remaining_live_checks": [
             "EMAIL_OTP/refresh/logout/actual JWT expiry using auth_e2e",

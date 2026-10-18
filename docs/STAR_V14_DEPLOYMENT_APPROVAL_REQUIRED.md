@@ -1,5 +1,13 @@
 # STAR Ver.1.4 配備前の明示承認
 
+2026-10-18更新: PR #21には既にBedrock/OpenAI共有通信を使う実AIアダプターと
+出典照合付き`prose-v2`がある。最終runtime検証・Linux ZIPは`e53c1df`に固定されている。
+下記の2026-10-10時点のFake-only記録は履歴であり、現在の実装を表さない。
+現時点でも配備・実モデル品質/IAM/遅延/料金の実測は未実施。
+実機用STARフロー、12品質ケース、18送信までの費用試算とClosure条件は
+[実AIアダプター](STAR_V14_LIVE_ADAPTER.md#2026-10-18-限定公開前の実機検証手順)を参照する。
+この更新はStage2正本や承認範囲を変更しない。
+
 今回AWS接続、State操作、remote Plan、Apply/Destroy、Artifact upload、Lambda配備、実OpenAI、main merge、dev有効化を実行していない。現時点で配備・費用発生の承認を求める段階ではない。
 
 将来、対象commit HEAD、Account/Region、Artifact SHA/version、費用上限、saved Plan SHA-256、資源差分、4有効化フラグと条件付き自動Closureを固定した別承認が必要。P4承認テンプレートとTerraform runbookに従う。partial failureでは再apply・手動修復をせずread-only診断で停止する。

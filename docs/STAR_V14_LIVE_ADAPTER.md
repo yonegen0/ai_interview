@@ -122,3 +122,95 @@ Worker60秒、Provider40秒、Concurrency2を維持。STARはlease/job/Lambda残
 方法ならforce pushを要しない。これらのbranch/base変更は今回は実行しない。
 差分分割をする場合もIAM前提を失わないか局所的に確認してから別途判断する。
 AWS実効権限や配備可否はGit mergeの成否では確認できず、別の承認工程に従う。
+
+## 2026-10-18 限定公開前の実機検証手順
+
+この節は準備であり実AWS成功・有料推論・配備の承認ではない。
+`backend/skills/p4/coaching_live.py`のCLIは従来どおり準備専用。
+追加した`star_flow`は、承認後のoperatorが既存`auth_e2e.Api`と
+`run_with_closure`へ接続する関数で、資格探索や有料実行CLIを追加しない。
+
+フローは2本人のAPIから、session/question/context、空回答下書き、STAR下書き、
+generation、3案保存、再読込み、選択前編集、明示Apply、回答復元、明示正式送信、
+非同期評価完了まで確認する。正式送信は`X-Star-Application-Id`を付け、
+`AnswerAssist`への紐付けを保持する。Applyだけでは通常評価を開始しない。
+QUEUED/PREPARED/STARTEDをGETでpollし、NEEDS_INFORMATION/失敗/OUTCOME_UNKNOWNでは
+通常評価へ進まない。書込みの失敗・結果不明は再送しない。同keyの冪等再現確認は
+成功応答が確定した操作だけに限定する。本文・JWT・OTPをjournalへ保存しない。
+新規IDは記録するが、データ全件scan/deleteや独自のAWS修復は行わない。
+
+### 固定品質ケースと合否
+
+`contracts/star-quality-cases.json`の12ケースを`star_corpus()`で展開する。
+通常、1行動、数値/名称、曖昧な成果、否定/条件、本人行動不足、応募先カテゴリ、
+表現差、矛盾、命令混入、導入句込み400/401コードポイントを固定した。
+境界の絵文字はコードポイント計数用で、自然な回答品質を採点する題材にはしない。
+400/401のrecipeもこの関数で展開し、入力をその場で差し替えない。
+入力事実と異なるモデル回答の拒否は既存`test_star_prose.py`の
+数値・否定・条件・雇用先・因果・感情の改変ケースを再利用する。
+
+実機ではraw結果を非公開に保全し、採用前のモデル文章とサーバー採用後文章の
+両方を入力に照合する。出典外の主張/条件欠落は1件でもFAIL。
+通常・数値/名称・style-richの3ケースはreadyを必須にし、全件を追加質問へ返して
+品質合格とはしない。他のケースもready率と追加質問の妥当性を別々に報告する。
+missing-action/contradiction/401は追加質問を期待する。
+日本語自然さ・話しやすさ・具体性・A/B/Cの差・応募先適合は人手で各1〜5点、
+通常とstyle-richの全案について各項目3点以上を暫定受入基準とし、実行前に固定する。
+未記入は未評価。Mockの規則適合、固定SDK shape成功、機械的な文章差だけでは
+これらの人手品質や実サービス受理をPASSにしない。
+
+### 承認時に固定する実行量・費用・終了条件
+
+最初のdev smoke/品質batchは、STAR最大12送信と通常評価最大6送信、計18送信を提案する。
+STAR通常ケース1件を`star_flow`に兼用し、その正式評価1件、別sessionでCoaching最大3深掘り
+（初回+3回）と明示retry_attempt1件で通常評価最大6件。自動再試行/追加品質再測定0。
+実際には矛盾/401はローカル拒否なので送信を減らせるが、その枠を別入力へ振り替えない。
+同keyの成功再現GET/POSTは新しい推論を発生させないことを台帳で照合する。
+モデルごとのresponse input/output tokens（thinkingを二重加算しない）、単調時計時間、
+API端点/ARN/alias/Artifact SHA、Provider version、送信前の残枠を非公開台帳へ記録する。
+usage欠測・結果不明・初回出典違反・予算余裕不足では残りの新規送信を停止する。
+開始済み分は自動返金せず、Recoveryは再推論しない。
+
+出力は各2048 tokens、STAR完全送信JSON24000 bytes、Provider原則40秒、Worker60秒、
+concurrency2を維持する。バイト数から正確な課金token数は断定できない。
+品質smokeの計画入力6000 tokens/送信と出力2048 tokens/送信を仮定すると、
+18回の費用式は`18 * (6000 * input_rate + 2048 * output_rate) / 1000000`。
+参考の[Anthropic公式単価](https://platform.claude.com/docs/en/models/haiku-5-5/overview)
+（100k以下、入力$0.10/出力$0.50 per MTok）と
+[地域エンドポイント10%加算](https://platform.claude.com/docs/en/about-claude/pricing#cloud-platform-pricing)
+を仮定した試算は約$0.0322、2倍の余裕で約$0.0644＋税。
+これはAWS JP Geoの見積確定値でも請求hard capでもない。
+[AWS公式料金](https://aws.amazon.com/bedrock/pricing/)の動的な該当行を今回のテキスト取得では
+確定できなかったため、承認時にJP Geo/Standard単価と価格日付を固定することを残す。
+Lambda/API Gateway/DynamoDB/SQS/Cognito/CloudWatch等の検証費用は別途合算する。
+公開後の20/600・100/3000暦月quotaは、この有限batchの送信台帳を代替しない。
+
+対象はAccount835384817629/ap-northeast-1の承認済みdevだけとし、実際のAPI、Cognito
+pool/client、DynamoDB、SQS/DLQ、Worker role/alias、2 mapping、Scheduler、Alarm一覧は
+State/manifestの承認済み読戻しで固定する。値が未確定のままenable/applyしない。
+IAMはprofileとTokyo/Osaka modelの限定Allow、Worker境界opt-in、API/Admin非付与を確認する。
+承認後の`GetInferenceProfile`、組織SCP/Boundary/実効権限確認はオフライン検査と区別する。
+
+Enablementと条件付き自動Closureは既存`P4_DEV_VALIDATION_APPROVAL_TEMPLATE.md`にまとめる。
+試験PASS/FAILやinbox未確認に関わらず、成功apply後にState/実体が正常なら証跡保存後に
+閉鎖する。4フラグfalseと今回Alarm削除だけ、最新Artifact/version/aliasは保持する。
+partial failureでは再apply/手修復せずread-only診断で停止する。`run_with_closure`へは
+この監査済みClosure実行・独立読戻しcallbackを渡し、ダミー成功辞書を実機証跡にしない。
+
+### Cognito・E2E・性能の残る確認
+
+既存37 Mock E2Eと665 frontend試験は入力不変なら再利用する。
+`practice.spec.ts`は通常/再挑戦/次問/結果直リンク/応答消失/processing復元、
+`coaching-v2.spec.ts`は3深掘り/履歴/下書き/失敗retry、`star-assist.spec.ts`は
+3案編集/反映/復元/本人切替/競合、`question-management.spec.ts`はUSER/ADMIN分離をカバーする。
+quota20/600と100/3000、Recovery、SQS重複配送は既存Backend回帰を再利用する。
+実Cognito EMAIL_OTP/refresh/logout/期限、実JWT USER/ADMIN、2本人の実DDB/IAM分離、
+GSI/Streams/SQS/Recovery配送、実ブラウザからの公開設定・CORSは未実施のまま残す。
+現在のPlaywright設定はlocalhost Mock専用で、実機E2E成功と表示しない。
+
+既存性能解析のCはp95=2003.466ms（FAIL）、30評価完了9.283秒はFakeのみ。
+Init約1.3秒と初回構成等約0.42秒がcold tailの有力要因。warmupでcoldを除外して
+元GateのPASSに変更しない。次回は同じC母集団でcold/warm、POST/poll、client/Gateway/
+Lambda初回構成を分けて観測する。memory512MiB、concurrency2、PCなしを維持して先に測る。
+30評価30秒の実AI達成は未確認で、2 Workerでの実推論時間を測るまで保証しない。
+性能用30人Fake試験と上の有限品質batchは分け、実AI30件負荷は別の費用承認対象とする。
