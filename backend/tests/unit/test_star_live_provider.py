@@ -61,7 +61,7 @@ class Client:
 
 
 def adapter(client):
-    return LiveStarProvider(BedrockProvider(client_factory=lambda *a, **k: client))
+    return LiveStarProvider(BedrockProvider(client_factory=lambda *a, **k: client), mode="source")
 
 
 def test_bedrock_sdk_shape_grounding_styles_and_independent_token_cap():
@@ -205,8 +205,9 @@ def test_manual_openai_reuses_transport_schema_and_star_cap():
             )
 
     transport = Transport()
-    live = select_star_provider(
-        OpenAIProvider(SimpleNamespace(token=lambda d: "synthetic"), transport=transport)
+    live = LiveStarProvider(
+        OpenAIProvider(SimpleNamespace(token=lambda d: "synthetic"), transport=transport),
+        mode="source",
     )
     assert live.generate("経験は？", value()).status == "ready"
     assert transport.calls == 1

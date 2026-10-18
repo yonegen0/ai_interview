@@ -1088,8 +1088,10 @@ def test_audit_star_backlog_uses_existing_age_and_deadline_metrics(star):
     )
 
 
-@pytest.mark.parametrize("uncertain", [False, True])
-def test_live_worker_pins_provider_once_isolates_quota_and_never_replays(star, uncertain):
+@pytest.mark.parametrize("uncertain,untrusted", [(False, False), (True, False), (False, True)])
+def test_live_worker_pins_provider_once_isolates_quota_and_never_replays(
+    star, uncertain, untrusted
+):
     from botocore.exceptions import ReadTimeoutError
 
     from interview_backend.evaluation.bedrock_provider import BedrockProvider
@@ -1104,10 +1106,25 @@ def test_live_worker_pins_provider_once_isolates_quota_and_never_replays(star, u
             self.calls += 1
             if uncertain:
                 raise ReadTimeoutError(endpoint_url="https://synthetic")
+            data = json.loads(kwargs["messages"][0]["content"][0]["text"])
             body = {
                 "status": "ready",
                 "candidates": [
-                    {"id": i, "style": s, "fields": fields}
+                    {
+                        "id": i,
+                        "style": s,
+                        "passages": [
+                            {
+                                "source": field,
+                                "text": next(
+                                    text
+                                    for ids, text in data["realizations"][field].items()
+                                    if i in ids
+                                ),
+                            }
+                            for field in fields
+                        ],
+                    }
                     for i, s, fields in (
                         ("A", "conclusion", ["R", "S", "T", "A"]),
                         ("B", "action", ["A", "S", "T", "R"]),
@@ -1116,6 +1133,8 @@ def test_live_worker_pins_provider_once_isolates_quota_and_never_replays(star, u
                 ],
                 "missingInformation": [],
             }
+            if untrusted:
+                body["candidates"][0]["passages"][0]["text"] = "売上を200%改善しました。"
             return {
                 "stopReason": "end_turn",
                 "output": {
@@ -1153,7 +1172,9 @@ def test_live_worker_pins_provider_once_isolates_quota_and_never_replays(star, u
     assert worker.run("owner", identifier)
     assert not worker.run("owner", identifier)
     result = request("GET", "/star-assist/generations/" + identifier)[1]
-    assert result["status"] == ("OUTCOME_UNKNOWN" if uncertain else "SUCCEEDED")
+    assert result["status"] == (
+        "OUTCOME_UNKNOWN" if uncertain else "NEEDS_INFORMATION" if untrusted else "SUCCEEDED"
+    )
     job = runtime.repository._read(ref("StarGeneration", "owner", identifier))
     assert job.provider_id == provider.provider_id and job.call_started
     assert decode(encode("StarGeneration", job, 1))[0].provider_id == provider.provider_id
