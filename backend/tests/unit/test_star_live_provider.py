@@ -174,6 +174,30 @@ def test_model_needs_information_and_full_input_size_cap():
     assert client.calls == 1
 
 
+@pytest.mark.parametrize("stop", ["end_turn", "max_tokens"])
+def test_usage_survives_response_rejection_but_not_local_clarification(stop):
+    client = Client(stop=stop)
+    converse = client.converse
+
+    def response(**kwargs):
+        return {**converse(**kwargs), "usage": {"inputTokens": 123, "outputTokens": 45}}
+
+    client.converse = response
+    live = adapter(client)
+    if stop == "end_turn":
+        assert live.generate("経験は？", value()).status == "ready"
+    else:
+        with pytest.raises(ProviderFailure, match="INCOMPLETE"):
+            live.generate("経験は？", value())
+    assert live.last_observation == {"inputTokens": 123, "outputTokens": 45}
+    missing = value().model_copy(update={"notes": value().notes.model_copy(update={"A": ""})})
+    assert live.generate("経験は？", missing).status == "needs_information"
+    assert live.last_observation is None and client.calls == 1
+    with pytest.raises(ProviderFailure, match="TIMEOUT"):
+        live.generate_with_deadline("経験は？", value(), Deadline(0, lambda: 1))
+    assert live.last_observation is None and client.calls == 1
+
+
 def test_no_implicit_fake_or_automatic_fallback():
     with pytest.raises(ProviderFailure, match="CONFIGURATION"):
         select_star_provider(SimpleNamespace(provider_id="unknown"))

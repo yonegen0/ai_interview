@@ -1090,11 +1090,12 @@ def test_audit_star_backlog_uses_existing_age_and_deadline_metrics(star):
 
 @pytest.mark.parametrize("uncertain,untrusted", [(False, False), (True, False), (False, True)])
 def test_live_worker_pins_provider_once_isolates_quota_and_never_replays(
-    star, uncertain, untrusted
+    star, uncertain, untrusted, capsys
 ):
     from botocore.exceptions import ReadTimeoutError
 
     from interview_backend.evaluation.bedrock_provider import BedrockProvider
+    from interview_backend.operational_logs import invocation_context
     from interview_backend.repositories.codec import decode, encode
     from interview_backend.star_assist.live_provider import LiveStarProvider
     from interview_backend.star_assist.worker import StarWorker
@@ -1137,6 +1138,7 @@ def test_live_worker_pins_provider_once_isolates_quota_and_never_replays(
                 body["candidates"][0]["passages"][0]["text"] = "売上を200%改善しました。"
             return {
                 "stopReason": "end_turn",
+                "usage": {"inputTokens": 123, "outputTokens": 45},
                 "output": {
                     "message": {"role": "assistant", "content": [{"text": json.dumps(body)}]}
                 },
@@ -1169,8 +1171,17 @@ def test_live_worker_pins_provider_once_isolates_quota_and_never_replays(
 
     with pytest.raises(IntegrityError):
         worker.run("other", identifier)
-    assert worker.run("owner", identifier)
-    assert not worker.run("owner", identifier)
+    with invocation_context("worker", "dev", {}, None):
+        assert worker.run("owner", identifier)
+        assert not worker.run("owner", identifier)
+    logs = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert len(logs) == (0 if uncertain else 1)
+    if not uncertain:
+        assert logs[0]["event"] == "provider_usage"
+        assert logs[0]["workload"] == "star" and logs[0]["provider"] == "bedrock"
+        assert logs[0]["generationId"] == identifier
+        assert logs[0]["inputTokens"] == 123 and logs[0]["outputTokens"] == 45
+        assert "owner" not in logs[0] and "answer" not in logs[0]
     result = request("GET", "/star-assist/generations/" + identifier)[1]
     assert result["status"] == (
         "OUTCOME_UNKNOWN" if uncertain else "NEEDS_INFORMATION" if untrusted else "SUCCEEDED"

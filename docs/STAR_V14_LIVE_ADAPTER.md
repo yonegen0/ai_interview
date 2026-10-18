@@ -18,6 +18,14 @@ Provider/モデル/effort/STAR version/token/input上限をProvider IDへ含め�
 100/3000 UTC暦月ProviderUsageを参照・変更しない。実行権限はPR #20のWorker専用権限と同じ。
 AWSへの設定・IAM適用、実推論、配備は別工程であり、この変更からは実行しない。
 
+使用量は既存の`provider_usage`運用ログへ数値だけを出す。`workload=star`と
+`generationId`で通常評価（`workload=evaluation`）から区別し、本文・応募先・owner・JWTは
+出さない。応答拒否やschema不正でも取得済みusageは保持し、ローカル追加質問・送信前拒否では
+前回のusageを再利用しない。成功後の再配送・Recoveryもログや推論を重複実行しない。
+手動OpenAI予備のsnake_case usageも共通の`inputTokens`/`outputTokens`等へ正規化する。
+`reasoningTokens`は`outputTokens`の内数で、料金へ二重加算しない。usage欠測や送信結果不明を
+0 tokens／費用0と推定しない。ログは非公開運用証跡であり、請求額の確定値ではない。
+
 ## 自然文モード（prose-v2）と原文互換モード
 
 標準の`LiveStarProvider`は`prose-v2`。一回のモデル応答でA/B/Cの文章と

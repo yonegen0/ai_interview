@@ -5,6 +5,7 @@ from uuid import uuid4
 
 from interview_backend.evaluation.openai_provider import Deadline, ProviderFailure
 from interview_backend.models.internal import StorageError
+from interview_backend.operational_logs import log_provider_usage
 from interview_backend.star_assist.live_provider import PROVIDER_IDS
 from interview_backend.star_assist.models import StarResult
 from interview_backend.star_assist.provider import FakeStarProvider, validate_fake_facts
@@ -83,6 +84,12 @@ class StarWorker:
             )
         except Exception:
             result, status = None, "FAILED_AFTER_START"
+        if self.provider.provider_id.startswith("star:"):
+            log_provider_usage(
+                "bedrock" if self.provider.provider_id.startswith("star:bedrock:") else "openai",
+                getattr(self.provider, "last_observation", None),
+                generation_id=identifier,
+            )
         for _ in range(2):
             try:
                 finished = self.repository.star_finish(lease, status, result)

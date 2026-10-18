@@ -128,6 +128,7 @@ class LiveStarProvider:
         if self.provider_id not in PROVIDER_IDS:
             raise ProviderFailure("CONFIGURATION")
         self.transport = transport
+        self.last_observation = None
 
     def generate(self, question, value):
         return self.generate_with_deadline(
@@ -135,6 +136,8 @@ class LiveStarProvider:
         )
 
     def generate_with_deadline(self, question, value, deadline):
+        # A local clarification must never inherit usage from a previous warm call.
+        self.last_observation = None
         deadline.seconds()
         facts = value.notes.model_dump()
         if not any(s.strip() for s in facts.values()):
@@ -187,7 +190,10 @@ class LiveStarProvider:
             + (PROSE_VERSION if self.mode == "natural" else VERSION).replace("-", "_"),
             max_tokens=MAX_OUTPUT_TOKENS,
         )
-        raw = self.transport.evaluate_with_deadline(prompt, deadline)
+        try:
+            raw = self.transport.evaluate_with_deadline(prompt, deadline)
+        finally:
+            self.last_observation = self.transport.last_observation
         try:
             plan = plan_type.model_validate(raw)
             result = (

@@ -50,7 +50,7 @@ def log_event(event, *, sink=None, **fields):
     output = {"event": event, "timestamp": int(time() * 1000)}
     # Do not serialize arbitrary objects, event bodies, owners, or exception strings.
     for key, value in (context | fields).items():
-        if key in {"evaluationId", "attemptId"}:
+        if key in {"evaluationId", "attemptId", "generationId"}:
             valid = isinstance(value, str) and UUID_PATTERN.fullmatch(value)
         elif key in {"lambdaRequestId", "gatewayRequestId"}:
             valid = isinstance(value, str) and re.fullmatch(r"[A-Za-z0-9_+=/-]{1,128}", value)
@@ -73,12 +73,15 @@ def log_event(event, *, sink=None, **fields):
             valid = isinstance(value, str) and value in REASONS
         elif key == "provider":
             valid = isinstance(value, str) and value in {"fake", "openai", "bedrock", "unknown"}
+        elif key == "workload":
+            valid = isinstance(value, str) and value in {"evaluation", "star"}
         elif key in {
             "inputTokens",
             "outputTokens",
             "totalTokens",
             "cacheReadInputTokens",
             "cacheWriteInputTokens",
+            "reasoningTokens",
         }:
             valid = type(value) is int and 0 <= value <= 10**12
         else:
@@ -90,3 +93,35 @@ def log_event(event, *, sink=None, **fields):
     except Exception:
         # An observability failure must never introduce a business retry.
         pass
+
+
+def log_provider_usage(provider, observation, *, generation_id=None):
+    """Normalize numeric transport usage; no content, owner or arbitrary metadata."""
+    if not isinstance(observation, dict):
+        return
+    names = (
+        {
+            "inputTokens": "inputTokens",
+            "outputTokens": "outputTokens",
+            "totalTokens": "totalTokens",
+            "cacheReadInputTokens": "cacheReadInputTokens",
+            "cacheWriteInputTokens": "cacheWriteInputTokens",
+        }
+        if provider == "bedrock"
+        else {
+            "input_tokens": "inputTokens",
+            "output_tokens": "outputTokens",
+            "cached_tokens": "cacheReadInputTokens",
+            "reasoning_tokens": "reasoningTokens",
+        }
+    )
+    fields = {
+        target: observation[source] for source, target in names.items() if source in observation
+    }
+    log_event(
+        "provider_usage",
+        provider=provider,
+        workload="star" if generation_id is not None else "evaluation",
+        generationId=generation_id,
+        **fields,
+    )
