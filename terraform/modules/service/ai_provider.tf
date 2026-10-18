@@ -9,6 +9,9 @@ variable "worker_ai_environment" {
       "INTERVIEW_OPENAI_SECRET_ARN", "INTERVIEW_OPENAI_EFFORT",
       "INTERVIEW_OPENAI_MAX_OUTPUT_TOKENS", "INTERVIEW_OPENAI_MONTHLY_USER_LIMIT",
       "INTERVIEW_OPENAI_MONTHLY_GLOBAL_LIMIT",
+      "INTERVIEW_BEDROCK_ENABLED", "INTERVIEW_BEDROCK_PROFILE_ID",
+      "INTERVIEW_BEDROCK_EFFORT", "INTERVIEW_BEDROCK_MAX_TOKENS",
+      "INTERVIEW_BEDROCK_MONTHLY_USER_LIMIT", "INTERVIEW_BEDROCK_MONTHLY_GLOBAL_LIMIT",
       "INTERVIEW_FAKE_SCENARIO", "INTERVIEW_VALIDATION_ONLY", "INTERVIEW_VALIDATION_OWNER_HASHES",
       "INTERVIEW_WIF_SMOKE_ENABLED", "INTERVIEW_WIF_SMOKE_RUN_ID", "INTERVIEW_OPENAI_AWS_ISSUER"
     ], k)])
@@ -16,7 +19,7 @@ variable "worker_ai_environment" {
   }
   validation {
     condition = length(var.worker_ai_environment) == 0 || (
-      contains(["fake", "openai"], lookup(var.worker_ai_environment, "INTERVIEW_AI_PROVIDER", "")) &&
+      contains(["fake", "openai", "bedrock"], lookup(var.worker_ai_environment, "INTERVIEW_AI_PROVIDER", "")) &&
       (lookup(var.worker_ai_environment, "INTERVIEW_AI_PROVIDER", "") != "openai" || lookup(var.worker_ai_environment, "INTERVIEW_OPENAI_ENABLED", "false") == "true")
     )
     error_message = "An explicit provider selection and explicit OpenAI enablement are required."
@@ -30,5 +33,38 @@ variable "worker_ai_environment" {
   validation {
     condition     = lookup(var.worker_ai_environment, "INTERVIEW_WIF_SMOKE_ENABLED", "false") != "true" || (var.worker_wif_enabled && lookup(var.worker_ai_environment, "INTERVIEW_AI_PROVIDER", "") == "fake" && lookup(var.worker_ai_environment, "INTERVIEW_VALIDATION_ONLY", "false") == "true")
     error_message = "WIF Smoke requires an explicit dev Worker grant and validation-only Fake configuration."
+  }
+
+  validation {
+    condition     = !var.worker_enabled || contains(["bedrock", "openai"], lookup(var.worker_ai_environment, "INTERVIEW_AI_PROVIDER", "")) || (lookup(var.worker_ai_environment, "INTERVIEW_AI_PROVIDER", "") == "fake" && lookup(var.worker_ai_environment, "INTERVIEW_VALIDATION_ONLY", "false") == "true")
+    error_message = "Enabled Worker requires explicit real provider or validation-only Fake."
+  }
+  validation {
+    condition = lookup(var.worker_ai_environment, "INTERVIEW_AI_PROVIDER", "") != "bedrock" || (
+      var.region == "ap-northeast-1" &&
+      lookup(var.worker_ai_environment, "INTERVIEW_BEDROCK_ENABLED", "") == "true" &&
+      lookup(var.worker_ai_environment, "INTERVIEW_BEDROCK_PROFILE_ID", "jp.anthropic.claude-haiku-5-5") == "jp.anthropic.claude-haiku-5-5" &&
+      lookup(var.worker_ai_environment, "INTERVIEW_BEDROCK_EFFORT", "low") == "low" &&
+      can(regex("^[0-9]+$", lookup(var.worker_ai_environment, "INTERVIEW_BEDROCK_MAX_TOKENS", "2048"))) &&
+      try(tonumber(lookup(var.worker_ai_environment, "INTERVIEW_BEDROCK_MAX_TOKENS", "2048")) == 2048, false) &&
+      can(regex("^[0-9]+$", lookup(var.worker_ai_environment, "INTERVIEW_BEDROCK_MONTHLY_USER_LIMIT", "100"))) &&
+      try(tonumber(lookup(var.worker_ai_environment, "INTERVIEW_BEDROCK_MONTHLY_USER_LIMIT", "100")) >= 1 && tonumber(lookup(var.worker_ai_environment, "INTERVIEW_BEDROCK_MONTHLY_USER_LIMIT", "100")) <= 100, false) &&
+      can(regex("^[0-9]+$", lookup(var.worker_ai_environment, "INTERVIEW_BEDROCK_MONTHLY_GLOBAL_LIMIT", "3000"))) &&
+      try(tonumber(lookup(var.worker_ai_environment, "INTERVIEW_BEDROCK_MONTHLY_GLOBAL_LIMIT", "3000")) >= 1 && tonumber(lookup(var.worker_ai_environment, "INTERVIEW_BEDROCK_MONTHLY_GLOBAL_LIMIT", "3000")) <= 3000, false) &&
+      !var.worker_wif_enabled &&
+      length([for k in keys(var.worker_ai_environment) : k if startswith(k, "INTERVIEW_VALIDATION_")]) == 0 &&
+      length([for k in keys(var.worker_ai_environment) : k if startswith(k, "INTERVIEW_OPENAI_") || startswith(k, "INTERVIEW_WIF_") || startswith(k, "INTERVIEW_FAKE_")]) == 0
+    )
+    error_message = "Bedrock must use JP Geo without OpenAI/WIF/Fake settings."
+  }
+  validation {
+    condition = lookup(var.worker_ai_environment, "INTERVIEW_AI_PROVIDER", "") != "openai" || (
+      length([for k in keys(var.worker_ai_environment) : k if startswith(k, "INTERVIEW_BEDROCK_") || startswith(k, "INTERVIEW_WIF_") || startswith(k, "INTERVIEW_FAKE_") || startswith(k, "INTERVIEW_VALIDATION_")]) == 0 &&
+      can(regex("^[0-9]+$", lookup(var.worker_ai_environment, "INTERVIEW_OPENAI_MONTHLY_USER_LIMIT", "100"))) &&
+      try(tonumber(lookup(var.worker_ai_environment, "INTERVIEW_OPENAI_MONTHLY_USER_LIMIT", "100")) >= 1 && tonumber(lookup(var.worker_ai_environment, "INTERVIEW_OPENAI_MONTHLY_USER_LIMIT", "100")) <= 100, false) &&
+      can(regex("^[0-9]+$", lookup(var.worker_ai_environment, "INTERVIEW_OPENAI_MONTHLY_GLOBAL_LIMIT", "3000"))) &&
+      try(tonumber(lookup(var.worker_ai_environment, "INTERVIEW_OPENAI_MONTHLY_GLOBAL_LIMIT", "3000")) >= 1 && tonumber(lookup(var.worker_ai_environment, "INTERVIEW_OPENAI_MONTHLY_GLOBAL_LIMIT", "3000")) <= 3000, false)
+    )
+    error_message = "OpenAI and Bedrock share the monthly 100/3000 ceilings."
   }
 }
