@@ -20,6 +20,10 @@ export function exitNotice(phase: Phase): string {
   }
 }
 export type AnswerSubmissionProps = {
+  workspace?: import("@/features/starAssist/hooks/useStarWorkspace").StarWorkspace;
+  previousAnswer?: string;
+  onClear?: () => void;
+  onRestorePrevious?: () => void;
   field: UseFormRegisterReturn;
   count: number;
   phase: Phase;

@@ -16,9 +16,10 @@ locals {
     { Effect = "Allow", Action = ["logs:CreateLogStream", "logs:PutLogEvents"], Resource = ["${aws_cloudwatch_log_group.lambda[role].arn}:*"] }
     ], [for s in local.admin_statements : s if role == "admin"], [for s in [
       { Effect = "Allow", Action = ["dynamodb:GetItem"], Resource = [local.table_arn] },
-      { Effect = "Allow", Action = role == "api" ? ["dynamodb:PutItem"] : ["dynamodb:PutItem", "dynamodb:ConditionCheckItem"], Resource = [local.table_arn], Condition = merge({ StringEquals = { "dynamodb:EnclosingOperation" = "TransactWriteItems" } }, { for k, v in local.user_keys : k => v if role == "api" }) }
+      { Effect = "Allow", Action = ["dynamodb:PutItem", "dynamodb:ConditionCheckItem"], Resource = [local.table_arn], Condition = merge({ StringEquals = { "dynamodb:EnclosingOperation" = "TransactWriteItems" } }, { for k, v in local.user_keys : k => v if role == "api" }) }
       ] : s if role != "admin"], [for s in [
-      { Effect = "Allow", Action = ["dynamodb:ConditionCheckItem"], Resource = [local.table_arn], Condition = merge(local.bank_keys, { StringEquals = { "dynamodb:EnclosingOperation" = "TransactWriteItems" } }) }
+      { Effect = "Allow", Action = ["dynamodb:ConditionCheckItem"], Resource = [local.table_arn], Condition = merge(local.bank_keys, { StringEquals = { "dynamodb:EnclosingOperation" = "TransactWriteItems" } }) },
+      { Effect = "Allow", Action = ["dynamodb:PutItem", "dynamodb:ConditionCheckItem"], Resource = [local.table_arn], Condition = { "ForAllValues:StringEquals" = { "dynamodb:LeadingKeys" = ["SYSTEM#STAR_QUOTA"] }, Null = { "dynamodb:LeadingKeys" = "false" }, StringEquals = { "dynamodb:EnclosingOperation" = "TransactWriteItems" } } }
   ] : s if role == "api"]) }
   worker_statements = [{ Effect = "Allow", Action = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"], Resource = [aws_sqs_queue.main.arn] }]
   dispatcher_statements = [
@@ -33,5 +34,5 @@ resource "aws_iam_role_policy" "runtime" {
   for_each = local.function_arns
   name     = "business"
   role     = aws_iam_role.lambda[each.key].id
-  policy   = jsonencode({ Version = "2012-10-17", Statement = concat(local.base_statements[each.key], [for s in local.worker_statements : s if each.key == "worker"], [for s in local.worker_wif_statements : s if each.key == "worker"], [for s in local.dispatcher_statements : s if each.key == "dispatcher"]) })
+  policy   = jsonencode({ Version = "2012-10-17", Statement = concat(local.base_statements[each.key], [for s in local.worker_statements : s if each.key == "worker"], [for s in local.worker_wif_statements : s if each.key == "worker"], [for s in local.bedrock_worker_statements : s if each.key == "worker"], [for s in local.dispatcher_statements : s if each.key == "dispatcher"]) })
 }

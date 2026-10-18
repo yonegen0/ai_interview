@@ -134,6 +134,8 @@ class ObservedRepository:
                 raise
             status = getattr(result, "status", None)
             evaluation = getattr(result, "evaluation", None)
+            if name in {"recover", "star_recover"} and getattr(result, "outcome_unknown", False):
+                self.metrics.emit("OutcomeUnknown")
             if (
                 name in {"finish", "recover"}
                 and status in {"applied", "failed"}

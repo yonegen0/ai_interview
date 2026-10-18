@@ -324,6 +324,137 @@ def sdk():
     )
 
 
+def test_star_stubber_preference_atomic_receipt_and_strong_get(sdk):
+    from interview_backend.star_assist.api import handle
+
+    client = SnapshotClient({})
+    repository = db(client)
+    payload = {
+        "category": {
+            "expectedVersion": 0,
+            "expectedGeneration": None,
+            "targetCategory": "corporate_sales",
+        }
+    }
+    headers = {"idempotency-key": uid(991)}
+    reply = handle(repository, OWNER, "PUT", "/star-assist/preferences", headers, payload)
+    assert reply.status == 200
+    writes = client.writes[0]["TransactItems"]
+    assert len(writes) >= 4
+    puts = [from_wire(w["Put"]["Item"]) for w in writes if "Put" in w]
+    assert {p["kind"] for p in puts} == {"StarRequest", "TargetCategoryPreference"}
+    assert all("work_pk" not in p for p in puts)
+    assert (
+        type(next(p for p in puts if p["kind"] == "TargetCategoryPreference")["expiresAt"]) is int
+    )
+    with Stubber(sdk) as stub:
+        # UUIDs are server-issued; all other transaction fields are SDK-validated.
+        for operation, parameters in client.reads:
+            assert operation == "get"
+            k = from_wire(parameters["Key"])
+            response = (
+                {"Item": client.items[(k["PK"], k["SK"])]}
+                if (k["PK"], k["SK"]) in client.items
+                else {}
+            )
+            stub.add_response("get_item", response, parameters)
+        stub.add_response(
+            "transact_write_items", {}, {"TransactItems": ANY, "ClientRequestToken": ANY}
+        )
+        assert (
+            handle(db(sdk), OWNER, "PUT", "/star-assist/preferences", headers, payload).status
+            == 200
+        )
+        stub.assert_no_pending_responses()
+
+
+def test_star_generation_stubber_atomic_quota_dispatch_and_context(sdk):
+    import json
+    from pathlib import Path
+
+    from interview_backend.star_assist.api import handle
+
+    memory = MemoryRepository(lambda: NOW)
+    ids = count(1100)
+    app = Application(memory, load_questions(), lambda: uid(next(ids)))
+    sid = app.create(OWNER, uid(990), {"category": "job_change", "difficulty": "standard"}).body[
+        "sessionId"
+    ]
+    qid = app.question(OWNER, sid).body["question"]["id"]
+    context = handle(
+        memory,
+        OWNER,
+        "POST",
+        f"/sessions/{sid}/answer-contexts",
+        {"idempotency-key": uid(991)},
+        {"operationKind": "initial_answer", "questionId": qid},
+    ).body
+    fixture = json.loads(
+        (Path(__file__).resolve().parents[3] / "contracts/star-v14-fixtures.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    draft = handle(
+        memory,
+        OWNER,
+        "POST",
+        f"/answer-contexts/{context['contextId']}/star-drafts",
+        {"idempotency-key": uid(992)},
+        fixture["input"],
+    ).body
+    items = snapshot(memory)
+    for reference, row in memory.snapshot().star_records.items():
+        item = encode(reference[0], row, memory._revisions[reference])
+        items[(item["PK"], item["SK"])] = to_wire(item)
+    client = SnapshotClient(items)
+    repository = db(client)
+    payload = {"starDraftId": draft["id"], "expectedVersion": 1}
+    headers = {"idempotency-key": uid(993)}
+    assert (
+        handle(repository, OWNER, "POST", "/star-assist/generations", headers, payload).status
+        == 202
+    )
+    put_records = [
+        from_wire(action["Put"]["Item"])
+        for action in client.writes[0]["TransactItems"]
+        if "Put" in action
+    ]
+    assert {item["kind"] for item in put_records} == {
+        "StarGeneration",
+        "StarRequest",
+        "Dispatch",
+        "AnswerContext",
+        "StarQuota",
+        "GlobalStarQuota",
+    }
+    assert (
+        next(item for item in put_records if item["kind"] == "GlobalStarQuota")["PK"]
+        == "SYSTEM#STAR_QUOTA"
+    )
+    with Stubber(sdk) as stub:
+        for operation, parameters in client.reads:
+            assert operation == "get"
+            k = from_wire(parameters["Key"])
+            response = {"Item": items[(k["PK"], k["SK"])]} if (k["PK"], k["SK"]) in items else {}
+            if response and parameters.get("ProjectionExpression"):
+                names = parameters["ExpressionAttributeNames"]
+                response = {
+                    "Item": {
+                        names[n.strip()]: response["Item"][names[n.strip()]]
+                        for n in parameters["ProjectionExpression"].split(",")
+                    }
+                }
+            stub.add_response("get_item", response, parameters)
+        stub.add_response(
+            "transact_write_items", {}, {"TransactItems": ANY, "ClientRequestToken": ANY}
+        )
+        assert (
+            handle(db(sdk), OWNER, "POST", "/star-assist/generations", headers, payload).status
+            == 202
+        )
+        stub.assert_no_pending_responses()
+
+
 def test_stubber_strong_get_and_query_continuation(sdk):
     memory, _, sid, _, _, _ = prepared()
     item = snapshot(memory)[(f"USER#{OWNER}", f"SESSION#{sid}")]
@@ -393,6 +524,17 @@ def test_stubber_real_transaction_request_validation(sdk):
                 "TableName": "test-table",
                 "Key": to_wire(key("QuestionBankChange", OWNER, uid(100))),
                 "ConsistentRead": True,
+            },
+        )
+        stub.add_response(
+            "get_item",
+            {},
+            {
+                "TableName": "test-table",
+                "Key": to_wire(key("StarRequest", OWNER, uid(100))),
+                "ConsistentRead": True,
+                "ProjectionExpression": "#pk, #sk",
+                "ExpressionAttributeNames": {"#pk": "PK", "#sk": "SK"},
             },
         )
         stub.add_response(

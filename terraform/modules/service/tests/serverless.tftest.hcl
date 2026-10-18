@@ -38,7 +38,15 @@ run "closed_dev" {
 
 run "worker_only" {
   command = plan
-  variables { worker_enabled = true }
+  variables {
+    worker_enabled = true
+    worker_ai_environment = {
+      INTERVIEW_AI_PROVIDER             = "fake"
+      INTERVIEW_VALIDATION_ONLY         = "true"
+      INTERVIEW_FAKE_SCENARIO           = "coaching_three"
+      INTERVIEW_VALIDATION_OWNER_HASHES = "0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  }
   assert {
     condition     = toset(keys(aws_cloudwatch_metric_alarm.emf)) == toset(["api-IntegrityError", "worker-IntegrityError", "dispatcher-IntegrityError", "admin-IntegrityError", "OutcomeUnknown", "RecoveryHeartbeat", "RecoverySweepLag"]) && length(aws_cloudwatch_metric_alarm.lambda) == 8 && length(aws_cloudwatch_metric_alarm.dlq) == 2 && length(aws_cloudwatch_metric_alarm.iterator) == 0 && length(aws_cloudwatch_metric_alarm.failure_rate) == 0
     error_message = "Any active dev component requires the seventeen developer alarms."
@@ -83,6 +91,12 @@ run "fully_active_dev" {
     worker_enabled    = true
     streams_enabled   = true
     scheduler_enabled = true
+    worker_ai_environment = {
+      INTERVIEW_AI_PROVIDER             = "fake"
+      INTERVIEW_VALIDATION_ONLY         = "true"
+      INTERVIEW_FAKE_SCENARIO           = "coaching_three"
+      INTERVIEW_VALIDATION_OWNER_HASHES = "0000000000000000000000000000000000000000000000000000000000000000"
+    }
   }
   assert {
     condition     = length(aws_cloudwatch_metric_alarm.emf) + length(aws_cloudwatch_metric_alarm.lambda) + length(aws_cloudwatch_metric_alarm.dlq) == 17 && alltrue([for a in aws_cloudwatch_metric_alarm.emf : a.actions_enabled])

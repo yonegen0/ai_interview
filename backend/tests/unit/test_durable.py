@@ -324,6 +324,35 @@ def test_all_partitions_page_more_than_100_and_same_key_owners(partition):
             evaluation.lease_version = 1
             evaluation.execution_config = ExecutionConfig(prompt_version=PROMPT_VERSION)
             dispatch.status = "CLAIMED"
+        if partition == PARTITIONS[3]:
+            from interview_backend.star_assist.models import Notes, StarGeneration, StarInput
+
+            value = StarInput(
+                notes=Notes(S="", T="", A="", R=""),
+                targetCategory="other",
+                industry="",
+                company="",
+                candidates=[],
+                selectedCandidateId=None,
+                generationId=None,
+            )
+            job = StarGeneration(
+                owner,
+                eid,
+                uid(3),
+                uid(4),
+                value,
+                "synthetic",
+                "2026-09",
+                clock.now,
+                clock.now + 900000,
+                status="PREPARED",
+                worker_state="running",
+                lock_owner=uid(800),
+                lock_expires_at=clock.now + 90000,
+            )
+            repo._state.star_records[("StarGeneration", owner, eid)] = job
+            dispatch.status, dispatch.job_kind = "CLAIMED", "star"
         repo._state.sessions[(owner, uid(3))] = session
         repo._state.attempts[(owner, uid(2))] = attempt
         repo._state.evaluations[(owner, eid)] = evaluation

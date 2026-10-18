@@ -42,8 +42,8 @@ resource "aws_apigatewayv2_api" "main" {
   disable_execute_api_endpoint = !var.api_enabled
   cors_configuration {
     allow_origins     = sort(tolist(var.cors_origins))
-    allow_methods     = ["GET", "POST", "OPTIONS"]
-    allow_headers     = ["Authorization", "Content-Type", "Idempotency-Key"]
+    allow_methods     = ["GET", "POST", "PUT", "OPTIONS"]
+    allow_headers     = ["Authorization", "Content-Type", "Idempotency-Key", "X-Star-Application-Id"]
     expose_headers    = ["Allow"]
     allow_credentials = false
     max_age           = 300
@@ -68,7 +68,15 @@ resource "aws_apigatewayv2_integration" "api" {
   timeout_milliseconds   = 15000
 }
 locals {
-  routes = toset(["GET /practice-options", "POST /sessions", "GET /sessions/{sessionId}/question", "POST /sessions/{sessionId}/answers", "GET /evaluations/{evaluationId}", "GET /attempts/{attemptId}/feedback", "POST /sessions/{sessionId}/questions/next", "$default"])
+  star_routes = [
+    "GET /star-assist/options", "GET /star-assist/preferences", "PUT /star-assist/preferences",
+    "POST /sessions/{sessionId}/answer-contexts", "GET /answer-contexts/{contextId}/drafts",
+    "POST /answer-contexts/{contextId}/answer-drafts", "PUT /answer-drafts/{draftId}", "POST /answer-drafts/{draftId}/discard",
+    "POST /answer-contexts/{contextId}/star-drafts", "PUT /star-drafts/{draftId}", "POST /star-drafts/{draftId}/discard",
+    "POST /star-assist/generations", "GET /star-assist/generations/{generationId}", "GET /star-assist/quota",
+    "POST /star-drafts/{draftId}/applications", "GET /star-assist/requests/{requestKey}"
+  ]
+  routes = toset(concat(["GET /practice-options", "POST /sessions", "GET /sessions/{sessionId}/question", "POST /sessions/{sessionId}/answers", "GET /evaluations/{evaluationId}", "GET /attempts/{attemptId}/feedback", "POST /sessions/{sessionId}/questions/next", "$default"], local.star_routes))
 }
 resource "aws_apigatewayv2_route" "business" {
   for_each           = local.routes

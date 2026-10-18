@@ -24,6 +24,7 @@ export function InterviewPractice() {
       key={state.contextKey}
       session={state.session}
       retryFrom={state.retryFrom}
+      previousAnswer={state.previousAnswer}
     />
   );
 }

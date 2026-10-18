@@ -24,7 +24,20 @@ export const recoveryV2Schema = z.object({
   draft: z.string(),
   pending: z.object({ key: idSchema, body: submitSchema }).optional(),
 });
+export const recoveryV3Schema = recoveryV2Schema.extend({
+  version: z.literal(3),
+  serverDraftId: idSchema.optional(),
+  draftExpiresAt: z.number().int().optional(),
+  pending: z
+    .object({
+      key: idSchema,
+      body: submitSchema,
+      applicationId: idSchema.optional(),
+    })
+    .optional(),
+});
 export const answerRecoverySchema = z.discriminatedUnion("version", [
+  recoveryV3Schema,
   recoverySchema,
   recoveryV2Schema,
 ]);

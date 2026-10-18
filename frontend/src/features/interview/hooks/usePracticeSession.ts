@@ -102,6 +102,7 @@ export function usePracticeSession() {
     view: {},
     session: query.data,
     retryFrom,
+    previousAnswer: retryFrom ? origin.data?.answer : undefined,
     contextKey: `${id}:${query.data.questionNumber}:${retryFrom}:${query.data.activeAttempt?.evaluationId ?? "new"}`,
   };
 }

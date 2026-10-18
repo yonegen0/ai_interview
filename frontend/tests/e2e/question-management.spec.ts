@@ -73,7 +73,9 @@ test("ADMIN login edits, publishes, adds/removes/reorders, and keeps an existing
     page.getByRole("button", { name: "次の質問へ", exact: true }),
   ).toHaveCount(0);
   await page.getByRole("link", { name: "同じ質問に再挑戦" }).click();
-  await expect(page.getByLabel("あなたの回答")).toHaveValue("");
+  await expect(page.getByLabel("あなたの回答")).toHaveValue(
+    "これまでの業務経験と学びについて回答します。",
+  );
 });
 test("USER cannot open question management", async ({ page }) => {
   await page.goto("/admin/questions/");

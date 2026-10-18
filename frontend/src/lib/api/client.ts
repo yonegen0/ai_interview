@@ -4,6 +4,17 @@ import { errorSchema } from "./schemas";
 import { auth } from "@/lib/auth/session";
 
 const messages: Record<string, string> = {
+  DRAFT_VERSION_CONFLICT: "別のタブで保存されています。入力は保持しています。",
+  DRAFT_CLOSED: "この回答段階は終了しています。現在の練習を確認してください。",
+  STAR_GENERATION_IN_PROGRESS: "この回答段階の生成結果を確認してください。",
+  STAR_QUOTA_EXCEEDED:
+    "今月のSTAR生成上限に達しました。編集・保存は利用できます。",
+  STAR_DRAFT_NOT_FOUND: "下書きを確認できません。入力は保持しています。",
+  STAR_REQUEST_NOT_FOUND:
+    "保存要求はまだ確認できません。同じ要求で再確認してください。",
+  STAR_CONTEXT_NOT_FOUND: "回答段階を確認できません。",
+  STAR_APPLICATION_NOT_FOUND: "STAR反映の記録を確認できません。",
+  STAR_GENERATION_NOT_FOUND: "生成結果を確認できません。",
   VALIDATION_ERROR: "入力内容を確認してください。",
   QUESTION_BANK_CONFLICT:
     "質問が更新されています。最新版と比較して編集し直してください。",
@@ -61,6 +72,7 @@ export async function request<T>(
     method?: string;
     body?: unknown;
     key?: string;
+    applicationId?: string;
     signal?: AbortSignal;
     timeout?: number;
   } = {},
@@ -103,6 +115,9 @@ export async function request<T>(
           Authorization: `Bearer ${access}`,
           "Content-Type": "application/json",
           ...(options.key ? { "Idempotency-Key": options.key } : {}),
+          ...(options.applicationId
+            ? { "X-Star-Application-Id": options.applicationId }
+            : {}),
         },
         body,
       });

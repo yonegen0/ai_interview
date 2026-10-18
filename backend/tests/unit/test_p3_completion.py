@@ -7,7 +7,7 @@ from interview_backend.evaluation.dispatch import Dispatcher, FakePublisher, Rec
 from interview_backend.evaluation.provider import FakeProvider
 from interview_backend.evaluation.worker import Worker
 from interview_backend.models.internal import IntegrityError
-from interview_backend.repositories.codec import to_wire
+from interview_backend.repositories.codec import PARTITIONS, to_wire
 from interview_backend.repositories.dynamodb import DynamoUnit
 
 
@@ -171,7 +171,13 @@ def test_corrupt_pages_over_100_same_sort_key_owners(corruption, monkeypatch):
         start = 0 if after is None else int(after["PK"].rsplit("-", 1)[1]) + 1
         candidates = []
         for n in range(start, min(start + 100, 103)):
-            prefix = "EVALUATION" if partition == PARTITIONS[2] else "DISPATCH"
+            prefix = (
+                "STAR_GENERATION"
+                if partition == PARTITIONS[3]
+                else "EVALUATION"
+                if partition == PARTITIONS[2]
+                else "DISPATCH"
+            )
             key = {
                 "PK": f"USER#synthetic-{n:03d}",
                 "SK": f"{prefix}#{uid(1)}",
@@ -193,8 +199,8 @@ def test_corrupt_pages_over_100_same_sort_key_owners(corruption, monkeypatch):
         repo, Dispatcher(repo, FakePublisher()), clock=lambda: NOW, metric=metrics.append
     ).tick(remaining_ms=lambda: 30000)
     assert queried == list(PARTITIONS) * 2
-    assert len(metrics) == (309 if corruption == "all" else 3)
-    assert len(handled) == (0 if corruption == "all" else 306)
+    assert len(metrics) == (103 if corruption == "all" else 1) * len(PARTITIONS)
+    assert len(handled) == (0 if corruption == "all" else 102 * len(PARTITIONS))
 
 
 def test_corrupt_candidate_checkpoint_at_five_seconds(monkeypatch):
@@ -439,8 +445,8 @@ def test_invalid_gsi_candidate_does_not_stop_other_partitions():
     Recovery(
         repo, Dispatcher(repo, FakePublisher()), clock=lambda: NOW, metric=metrics.append
     ).tick(remaining_ms=lambda: 30000)
-    assert len(queried) == 3
-    assert metrics == ["IntegrityError"] * 3
+    assert len(queried) == len(PARTITIONS)
+    assert metrics == ["IntegrityError"] * len(PARTITIONS)
 
 
 def test_expiry_during_transaction_assembly_prevents_send(monkeypatch):

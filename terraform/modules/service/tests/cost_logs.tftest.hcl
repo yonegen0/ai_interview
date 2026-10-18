@@ -32,6 +32,12 @@ run "active_customer" {
     streams_enabled   = true
     scheduler_enabled = true
     log_usage         = "customer"
+    worker_ai_environment = {
+      INTERVIEW_AI_PROVIDER             = "fake"
+      INTERVIEW_VALIDATION_ONLY         = "true"
+      INTERVIEW_FAKE_SCENARIO           = "coaching_three"
+      INTERVIEW_VALIDATION_OWNER_HASHES = "0000000000000000000000000000000000000000000000000000000000000000"
+    }
   }
 
   assert {
@@ -76,6 +82,12 @@ run "active_test_close_rejected" {
     test_monitoring_enabled = false
     test_closure_confirmed  = true
     worker_enabled          = true
+    worker_ai_environment = {
+      INTERVIEW_AI_PROVIDER             = "fake"
+      INTERVIEW_VALIDATION_ONLY         = "true"
+      INTERVIEW_FAKE_SCENARIO           = "coaching_three"
+      INTERVIEW_VALIDATION_OWNER_HASHES = "0000000000000000000000000000000000000000000000000000000000000000"
+    }
   }
   expect_failures = [var.test_monitoring_enabled]
 }
@@ -98,6 +110,12 @@ run "test_reopened" {
     test_monitoring_enabled = true
     test_closure_confirmed  = false
     worker_enabled          = true
+    worker_ai_environment = {
+      INTERVIEW_AI_PROVIDER             = "fake"
+      INTERVIEW_VALIDATION_ONLY         = "true"
+      INTERVIEW_FAKE_SCENARIO           = "coaching_three"
+      INTERVIEW_VALIDATION_OWNER_HASHES = "0000000000000000000000000000000000000000000000000000000000000000"
+    }
   }
   assert {
     condition     = length(aws_cloudwatch_metric_alarm.emf) + length(aws_cloudwatch_metric_alarm.lambda) + length(aws_cloudwatch_metric_alarm.dlq) + length(aws_cloudwatch_metric_alarm.iterator) + length(aws_cloudwatch_metric_alarm.failure_rate) == 39

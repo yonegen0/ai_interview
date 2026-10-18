@@ -1,5 +1,6 @@
 /** @file useAnswerOperation.ts @description 回答の単一送信・永続化・復旧・評価統合 */
 "use client";
+import { useStarWorkspace } from "@/features/starAssist/hooks/useStarWorkspace";
 import { useOperationScope } from "@/hooks/useOperationScope";
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -24,6 +25,7 @@ export const useAnswerOperation = (
   timing?: EvaluationTiming,
   operation?: Extract<V2Answer, { kind: "coaching_answer" }>,
   onAccepted?: (result: Attempt) => void,
+  previousAnswer?: string,
 ) => {
   const {
     isActive,
@@ -42,7 +44,7 @@ export const useAnswerOperation = (
         (value.version === 1 &&
           !operation &&
           value.context === legacyContext) ||
-        (value.version === 2 &&
+        ((value.version === 2 || value.version === 3) &&
           value.pending &&
           value.context.startsWith(`${session.questionNumber}:`)))
       ? value
@@ -66,7 +68,14 @@ export const useAnswerOperation = (
         ? "recovery_required"
         : "answering") as Phase,
   );
-  const pending = useRef(saved?.pending);
+  const pending = useRef<
+    | {
+        key: string;
+        body: import("@/lib/api/schemas").Answer;
+        applicationId?: string;
+      }
+    | undefined
+  >(saved?.pending);
   const isInitialOperation = operation === undefined;
   const removeOwnedRecovery = useCallback(() => {
     const value = readSaved(storageKey, answerRecoverySchema);
@@ -98,27 +107,92 @@ export const useAnswerOperation = (
       answer:
         saved?.pending && "answer" in saved.pending.body
           ? saved.pending.body.answer
-          : (saved?.draft ?? ""),
+          : ((saved?.version === 3 && saved.serverDraftId
+              ? undefined
+              : saved?.draft) ??
+            (retryFrom
+              ? (previousAnswer ?? session.activeCoaching?.initialAnswer ?? "")
+              : "")),
     },
   });
   const answer = useWatch({ control: form.control, name: "answer" }) ?? "";
   const evaluation = useEvaluation(attempt?.evaluationId, timing);
+  const restoreAnswer = useCallback(
+    (value: string) => form.reset({ answer: value }),
+    [form],
+  );
+  const workspace = useStarWorkspace(
+    session,
+    operation
+      ? {
+          operationKind: "coaching_answer",
+          questionId: session.question.id,
+          fromAttemptId: operation.attemptId,
+          fromEvaluationId: operation.fromEvaluationId,
+        }
+      : retryFrom && session.activeAttempt
+        ? {
+            operationKind: "retry_attempt",
+            questionId: session.question.id,
+            fromAttemptId: retryFrom,
+            fromEvaluationId: session.activeAttempt.evaluationId,
+          }
+        : { operationKind: "initial_answer", questionId: session.question.id },
+    answer,
+    form.formState.isDirty,
+    phase === "answering",
+    saved && !saved.pending
+      ? {
+          draft: saved.draft,
+          serverDraftId: saved.version === 3 ? saved.serverDraftId : undefined,
+        }
+      : null,
+    restoreAnswer,
+  );
   const mutation = useMutation({
     retry: false,
     mutationFn: (value: NonNullable<typeof pending.current>) => {
       assertActive();
-      return submitAnswer(session.sessionId, value.body, value.key);
+      return value.applicationId
+        ? submitAnswer(
+            session.sessionId,
+            value.body,
+            value.key,
+            value.applicationId,
+          )
+        : submitAnswer(session.sessionId, value.body, value.key);
     },
   });
   useEffect(() => {
-    if (isActive() && phase === "answering")
+    if (
+      isActive() &&
+      phase === "answering" &&
+      (!(saved?.version === 3 && saved.serverDraftId) || !workspace.loading)
+    )
       save(storageKey, {
-        version: 2,
+        version: 3,
         questionId: session.question.id,
         context,
         draft: answer,
+        ...(workspace.answerCache
+          ? {
+              serverDraftId: workspace.answerCache.id,
+              draftExpiresAt: workspace.answerCache.expiresAt,
+            }
+          : {}),
       });
-  }, [answer, phase, storageKey, context, session.question.id, save, isActive]);
+  }, [
+    answer,
+    phase,
+    storageKey,
+    context,
+    session.question.id,
+    save,
+    isActive,
+    workspace.loading,
+    workspace.answerCache,
+    saved,
+  ]);
   useEffect(() => {
     if (!isActive()) return;
     if (evaluation.data?.status === "completed") {
@@ -170,6 +244,9 @@ export const useAnswerOperation = (
     setError(null);
     const payload = pending.current ?? {
       key: crypto.randomUUID(),
+      ...(workspace.applicationId
+        ? { applicationId: workspace.applicationId }
+        : {}),
       body: operation
         ? { ...operation, answer: value?.answer ?? answer }
         : retryFrom && session.activeAttempt
@@ -188,7 +265,7 @@ export const useAnswerOperation = (
     };
     pending.current = payload;
     save(storageKey, {
-      version: 2,
+      version: 3,
       questionId: session.question.id,
       context,
       draft: "answer" in payload.body ? payload.body.answer : answer,
@@ -253,6 +330,20 @@ export const useAnswerOperation = (
   };
   return {
     form,
+    workspace,
+    previousAnswer,
+    clearInput: () => {
+      workspace.clearApplication();
+      form.setValue("answer", "", { shouldDirty: true });
+    },
+    restorePrevious: () => {
+      workspace.clearApplication();
+      form.setValue(
+        "answer",
+        previousAnswer ?? session.activeCoaching?.initialAnswer ?? "",
+        { shouldDirty: true },
+      );
+    },
     answer,
     phase,
     error,
@@ -261,7 +352,10 @@ export const useAnswerOperation = (
     send,
     retry,
     discard: () => {
-      if (isActive()) removeOwnedRecovery();
+      if (isActive()) {
+        removeOwnedRecovery();
+        void workspace.discard();
+      }
     },
   };
 };

@@ -237,7 +237,7 @@ def test_recovery_failure_never_emits_a_success_heartbeat(durable, monkeypatch):
     monkeypatch.setattr(repo, "get_cursor", lambda _: (_ for _ in ()).throw(StorageUnavailable()))
     recovery.tick(lambda: 30000)
     assert not any("RecoveryHeartbeat" in json.loads(r) for r in rows)
-    assert any(json.loads(r).get("RecoveryPartitionBlocked") == 3 for r in rows)
+    assert any(json.loads(r).get("RecoveryPartitionBlocked") == 4 for r in rows)
 
 
 def test_caught_api_500_is_returned_and_emits_business_failure(capsys):

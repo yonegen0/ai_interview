@@ -76,7 +76,9 @@ class Application:
         validate_id(session_id)
         return self.repository.get_session(owner, session_id)
 
-    def submit(self, owner: str, key: str, session_id: str, payload: dict) -> Reply:
+    def submit(
+        self, owner: str, key: str, session_id: str, payload: dict, application_id=None
+    ) -> Reply:
         self._owner(owner)
         validate_id(session_id)
         validate_id(key)
@@ -98,6 +100,7 @@ class Application:
                 session_id,
                 request,
                 self._new_id,
+                application_id,
             )
         return self.repository.accept_once(
             owner,
@@ -107,6 +110,7 @@ class Application:
             request.questionId,
             request.answer,
             self._new_id,
+            application_id,
         )
 
     def evaluation(self, owner: str, evaluation_id: str) -> Reply:

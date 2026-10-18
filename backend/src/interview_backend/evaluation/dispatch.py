@@ -117,9 +117,15 @@ class Recovery:
         remaining = remaining_ms or (
             lambda: max(0, 30000 - int((self.monotonic() - started) * 1000))
         )
+        offset = (
+            self.repository.recovery_rotation()
+            if hasattr(self.repository, "recovery_rotation")
+            else 0
+        )
+        partitions = PARTITIONS[offset:] + PARTITIONS[:offset]
         finished, blocked, checkpointed = set(), set(), set()
-        while remaining() > 5000 and len(finished | blocked) < 3:
-            for partition in PARTITIONS:
+        while remaining() > 5000 and len(finished | blocked) < len(PARTITIONS):
+            for partition in partitions:
                 if partition in finished | blocked or remaining() <= 5000:
                     continue
                 try:
@@ -159,7 +165,7 @@ class Recovery:
                             if event:
                                 self.dispatcher.dispatch(
                                     event["ownerSub"],
-                                    event["evaluationId"],
+                                    event.get("evaluationId", event.get("generationId")),
                                     event["dispatchVersion"],
                                 )
                         except IntegrityError, StorageFormatError:
@@ -195,7 +201,7 @@ class Recovery:
         if self.observe:
             if blocked:
                 self.observe("RecoveryPartitionBlocked", len(blocked))
-            if remaining() <= 5000 and len(finished | blocked) < 3:
+            if remaining() <= 5000 and len(finished | blocked) < len(PARTITIONS):
                 self.observe("RecoveryBudgetStop", 1)
-            if len(checkpointed) == 3 and not blocked:
+            if len(checkpointed) == len(PARTITIONS) and not blocked:
                 self.observe("RecoveryHeartbeat", 1)

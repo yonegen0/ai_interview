@@ -45,9 +45,14 @@ class Worker:
             self.config, prompt_version=COACHING_PROMPT_VERSION, result_schema_version=2
         )
         self.metric = metric
+        from interview_backend.star_assist.worker import StarWorker
+
+        self.star_worker = StarWorker(repository, metric=metric)
 
     @invocation_budget(60000)
     def run(self, owner, evaluation_id, generation=1, remaining_ms=None):
+        if self.repository.job_kind(owner, evaluation_id) == "star":
+            return self.star_worker.run(owner, evaluation_id, generation, remaining_ms)
         entered = False
         started = self.monotonic()
         remaining = remaining_ms or (

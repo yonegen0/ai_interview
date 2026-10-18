@@ -116,6 +116,23 @@ run "reject_wildcard_origin" {
   expect_failures = [var.cors_origins]
 }
 
+run "star_routes_and_ttl_candidate" {
+  command = plan
+  variables { star_assist_ttl_enabled = true }
+  assert {
+    condition = (
+      length(local.star_routes) == 16 && alltrue([for key in local.star_routes : aws_apigatewayv2_route.business[key].authorization_type == "JWT"]) &&
+      contains(aws_apigatewayv2_api.main.cors_configuration[0].allow_methods, "PUT") &&
+      contains(aws_apigatewayv2_api.main.cors_configuration[0].allow_headers, "X-Star-Application-Id") &&
+      one(aws_dynamodb_table.main.ttl).enabled && one(aws_dynamodb_table.main.ttl).attribute_name == "expiresAt" &&
+      contains(local.base_statements["api"][2].Action, "dynamodb:ConditionCheckItem") &&
+      local.base_statements["api"][4].Condition["ForAllValues:StringEquals"]["dynamodb:LeadingKeys"] == ["SYSTEM#STAR_QUOTA"] &&
+      aws_apigatewayv2_api.main.disable_execute_api_endpoint && !aws_lambda_event_source_mapping.worker.enabled && !aws_lambda_event_source_mapping.streams.enabled && aws_scheduler_schedule.recovery.state == "DISABLED"
+    )
+    error_message = "STAR candidate requires JWT routes, explicit PUT/header, exact quota IAM and opt-in TTL while remaining closed."
+  }
+}
+
 run "reject_missing_account" {
   command = plan
   variables { account_id = "" }

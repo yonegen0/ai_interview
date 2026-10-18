@@ -1,4 +1,11 @@
 resource "aws_dynamodb_table" "main" {
+  dynamic "ttl" {
+    for_each = var.star_assist_ttl_enabled ? [true] : []
+    content {
+      attribute_name = "expiresAt"
+      enabled        = true
+    }
+  }
   name         = "${local.prefix}-main"
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "PK"

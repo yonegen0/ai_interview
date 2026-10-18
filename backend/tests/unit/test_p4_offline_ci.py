@@ -1,6 +1,7 @@
 """Offline CI lock augmentation and deterministic package safety contracts."""
 
 import json
+import subprocess
 import sys
 import zipfile
 from pathlib import Path
@@ -82,6 +83,23 @@ def test_copy_only_configuration_and_strip_environment(tmp_path, monkeypatch):
     env = module.isolated_environment(tmp_path)
     assert "synthetic-secret" not in env.values()
     assert env["AWS_EC2_METADATA_DISABLED"] == "true"
+
+
+def test_new_bedrock_hcl_is_included_by_index_snapshot(tmp_path):
+    module = tool("offline_terraform")
+    repository = tmp_path / "repo"
+    repository.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=repository, check=True)
+    name = "terraform/modules/service/bedrock.tf"
+    path = repository / name
+    path.parent.mkdir(parents=True)
+    path.write_text("locals { bedrock_enabled = false }\n", encoding="utf-8")
+    subprocess.run(["git", "add", "-N", "--", name], cwd=repository, check=True)
+    snapshot = module.tracked_snapshot(repository)
+    assert name in snapshot
+    copied = tmp_path / "copied"
+    module.copy_configuration(repository, copied, snapshot)
+    assert (copied / name).read_bytes() == path.read_bytes()
 
 
 @pytest.mark.parametrize("failure", [None, "selection", "command", "original"])

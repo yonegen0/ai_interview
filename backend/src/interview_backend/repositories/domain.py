@@ -40,6 +40,7 @@ from interview_backend.repositories.coaching import (
     validate_progress,
 )
 from interview_backend.repositories.codec import FAILURE, PARTITIONS, encode, validate
+from interview_backend.star_assist.repository import StarRepositoryMixin
 from interview_backend.text_limits import code_point_length
 
 SESSION_UPDATE_RESERVE_BYTES = 1024
@@ -83,7 +84,7 @@ def session_body(session):
     ).wire()
 
 
-class DomainRepository(CoachingRepositoryMixin):
+class DomainRepository(StarRepositoryMixin, CoachingRepositoryMixin):
     def __init__(self, clock=utc_ms):
         self.clock = clock
 
@@ -105,6 +106,8 @@ class DomainRepository(CoachingRepositoryMixin):
                 return cached.reply
             try:
                 if tx.get(ref("QuestionBankChange", owner, key)) is not None:
+                    raise BusinessError(409, "IDEMPOTENCY_CONFLICT")
+                if tx.exists(ref("StarRequest", owner, key)):
                     raise BusinessError(409, "IDEMPOTENCY_CONFLICT")
                 reply = operation(tx, now)
             except BusinessError:
@@ -196,6 +199,8 @@ class DomainRepository(CoachingRepositoryMixin):
             return cached.reply
 
         def run(tx):
+            if tx.exists(ref("StarRequest", owner, key)):
+                raise BusinessError(409, "IDEMPOTENCY_CONFLICT")
             cached = tx.get(change_ref)
             if cached is not None:
                 return replay(cached)
@@ -263,7 +268,9 @@ class DomainRepository(CoachingRepositoryMixin):
 
         return self._atomic(run)
 
-    def accept_once(self, owner, key, fingerprint, session_id, question_id, answer, new_id):
+    def accept_once(
+        self, owner, key, fingerprint, session_id, question_id, answer, new_id, application_id=None
+    ):
         generated = []
 
         def run(tx, now):
@@ -289,6 +296,17 @@ class DomainRepository(CoachingRepositoryMixin):
             )
             evaluation = Evaluation(owner, eid, aid, created_at=now, deadline_at=now + 900000)
             dispatch = Dispatch(owner, eid, evaluation.deadline_at, created_at=now, next_at=now)
+            from types import SimpleNamespace
+
+            self.star_complete_answer(
+                tx,
+                session,
+                SimpleNamespace(kind="initial_answer"),
+                eid,
+                answer,
+                application_id,
+                now,
+            )
             session.active = ActiveAttempt(attemptId=aid, evaluationId=eid, status="processing")
             self._touch(session, now)
             tx.put(sr, session)
@@ -729,6 +747,8 @@ class DomainRepository(CoachingRepositoryMixin):
         return self._atomic(run, temporal=True)
 
     def acquire_delivery(self, owner, evaluation_id, generation, sender_id, now=None):
+        if self.job_kind(owner, evaluation_id) == "star":
+            return self.star_acquire_delivery(owner, evaluation_id, generation, sender_id)
         execution_identity(owner, evaluation_id, generation, sender_id)
 
         def run(tx):
@@ -778,6 +798,9 @@ class DomainRepository(CoachingRepositoryMixin):
         return self._atomic(run, temporal=True)
 
     def _delivery_result(self, delivery, next_at, now):
+        if delivery.job_kind == "star":
+            return self.star_delivery_result(delivery, next_at)
+
         def run(tx):
             at = self.clock() if now is None else max(now, self.clock())
             related = self._related(tx, delivery.owner, delivery.evaluation_id)
@@ -815,6 +838,9 @@ class DomainRepository(CoachingRepositoryMixin):
         return d.generation_attempts if d else 1
 
     def recover(self, owner, evaluation_id, now=None):
+        if self.job_kind(owner, evaluation_id) == "star":
+            return self.star_recover(owner, evaluation_id)
+
         def run(tx):
             at = self.clock() if now is None else max(now, self.clock())
             related = self._related(tx, owner, evaluation_id, full=True)
@@ -857,9 +883,13 @@ class DomainRepository(CoachingRepositoryMixin):
         d = self._read(ref("Dispatch", owner, evaluation_id))
         if d is None:
             return None
-        return DeliveryClaim(owner, evaluation_id, d.generation, str(uuid4()), 0).event()
+        return DeliveryClaim(
+            owner, evaluation_id, d.generation, str(uuid4()), 0, job_kind=d.job_kind
+        ).event()
 
     def work_observation(self, owner, evaluation_id):
+        if self.job_kind(owner, evaluation_id) == "star":
+            return self.star_work_observation(owner, evaluation_id)
         """Recovery-only read: consistent E/D classification, no business mutation."""
 
         def run(tx):

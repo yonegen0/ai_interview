@@ -1,5 +1,6 @@
 /** @file index.ts @description BrowserとNodeで共有する検証済みMock Repository */
 import { z } from "zod";
+import { emptyStarState, starStateSchema } from "../star";
 import {
   sessionSchema,
   feedbackSchema,
@@ -58,6 +59,7 @@ const evaluationRecordSchema = z.object({
 const storeSchema = v2StoreSchema
   .extend({
     version: z.literal(3),
+    star: starStateSchema.default(emptyStarState),
     attempts: z.record(
       z.string(),
       evaluationRecordSchema
@@ -142,9 +144,12 @@ export interface Repository {
   read(): MockState;
   write(state: MockState): void;
   reset(): void;
+  transaction<T>(operation: (snapshot: Repository) => T): Promise<T>;
+  migrationWarning?: () => string | null;
 }
 const empty = (): MockState => ({
   version: 3,
+  star: emptyStarState(),
   evaluations: {},
   coachings: {},
   bank: { version: 0, updatedAt: null, questions: structuredClone(questions) },
@@ -244,9 +249,64 @@ export function createRepository(browser = false): Repository {
       memory = storeSchema.parse(state);
       if (browser) save("pocket:mock:v3", memory);
     },
+    async transaction<T>(operation: (snapshot: Repository) => T): Promise<T> {
+      let current = structuredClone(this.read());
+      const facade: Repository = {
+        read: () => structuredClone(current),
+        write: (v) => {
+          current = storeSchema.parse(v);
+        },
+        reset: () => {
+          current = empty();
+        },
+        transaction: () => {
+          throw new Error("NestedMockTransaction");
+        },
+      };
+      const result = operation(facade);
+      if (result instanceof Promise)
+        throw new Error("AsyncWorkInsideMockTransaction");
+      memory = storeSchema.parse(current);
+      if (browser) save("pocket:mock:v3", memory);
+      return result;
+    },
     reset() {
       memory = empty();
       if (browser) save("pocket:mock:v3", memory);
     },
   };
+}
+
+export const parseMockState = (value: unknown): MockState =>
+  storeSchema.parse(value);
+/** Pure migration. Never writes or deletes legacy browser keys. */
+export function parseLegacySnapshot(value: unknown): MockState {
+  if (
+    value &&
+    typeof value === "object" &&
+    "version" in value &&
+    value.version === 3
+  )
+    return storeSchema.parse(value);
+  const v2 = v2StoreSchema.safeParse(value);
+  const old = v2.success ? v2.data : legacyStoreSchema.parse(value);
+  const next = { ...empty(), ...old, version: 3 as const };
+  if (!v2.success)
+    for (const [id, session] of Object.entries(old.sessions)) {
+      const pool = legacyQuestions.filter(
+        (q) => q.category === session.question.category,
+      );
+      if (
+        !pool.length ||
+        JSON.stringify(pool[(session.questionNumber - 1) % pool.length]) !==
+          JSON.stringify(session.question)
+      )
+        throw new Error("LegacyMockMigrationConflict");
+      next.sessionQuestions[id] = structuredClone(pool);
+      next.owners[id] = "mock-user";
+    }
+  for (const record of Object.values(next.attempts))
+    next.evaluations[record.evaluation.evaluationId] = structuredClone(record);
+  scopeLegacyRequests(next);
+  return storeSchema.parse(next);
 }
