@@ -157,7 +157,13 @@ class ObservedRepository:
                     elapsedMs=max(0, evaluation.finished_at - evaluation.created_at),
                     provider="openai"
                     if provider_id and provider_id.startswith("openai")
-                    else ("fake" if provider_id == "fake" else "unknown"),
+                    else (
+                        "bedrock"
+                        if provider_id and provider_id.startswith("bedrock")
+                        else "fake"
+                        if provider_id == "fake"
+                        else "unknown"
+                    ),
                 )
                 if evaluation.failure_reason == "OUTCOME_UNKNOWN":
                     self.metrics.emit("OutcomeUnknown")

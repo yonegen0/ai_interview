@@ -21,6 +21,7 @@ EVENTS = {
     "storage_failure",
     "invalid_configuration",
     "internal_batch_failure",
+    "provider_usage",
 }
 
 
@@ -71,7 +72,15 @@ def log_event(event, *, sink=None, **fields):
         elif key == "failureReason":
             valid = isinstance(value, str) and value in REASONS
         elif key == "provider":
-            valid = isinstance(value, str) and value in {"fake", "openai", "unknown"}
+            valid = isinstance(value, str) and value in {"fake", "openai", "bedrock", "unknown"}
+        elif key in {
+            "inputTokens",
+            "outputTokens",
+            "totalTokens",
+            "cacheReadInputTokens",
+            "cacheWriteInputTokens",
+        }:
+            valid = type(value) is int and 0 <= value <= 10**12
         else:
             valid = False
         if valid:

@@ -1,26 +1,11 @@
 """Worker-only explicit selection. Fake default does not import an external transport."""
 
+from interview_backend.evaluation.openai_provider import ProviderFailure
 from interview_backend.evaluation.provider import FakeProvider
-
-WORKER_AI_KEYS = frozenset(
-    {
-        "INTERVIEW_AI_PROVIDER",
-        "INTERVIEW_OPENAI_ENABLED",
-        "INTERVIEW_OPENAI_AUTH",
-        "INTERVIEW_OPENAI_IDENTITY_PROVIDER_ID",
-        "INTERVIEW_OPENAI_SERVICE_ACCOUNT_ID",
-        "INTERVIEW_OPENAI_SECRET_ARN",
-        "INTERVIEW_OPENAI_EFFORT",
-        "INTERVIEW_OPENAI_MAX_OUTPUT_TOKENS",
-        "INTERVIEW_OPENAI_MONTHLY_USER_LIMIT",
-        "INTERVIEW_OPENAI_MONTHLY_GLOBAL_LIMIT",
-        "INTERVIEW_FAKE_SCENARIO",
-        "INTERVIEW_VALIDATION_ONLY",
-        "INTERVIEW_VALIDATION_OWNER_HASHES",
-        "INTERVIEW_WIF_SMOKE_ENABLED",
-        "INTERVIEW_WIF_SMOKE_RUN_ID",
-        "INTERVIEW_OPENAI_AWS_ISSUER",
-    }
+from interview_backend.evaluation.provider_configuration import (
+    BEDROCK_KEYS,
+    WORKER_AI_KEYS,
+    provider_values,
 )
 
 
@@ -34,13 +19,28 @@ def checked_provider_environment(values, account, region):
         or any(type(v) is not str for v in values.values())
     ):
         raise ValueError("InvalidProviderEnvironment")
+    try:
+        provider_values(values)
+    except ProviderFailure:
+        raise ValueError("InvalidProviderEnvironment") from None
     if not values:
         return {}
     provider = values.get("INTERVIEW_AI_PROVIDER")
-    if provider not in {"fake", "openai"}:
+    if provider not in {"fake", "openai", "bedrock"}:
         raise ValueError("InvalidProviderEnvironment")
     if region != "ap-northeast-1":
         raise ValueError("InvalidProviderEnvironment")
+    if provider == "bedrock":
+        from interview_backend.evaluation.bedrock_provider import (
+            BedrockSettings,
+        )
+
+        if set(values) - BEDROCK_KEYS:
+            raise ValueError("InvalidProviderEnvironment")
+        try:
+            BedrockSettings.from_environment({**values, "INTERVIEW_REGION": region})
+        except Exception:
+            raise ValueError("InvalidProviderEnvironment") from None
     if provider == "fake":
         allowed = {
             "INTERVIEW_AI_PROVIDER",
@@ -125,6 +125,7 @@ def checked_provider_environment(values, account, region):
 
 
 def select_provider(environment):
+    provider_values(environment)
     selection = environment.get("INTERVIEW_AI_PROVIDER", "fake")
     if selection == "fake":
         if "INTERVIEW_FAKE_SCENARIO" in environment:
@@ -137,6 +138,13 @@ def select_provider(environment):
                 environment.get("INTERVIEW_VALIDATION_OWNER_HASHES", "").split(","),
             )
         return FakeProvider()
+    if selection == "bedrock":
+        from interview_backend.evaluation.bedrock_provider import (
+            BedrockProvider,
+            BedrockSettings,
+        )
+
+        return BedrockProvider(settings=BedrockSettings.from_environment(environment))
     from interview_backend.evaluation.openai_auth import AWSFederation, SecretAuthentication
     from interview_backend.evaluation.openai_provider import (
         OpenAIProvider,

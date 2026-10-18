@@ -1,5 +1,6 @@
 """P4 deployment boundaries, with no credential lookup or AWS requests."""
 
+import hashlib
 import json
 from copy import deepcopy
 from types import SimpleNamespace
@@ -249,17 +250,28 @@ def test_aws_get_keeps_storage_and_provider_pure(runtime):
     assert runtime.publisher.events == []
 
 
-def test_deployed_worker_composition_keeps_fake_provider(monkeypatch):
+def test_deployed_worker_requires_explicit_provider_before_sdk_client(monkeypatch):
     from interview_backend import aws_runtime
-    from interview_backend.evaluation.provider import FakeProvider
+    from interview_backend.evaluation.validation_scenarios import ValidationScenario
 
     for key, value in environment("worker").items():
         monkeypatch.setenv(key, value)
-    monkeypatch.setattr(aws_runtime, "client_for", lambda region: object())
+    calls = []
+    monkeypatch.setattr(aws_runtime, "client_for", lambda region: calls.append(region) or object())
     aws_runtime.build_entry.cache_clear()
     try:
+        with pytest.raises(ValueError, match="InvalidProviderSelection"):
+            aws_runtime.build_entry("worker")
+        assert calls == []
+        monkeypatch.setenv("INTERVIEW_AI_PROVIDER", "fake")
+        monkeypatch.setenv("INTERVIEW_VALIDATION_ONLY", "true")
+        monkeypatch.setenv("INTERVIEW_FAKE_SCENARIO", "coaching_three")
+        monkeypatch.setenv(
+            "INTERVIEW_VALIDATION_OWNER_HASHES", hashlib.sha256(b"synthetic-owner").hexdigest()
+        )
         entry = aws_runtime.build_entry("worker")
-        assert isinstance(entry.handlers.worker.provider, FakeProvider)
+        assert isinstance(entry.handlers.worker.provider, ValidationScenario)
+        assert calls == [REGION]
     finally:
         aws_runtime.build_entry.cache_clear()
 
