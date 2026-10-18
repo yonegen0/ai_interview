@@ -10,6 +10,7 @@ from pydantic import ValidationError
 
 from interview_backend.evaluation.coaching import InvalidCoachingResult, validate_coaching_result
 from interview_backend.evaluation.provider import CoachingPrompt, Prompt
+from interview_backend.evaluation.provider_limits import validate_limits
 from interview_backend.models.public import CoachingResult, EvaluationResult
 
 MODEL = "gpt-6-luna"
@@ -172,12 +173,12 @@ class OpenAISettings:
             self.effort not in {"low", "medium"}
             or type(self.max_output_tokens) is not int
             or not 1024 <= self.max_output_tokens <= 8192
-            or type(self.monthly_user_limit) is not int
-            or not 1 <= self.monthly_user_limit <= 1000
-            or type(self.monthly_global_limit) is not int
-            or not 1 <= self.monthly_global_limit <= 10000
         ):
             raise ProviderFailure("CONFIGURATION")
+        try:
+            validate_limits(self.monthly_user_limit, self.monthly_global_limit)
+        except ValueError:
+            raise ProviderFailure("CONFIGURATION") from None
 
 
 class OpenAIProvider:

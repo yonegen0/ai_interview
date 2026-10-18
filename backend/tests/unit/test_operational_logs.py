@@ -53,6 +53,30 @@ def test_privacy_allowlist_never_serializes_secrets_or_arbitrary_objects():
     assert "_aws" not in value
 
 
+def test_bedrock_usage_logs_only_numeric_allowlisted_fields():
+    rows = []
+    with invocation("worker"):
+        log_event(
+            "provider_usage",
+            sink=rows.append,
+            provider="bedrock",
+            inputTokens=12,
+            outputTokens="secret-tokens",
+            totalTokens=True,
+            ownerSub="private@example.invalid",
+            answer="secret-answer",
+        )
+    assert len(rows) == 1
+    value = json.loads(rows[0])
+    assert value["provider"] == "bedrock"
+    assert value["inputTokens"] == 12
+    assert "outputTokens" not in value
+    assert "totalTokens" not in value
+    assert "ownerSub" not in value
+    assert "answer" not in value
+    assert "secret" not in rows[0]
+
+
 def test_logging_sink_failure_and_warm_context_isolation(capsys):
     with invocation(request="first-id"):
         log_event(

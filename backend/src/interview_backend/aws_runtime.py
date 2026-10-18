@@ -11,7 +11,8 @@ from interview_backend.assets import load_questions
 from interview_backend.aws_settings import AwsSettings
 from interview_backend.evaluation.dispatch import Dispatcher, Recovery, SQSPublisher
 from interview_backend.evaluation.events import InternalHandlers
-from interview_backend.evaluation.selection import select_provider
+from interview_backend.evaluation.provider_configuration import provider_values
+from interview_backend.evaluation.selection import checked_provider_environment, select_provider
 from interview_backend.evaluation.worker import Worker
 from interview_backend.observability import Metrics, ObservedRepository
 from interview_backend.operational_logs import invocation_context, log_event
@@ -67,8 +68,9 @@ class ApiEntry:
 
 
 class WorkerEntry:
-    def __init__(self, settings, worker, metrics=None):
+    def __init__(self, settings, worker, metrics=None, *, wif_smoke_only=False):
         self.settings = settings
+        self.wif_smoke_only = wif_smoke_only
         self.metrics = metrics or Metrics("worker")
         self.handlers = InternalHandlers(
             worker,
@@ -88,6 +90,8 @@ class WorkerEntry:
                 from interview_backend.evaluation.wif_smoke import smoke
 
                 return smoke(self.settings, os.environ, event)
+            if self.wif_smoke_only:
+                raise ValueError("FakeEvaluationForbidden")
             return self.handlers.sqs(event, context)
         except Exception:
             self.metrics.emit("InternalInvocationFailed")
@@ -126,6 +130,23 @@ class DispatcherEntry:
 @lru_cache(maxsize=4)
 def build_entry(component):
     settings = AwsSettings.load(os.environ, component)
+    provider = None
+    smoke_only = False
+    if component == "worker":
+        provider_mode = os.environ.get("INTERVIEW_AI_PROVIDER")
+        validation_only = os.environ.get("INTERVIEW_VALIDATION_ONLY") == "true"
+        scenario = provider_mode == "fake" and "INTERVIEW_FAKE_SCENARIO" in os.environ
+        smoke_only = (
+            provider_mode == "fake"
+            and os.environ.get("INTERVIEW_WIF_SMOKE_ENABLED") == "true"
+            and not scenario
+        )
+        if provider_mode not in {"bedrock", "openai"} and not (
+            validation_only and (scenario or smoke_only)
+        ):
+            raise ValueError("InvalidProviderSelection")
+        checked_provider_environment(provider_values(os.environ), settings.account, settings.region)
+        provider = select_provider(os.environ)
     metrics = Metrics(
         component, environment="test" if "-test-" in settings.function_name else "dev"
     )
@@ -142,8 +163,9 @@ def build_entry(component):
     if component == "worker":
         return WorkerEntry(
             settings,
-            Worker(repository, select_provider(os.environ), metric=metrics.classification),
+            Worker(repository, provider, metric=metrics.classification),
             metrics,
+            wif_smoke_only=smoke_only,
         )
     publisher = SQSPublisher.for_aws(settings.region, settings.queue_url)
     dispatcher = Dispatcher(repository, publisher)

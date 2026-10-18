@@ -5,6 +5,7 @@ from dataclasses import replace
 from datetime import UTC, datetime
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
+from interview_backend.evaluation.provider_limits import validate_limits
 from interview_backend.models.internal import (
     Attempt,
     BusinessError,
@@ -611,13 +612,7 @@ class DomainRepository(CoachingRepositoryMixin):
 
     def reserve_provider_call(self, lease, monthly_limit, global_limit=3000):
         """Atomic per-owner UTC-month cap; retries of the same Evaluation consume once."""
-        if (
-            type(monthly_limit) is not int
-            or not 1 <= monthly_limit <= 1000
-            or type(global_limit) is not int
-            or not 1 <= global_limit <= 10000
-        ):
-            raise ValueError("provider_usage_limit")
+        validate_limits(monthly_limit, global_limit)
 
         def run(tx):
             at = self.clock()
@@ -628,6 +623,9 @@ class DomainRepository(CoachingRepositoryMixin):
             if e.provider_usage_month is not None:
                 return MutationResult("already_reserved")
             month = datetime.fromtimestamp(at / 1000, UTC).strftime("%Y-%m")
+            year, month_number = map(int, month.split("-"))
+            next_month = datetime(year + (month_number == 12), month_number % 12 + 1, 1, tzinfo=UTC)
+            month_upper = int(next_month.timestamp() * 1000)
             identifier = str(uuid5(NAMESPACE_URL, "interview-provider-usage:" + month))
             usage = tx.get(ref("ProviderUsage", lease.owner, identifier))
             if usage is None:
@@ -647,7 +645,7 @@ class DomainRepository(CoachingRepositoryMixin):
             usage.calls += 1
             global_usage.calls += 1
             e.provider_usage_month = month
-            tx.window = CommitWindow(upper=min(e.lock_expires_at, e.deadline_at))
+            tx.window = CommitWindow(upper=min(e.lock_expires_at, e.deadline_at, month_upper))
             self._save(tx, e, usage, global_usage)
             return MutationResult("reserved")
 

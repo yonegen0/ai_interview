@@ -17,6 +17,7 @@ from interview_backend.evaluation.provider import (
 )
 from interview_backend.models.internal import ExecutionConfig
 from interview_backend.models.public import CoachingResult, EvaluationResult, Feedback, FeedbackV2
+from interview_backend.operational_logs import log_event
 from interview_backend.repositories.budget import invocation_budget
 from interview_backend.repositories.domain import utc_ms
 from interview_backend.text_limits import score_values
@@ -98,7 +99,7 @@ class Worker:
                 "applied",
                 "already_terminal",
             }
-        if config.provider_id.startswith("openai"):
+        if config.provider_id.startswith(("openai", "bedrock")):
             quota = self.repository.reserve_provider_call(
                 lease,
                 self.provider.settings.monthly_user_limit,
@@ -125,7 +126,7 @@ class Worker:
                 raise RuntimeError("already_called")
             entered = True
             called_at = self.monotonic()
-            if config.provider_id.startswith("openai"):
+            if config.provider_id.startswith(("openai", "bedrock")):
                 from interview_backend.evaluation.openai_provider import Deadline
 
                 budget = min(
@@ -195,10 +196,18 @@ class Worker:
                     else "PROVIDER_TIMEOUT"
                     if error.kind == "TIMEOUT"
                     else "INVALID_RESULT"
-                    if error.kind in {"INVALID_JSON", "INVALID_SCHEMA"}
+                    if error.kind in {"INVALID_JSON", "INVALID_SCHEMA", "INCOMPLETE"}
                     else "PROVIDER_FAILED"
                 )
             else:
                 reason = "PROVIDER_FAILED"
+        if entered and config.provider_id.startswith(("openai", "bedrock")):
+            observation = getattr(self.provider, "last_observation", None)
+            if isinstance(observation, dict):
+                log_event(
+                    "provider_usage",
+                    provider="bedrock" if config.provider_id.startswith("bedrock") else "openai",
+                    **observation,
+                )
         result = self.repository.finish(lease, feedback, reason)
         return result.status in {"applied", "already_terminal"}
