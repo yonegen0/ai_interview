@@ -105,13 +105,16 @@ def inputs(path, account, region):
         values = json.loads(Path(path).read_text(encoding="utf-8"))
     except OSError, UnicodeError, json.JSONDecodeError:
         raise DeploymentError("BootstrapInputsUnavailable") from None
-    if not isinstance(values, dict) or set(values) not in (
-        set(INPUT_KEYS),
-        set(INPUT_KEYS) | {"worker_wif_enabled"},
+    if (
+        not isinstance(values, dict)
+        or not set(INPUT_KEYS) <= set(values)
+        or set(values) - (set(INPUT_KEYS) | {"worker_wif_enabled", "worker_bedrock_enabled"})
     ):
         raise DeploymentError("ExplicitBootstrapInputsRequired")
     if type(values.get("worker_wif_enabled", False)) is not bool:
         raise DeploymentError("ExplicitWorkerFederationFlagRequired")
+    if type(values.get("worker_bedrock_enabled", False)) is not bool:
+        raise DeploymentError("ExplicitWorkerBedrockFlagRequired")
     subjects = values.get("oidc_subjects")
     if (
         not isinstance(subjects, dict)
@@ -234,7 +237,10 @@ def verify_created_resources(session, outputs, account, region, values=None):
             version["Document"]
         ) != canonical_policy(
             boundary_policy(
-                account, region, worker_wif_enabled=(values or {}).get("worker_wif_enabled", False)
+                account,
+                region,
+                worker_wif_enabled=(values or {}).get("worker_wif_enabled", False),
+                worker_bedrock_enabled=(values or {}).get("worker_bedrock_enabled", False),
             )
         ):
             raise ValueError

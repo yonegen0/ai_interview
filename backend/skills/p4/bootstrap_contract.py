@@ -20,7 +20,7 @@ def canonical_policy(value):
     return normalize(value)
 
 
-def boundary_policy(account, region, *, worker_wif_enabled=False):
+def boundary_policy(account, region, *, worker_wif_enabled=False, worker_bedrock_enabled=False):
     result = {
         "Version": "2012-10-17",
         "Statement": [
@@ -68,6 +68,33 @@ def boundary_policy(account, region, *, worker_wif_enabled=False):
         from wif_policy import worker_statement
 
         result["Statement"].append(worker_statement(account, boundary=True))
+    if worker_bedrock_enabled:
+        profile = (
+            f"arn:aws:bedrock:{region}:{account}:inference-profile/jp.anthropic.claude-haiku-5-5"
+        )
+        worker_principal = f"arn:aws:iam::{account}:role/ai-interview-*-worker-runtime"
+        result["Statement"].extend(
+            [
+                {
+                    "Effect": "Allow",
+                    "Action": ["bedrock:InvokeModel"],
+                    "Resource": [profile],
+                    "Condition": {"ArnLike": {"aws:PrincipalArn": worker_principal}},
+                },
+                {
+                    "Effect": "Allow",
+                    "Action": ["bedrock:InvokeModel"],
+                    "Resource": [
+                        "arn:aws:bedrock:ap-northeast-1::foundation-model/anthropic.claude-haiku-5-5",
+                        "arn:aws:bedrock:ap-northeast-3::foundation-model/anthropic.claude-haiku-5-5",
+                    ],
+                    "Condition": {
+                        "StringEquals": {"bedrock:InferenceProfileArn": profile},
+                        "ArnLike": {"aws:PrincipalArn": worker_principal},
+                    },
+                },
+            ]
+        )
     return result
 
 
