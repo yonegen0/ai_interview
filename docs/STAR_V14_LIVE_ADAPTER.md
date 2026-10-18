@@ -147,6 +147,13 @@ QUEUED/PREPARED/STARTEDをGETでpollし、NEEDS_INFORMATION/失敗/OUTCOME_UNKNO
 成功応答が確定した操作だけに限定する。本文・JWT・OTPをjournalへ保存しない。
 新規IDは記録するが、データ全件scan/deleteや独自のAWS修復は行わない。
 
+復元時はメモ・応募先カテゴリ・業界・企業を送信前入力と照合し、生成後の3案全文と
+generationId、編集後の候補全文・選択・versionもGETで照合する。不一致ではApplyと
+正式送信へ進まない。通常評価の`coaching_flow`は明示再挑戦の受付だけを合格とせず、
+既に受け付けた評価の完了・V2 feedback・深掘り回数0・他本人の404まで確認する。
+これらは読戻しの追加であり、推論回数・成功確定後だけの同key再現・失敗書込みの
+再送禁止を変えない。オフライン異常注入で検証し、実AWS成功とは区別する。
+
 ### 固定品質ケースと合否
 
 `contracts/star-quality-cases.json`の12ケースを`star_corpus()`で展開する。

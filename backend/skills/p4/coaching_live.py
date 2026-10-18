@@ -131,6 +131,23 @@ def coaching_flow(a, b, run, *, expected_rounds=0, expected_failure=False, wait=
                 a.call("POST", path, retry, rk)[:2] == (202, retried), "retry-attempt-replay"
             )
             run.expect(
+                wait(a, retried["evaluationId"])["status"] == "completed", "retry-attempt-completed"
+            )
+            rs, retry_feedback, _ = a.call(
+                "GET",
+                f"/attempts/{retried['attemptId']}/feedback?evaluationId={retried['evaluationId']}",
+            )
+            run.expect(
+                rs == 200
+                and retry_feedback.get("feedbackVersion") == 2
+                and retry_feedback.get("coachingCount") == 0,
+                "retry-attempt-feedback",
+            )
+            run.expect(
+                b.call("GET", f"/evaluations/{retried['evaluationId']}")[0] == 404,
+                "other-owner-retry-evaluation",
+            )
+            run.expect(
                 a.call("GET", f"/attempts/{aid}/feedback?evaluationId={eid}")[0] == 200,
                 "historical-feedback",
             )
@@ -238,6 +255,8 @@ def star_flow(a, b, run, *, wait=poll_star, evaluate=poll):
     status, restored, _ = a.call("GET", path + "/drafts")
     run.expect(status == 200, "star-restore")
     current = restored["starDraft"]
+    source_fields = ("notes", "targetCategory", "industry", "company")
+    run.expect(all(current.get(k) == value[k] for k in source_fields), "star-source-restore")
     generated = {k: current[k] for k in value}
     generated.update(
         candidates=outcome["result"]["candidates"],
@@ -251,7 +270,15 @@ def star_flow(a, b, run, *, wait=poll_star, evaluate=poll):
     status, restored, _ = a.call("GET", path + "/drafts")
     run.expect(status == 200, "star-generated-restore")
     current = restored["starDraft"]
-    run.expect(len(current["candidates"]) == 3, "star-three-candidates")
+    run.expect(
+        len(current["candidates"]) == 3
+        and current["candidates"] == outcome["result"]["candidates"]
+        and current.get("generationId") == gid,
+        "star-three-candidates",
+    )
+    run.expect(
+        all(current.get(k) == value[k] for k in source_fields), "star-generated-source-restore"
+    )
     edited = [dict(c) for c in current["candidates"]]
     # Edit synthetic text without increasing length past the public 400-point cap.
     edited[0]["text"] = "検証用編集。" + edited[0]["text"][:390]
@@ -259,6 +286,16 @@ def star_flow(a, b, run, *, wait=poll_star, evaluate=poll):
     body.update(candidates=edited, selectedCandidateId="A", expectedVersion=current["version"])
     status, saved, _ = a.call("PUT", f"/star-drafts/{draft['id']}", body, run.key("star-edit"))
     run.expect(status == 200, "star-edit")
+    status, restored, _ = a.call("GET", path + "/drafts")
+    run.expect(
+        status == 200
+        and restored["starDraft"]["candidates"] == edited
+        and restored["starDraft"].get("selectedCandidateId") == "A"
+        and restored["starDraft"].get("generationId") == gid
+        and restored["starDraft"]["version"] == saved["version"]
+        and all(restored["starDraft"].get(k) == value[k] for k in source_fields),
+        "star-edited-restore",
+    )
     applied = post(
         f"/star-drafts/{draft['id']}/applications",
         {

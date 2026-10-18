@@ -3,6 +3,7 @@
 import hashlib
 import importlib.util
 import json
+from copy import deepcopy
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
@@ -76,6 +77,31 @@ def test_live_flow_preparation_all_rounds_offline(rounds):
     live.coaching_flow(a, b, run, expected_rounds=rounds, wait=wait)
     assert all(r["status"] == "passed" for r in run.rows)
     assert any(r["check"] == "other-owner-feedback" for r in run.rows)
+    assert any(r["check"] == "retry-attempt-feedback" for r in run.rows)
+    assert all(e.status == "completed" for e in runtime.repository.snapshot().evaluations.values())
+
+
+@pytest.mark.parametrize("status", ["failed", "processing"])
+def test_coaching_flow_does_not_pass_an_unfinished_or_failed_retry(status):
+    live = tool("coaching_live")
+    runtime = build_runtime()
+    a, b = LocalApi(runtime, "user-a"), LocalApi(runtime, "user-b")
+    waited = []
+
+    def wait(api, eid):
+        waited.append(eid)
+        if len(waited) == 2:
+            return {"status": status}
+        runtime.worker.run("user-a", eid)
+        return api.call("GET", f"/evaluations/{eid}")[1]
+
+    run = live.Run("retry-terminal")
+    with pytest.raises(AssertionError, match="LiveValidationAssertionFailed"):
+        live.coaching_flow(a, b, run, wait=wait)
+    assert len(waited) == 2 and waited[0] != waited[1]
+    assert run.rows[-1]["check"] == "retry-attempt-completed"
+    assert run.rows[-1]["status"] == "failed"
+    assert len(runtime.repository.snapshot().evaluations) == 2
 
 
 def test_admin_operations_restore_original_and_conflicts_offline():
@@ -117,6 +143,67 @@ def test_star_business_flow_preserves_assist_and_no_early_evaluation():
     assert all(r["status"] == "passed" for r in run.rows)
     # Only safe identifiers/statuses are journaled, never generated content or notes.
     assert "検証用編集" not in json.dumps(run.rows, ensure_ascii=False)
+
+
+@pytest.mark.parametrize(
+    ("field", "read"),
+    [
+        ("notes", 1),
+        ("targetCategory", 1),
+        ("industry", 1),
+        ("company", 1),
+        ("candidates", 2),
+        ("generationId", 2),
+        ("candidates", 3),
+        ("company", 3),
+        ("selectedCandidateId", 3),
+    ],
+)
+def test_star_flow_rejects_corrupted_restored_input_or_generated_candidates(field, read):
+    live = tool("coaching_live")
+    runtime = build_runtime()
+
+    class CorruptRead(LocalApi):
+        reads = 0
+        writes = 0
+
+        def call(self, method, path, *args, **kwargs):
+            if method == "PUT":
+                self.writes += 1
+            status, value, headers = super().call(method, path, *args, **kwargs)
+            if method == "GET" and path.endswith("/drafts"):
+                self.reads += 1
+                if self.reads == read:
+                    value = deepcopy(value)
+                    draft = value["starDraft"]
+                    if field == "candidates":
+                        draft[field][1]["text"] = "出典と異なる回答です。"
+                    elif field == "notes":
+                        draft[field]["R"] = "元の成果と異なります。"
+                    elif field == "generationId":
+                        draft[field] = "10000000-0000-4000-8000-000000000099"
+                    elif field == "selectedCandidateId":
+                        draft[field] = "B"
+                    else:
+                        draft[field] = None if field == "targetCategory" else "復元不整合"
+            return status, value, headers
+
+    a, b = CorruptRead(runtime, "star-a"), LocalApi(runtime, "star-b")
+
+    def wait(api, gid):
+        runtime.worker.run("star-a", gid)
+        return api.call("GET", f"/star-assist/generations/{gid}")[1]
+
+    def evaluate(api, eid):
+        runtime.worker.run("star-a", eid)
+        return api.call("GET", f"/evaluations/{eid}")[1]
+
+    run = live.Run("star-restoration")
+    with pytest.raises(AssertionError, match="LiveValidationAssertionFailed"):
+        live.star_flow(a, b, run, wait=wait, evaluate=evaluate)
+    assert not runtime.repository.snapshot().evaluations
+    assert a.writes == read - 1
+    assert run.rows[-1]["status"] == "failed"
 
 
 @pytest.mark.parametrize("failure", ["NEEDS_INFORMATION", "OUTCOME_UNKNOWN", "FAILED_AFTER_START"])
