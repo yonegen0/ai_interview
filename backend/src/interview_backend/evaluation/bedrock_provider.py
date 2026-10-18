@@ -18,6 +18,7 @@ from interview_backend.evaluation.openai_provider import (
 from interview_backend.evaluation.provider import CoachingPrompt, Prompt
 from interview_backend.evaluation.provider_configuration import provider_values
 from interview_backend.evaluation.provider_limits import validate_limits
+from interview_backend.evaluation.structured import StructuredPrompt
 from interview_backend.models.public import CoachingResult, EvaluationResult
 
 PROFILE = "jp.anthropic.claude-haiku-5-5"
@@ -113,7 +114,9 @@ class BedrockProvider:
 
     def evaluate_with_deadline(self, prompt, deadline):
         self.last_observation = None
-        if isinstance(prompt, CoachingPrompt):
+        if isinstance(prompt, StructuredPrompt):
+            data, instruction = prompt.data, prompt.instructions
+        elif isinstance(prompt, CoachingPrompt):
             data = prompt.context.model_dump(mode="json")
             data["question"] = {
                 "question": prompt.context.question.question,
@@ -144,12 +147,22 @@ class BedrockProvider:
             "modelId": PROFILE,
             "system": [{"text": instruction}],
             "messages": [{"role": "user", "content": [{"text": wire}]}],
-            "inferenceConfig": {"maxTokens": self.settings.max_tokens},
+            "inferenceConfig": {
+                "maxTokens": prompt.max_tokens
+                if isinstance(prompt, StructuredPrompt)
+                else self.settings.max_tokens
+            },
             "additionalModelRequestFields": {
                 "thinking": {"type": "adaptive"},
                 "output_config": {"effort": self.settings.effort},
             },
         }
+        if (
+            isinstance(prompt, StructuredPrompt)
+            and len(json.dumps(kwargs, ensure_ascii=True, allow_nan=False).encode())
+            > prompt.max_request_bytes
+        ):
+            raise ProviderFailure("USAGE_LIMIT")
         client = None
         try:
             client = self._client(deadline.seconds())
@@ -266,6 +279,9 @@ class BedrockProvider:
         result = strict_json(texts[0])
         if not isinstance(result, dict):
             raise ProviderFailure("INVALID_SCHEMA")
+        if isinstance(prompt, StructuredPrompt):
+            deadline.seconds()
+            return result  # Caller owns domain type and semantic validation.
         try:
             required = set(schema_for(prompt)["required"])
             if isinstance(prompt, CoachingPrompt):

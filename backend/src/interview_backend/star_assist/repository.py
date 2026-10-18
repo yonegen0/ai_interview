@@ -714,7 +714,12 @@ class StarRepositoryMixin:
 
         return self._atomic(run, temporal=True)
 
-    def star_claim(self, owner, identifier, generation, token):
+    def star_claim(self, owner, identifier, generation, token, provider_id="fake"):
+        from interview_backend.star_assist.live_provider import PROVIDER_IDS
+
+        if provider_id not in PROVIDER_IDS | {"fake"}:
+            raise ValueError("StarProviderConfiguration")
+
         def run(tx):
             now = self.clock()
             job, dispatch = self._star_related(tx, owner, identifier)
@@ -742,6 +747,7 @@ class StarRepositoryMixin:
                 token,
                 now + 60000,
             )
+            job.provider_id = provider_id  # Pin before durable started; never reselect after it.
             dispatch.status, dispatch.claim_due_at = "CLAIMED", None
             tx.window = CommitWindow(upper=min(job.deadline_at, draft.expires_at * 1000))
             tx.put(ref("StarGeneration", owner, identifier), job)
@@ -757,6 +763,7 @@ class StarRepositoryMixin:
             if (
                 job.worker_state != "running"
                 or job.lock_owner != lease.lock_owner
+                or job.provider_id != lease.provider_id
                 or (now >= min(job.lock_expires_at or 0, job.deadline_at))
             ):
                 return False

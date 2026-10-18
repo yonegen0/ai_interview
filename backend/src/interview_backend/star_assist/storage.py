@@ -3,6 +3,7 @@
 import re
 
 from interview_backend.models.internal import IntegrityError
+from interview_backend.star_assist.live_provider import PROVIDER_IDS
 from interview_backend.star_assist.models import (
     CATEGORIES,
     AnswerContext,
@@ -63,7 +64,7 @@ def validate_star(record):
         }
         state = (record.worker_state, record.quota_state, record.call_started)
         if (
-            record.provider_id != "fake"
+            record.provider_id not in PROVIDER_IDS | {"fake"}
             or (record.status in expected and state != expected[record.status])
             or (
                 terminal and state != ("terminal", "released" if before else "consumed", not before)

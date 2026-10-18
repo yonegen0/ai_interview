@@ -1086,3 +1086,110 @@ def test_audit_star_backlog_uses_existing_age_and_deadline_metrics(star):
         ("ExpiredLease", 1),
         ("DeadlineOverdue", 1),
     )
+
+
+@pytest.mark.parametrize("uncertain", [False, True])
+def test_live_worker_pins_provider_once_isolates_quota_and_never_replays(star, uncertain):
+    from botocore.exceptions import ReadTimeoutError
+
+    from interview_backend.evaluation.bedrock_provider import BedrockProvider
+    from interview_backend.repositories.codec import decode, encode
+    from interview_backend.star_assist.live_provider import LiveStarProvider
+    from interview_backend.star_assist.worker import StarWorker
+
+    class Client:
+        calls = 0
+
+        def converse(self, **kwargs):
+            self.calls += 1
+            if uncertain:
+                raise ReadTimeoutError(endpoint_url="https://synthetic")
+            body = {
+                "status": "ready",
+                "candidates": [
+                    {"id": i, "style": s, "fields": fields}
+                    for i, s, fields in (
+                        ("A", "conclusion", ["R", "S", "T", "A"]),
+                        ("B", "action", ["A", "S", "T", "R"]),
+                        ("C", "conversational", ["S", "T", "A", "R"]),
+                    )
+                ],
+                "missingInformation": [],
+            }
+            return {
+                "stopReason": "end_turn",
+                "output": {
+                    "message": {"role": "assistant", "content": [{"text": json.dumps(body)}]}
+                },
+            }
+
+    runtime, _, request, _, _, _, _, _, draft, _ = star
+    from uuid import NAMESPACE_URL, uuid5
+
+    from interview_backend.models.internal import ProviderUsage
+
+    budget_id = str(uuid5(NAMESPACE_URL, "interview-provider-usage:2026-10"))
+
+    def saturate(tx):
+        for owner, limit in (("owner", 100), ("@ai-global-budget", 3000)):
+            tx.new(
+                ("ProviderUsage", owner, budget_id),
+                ProviderUsage(owner, budget_id, "2026-10", limit),
+            )
+
+    runtime.repository._atomic(saturate)
+    normal_before = runtime.repository.snapshot().provider_usage
+    client = Client()
+    provider = LiveStarProvider(BedrockProvider(client_factory=lambda *a, **k: client))
+    worker = StarWorker(runtime.repository, provider)
+    accepted = request(
+        "POST", "/star-assist/generations", {"starDraftId": draft["id"], "expectedVersion": 1}
+    )[1]
+    identifier = accepted["generationId"]
+    from interview_backend.models.internal import IntegrityError
+
+    with pytest.raises(IntegrityError):
+        worker.run("other", identifier)
+    assert worker.run("owner", identifier)
+    assert not worker.run("owner", identifier)
+    result = request("GET", "/star-assist/generations/" + identifier)[1]
+    assert result["status"] == ("OUTCOME_UNKNOWN" if uncertain else "SUCCEEDED")
+    job = runtime.repository._read(ref("StarGeneration", "owner", identifier))
+    assert job.provider_id == provider.provider_id and job.call_started
+    assert decode(encode("StarGeneration", job, 1))[0].provider_id == provider.provider_id
+    assert runtime.repository.star_quota("owner").body["user"]["consumed"] == 1
+    assert runtime.repository.snapshot().provider_usage == normal_before
+    runtime.repository.star_recover("owner", identifier)
+    assert client.calls == 1
+
+
+def test_live_started_recovery_after_provider_switch_never_reinfers(star):
+    from dataclasses import replace
+
+    from interview_backend.evaluation.bedrock_provider import BedrockProvider
+    from interview_backend.star_assist.live_provider import LiveStarProvider
+    from interview_backend.star_assist.worker import StarWorker
+
+    runtime, now, request, _, _, _, _, _, draft, _ = star
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("Recovery must not construct a client")
+
+    provider = LiveStarProvider(BedrockProvider(client_factory=forbidden))
+    accepted = request(
+        "POST", "/star-assist/generations", {"starDraftId": draft["id"], "expectedVersion": 1}
+    )[1]
+    identifier = accepted["generationId"]
+    lease = runtime.repository.star_claim(
+        "owner", identifier, 1, str(uuid4()), provider.provider_id
+    )
+    assert not runtime.repository.star_start(replace(lease, provider_id="fake"))
+    assert runtime.repository.star_start(lease)
+    now[0] += 60001
+    runtime.repository.star_recover("owner", identifier)
+    assert not StarWorker(runtime.repository, provider).run("owner", identifier)
+    assert not runtime.worker.star_worker.run("owner", identifier)
+    assert (
+        request("GET", "/star-assist/generations/" + identifier)[1]["status"] == "OUTCOME_UNKNOWN"
+    )
+    assert runtime.repository.star_quota("owner").body["user"]["consumed"] == 1

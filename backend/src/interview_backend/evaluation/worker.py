@@ -33,6 +33,7 @@ class Worker:
         new_execution_id=lambda: str(uuid4()),
         config=None,
         metric=lambda classification: None,
+        star_provider=None,
     ):
         self.repository, self.provider, self.clock = repository, provider, clock
         self.monotonic, self.new_execution_id = monotonic_clock, new_execution_id
@@ -47,7 +48,13 @@ class Worker:
         self.metric = metric
         from interview_backend.star_assist.worker import StarWorker
 
-        self.star_worker = StarWorker(repository, metric=metric)
+        self.star_worker = StarWorker(
+            repository,
+            star_provider,
+            monotonic_clock=monotonic_clock,
+            metric=metric,
+            authorize_owner=getattr(provider, "authorize_owner", None),
+        )
 
     @invocation_budget(60000)
     def run(self, owner, evaluation_id, generation=1, remaining_ms=None):

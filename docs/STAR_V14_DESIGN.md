@@ -64,7 +64,7 @@ Frontendは1秒debounceで同下書きを直列保存し、追加編集を最新
 `QUEUED → PREPARED → STARTED → SUCCEEDED / NEEDS_INFORMATION / FAILED_AFTER_START / OUTCOME_UNKNOWN`。
 開始前は`CANCELLED / FAILED_BEFORE_START`で一度だけ返却。STARTEDを永続確認して予約を消費へ変更した後、Providerを一度だけ呼ぶ。開始/結果保存の応答不明は同lease/同結果の保存確認だけを再試行する。確認不能・lease失効では再Provider呼出しも返却も行わない。終了contextへ結果を書き戻さない。
 
-専用FakeProviderは本人の入力事実を順序変更してA結論/B行動/C会話の3案を返す。不足/400字超過はNEEDS_INFORMATION。結果の件数・ID/style・本文制限・入力事実との一致を再検証する。新実Provider/fallbackはない。Structured Outputs向け全required/nullable/追加属性禁止の契約を用意した。[仕様](https://developers.openai.com/api/docs/guides/structured-outputs)
+開発用FakeProviderは本人の入力事実を順序変更してA結論/B行動/C会話の3案を返す。本番Workerは明示選択済みのBedrockまたはOpenAI通信境界をSTAR専用アダプターへ渡し、暗黙のFake選択や自動fallbackを行わない。[実AI接続・制約・検証方法](STAR_V14_LIVE_ADAPTER.md)を参照。公開StarResult契約と編集・履歴・Coaching V2経路は維持する。
 
 Dispatch.job_kind=`star`だけが`StarGenerationRequested`になる。未指定は旧Evaluationとし保存bytesと旧イベントを維持する。StreamsはDispatch NewImageだけ、REMOVE/下書きを無視。Worker/SQSは保存job種別とイベントを照合する。WorkIndexは従来3領域＋`WORK#STAR_RUNNING`、Recoveryは永続開始位置を持ち回り、各巡回で各領域を最大1ページずつ処理する。cursor競合で停止し途中位置を保持する。timeout40秒、deadline15分、MaximumConcurrency2を維持する。
 
