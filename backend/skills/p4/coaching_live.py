@@ -104,6 +104,7 @@ def coaching_flow(a, b, run, *, expected_rounds=0, expected_failure=False, wait=
             retried_outcome = wait(a, retried["evaluationId"])
             run.expect(retried_outcome["status"] == "failed", "same-failure-config-retry-terminal")
             return
+        run.expect(outcome["status"] == "completed", "evaluation-completed")
         run.expect(not expected_failure, "expected-provider-success")
         fs, feedback, _ = a.call("GET", f"/attempts/{aid}/feedback?evaluationId={eid}")
         run.expect(fs == 200 and feedback.get("feedbackVersion") == 2, "v2-feedback")
@@ -367,7 +368,13 @@ def admin_flow(user, admin, run, *, writes=False):
                 == 409,
                 label + "-conflict",
             )
-            _, current, _ = admin.call("GET", "/admin/question-bank")
+            status, current, _ = admin.call("GET", "/admin/question-bank")
+            run.expect(
+                status == 200
+                and current.get("questions") == questions
+                and current.get("version") == receipt["version"],
+                label + "-readback",
+            )
     finally:
         status, latest, _ = admin.call("GET", "/admin/question-bank")
         if status != 200 or latest["questions"] != original:
@@ -390,6 +397,13 @@ def admin_flow(user, admin, run, *, writes=False):
                 run.key("restore-bank"),
             )
             run.expect(result[0] == 200, "admin-restore")
+            status, restored, _ = admin.call("GET", "/admin/question-bank")
+            run.expect(
+                status == 200
+                and restored.get("questions") == original
+                and restored.get("version") == result[1]["version"],
+                "admin-restore-readback",
+            )
 
 
 def run_with_closure(test, close, run):

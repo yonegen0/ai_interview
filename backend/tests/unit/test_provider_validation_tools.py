@@ -115,6 +115,91 @@ def test_admin_operations_restore_original_and_conflicts_offline():
     assert all(r["status"] == "passed" for r in run.rows)
 
 
+@pytest.mark.parametrize("status", ["processing", "unknown"])
+def test_coaching_flow_rejects_nonterminal_result_before_reading_feedback(status):
+    live = tool("coaching_live")
+    runtime = build_runtime()
+    a, b = LocalApi(runtime, "user-a"), LocalApi(runtime, "user-b")
+
+    def wait(api, eid):
+        runtime.worker.run("user-a", eid)
+        return {"status": status}
+
+    run = live.Run("initial-terminal")
+    with pytest.raises(AssertionError, match="LiveValidationAssertionFailed"):
+        live.coaching_flow(a, b, run, wait=wait)
+    assert run.rows[-1]["check"] == "evaluation-completed"
+    assert len(runtime.repository.snapshot().evaluations) == 1
+
+
+@pytest.mark.parametrize("read", [2, 3, 4, 5])
+@pytest.mark.parametrize("field", ["questions", "version", "status"])
+def test_admin_flow_rejects_corrupted_mutation_readback_and_restores_owned_state(read, field):
+    live = tool("coaching_live")
+    runtime = build_runtime()
+    user = LocalApi(runtime, "user")
+
+    class CorruptRead(LocalApi):
+        reads = 0
+
+        def call(self, method, path, *args, **kwargs):
+            status, body, headers = super().call(method, path, *args, **kwargs)
+            if method == "GET" and path == "/admin/question-bank":
+                self.reads += 1
+                if self.reads == read:
+                    body = deepcopy(body)
+                    if field == "questions":
+                        body["questions"][0]["question"] = "破損した読戻し"
+                    elif field == "version":
+                        body["version"] += 1
+                    else:
+                        status = 503
+            return status, body, headers
+
+    admin = CorruptRead(runtime, "admin", True)
+    original = LocalApi(runtime, "admin", True).call("GET", "/admin/question-bank")[1]
+    run = live.Run("admin-corrupt")
+    with pytest.raises(AssertionError, match="LiveValidationAssertionFailed"):
+        live.admin_flow(user, admin, run, writes=True)
+    assert any(r["check"].endswith("-readback") and r["status"] == "failed" for r in run.rows)
+    assert admin.call("GET", "/admin/question-bank")[1]["questions"] == original["questions"]
+
+
+@pytest.mark.parametrize("field", ["questions", "version", "status"])
+def test_admin_restore_requires_exact_readback_and_never_repeats_restore(field):
+    live = tool("coaching_live")
+    runtime = build_runtime()
+    user = LocalApi(runtime, "user")
+    run = live.Run("admin-restore-proof")
+
+    class CorruptRestore(LocalApi):
+        reads = 0
+        restores = 0
+
+        def call(self, method, path, payload=None, key=None, **kwargs):
+            status, body, headers = super().call(method, path, payload, key, **kwargs)
+            if method == "POST" and key == run.key("restore-bank"):
+                self.restores += 1
+            if method == "GET" and path == "/admin/question-bank":
+                self.reads += 1
+                if self.reads == 2 or self.restores:
+                    body = deepcopy(body)
+                    if self.reads == 2 or field == "questions":
+                        body["questions"][0]["question"] = "破損した読戻し"
+                    elif field == "version":
+                        body["version"] += 1
+                    else:
+                        status = 503
+            return status, body, headers
+
+    admin = CorruptRestore(runtime, "admin", True)
+    with pytest.raises(AssertionError, match="LiveValidationAssertionFailed"):
+        live.admin_flow(user, admin, run, writes=True)
+    assert admin.restores == 1
+    assert run.rows[-1]["check"] == "admin-restore-readback"
+    assert run.rows[-1]["status"] == "failed"
+
+
 def test_star_business_flow_preserves_assist_and_no_early_evaluation():
     live = tool("coaching_live")
     runtime = build_runtime()
