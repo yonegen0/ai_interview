@@ -166,6 +166,11 @@ def verify_run_history(package_hash, environment, github_get):
     if environment.get("P4_CLOUD_ACTIVE") == "true":
         title = f"P4 cloud plan approval-{environment['P4_CLOUD_PARENT_SHA256']}"
         workflow = "p4-cloud-plan.yml"
+    if environment.get("P4_STANDARD_ACTIVE") == "true":
+        operation = environment["P4_OPERATION"]
+        workflow = f"p4-standard-{operation}.yml"
+        if operation == "apply":
+            title = f"P4 apply plan-{environment['P4_PLAN_RUN_ID']}-{package_hash}"
     matches = []
     total = None
     seen = set()
@@ -200,6 +205,13 @@ def verify_run_history(package_hash, environment, github_get):
         or first.get("event") != "workflow_dispatch"
         or first.get("path") != ".github/workflows/" + workflow
         or first.get("repository", {}).get("full_name") != REPOSITORY
+        or (
+            environment.get("P4_STANDARD_ACTIVE") == "true"
+            and (
+                first.get("actor", {}).get("id") != 76547980
+                or first.get("triggering_actor", {}).get("id") != 76547980
+            )
+        )
     ):
         raise DeploymentError("PlanApprovalAlreadyConsumed")
     return str(first["id"])

@@ -1,0 +1,116 @@
+name: P4 standard plan only
+run-name: P4 plan approval-${{ inputs.plan_approval_sha256 }}
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Explicitly approved current main commit (40 hex)
+        type: string
+        required: true
+      approved_at_utc:
+        description: Approval issue UTC, YYYY-MM-DDTHH:MM:SSZ
+        type: string
+        required: true
+      expires_at_utc:
+        description: Same approval deadline, exactly 72 hours after issue
+        type: string
+        required: true
+      package_sha256:
+        type: string
+        required: true
+      package_base_sha:
+        type: string
+        required: true
+      plan_approval_sha256:
+        type: string
+        required: true
+      evidence_cert_sha256:
+        type: string
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: p4-dev-deployment
+  cancel-in-progress: false
+jobs:
+  backend:
+    if: github.ref == 'refs/heads/main' && github.actor_id == '76547980' && github.triggering_actor == 'yonegen0' && github.run_attempt == 1 && inputs.source_sha == github.sha
+    uses: ./.github/workflows/backend.yml
+  offline:
+    if: github.ref == 'refs/heads/main' && github.actor_id == '76547980' && github.triggering_actor == 'yonegen0' && github.run_attempt == 1 && inputs.source_sha == github.sha
+    uses: ./.github/workflows/p4-static.yml
+    with:
+      package_base_sha: ${{ inputs.package_base_sha }}
+  plan:
+    needs: [backend, offline]
+    environment: dev-plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    permissions:
+      contents: read
+      actions: read
+      deployments: read
+      id-token: write
+    env:
+      P4_STANDARD_ACTIVE: 'true'
+      P4_OPERATION: plan
+      P4_STANDARD_READY: ${{ vars.P4_STANDARD_READY }}
+      P4_STANDARD_REVIEW_MODE: ${{ vars.P4_STANDARD_REVIEW_MODE }}
+      P4_AWS_EXECUTION_READY: ${{ vars.P4_AWS_EXECUTION_READY }}
+      P4_APPROVED_SOURCE_SHA: ${{ inputs.source_sha }}
+      P4_APPROVED_AT_UTC: ${{ inputs.approved_at_utc }}
+      P4_APPROVAL_EXPIRES_AT: ${{ inputs.expires_at_utc }}
+      P4_OIDC_SUBJECT: repo:yonegen0@76547980/ai_interview@1361325921:environment:dev-plan
+      AWS_DEV_ACCOUNT_ID: ${{ secrets.AWS_DEV_ACCOUNT_ID }}
+      AWS_REGION: ap-northeast-1
+      AWS_EC2_METADATA_DISABLED: 'true'
+      P4_DEPLOY_INPUTS: ${{ secrets.P4_DEPLOY_INPUTS }}
+      GH_TOKEN: ${{ github.token }}
+      P4_PLAN_APPROVAL_PACKAGE: ${{ secrets.P4_PLAN_APPROVAL_PACKAGE }}
+      P4_PLAN_APPROVAL_SHA256: ${{ inputs.plan_approval_sha256 }}
+      P4_PLAN_APPROVAL_EXPIRES_AT: ${{ inputs.expires_at_utc }}
+      P4_PLAN_EVIDENCE_CERT_PEM: ${{ secrets.P4_PLAN_EVIDENCE_CERT_PEM }}
+      P4_PLAN_EVIDENCE_CERT_SHA256: ${{ inputs.evidence_cert_sha256 }}
+      P4_PACKAGE_SHA256: ${{ inputs.package_sha256 }}
+    steps:
+      - name: Record job clock before setup
+        run: |
+          python3 - <<'PY'
+          import os,time
+          with open(os.environ['GITHUB_ENV'],'a') as stream:
+              stream.write(f'P4_PLAN_JOB_STARTED_MONOTONIC={time.monotonic()}\n')
+          PY
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9
+        with:
+          version: '0.11.8'
+          python-version: '3.14'
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd
+        with:
+          terraform_version: 1.14.9
+          terraform_wrapper: false
+      - name: Install existing locked dependencies
+        working-directory: backend
+        run: uv sync --locked
+      - name: Execute plan only
+        working-directory: backend
+        run: |
+          umask 077
+          uv run --locked python skills/p4/ci_deploy.py
+      - name: Encrypt private journal for existing recipient
+        if: always()
+        working-directory: backend
+        run: uv run --locked python skills/p4/plan_evidence.py
+      - name: Publish summary and ciphertext only
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: standard-plan-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/p4-public-evidence/summary.json
+            ${{ runner.temp }}/p4-public-evidence/journal.cms
+          if-no-files-found: error
+          retention-days: 30
