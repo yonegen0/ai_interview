@@ -92,7 +92,7 @@ resource "aws_iam_role" "ci" {
   for_each             = var.oidc_subjects
   name                 = "ai-interview-ci-${each.key}"
   max_session_duration = 7200
-  assume_role_policy   = jsonencode({ Version = "2012-10-17", Statement = [{ Effect = "Allow", Action = "sts:AssumeRoleWithWebIdentity", Principal = { Federated = var.oidc_provider_arn == "" ? aws_iam_openid_connect_provider.github[0].arn : var.oidc_provider_arn }, Condition = { StringEquals = { "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com", "token.actions.githubusercontent.com:sub" = each.value } } }] })
+  assume_role_policy   = jsonencode({ Version = "2012-10-17", Statement = [{ Effect = var.legacy_ci_retired ? "Deny" : "Allow", Action = "sts:AssumeRoleWithWebIdentity", Principal = { Federated = var.oidc_provider_arn == "" ? aws_iam_openid_connect_provider.github[0].arn : var.oidc_provider_arn }, Condition = { StringEquals = { "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com", "token.actions.githubusercontent.com:sub" = each.value } } }] })
   tags                 = local.tags
 }
 output "state_bucket" { value = aws_s3_bucket.storage["state"].id }

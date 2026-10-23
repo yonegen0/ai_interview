@@ -43,6 +43,29 @@ def validate_branch_rules(environment_details, policies):
 
 
 def verify_dev_environment(environment):
-    details = github_json("environments/dev", environment)
-    policies = github_json("environments/dev/deployment-branch-policies?per_page=100", environment)
+    name = "dev"
+    if environment.get("P4_STANDARD_ACTIVE") == "true":
+        from ci_identity import standard_context
+
+        name = standard_context(environment)
+    details = github_json(f"environments/{name}", environment)
+    policies = github_json(
+        f"environments/{name}/deployment-branch-policies?per_page=100", environment
+    )
     validate_branch_rules(details, policies)
+    if name != "dev":
+        branch = github_json("branches/main", environment)
+        if branch.get("protected") is not True:
+            raise DeploymentError("StandardProtectedMainRequired")
+        if details.get("can_admins_bypass") is not False:
+            raise DeploymentError("StandardEnvironmentBypassForbidden")
+        if environment.get("P4_STANDARD_REVIEW_MODE") == "reviewers" and not any(
+            rule.get("type") == "required_reviewers"
+            and any(
+                reviewer.get("type") == "User"
+                and reviewer.get("reviewer", {}).get("id") == 76547980
+                for reviewer in rule.get("reviewers", [])
+            )
+            for rule in details.get("protection_rules", [])
+        ):
+            raise DeploymentError("StandardRequiredReviewerMissing")

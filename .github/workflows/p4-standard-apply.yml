@@ -1,0 +1,90 @@
+name: P4 standard apply only
+run-name: P4 apply plan-${{ inputs.plan_run_id }}-${{ inputs.plan_hash }}
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Explicitly approved current main commit (40 hex)
+        type: string
+        required: true
+      approved_at_utc:
+        description: Approval issue UTC, YYYY-MM-DDTHH:MM:SSZ
+        type: string
+        required: true
+      expires_at_utc:
+        description: Same approval deadline, exactly 72 hours after issue
+        type: string
+        required: true
+      plan_run_id:
+        type: string
+        required: true
+      plan_hash:
+        type: string
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: p4-dev-deployment
+  cancel-in-progress: false
+jobs:
+  backend:
+    if: github.ref == 'refs/heads/main' && github.actor_id == '76547980' && github.triggering_actor == 'yonegen0' && github.run_attempt == 1 && inputs.source_sha == github.sha
+    uses: ./.github/workflows/backend.yml
+  offline:
+    if: github.ref == 'refs/heads/main' && github.actor_id == '76547980' && github.triggering_actor == 'yonegen0' && github.run_attempt == 1 && inputs.source_sha == github.sha
+    uses: ./.github/workflows/p4-static.yml
+  apply:
+    needs: [backend, offline]
+    environment: dev-apply
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    permissions:
+      contents: read
+      actions: read
+      deployments: read
+      id-token: write
+    env:
+      P4_STANDARD_ACTIVE: 'true'
+      P4_OPERATION: apply
+      P4_STANDARD_READY: ${{ vars.P4_STANDARD_READY }}
+      P4_STANDARD_REVIEW_MODE: ${{ vars.P4_STANDARD_REVIEW_MODE }}
+      P4_AWS_EXECUTION_READY: ${{ vars.P4_AWS_EXECUTION_READY }}
+      P4_APPROVED_SOURCE_SHA: ${{ inputs.source_sha }}
+      P4_APPROVED_AT_UTC: ${{ inputs.approved_at_utc }}
+      P4_APPROVAL_EXPIRES_AT: ${{ inputs.expires_at_utc }}
+      P4_OIDC_SUBJECT: repo:yonegen0@76547980/ai_interview@1361325921:environment:dev-apply
+      AWS_DEV_ACCOUNT_ID: ${{ secrets.AWS_DEV_ACCOUNT_ID }}
+      AWS_REGION: ap-northeast-1
+      AWS_EC2_METADATA_DISABLED: 'true'
+      P4_DEPLOY_INPUTS: ${{ secrets.P4_DEPLOY_INPUTS }}
+      GH_TOKEN: ${{ github.token }}
+      P4_PLAN_RUN_ID: ${{ inputs.plan_run_id }}
+      P4_PLAN_HASH: ${{ inputs.plan_hash }}
+    steps:
+      - name: Record job clock before setup
+        run: |
+          python3 - <<'PY'
+          import os,time
+          with open(os.environ['GITHUB_ENV'],'a') as stream:
+              stream.write(f'P4_PLAN_JOB_STARTED_MONOTONIC={time.monotonic()}\n')
+          PY
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9
+        with:
+          version: '0.11.8'
+          python-version: '3.14'
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd
+        with:
+          terraform_version: 1.14.9
+          terraform_wrapper: false
+      - name: Install existing locked dependencies
+        working-directory: backend
+        run: uv sync --locked
+      - name: Execute apply only
+        working-directory: backend
+        run: |
+          umask 077
+          uv run --locked python skills/p4/ci_deploy.py

@@ -36,6 +36,27 @@ PACKAGE_KEYS = frozenset(
 
 
 def preflight(environment):
+    if environment.get("P4_STANDARD_ACTIVE") == "true":
+        from ci_identity import standard_context
+
+        standard_context(environment, reserve=3600)
+        if any(
+            environment.get(key)
+            for key in (
+                "AWS_ACCESS_KEY_ID",
+                "AWS_SECRET_ACCESS_KEY",
+                "AWS_SESSION_TOKEN",
+                "AWS_PROFILE",
+                "AWS_DEFAULT_PROFILE",
+                "AWS_ROLE_ARN",
+                "AWS_WEB_IDENTITY_TOKEN_FILE",
+                "AWS_CONTAINER_CREDENTIALS_RELATIVE_URI",
+                "AWS_CONTAINER_CREDENTIALS_FULL_URI",
+                "AWS_SHARED_CREDENTIALS_FILE",
+                "AWS_CONFIG_FILE",
+            )
+        ):
+            raise DeploymentError("StandardCredentialSourceConflict")
     require_aws_execution(environment)
     operation = environment.get("P4_OPERATION")
     if operation not in {"plan", "apply"}:
@@ -71,7 +92,15 @@ def preflight(environment):
     if any(key.startswith("TF_VAR_") for key in environment):
         raise DeploymentError("UnexpectedTerraformVariable")
     if operation == "plan":
-        load(environment)
+        package, _, _ = load(environment)
+        if environment.get("P4_STANDARD_ACTIVE") == "true":
+            from approval_validity import validate_window
+
+            issued, expiry = validate_window(package)
+            if issued.isoformat() != environment["P4_APPROVED_AT_UTC"].replace(
+                "Z", "+00:00"
+            ) or expiry.isoformat() != environment["P4_APPROVAL_EXPIRES_AT"].replace("Z", "+00:00"):
+                raise DeploymentError("StandardPlanApprovalWindowMismatch")
     return account, region, operation, configuration
 
 
@@ -104,12 +133,25 @@ def github_run(run_id):
         or data["head_branch"] != "main"
         or data["head_sha"] != os.environ["GITHUB_SHA"]
         or data["event"] != "workflow_dispatch"
-        or data["path"] != ".github/workflows/p4-deploy.yml"
+        or data["path"]
+        != (
+            ".github/workflows/p4-standard-plan.yml"
+            if os.environ.get("P4_STANDARD_ACTIVE") == "true"
+            else ".github/workflows/p4-deploy.yml"
+        )
         or data["repository"]["full_name"] != REPOSITORY
         or str(data["id"]) != run_id
         or data["status"] != "completed"
         or type(data["run_attempt"]) is not int
         or data["run_attempt"] < 1
+        or (
+            os.environ.get("P4_STANDARD_ACTIVE") == "true"
+            and (
+                data["run_attempt"] != 1
+                or data.get("actor", {}).get("id") != 76547980
+                or data.get("triggering_actor", {}).get("id") != 76547980
+            )
+        )
     ):
         raise DeploymentError("SuccessfulMainPlanRequired")
     return str(data["run_attempt"])
@@ -154,6 +196,10 @@ def put(s3, bucket, key, body):
 
 
 def _put(s3, bucket, key, body):
+    if os.environ.get("P4_STANDARD_ACTIVE") == "true":
+        from ci_identity import standard_context
+
+        standard_context(os.environ, reserve=120)
     if key.startswith("plans/") and len(body) > PLAN_OBJECT_MAX_BYTES:
         raise DeploymentError("PlanObjectSizeLimitExceeded")
     response = s3.put_object(
@@ -178,6 +224,10 @@ def _put(s3, bucket, key, body):
 
 
 def get(s3, bucket, key, *, version=None):
+    if os.environ.get("P4_STANDARD_ACTIVE") == "true":
+        from ci_identity import standard_context
+
+        standard_context(os.environ, reserve=120)
     args = {"Bucket": bucket, "Key": key, "ExpectedBucketOwner": bucket_owner(bucket)}
     if version:
         args["VersionId"] = version
@@ -329,6 +379,11 @@ def main():
 
             diagnostic.checkpoint("deploy-preflight")
         account, region, operation, configuration = preflight(os.environ)
+        if os.environ.get("P4_STANDARD_ACTIVE") == "true" and operation == "apply":
+            from github_control import github_json
+            from plan_authorization import verify_run_history
+
+            verify_run_history(os.environ["P4_PLAN_HASH"], os.environ, github_json)
         run_id, attempt = os.environ["GITHUB_RUN_ID"], os.environ["GITHUB_RUN_ATTEMPT"]
         if not all(re.fullmatch(r"[0-9]+", value) for value in (run_id, attempt)):
             raise DeploymentError("InvalidRunIdentity")

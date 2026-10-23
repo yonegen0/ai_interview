@@ -4,7 +4,7 @@ import base64
 import json
 import os
 import re
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
@@ -18,6 +18,47 @@ from interview_backend.deployment import (
 )
 
 REPOSITORY = "yonegen0/ai_interview"
+STANDARD_SUBJECT = "repo:yonegen0@76547980/ai_interview@1361325921:environment:"
+
+
+def standard_context(environment, *, now=None, reserve=0):
+    """Bind the standard dispatch to protected main; no custom identity issuer."""
+    operation = environment.get("P4_OPERATION")
+    workflow = f"{REPOSITORY}/.github/workflows/p4-standard-{operation}.yml@refs/heads/main"
+    sha = environment.get("GITHUB_SHA", "")
+    if (
+        operation not in {"plan", "apply"}
+        or environment.get("GITHUB_ACTIONS") != "true"
+        or environment.get("GITHUB_REPOSITORY") != REPOSITORY
+        or environment.get("GITHUB_REPOSITORY_ID") != "1361325921"
+        or environment.get("GITHUB_REPOSITORY_OWNER_ID") != "76547980"
+        or environment.get("GITHUB_ACTOR_ID") != "76547980"
+        or environment.get("GITHUB_ACTOR") != "yonegen0"
+        or environment.get("GITHUB_TRIGGERING_ACTOR") != "yonegen0"
+        or environment.get("GITHUB_EVENT_NAME") != "workflow_dispatch"
+        or environment.get("GITHUB_RUN_ATTEMPT") != "1"
+        or not re.fullmatch(r"[0-9]+", environment.get("GITHUB_RUN_ID", ""))
+        or environment.get("GITHUB_REF") != "refs/heads/main"
+        or not re.fullmatch(r"[0-9a-f]{40}", sha)
+        or environment.get("P4_APPROVED_SOURCE_SHA") != sha
+        or environment.get("GITHUB_WORKFLOW_SHA") != sha
+        or environment.get("GITHUB_WORKFLOW_REF") != workflow
+        or environment.get("P4_STANDARD_READY") != "true"
+        or environment.get("P4_STANDARD_REVIEW_MODE") not in {"reviewers", "manual"}
+        or environment.get("P4_OIDC_SUBJECT") != STANDARD_SUBJECT + "dev-" + operation
+        or any(environment.get(key) == "true" for key in ("P4_CLOUD_ACTIVE", "P4_COMPOUND_ACTIVE"))
+    ):
+        raise DeploymentError("StandardWorkflowIdentityMismatch")
+    from approval_validity import utc_stamp
+
+    issued = utc_stamp(environment.get("P4_APPROVED_AT_UTC"))
+    expiry = utc_stamp(environment.get("P4_APPROVAL_EXPIRES_AT"))
+    clock = now or datetime.now(UTC)
+    if expiry - issued != timedelta(hours=72) or not issued <= clock < expiry - timedelta(
+        seconds=reserve
+    ):
+        raise DeploymentError("StandardApprovalExpiredOrNotIssued")
+    return "dev-" + operation
 
 
 class NoRedirect(HTTPRedirectHandler):
@@ -30,12 +71,28 @@ def validated_claims(token, expected_subject, environment):
     try:
         payload = token.split(".")[1]
         claims = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
+        standard = environment.get("P4_STANDARD_ACTIVE") == "true"
+        expected_environment = standard_context(environment) if standard else "dev"
+        if standard and any(
+            claims.get(claim) != environment.get(variable)
+            for claim, variable in {
+                "repository_id": "GITHUB_REPOSITORY_ID",
+                "repository_owner_id": "GITHUB_REPOSITORY_OWNER_ID",
+                "actor_id": "GITHUB_ACTOR_ID",
+                "run_id": "GITHUB_RUN_ID",
+                "run_attempt": "GITHUB_RUN_ATTEMPT",
+                "workflow_ref": "GITHUB_WORKFLOW_REF",
+                "workflow_sha": "GITHUB_WORKFLOW_SHA",
+                "event_name": "GITHUB_EVENT_NAME",
+            }.items()
+        ):
+            raise ValueError
         if (
             claims["iss"] != "https://token.actions.githubusercontent.com"
             or claims["aud"] != "sts.amazonaws.com"
             or claims["sub"] != expected_subject
             or claims["repository"] != REPOSITORY
-            or claims["environment"] != "dev"
+            or claims["environment"] != expected_environment
             or claims["ref"] != "refs/heads/main"
             or claims["sha"] != environment["GITHUB_SHA"]
             or environment.get("GITHUB_REF") != "refs/heads/main"
@@ -57,6 +114,16 @@ def assume(role, account, region, *, expected_subject):
     validate_target(account, region)
     if role not in {"artifact", "plan", "deploy", "test"}:
         raise DeploymentError("InvalidCiRole")
+    standard = os.environ.get("P4_STANDARD_ACTIVE") == "true"
+    role_name = "ai-interview-ci-" + role
+    if standard:
+        standard_context(os.environ, reserve=120)
+        operation = os.environ["P4_OPERATION"]
+        allowed = {"plan": {"plan", "artifact"}, "apply": {"deploy", "artifact"}}
+        if role not in allowed[operation]:
+            raise DeploymentError("StandardRolePurposeMismatch")
+        suffix = f"artifact-{operation}" if role == "artifact" else role
+        role_name = "ai-interview-standard-ci-" + suffix
     if os.environ.get("GITHUB_ACTIONS") != "true":
         raise DeploymentError("GitHubOidcRequired")
     guard = active_guard()
@@ -116,24 +183,27 @@ def assume(role, account, region, *, expected_subject):
                     )
                 }
                 if guard
-                else {}
+                else (
+                    {"Policy": json.dumps(session_policy(os.environ["P4_APPROVAL_EXPIRES_AT"]))}
+                    if standard
+                    else {}
+                )
             )
             response = sts.assume_role_with_web_identity(
-                RoleArn=f"arn:aws:iam::{account}:role/ai-interview-ci-{role}",
+                RoleArn=f"arn:aws:iam::{account}:role/{role_name}",
                 RoleSessionName=f"p4-{run_id}-{role}",
                 WebIdentityToken=token,
                 DurationSeconds=3600,
                 **restriction,
             )
-            if guard:
-                guard.record(
-                    "sts-response",
-                    role=role,
-                    request_id=response.get("ResponseMetadata", {}).get("RequestId"),
-                )
-                expected_arn = (
-                    f"arn:aws:sts::{account}:assumed-role/ai-interview-ci-{role}/p4-{run_id}-{role}"
-                )
+            if guard or standard:
+                if guard:
+                    guard.record(
+                        "sts-response",
+                        role=role,
+                        request_id=response.get("ResponseMetadata", {}).get("RequestId"),
+                    )
+                expected_arn = f"arn:aws:sts::{account}:assumed-role/{role_name}/p4-{run_id}-{role}"
                 credentials = response["Credentials"]
                 if (
                     response.get("AssumedRoleUser", {}).get("Arn") != expected_arn
@@ -143,7 +213,7 @@ def assume(role, account, region, *, expected_subject):
                     )
                     or not isinstance(credentials.get("Expiration"), datetime)
                     or credentials["Expiration"].tzinfo is None
-                    or credentials["Expiration"] <= guard.clock()
+                    or credentials["Expiration"] <= (guard.clock() if guard else datetime.now(UTC))
                 ):
                     raise DeploymentError("PlanAuthenticationScopeMismatch")
             return response["Credentials"]

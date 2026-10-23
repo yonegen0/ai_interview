@@ -63,6 +63,10 @@ def digest(path):
 
 
 def run(command, *, cwd, env, accepted=(0,)):
+    if os.environ.get("P4_STANDARD_ACTIVE") == "true":
+        from ci_identity import standard_context
+
+        standard_context(os.environ, reserve=120)
     guard = active_guard()
     if guard:
         return guard.process(command, cwd=cwd, env=env, accepted=accepted)
