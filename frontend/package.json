@@ -14,7 +14,8 @@
     "test:e2e": "playwright test",
     "lint": "eslint",
     "storybook": "storybook dev -p 6006",
-    "build-storybook": "storybook build"
+    "build-storybook": "storybook build",
+    "postinstall": "node scripts/patch-storybook-next.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-cognito-identity-provider": "3.1146.0",
