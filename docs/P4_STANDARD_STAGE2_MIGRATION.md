@@ -1,5 +1,8 @@
 # Stage2 standard GitHub/AWS execution
 
+2026-10-24: current read-only qualification uses [verification v2](STANDARD_OIDC_VERIFICATION_V2.md).
+Historical approval recipes below remain history; current owner autonomy policy in AGENTS.md takes precedence.
+
 2026-10-21 JST. Method B is adopted by the user. This source is a local candidate;
 GitHub changes, credentials, CI, AWS, official Plan/Apply and release are not approved.
 READY=false; formal_resume_ready=false; STAGE2_V6_STOPPED_NOT_SUCCESS.

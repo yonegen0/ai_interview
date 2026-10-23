@@ -5,8 +5,21 @@ import re
 import time
 from pathlib import Path
 
+from botocore.exceptions import (
+    ClientError,
+    CredentialRetrievalError,
+    NoCredentialsError,
+    PartialCredentialsError,
+    TokenRetrievalError,
+    UnauthorizedSSOTokenError,
+)
+
 from interview_backend.deployment import checked_session as checked_session
 from interview_backend.deployment import validate_target
+
+
+class ReadbackAuthorizationError(ValueError):
+    """Authorization failures are terminal, not deployment propagation delays."""
 
 
 def wait_for_manifest(
@@ -19,6 +32,8 @@ def wait_for_manifest(
                 session, manifest, require_api_enabled=False, approved_inputs=approved_inputs
             )
             return
+        except ReadbackAuthorizationError:
+            raise
         except ValueError:
             remaining = deadline - clock()
             if remaining <= 0:
@@ -267,5 +282,33 @@ def verify_live_manifest(session, manifest, *, require_api_enabled=True, approve
         from manifest_checks import verify_configuration
 
         verify_configuration(session, manifest, config)
+    except ClientError as error:
+        if error.response.get("ResponseMetadata", {}).get("HTTPStatusCode") in {401, 403} or (
+            error.response.get("Error", {}).get("Code")
+            in {
+                "AccessDenied",
+                "AccessDeniedException",
+                "AuthFailure",
+                "ExpiredToken",
+                "ExpiredTokenException",
+                "InvalidClientTokenId",
+                "InvalidSignatureException",
+                "MissingAuthenticationToken",
+                "RequestExpired",
+                "SignatureDoesNotMatch",
+                "UnauthorizedOperation",
+                "UnrecognizedClientException",
+            }
+        ):
+            raise ReadbackAuthorizationError("DeploymentReadbackAuthorizationFailed") from None
+        raise ValueError("DeploymentReadbackFailed") from None
+    except (
+        CredentialRetrievalError,
+        NoCredentialsError,
+        PartialCredentialsError,
+        TokenRetrievalError,
+        UnauthorizedSSOTokenError,
+    ):
+        raise ReadbackAuthorizationError("DeploymentReadbackAuthorizationFailed") from None
     except Exception:
         raise ValueError("DeploymentReadbackFailed") from None

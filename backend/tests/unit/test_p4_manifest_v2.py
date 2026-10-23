@@ -6,6 +6,14 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from botocore.exceptions import (
+    ClientError,
+    CredentialRetrievalError,
+    NoCredentialsError,
+    PartialCredentialsError,
+    TokenRetrievalError,
+    UnauthorizedSSOTokenError,
+)
 from test_p4_tools import manifest, tool
 
 
@@ -661,3 +669,111 @@ def test_readback_poll_deadline_is_monotonic(monkeypatch):
             sleep=lambda n: ticks.__setitem__(0, ticks[0] + n),
         )
     assert ticks == [5]
+
+
+@pytest.mark.parametrize("service", ["sts", "apigatewayv2"])
+@pytest.mark.parametrize(
+    ("code", "status"),
+    [
+        ("UnexpectedCode", 401),
+        ("UnexpectedCode", 403),
+        ("ExpiredToken", 400),
+        ("AccessDeniedException", 400),
+    ],
+)
+def test_readback_auth_failure_stops_without_another_read_or_sleep(service, code, status, capsys):
+    module = tool("manifest")
+    calls = []
+
+    def client(name, **kwargs):
+        def call(**kwargs):
+            calls.append(name)
+            if name == service:
+                raise ClientError(
+                    {
+                        "Error": {"Code": code, "Message": "sentinel-private-message"},
+                        "ResponseMetadata": {"HTTPStatusCode": status},
+                    },
+                    "SyntheticRead",
+                )
+            return {"Account": "123456789012"}
+
+        return SimpleNamespace(get_caller_identity=call, get_api=call)
+
+    with pytest.raises(ValueError, match="DeploymentReadbackAuthorizationFailed") as caught:
+        module.wait_for_manifest(
+            SimpleNamespace(client=client),
+            manifest(),
+            approved_inputs=None,
+            sleep=lambda _: pytest.fail("authorization failure must not retry"),
+        )
+    assert calls == (["sts"] if service == "sts" else ["sts", "apigatewayv2"])
+    assert "sentinel-private-message" not in str(caught.value)
+    assert caught.value.__suppress_context__
+    assert capsys.readouterr() == ("", "")
+
+
+def test_readback_non_auth_failure_keeps_eventual_consistency_polling(monkeypatch):
+    module = tool("manifest")
+    calls, sleeps, ticks = [], [], [0]
+
+    def read(*args, **kwargs):
+        calls.append(ticks[0])
+        if len(calls) < 3:
+            raise ValueError("DeploymentReadbackFailed")
+
+    def sleep(seconds):
+        sleeps.append(seconds)
+        ticks[0] += seconds
+
+    monkeypatch.setattr(module, "verify_live_manifest", read)
+    module.wait_for_manifest(None, {}, approved_inputs={}, clock=lambda: ticks[0], sleep=sleep)
+    assert calls == [0, 2, 4] and sleeps == [2, 2]
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        NoCredentialsError(),
+        PartialCredentialsError(provider="synthetic", cred_var="synthetic"),
+        CredentialRetrievalError(provider="synthetic", error_msg="sentinel-private-message"),
+        TokenRetrievalError(provider="synthetic", error_msg="sentinel-private-message"),
+        UnauthorizedSSOTokenError(),
+    ],
+)
+def test_readback_missing_or_expired_credentials_are_terminal(error):
+    module = tool("manifest")
+
+    def client(*args, **kwargs):
+        raise error
+
+    with pytest.raises(module.ReadbackAuthorizationError) as caught:
+        module.wait_for_manifest(
+            SimpleNamespace(client=client),
+            manifest(),
+            approved_inputs=None,
+            sleep=lambda _: pytest.fail("credential failure must not retry"),
+        )
+    assert str(caught.value) == "DeploymentReadbackAuthorizationFailed"
+    assert caught.value.__suppress_context__
+
+
+def test_readback_non_auth_client_error_remains_retryable():
+    module = tool("manifest")
+
+    def read():
+        raise ClientError(
+            {
+                "Error": {
+                    "Code": "ResourceNotFoundException",
+                    "Message": "sentinel-private-message",
+                },
+                "ResponseMetadata": {"HTTPStatusCode": 400},
+            },
+            "SyntheticRead",
+        )
+
+    session = SimpleNamespace(client=lambda *a, **kw: SimpleNamespace(get_caller_identity=read))
+    with pytest.raises(ValueError, match="DeploymentReadbackFailed") as caught:
+        module.verify_live_manifest(session, manifest())
+    assert type(caught.value) is ValueError
