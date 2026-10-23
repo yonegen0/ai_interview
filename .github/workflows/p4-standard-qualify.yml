@@ -1,0 +1,71 @@
+name: P4 standard read-only OIDC qualification
+run-name: Standard OIDC read-only verification v2
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Reviewed current main commit
+        type: string
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: p4-dev-deployment
+  cancel-in-progress: false
+jobs:
+  qualify:
+    if: github.ref == 'refs/heads/main' && github.actor_id == '76547980' && github.triggering_actor == 'yonegen0' && github.run_attempt == 1 && inputs.source_sha == github.sha
+    strategy:
+      max-parallel: 1
+      fail-fast: true
+      matrix:
+        environment: [dev-plan, dev-apply]
+    environment: ${{ matrix.environment }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    steps:
+      - name: Record job clock before setup
+        run: |
+          python3 - <<'PY'
+          import os,time
+          with open(os.environ['GITHUB_ENV'],'a') as stream:
+              stream.write(f'P4_QUALIFY_STARTED_MONOTONIC={time.monotonic()}\n')
+          PY
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9
+        with:
+          version: '0.11.8'
+          python-version: '3.14'
+          enable-cache: false
+      - name: Install existing locked dependencies
+        working-directory: backend
+        run: uv sync --locked
+      - name: Qualify exact roles through read-only sessions
+        working-directory: backend
+        env:
+          P4_QUALIFY_ENVIRONMENT: ${{ matrix.environment }}
+          P4_STANDARD_READY: ${{ vars.P4_STANDARD_READY }}
+          P4_AWS_EXECUTION_READY: ${{ vars.P4_AWS_EXECUTION_READY }}
+          P4_STANDARD_REVIEW_MODE: ${{ vars.P4_STANDARD_REVIEW_MODE }}
+          P4_EXPECTED_SOURCE_SHA: ${{ inputs.source_sha }}
+          AWS_DEV_ACCOUNT_ID: ${{ secrets.AWS_DEV_ACCOUNT_ID }}
+          AWS_REGION: ap-northeast-1
+          AWS_EC2_METADATA_DISABLED: 'true'
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          umask 077
+          uv run --locked python skills/p4/oidc_qualification.py
+      - name: Publish identifier-free verification result
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: standard-qualification-${{ matrix.environment }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/p4-qualification-public/result.json
+          if-no-files-found: error
+          retention-days: 7

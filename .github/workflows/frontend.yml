@@ -26,10 +26,16 @@ jobs:
       - run: npm run build-storybook
       - run: npm run build:mock
       - run: npm run test:e2e
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      - name: Bound failure report before upload
         if: failure()
+        id: failure-report
+        working-directory: .
+        run: python3 frontend/scripts/bounded_report.py
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: failure() && steps.failure-report.outputs.ready == 'true'
         with:
           name: frontend-test-results
-          path: |
-            frontend/playwright-report
-            frontend/test-results
+          path: ${{ runner.temp }}/frontend-test-results.zip
+          if-no-files-found: error
+          retention-days: 3
+          compression-level: 0
