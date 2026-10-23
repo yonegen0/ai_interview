@@ -21,6 +21,15 @@ class EvaluationRequested(BaseModel):
     dispatchVersion: int = Field(ge=1)
 
 
+class StarGenerationRequested(BaseModel):
+    model_config = ConfigDict(strict=True, extra="forbid")
+    eventVersion: int = Field(ge=1, le=1)
+    type: Literal["StarGenerationRequested"]
+    ownerSub: str = Field(min_length=1)
+    generationId: Identifier
+    dispatchVersion: int = Field(ge=1)
+
+
 class RecoveryTick(BaseModel):
     model_config = ConfigDict(strict=True, extra="forbid")
     eventVersion: int = Field(ge=1, le=1)
@@ -75,10 +84,19 @@ class InternalHandlers:
                     or record.get("eventSourceARN") != self.queue_arn
                 ):
                     raise ValueError("source")
-                message = EvaluationRequested.model_validate(json.loads(record["body"]))
+                raw = json.loads(record["body"])
+                is_star = isinstance(raw, dict) and raw.get("type") == "StarGenerationRequested"
+                message = (
+                    StarGenerationRequested if is_star else EvaluationRequested
+                ).model_validate(raw)
+                identifier = message.generationId if is_star else message.evaluationId
+                if hasattr(self.worker, "repository"):
+                    actual = self.worker.repository.job_kind(message.ownerSub, identifier)
+                    if (actual == "star") != is_star:
+                        raise ValueError("job_type")
                 self.worker.run(
                     message.ownerSub,
-                    message.evaluationId,
+                    identifier,
                     message.dispatchVersion,
                     context.get_remaining_time_in_millis,
                 )
@@ -88,7 +106,12 @@ class InternalHandlers:
             except StorageError:
                 self.metric("WorkerBatchFailure")
                 log_event(
-                    "internal_batch_failure", evaluationId=message.evaluationId if message else None
+                    "internal_batch_failure",
+                    evaluationId=getattr(
+                        message, "evaluationId", getattr(message, "generationId", None)
+                    )
+                    if message
+                    else None,
                 )
                 failures.append({"itemIdentifier": record["messageId"]})
         return {"batchItemFailures": failures}
@@ -134,6 +157,25 @@ class InternalHandlers:
                     or old.get("generation") != new["generation"]
                 ):
                     continue
+                # A stream image must agree with the durable outbox kind before delivery.
+                with storage_budget(context.get_remaining_time_in_millis):
+                    if hasattr(self.dispatcher, "repository"):
+                        actual = self.dispatcher.repository.job_kind(new["owner"], new["id"])
+                        if (actual == "star") != (new.get("job_kind") == "star"):
+                            raise ValueError("job_type")
+                if new.get("job_kind") == "star":
+                    message = StarGenerationRequested(
+                        eventVersion=1,
+                        type="StarGenerationRequested",
+                        ownerSub=new["owner"],
+                        generationId=new["id"],
+                        dispatchVersion=new["generation"],
+                    )
+                    with storage_budget(context.get_remaining_time_in_millis):
+                        self.dispatcher.dispatch(
+                            message.ownerSub, message.generationId, message.dispatchVersion
+                        )
+                    continue
                 message = EvaluationRequested(
                     eventVersion=1,
                     type="EvaluationRequested",
@@ -151,7 +193,12 @@ class InternalHandlers:
             except StorageError:
                 self.metric("StreamBatchFailure")
                 log_event(
-                    "internal_batch_failure", evaluationId=message.evaluationId if message else None
+                    "internal_batch_failure",
+                    evaluationId=getattr(
+                        message, "evaluationId", getattr(message, "generationId", None)
+                    )
+                    if message
+                    else None,
                 )
                 failures.append({"itemIdentifier": record["dynamodb"]["SequenceNumber"]})
         return {"batchItemFailures": failures}

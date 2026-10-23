@@ -150,6 +150,24 @@ def test_worker_lease_recovery_boundaries(durable, started, offset):
             assert worker.run("synthetic-user", eid, 2)
 
 
+def test_not_started_recovery_can_select_new_lease_config_without_prior_call(durable):
+    clock, repo, app, worker, *_ = durable
+    _, _, evaluation_id = accept(app)
+    old_config = replace(worker.config, provider_id="old-provider", model_id="old-model")
+    lease = repo.claim("synthetic-user", evaluation_id, 1, uid(801), old_config).lease
+    assert lease.execution_config == old_config
+    assert repo.snapshot().evaluations[evaluation_id].call_phase == "not_started"
+    clock.now = lease.expires_at
+    assert repo.recover("synthetic-user", evaluation_id).status == "requeued"
+    pending = repo.snapshot().evaluations[evaluation_id]
+    assert pending.execution_config is None
+    assert pending.call_phase == "not_started"
+    assert worker.provider.calls == 0
+    assert worker.run("synthetic-user", evaluation_id, 2)
+    assert worker.provider.calls == 1
+    assert repo.snapshot().evaluations[evaluation_id].execution_config == worker.config
+
+
 @pytest.mark.parametrize("remaining", [49999, 50000])
 def test_provider_start_budget(durable, remaining):
     _, repo, app, worker, *_ = durable
@@ -306,6 +324,35 @@ def test_all_partitions_page_more_than_100_and_same_key_owners(partition):
             evaluation.lease_version = 1
             evaluation.execution_config = ExecutionConfig(prompt_version=PROMPT_VERSION)
             dispatch.status = "CLAIMED"
+        if partition == PARTITIONS[3]:
+            from interview_backend.star_assist.models import Notes, StarGeneration, StarInput
+
+            value = StarInput(
+                notes=Notes(S="", T="", A="", R=""),
+                targetCategory="other",
+                industry="",
+                company="",
+                candidates=[],
+                selectedCandidateId=None,
+                generationId=None,
+            )
+            job = StarGeneration(
+                owner,
+                eid,
+                uid(3),
+                uid(4),
+                value,
+                "synthetic",
+                "2026-09",
+                clock.now,
+                clock.now + 900000,
+                status="PREPARED",
+                worker_state="running",
+                lock_owner=uid(800),
+                lock_expires_at=clock.now + 90000,
+            )
+            repo._state.star_records[("StarGeneration", owner, eid)] = job
+            dispatch.status, dispatch.job_kind = "CLAIMED", "star"
         repo._state.sessions[(owner, uid(3))] = session
         repo._state.attempts[(owner, uid(2))] = attempt
         repo._state.evaluations[(owner, eid)] = evaluation

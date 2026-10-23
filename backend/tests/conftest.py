@@ -26,8 +26,31 @@ def plan_process_state(monkeypatch):
 def offline_boundary(request, monkeypatch):
     if request.node.get_closest_marker("dynamodb") or request.node.get_closest_marker("aws_e2e"):
         return
+    # Synthetic clients must not discover host config/credentials while loading SDK shapes.
+    for name in ("AWS_CONFIG_FILE", "AWS_SHARED_CREDENTIALS_FILE", "BOTO_CONFIG"):
+        monkeypatch.delenv(name, raising=False)
+    for name in ("AWS_PROFILE", "AWS_DEFAULT_PROFILE"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("AWS_EC2_METADATA_DISABLED", "true")
     import boto3.session
+    import botocore.configprovider
+    import botocore.credentials
     import botocore.httpsession
+    import botocore.session
+
+    # Change SDK defaults, not the execution environment seen by authorization guards.
+    variables = dict(botocore.session.Session.SESSION_VARIABLES)
+    for name in ("config_file", "credentials_file"):
+        config, env, _, convert = variables[name]
+        variables[name] = (config, env, os.devnull, convert)
+        monkeypatch.setitem(
+            botocore.configprovider.BOTOCORE_DEFAUT_SESSION_VARIABLES, name, variables[name]
+        )
+    monkeypatch.setattr(botocore.session.Session, "SESSION_VARIABLES", variables)
+    monkeypatch.setattr(boto3, "DEFAULT_SESSION", None)
+    monkeypatch.setattr(
+        botocore.credentials.BotoProvider, "DEFAULT_CONFIG_FILENAMES", (os.devnull,)
+    )
 
     original_client = boto3.session.Session.client
 

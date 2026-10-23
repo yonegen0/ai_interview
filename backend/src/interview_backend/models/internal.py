@@ -165,6 +165,7 @@ class Dispatch:
     delivery_attempts: int = 0
     generation_attempts: int = 0
     claim_due_at: int | None = None
+    job_kind: Literal["star"] | None = None
 
 
 @dataclass(frozen=True)
@@ -204,8 +205,17 @@ class DeliveryClaim:
     token: str
     expires_at: int
     deadline_at: int = 9999999999999
+    job_kind: Literal["star"] | None = None
 
     def event(self) -> dict:
+        if self.job_kind == "star":
+            return {
+                "eventVersion": 1,
+                "type": "StarGenerationRequested",
+                "ownerSub": self.owner,
+                "generationId": self.evaluation_id,
+                "dispatchVersion": self.generation,
+            }
         return {
             "eventVersion": 1,
             "type": "EvaluationRequested",
@@ -307,3 +317,4 @@ class State:
     question_bank_changes: dict[tuple[str, str], QuestionBankChange] = field(default_factory=dict)
     coachings: dict[str, AttemptCoaching] = field(default_factory=dict)
     provider_usage: dict[str, ProviderUsage] = field(default_factory=dict)
+    star_records: dict = field(default_factory=dict)

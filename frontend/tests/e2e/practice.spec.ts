@@ -30,7 +30,9 @@ test("normal, retry, next, direct result and browser navigation", async ({
     page.getByRole("button", { name: "次の質問へ", exact: true }),
   ).toHaveCount(1);
   await page.getByRole("link", { name: "同じ質問に再挑戦" }).click();
-  await expect(page.getByLabel("あなたの回答")).toHaveValue("");
+  await expect(page.getByLabel("あなたの回答")).toHaveValue(
+    "業務改善の経験を活かして、新しい環境で貢献したいと考えています。",
+  );
   await answer(page);
   await expect(
     page.getByRole("heading", { name: "今回のフィードバック" }),
@@ -71,9 +73,30 @@ test("response loss recovers without duplicate attempt", async ({ page }) => {
     page.getByRole("heading", { name: "今回のフィードバック" }),
   ).toBeVisible();
   const count = await page.evaluate(
-    () =>
+    async () =>
       Object.keys(
-        JSON.parse(sessionStorage.getItem("pocket:mock:v3")!).attempts,
+        (
+          await new Promise<{
+            coachings: Record<string, { coachingCount: number }>;
+            attempts: Record<string, unknown>;
+            requests: Record<string, { fingerprint: string }>;
+          }>((resolve, reject) => {
+            const opening = indexedDB.open("pocket:mock:v4", 1);
+            opening.onsuccess = () => {
+              const db = opening.result;
+              const read = db
+                .transaction("state")
+                .objectStore("state")
+                .get("current");
+              read.onsuccess = () => {
+                resolve(read.result.state);
+                db.close();
+              };
+              read.onerror = () => reject(read.error);
+            };
+            opening.onerror = () => reject(opening.error);
+          })
+        ).attempts,
       ).length,
   );
   expect(count).toBe(1);

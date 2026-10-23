@@ -33,11 +33,17 @@ export const getPracticeOptions = (signal?: AbortSignal) =>
   request("/practice-options", practiceOptionsSchema, { signal });
 export const getQuestion = (id: string, signal?: AbortSignal) =>
   request(`/sessions/${checkedId(id)}/question`, sessionSchema, { signal });
-export const submitAnswer = (id: string, body: Answer, key: string) =>
+export const submitAnswer = (
+  id: string,
+  body: Answer,
+  key: string,
+  applicationId?: string,
+) =>
   request(`/sessions/${checkedId(id)}/answers`, attemptSchema, {
     method: "POST",
     key,
     body: submitSchema.parse(body),
+    applicationId,
   });
 export const getEvaluation = (id: string, signal?: AbortSignal) =>
   request(`/evaluations/${checkedId(id)}`, evaluationSchema, { signal });

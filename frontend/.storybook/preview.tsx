@@ -84,8 +84,10 @@ const preview: Preview = {
           await import("../src/mocks/browser");
         await startMock();
         worker.resetHandlers();
-        repository.reset();
-        if (feature.seed) repository.write(feature.seed);
+        await repository.transaction((snapshot) => {
+          snapshot.reset();
+          if (feature.seed) snapshot.write(feature.seed);
+        });
         if (feature.handlers) worker.use(...feature.handlers);
       }
       return {};

@@ -320,7 +320,12 @@ def test_dynamodb_v2_actions_do_not_require_new_api_iam(runtime):
     repo.accept_coaching_answer_once("owner", uid(230), "a" * 64, sid, body, lambda: uid(240))
     for action in client.writes[-1]["TransactItems"]:
         if "ConditionCheck" in action:
-            assert from_wire(action["ConditionCheck"]["Key"])["PK"] == "SYSTEM#QUESTION_BANK"
+            physical = from_wire(action["ConditionCheck"]["Key"])
+            # STAR adds exact USER-scoped absence fences; the old aggregate is unchanged.
+            assert physical["PK"] == "SYSTEM#QUESTION_BANK" or (
+                physical["PK"] == "USER#owner"
+                and physical["SK"].startswith(("STAR_REQUEST#", "ANSWER_CONTEXT#"))
+            )
 
 
 @pytest.mark.parametrize(

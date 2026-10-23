@@ -186,7 +186,12 @@ def test_dynamodb_cross_route_race_checks_absence_and_returns_conflict(runtime, 
         status, body = save(SimpleNamespace(repository=repository), questions, key=KEY, owner=OWNER)
         assert status == 409 and body["code"] == "IDEMPOTENCY_CONFLICT"
         expected = {"PK": f"USER#{OWNER}", "SK": f"IDEMPOTENCY#{uid(KEY)}"}
-        key_reads = [r for _, r in client.reads if r.get("ProjectionExpression")]
+        key_reads = [
+            r
+            for _, r in client.reads
+            if r.get("ProjectionExpression")
+            and from_wire(r["Key"])["SK"].startswith("IDEMPOTENCY#")
+        ]
         assert len(key_reads) == 2
         assert all(r["ProjectionExpression"] == "#pk, #sk" for r in key_reads)
     else:

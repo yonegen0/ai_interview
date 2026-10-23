@@ -147,3 +147,8 @@ locals {
     false
   )
 }
+variable "star_assist_ttl_enabled" {
+  description = "Candidate only: enable expiresAt TTL after separate deployment approval."
+  type        = bool
+  default     = false
+}

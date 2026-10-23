@@ -1,5 +1,6 @@
 /** @file AnswerSubmission.tsx @description Presentation and composition for AnswerSubmission. */
 "use client";
+import { StarAssistPanel } from "@/features/starAssist/components/organisms/StarAssistPanel";
 import { styled } from "@mui/material/styles";
 import { Panel } from "@/components/atoms/Panel";
 import { Actions } from "@/components/atoms/Actions";
@@ -13,6 +14,10 @@ const SubmissionCard = styled(MascotCoachCard)(({ theme }) => ({
   marginTop: theme.spacing(3),
 }));
 export const AnswerSubmission = ({
+  workspace,
+  previousAnswer,
+  onClear,
+  onRestorePrevious,
   field,
   count,
   phase,
@@ -23,6 +28,28 @@ export const AnswerSubmission = ({
   onReconfirm,
 }: AnswerSubmissionProps) => (
   <Panel>
+    {phase === "answering" && previousAnswer !== undefined && (
+      <Text>
+        前回回答から修正できます。正式送信するまで回答履歴は増えません。
+      </Text>
+    )}
+    {phase === "answering" && (
+      <Actions>
+        {previousAnswer !== undefined && (
+          <Button type="button" onClick={onRestorePrevious}>
+            前回回答に戻す
+          </Button>
+        )}
+        {onClear && (
+          <Button type="button" onClick={onClear}>
+            入力をクリア
+          </Button>
+        )}
+      </Actions>
+    )}
+    {phase === "answering" && workspace && (
+      <StarAssistPanel workspace={workspace} hasAnswer={count > 0} />
+    )}
     <form onSubmit={onSubmit}>
       <AnswerField
         field={field}

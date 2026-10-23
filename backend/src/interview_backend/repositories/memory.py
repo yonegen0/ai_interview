@@ -22,6 +22,7 @@ from interview_backend.repositories.codec import (
     work,
 )
 from interview_backend.repositories.domain import DomainRepository, utc_ms
+from interview_backend.star_assist.models import RECORDS
 
 COLLECTIONS = {
     "ProviderUsage": "provider_usage",
@@ -45,6 +46,8 @@ class MemoryUnit:
 
     def location(self, reference):
         kind, owner, identifier = reference
+        if kind in RECORDS:
+            return self.state.star_records, reference
         records = getattr(self.state, COLLECTIONS[kind])
         if kind in {"IdempotencyRecord", "QuestionBankChange"}:
             return records, (owner, identifier)
@@ -166,6 +169,18 @@ class MemoryRepository(DomainRepository):
                     except StorageError, ValueError, TypeError:
                         candidates.append(CorruptCandidate(candidate_key))
                     else:
+                        candidates.append(Candidate(record.owner, record.id, candidate_key))
+
+            if partition == PARTITIONS[3]:
+                for record in self._state.star_records.values():
+                    if (
+                        type(record).__name__ != "StarGeneration"
+                        or record.worker_state != "running"
+                    ):
+                        continue
+                    native = encode("StarGeneration", record, 0)
+                    candidate_key = {k: native[k] for k in ("PK", "SK", "work_pk", "work_sk")}
+                    if candidate_key["work_sk"] <= f"{cutoff:013d}#~":
                         candidates.append(Candidate(record.owner, record.id, candidate_key))
 
             def ordering(key):

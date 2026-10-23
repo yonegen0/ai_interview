@@ -10,6 +10,8 @@ from pydantic import ValidationError
 
 from interview_backend.evaluation.coaching import InvalidCoachingResult, validate_coaching_result
 from interview_backend.evaluation.provider import CoachingPrompt, Prompt
+from interview_backend.evaluation.provider_limits import validate_limits
+from interview_backend.evaluation.structured import StructuredPrompt
 from interview_backend.models.public import CoachingResult, EvaluationResult
 
 MODEL = "gpt-6-luna"
@@ -124,6 +126,8 @@ def http_error(status, raw):
 
 
 def schema_for(prompt):
+    if isinstance(prompt, StructuredPrompt):
+        return prompt.schema
     if isinstance(prompt, CoachingPrompt):
         # Preserve all eight required keys; cross-field semantics remain domain validation.
         return {
@@ -172,12 +176,12 @@ class OpenAISettings:
             self.effort not in {"low", "medium"}
             or type(self.max_output_tokens) is not int
             or not 1024 <= self.max_output_tokens <= 8192
-            or type(self.monthly_user_limit) is not int
-            or not 1 <= self.monthly_user_limit <= 1000
-            or type(self.monthly_global_limit) is not int
-            or not 1 <= self.monthly_global_limit <= 10000
         ):
             raise ProviderFailure("CONFIGURATION")
+        try:
+            validate_limits(self.monthly_user_limit, self.monthly_global_limit)
+        except ValueError:
+            raise ProviderFailure("CONFIGURATION") from None
 
 
 class OpenAIProvider:
@@ -201,7 +205,9 @@ class OpenAIProvider:
 
     def evaluate_with_deadline(self, prompt, deadline):
         self.last_observation = None
-        if isinstance(prompt, CoachingPrompt):
+        if isinstance(prompt, StructuredPrompt):
+            instructions, data = prompt.instructions, prompt.data
+        elif isinstance(prompt, CoachingPrompt):
             instructions = prompt.instructions
             data = prompt.context.model_dump(mode="json")
             data["question"] = {
@@ -226,7 +232,9 @@ class OpenAIProvider:
             "store": False,
             "background": False,
             "tools": [],
-            "max_output_tokens": self.settings.max_output_tokens,
+            "max_output_tokens": prompt.max_tokens
+            if isinstance(prompt, StructuredPrompt)
+            else self.settings.max_output_tokens,
             "input": [
                 {"role": "developer", "content": instructions},
                 {"role": "user", "content": json.dumps(data, ensure_ascii=True)},
@@ -240,6 +248,12 @@ class OpenAIProvider:
                 }
             },
         }
+        if (
+            isinstance(prompt, StructuredPrompt)
+            and len(json.dumps(payload, ensure_ascii=True, allow_nan=False).encode())
+            > prompt.max_request_bytes
+        ):
+            raise ProviderFailure("USAGE_LIMIT")
         deadline.seconds()
         token = self.authentication.token(deadline)
         if not isinstance(token, str) or not token or any(c.isspace() for c in token):
@@ -303,6 +317,11 @@ class OpenAIProvider:
         if len(messages) != 1 or not isinstance(messages[0], str) or not messages[0]:
             raise ProviderFailure("OUTPUT_MISSING")
         result = strict_json(messages[0])
+        if isinstance(prompt, StructuredPrompt):
+            if not isinstance(result, dict):
+                raise ProviderFailure("INVALID_SCHEMA")
+            deadline.seconds()
+            return result  # Caller owns domain type and semantic validation.
         try:
             model = CoachingResult if isinstance(prompt, CoachingPrompt) else EvaluationResult
             if set(result) != set(schema_for(prompt)["required"]):

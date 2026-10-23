@@ -179,7 +179,7 @@ class CoachingRepositoryMixin:
             raise IntegrityError("legacy_relation")
         return current, attempt, coaching, evaluation
 
-    def _accept_v2(self, owner, key, fingerprint, session_id, request, new_id):
+    def _accept_v2(self, owner, key, fingerprint, session_id, request, new_id, application_id=None):
         generated = []
         accepted_time = []
 
@@ -234,9 +234,14 @@ class CoachingRepositoryMixin:
                     )
                 )
             now = accepted_time[0]
+            # Close the pre-transition STAR context without changing the POST body.
             fresh = kind in {"initial_answer", "retry_attempt"}
             if not generated:
                 generated.extend((new_id(), new_id()) if fresh else (new_id(),))
+            answer_id = generated[1] if fresh else generated[0]
+            self.star_complete_answer(
+                tx, session, request, answer_id, getattr(request, "answer", ""), application_id, now
+            )
             if fresh:
                 aid, eid = generated
                 attempt = Attempt(

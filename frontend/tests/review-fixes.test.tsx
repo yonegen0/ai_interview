@@ -349,7 +349,11 @@ it("retains the exact pending answer when acceptance arrives after unmount", asy
   const reply = deferred<Response>();
   const send = vi
     .spyOn(globalThis, "fetch")
-    .mockImplementation(() => reply.promise);
+    .mockImplementation((url) =>
+      String(url).endsWith("/answers")
+        ? reply.promise
+        : Promise.resolve(json({}, 404)),
+    );
   const { result, unmount } = renderHook(() => useAnswer(session, null), {
     wrapper: environment().wrapper,
   });
@@ -357,7 +361,11 @@ it("retains the exact pending answer when acceptance arrives after unmount", asy
   act(() => {
     pending = result.current.send({ answer: "遅延応答でも保持する回答" });
   });
-  await waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+  await waitFor(() =>
+    expect(
+      send.mock.calls.filter(([url]) => String(url).endsWith("/answers")),
+    ).toHaveLength(1),
+  );
   const key = `pocket:answer:${session.sessionId}`;
   const original = readSaved(key, answerRecoverySchema);
   unmount();

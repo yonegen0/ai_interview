@@ -43,8 +43,16 @@ from interview_backend.models.public import (
     limited_text,
     validate_id,
 )
+from interview_backend.star_assist.models import PREFIXES as STAR_PREFIXES
+from interview_backend.star_assist.models import RECORDS
+from interview_backend.star_assist.storage import validate_star
 
-PARTITIONS = ("WORK#DISPATCH_PENDING", "WORK#DISPATCH_QUEUED", "WORK#EVALUATION_RUNNING")
+PARTITIONS = (
+    "WORK#DISPATCH_PENDING",
+    "WORK#DISPATCH_QUEUED",
+    "WORK#EVALUATION_RUNNING",
+    "WORK#STAR_RUNNING",
+)
 KINDS = {c.__name__: c for c in (Session, Attempt, Evaluation, Dispatch, RecoveryCursor)}
 KINDS["IdempotencyRecord"] = IdempotentReply
 PREFIXES = dict(
@@ -59,6 +67,8 @@ KINDS["AttemptCoaching"] = AttemptCoaching
 PREFIXES["AttemptCoaching"] = "COACHING"
 KINDS["ProviderUsage"] = ProviderUsage
 PREFIXES["ProviderUsage"] = "PROVIDER_USAGE"
+KINDS.update(RECORDS)
+PREFIXES.update(STAR_PREFIXES)
 MAX_TIME = 9999999999999
 MAX_ITEM_BYTES = 350 * 1024
 FAILURE = {"code": "EVALUATION_FAILED", "message": "Evaluation could not be completed."}
@@ -132,6 +142,8 @@ def validate(record):
             type(value).model_validate(value.model_dump(exclude_unset=True))
         if type(value) is int and (value < 0 or (field.name.endswith("_at") and value > MAX_TIME)):
             raise StorageFormatError("invalid_number")
+    if type(record).__name__ in RECORDS:
+        validate_star(record)
     if hasattr(record, "owner") and not record.owner.strip():
         raise IntegrityError("invalid_owner")
     for name in (
@@ -145,6 +157,15 @@ def validate(record):
         "last_successful_evaluation_id",
         "source_evaluation_id",
         "retry_of_evaluation_id",
+        "context_id",
+        "question_id",
+        "from_attempt_id",
+        "from_evaluation_id",
+        "answer_draft_id",
+        "star_draft_id",
+        "active_generation_id",
+        "generation_id",
+        "application_id",
     ):
         if getattr(record, name, None) is not None:
             try:
@@ -317,6 +338,12 @@ def validate(record):
 
 
 def key(kind, owner, identifier):
+    if kind == "GlobalStarQuota":
+        return {"PK": "SYSTEM#STAR_QUOTA", "SK": "MONTH#" + identifier}
+    if kind == "RecoveryRotation":
+        return {"PK": "SYSTEM#RECOVERY", "SK": "ROTATION"}
+    if kind in {"TargetCategoryPreference", "TargetDetailsPreference"}:
+        return {"PK": f"USER#{owner}", "SK": STAR_PREFIXES[kind] + "#CURRENT"}
     if kind == "QuestionBank":
         return {"PK": "SYSTEM#QUESTION_BANK", "SK": "CURRENT"}
     if kind == "QuestionBankChange":
@@ -328,6 +355,8 @@ def key(kind, owner, identifier):
 
 
 def work(record):
+    if type(record).__name__ == "StarGeneration" and record.worker_state == "running":
+        return PARTITIONS[3], min(record.deadline_at, record.lock_expires_at)
     if isinstance(record, Dispatch) and record.status == "PENDING":
         return PARTITIONS[0], min(
             record.deadline_at, max(record.next_at, record.send_expires_at or 0)
@@ -344,7 +373,9 @@ def encode(kind, record, rev, *, reserve_bytes=0):
         raise StorageFormatError("record_kind_revision")
     validate(record)
     identifier = (
-        "CURRENT"
+        record.month
+        if kind in {"StarQuota", "GlobalStarQuota"}
+        else "CURRENT"
         if kind == "QuestionBank"
         else record.partition.removeprefix("WORK#")
         if kind == "RecoveryCursor"
@@ -359,6 +390,8 @@ def encode(kind, record, rev, *, reserve_bytes=0):
         "rev": rev,
         "data": canonical(primitive(record)),
     }
+    if kind in RECORDS and getattr(record, "expires_at", None) is not None:
+        item["expiresAt"] = record.expires_at
     index = work(record)
     if index:
         item.update(work_pk=index[0], work_sk=f"{index[1]:013d}#{record.id}")
@@ -399,6 +432,18 @@ def hydrate(kind, data):
     if kind == "QuestionBankChange":
         data["reply"] = Reply(**data["reply"])
         data["changed_ids"] = tuple(data["changed_ids"])
+    if kind in RECORDS:
+        from interview_backend.star_assist.models import Candidate, StarInput, StarResult
+
+        if kind == "StarDraft":
+            data["value"] = StarInput.model_validate(data["value"])
+            data["original_candidates"] = tuple(
+                Candidate.model_validate(v) for v in data["original_candidates"]
+            )
+        if kind == "StarGeneration":
+            data["input"] = StarInput.model_validate(data["input"])
+            if "result" in data:
+                data["result"] = StarResult.model_validate(data["result"])
     record = KINDS[kind](**data)
     validate(record)
     # Reject missing required fields, explicit optional nulls and unknown fields.
@@ -467,7 +512,13 @@ def validate_key(value, partition):
         or not re.fullmatch(r"\d{13}#.+", value["work_sk"])
     ):
         raise StorageFormatError("cursor_key")
-    prefix = "EVALUATION#" if partition == PARTITIONS[2] else "DISPATCH#"
+    prefix = (
+        "STAR_GENERATION#"
+        if partition == PARTITIONS[3]
+        else "EVALUATION#"
+        if partition == PARTITIONS[2]
+        else "DISPATCH#"
+    )
     if not value["SK"].startswith(prefix) or len(value["PK"]) <= 5:
         raise StorageFormatError("cursor_entity")
     identifier = value["SK"][len(prefix) :]

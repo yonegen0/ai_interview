@@ -1,9 +1,12 @@
 /** @file browser.ts @description Browser Mockの一度だけの起動 */
 import { setupWorker } from "msw/browser";
 import { createHandlers, scenarios, type Scenario } from "./handlers";
-import { createRepository } from "./store";
+import { createIndexedRepository, pumpStarJobs } from "./transactions";
 import { apiBase } from "@/lib/api/client";
-export const repository = createRepository(true);
+export const repository = createIndexedRepository();
+setInterval(() => {
+  void pumpStarJobs(repository).catch(() => undefined);
+}, 2000);
 const scenario = (): Scenario => {
   try {
     const value = sessionStorage.getItem("pocket:scenario") as Scenario;

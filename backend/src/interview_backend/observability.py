@@ -134,6 +134,8 @@ class ObservedRepository:
                 raise
             status = getattr(result, "status", None)
             evaluation = getattr(result, "evaluation", None)
+            if name in {"recover", "star_recover"} and getattr(result, "outcome_unknown", False):
+                self.metrics.emit("OutcomeUnknown")
             if (
                 name in {"finish", "recover"}
                 and status in {"applied", "failed"}
@@ -157,7 +159,13 @@ class ObservedRepository:
                     elapsedMs=max(0, evaluation.finished_at - evaluation.created_at),
                     provider="openai"
                     if provider_id and provider_id.startswith("openai")
-                    else ("fake" if provider_id == "fake" else "unknown"),
+                    else (
+                        "bedrock"
+                        if provider_id and provider_id.startswith("bedrock")
+                        else "fake"
+                        if provider_id == "fake"
+                        else "unknown"
+                    ),
                 )
                 if evaluation.failure_reason == "OUTCOME_UNKNOWN":
                     self.metrics.emit("OutcomeUnknown")

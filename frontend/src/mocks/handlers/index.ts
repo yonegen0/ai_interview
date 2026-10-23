@@ -1,5 +1,9 @@
 /** @file index.ts @description セッション・評価・復旧シナリオを実現するMSW Handler */
-import { http, HttpResponse, delay } from "msw";
+import { http as mswHttp, HttpResponse, delay } from "msw";
+import { MockConflict as StarConflict } from "../coaching";
+import { starRoute, closeStarAnswer, closeStarSession } from "../star";
+import { pumpStarJobs } from "../transactions";
+import { attemptSchema } from "@/lib/api/schemas";
 import { z } from "zod";
 import {
   createSchema,
@@ -18,6 +22,8 @@ import {
 import type { Repository, MockState } from "../store";
 import { acceptCoaching, pollCoaching, MockConflict } from "../coaching";
 export type Scenario =
+  | "star_response_lost"
+  | "star_apply_delayed"
   | CoachingScenario
   | "success"
   | "slow"
@@ -40,6 +46,8 @@ export type CoachingScenario =
   | "contradiction"
   | "invalid_provider";
 export const scenarios: Scenario[] = [
+  "star_response_lost",
+  "star_apply_delayed",
   "coaching",
   "coaching_max",
   "low_score",
@@ -75,6 +83,72 @@ export function createHandlers(
   scenario: () => Scenario | CoachingScenario = () => "success",
   base = "*/api",
 ) {
+  let activeRepository: Repository;
+  const bodies = new WeakMap<Request, unknown>();
+  let pumping = false;
+  const schedule = () => {
+    if (pumping) return;
+    pumping = true;
+    setTimeout(() => {
+      void pumpStarJobs(repository)
+        .catch(() => undefined)
+        .finally(() => {
+          pumping = false;
+        });
+    }, 50);
+  };
+  const wrap =
+    (method: "get" | "post" | "put") =>
+    (path: string, resolver: Parameters<typeof mswHttp.get>[1]) =>
+      mswHttp[method](path, async (args) => {
+        if (method !== "get") {
+          try {
+            bodies.set(args.request, await args.request.clone().json());
+          } catch {
+            bodies.set(args.request, null);
+          }
+        }
+        if (new URL(args.request.url).pathname.includes("/evaluations/"))
+          await delay(50);
+        try {
+          const result = await repository.transaction((snapshot) => {
+            activeRepository = snapshot;
+            const response = resolver(args);
+            if (response instanceof Promise)
+              throw new Error("AsyncMockResolverInsideTransaction");
+            return response;
+          });
+          schedule();
+          const pathname = new URL(args.request.url).pathname;
+          if (
+            scenario() === "star_apply_delayed" &&
+            pathname.endsWith("/applications")
+          )
+            await delay(1000);
+          if (
+            scenario() === "star_response_lost" &&
+            method !== "get" &&
+            /\/answer-drafts(?:\/|$)/.test(pathname)
+          ) {
+            const lose = await repository.transaction((snapshot) => {
+              const state = snapshot.read();
+              if (state.consumed.includes("star_response_lost")) return false;
+              state.consumed.push("star_response_lost");
+              snapshot.write(state);
+              return true;
+            });
+            if (lose) return HttpResponse.error();
+          }
+          return result;
+        } catch (cause) {
+          if (cause instanceof StarConflict)
+            return error(cause.code, cause.status);
+          if (cause instanceof z.ZodError)
+            return error("VALIDATION_ERROR", 400);
+          return error("INTERNAL_SERVER_ERROR", 500);
+        }
+      });
+  const http = { get: wrap("get"), post: wrap("post"), put: wrap("put") };
   const fault = (state: MockState) => {
     const mode = scenario();
     if (
@@ -90,7 +164,7 @@ export function createHandlers(
       !state.consumed.includes(mode)
     ) {
       state.consumed.push(mode);
-      repository.write(state);
+      activeRepository.write(state);
       if (mode === "network_error") return HttpResponse.error();
       if (mode === "invalid_response")
         return HttpResponse.json({ unexpected: true });
@@ -104,7 +178,7 @@ export function createHandlers(
       return error(...mapping[mode]);
     }
   };
-  async function mutate<T>(
+  function mutate<T>(
     request: Request,
     schema: z.ZodType<T>,
     operation: (
@@ -123,13 +197,13 @@ export function createHandlers(
     if (!idSchema.safeParse(key).success) return error("VALIDATION_ERROR", 400);
     let raw: unknown;
     try {
-      raw = await request.json();
+      raw = bodies.get(request);
     } catch {
       return error("VALIDATION_ERROR", 400);
     }
     const parsed = schema.safeParse(raw);
     if (!parsed.success) return error("VALIDATION_ERROR", 400);
-    const state = structuredClone(repository.read());
+    const state = structuredClone(activeRepository.read());
     const fingerprint = `${new URL(request.url).pathname}:${JSON.stringify(parsed.data)}`;
     const scoped = `${identity.sub}:${key}`;
     const previous = state.requests[scoped];
@@ -141,24 +215,106 @@ export function createHandlers(
         : error("IDEMPOTENCY_CONFLICT", 409);
     const failure = fault(state);
     if (failure) return failure;
+    if (state.star.requests[scoped]) return error("IDEMPOTENCY_CONFLICT", 409);
+    const before = structuredClone(state);
     const result = operation(state, parsed.data);
     if (result instanceof Response) return result;
+    if (
+      new URL(request.url).pathname.endsWith("/answers") &&
+      result.status === 202
+    ) {
+      const sid = new URL(request.url).pathname.split("/").at(-2)!;
+      closeStarAnswer(
+        state,
+        before,
+        identity.sub,
+        sid,
+        submitSchema.parse(parsed.data),
+        attemptSchema.parse(result.body).evaluationId,
+        request.headers.get("X-Star-Application-Id"),
+        Date.now(),
+      );
+    }
+    if (new URL(request.url).pathname.endsWith("/questions/next"))
+      closeStarSession(
+        state,
+        identity.sub,
+        new URL(request.url).pathname.split("/").at(-3)!,
+        Date.now(),
+      );
     state.requests[scoped] = { fingerprint, ...result };
-    repository.write(state);
+    activeRepository.write(state);
     if (
       scenario() === "response_lost" &&
       !state.consumed.includes("response_lost")
     ) {
       state.consumed.push("response_lost");
-      repository.write(state);
+      activeRepository.write(state);
       return HttpResponse.error();
     }
     return HttpResponse.json(result.body as object, { status: result.status });
   }
+  const helpers = [
+    "/star-assist/options",
+    "/star-assist/preferences",
+    "/star-assist/generations",
+    "/star-assist/generations/:id",
+    "/star-assist/quota",
+    "/star-assist/requests/:id",
+    "/sessions/:id/answer-contexts",
+    "/answer-contexts/:id/drafts",
+    "/answer-contexts/:id/answer-drafts",
+    "/answer-contexts/:id/star-drafts",
+    "/answer-drafts/:id",
+    "/answer-drafts/:id/discard",
+    "/star-drafts/:id",
+    "/star-drafts/:id/discard",
+    "/star-drafts/:id/applications",
+  ];
+  const helperHandlers = helpers.flatMap((path) =>
+    ["get", "post", "put"].map((method) =>
+      http[method as "get" | "post" | "put"](
+        `${base}${path}`,
+        ({ request }) => {
+          const identity = actor(request);
+          if (!identity) return error("UNAUTHORIZED", 401);
+          const state = activeRepository.read();
+          const apiPath = new URL(request.url).pathname.replace(
+            /.*\/api(?=\/)/,
+            "",
+          );
+          const key = request.headers.get("Idempotency-Key");
+          const result = starRoute(
+            state,
+            identity.sub,
+            request.method,
+            apiPath,
+            bodies.get(request) ?? null,
+            key,
+          );
+          activeRepository.write(state);
+          if (
+            scenario() === "response_lost" &&
+            request.method !== "GET" &&
+            !state.consumed.includes("star_response_lost")
+          ) {
+            state.consumed.push("star_response_lost");
+            activeRepository.write(state);
+            return HttpResponse.error();
+          }
+          return HttpResponse.json(result.body as object, {
+            status: result.status,
+            headers: { "Cache-Control": "no-store" },
+          });
+        },
+      ),
+    ),
+  );
   return [
+    ...helperHandlers,
     http.get(`${base}/practice-options`, ({ request }) => {
       if (!actor(request)) return error("UNAUTHORIZED", 401);
-      const bank = repository.read().bank;
+      const bank = activeRepository.read().bank;
       return HttpResponse.json(
         {
           bankVersion: bank.version,
@@ -179,7 +335,7 @@ export function createHandlers(
       const identity = actor(request);
       if (!identity) return error("UNAUTHORIZED", 401);
       if (!identity.admin) return error("FORBIDDEN", 403);
-      return HttpResponse.json(repository.read().bank, {
+      return HttpResponse.json(activeRepository.read().bank, {
         headers: { "Cache-Control": "no-store" },
       });
     }),
@@ -235,7 +391,7 @@ export function createHandlers(
     http.get(`${base}/sessions/:id/question`, ({ params, request }) => {
       const identity = actor(request);
       if (!identity) return error("UNAUTHORIZED", 401);
-      const state = repository.read(),
+      const state = activeRepository.read(),
         id = String(params.id);
       const value =
         sessionOwner(state, id) === identity.sub
@@ -315,17 +471,16 @@ export function createHandlers(
         return { status: 202, body: session.activeAttempt };
       }),
     ),
-    http.get(`${base}/evaluations/:id`, async ({ params, request }) => {
+    http.get(`${base}/evaluations/:id`, ({ params, request }) => {
       const identity = actor(request);
       if (!identity) return error("UNAUTHORIZED", 401);
-      await delay(50);
-      const state = repository.read();
+      const state = activeRepository.read();
       const v2 = state.evaluations[String(params.id)];
       if (v2 && isFeedbackV2(v2.feedback)) {
         if (sessionOwner(state, v2.feedback.sessionId) !== identity.sub)
           return error("ATTEMPT_NOT_FOUND", 404);
         const evaluated = pollCoaching(state, String(params.id), scenario());
-        repository.write(state);
+        activeRepository.write(state);
         return HttpResponse.json(evaluated);
       }
       const record = Object.values(state.attempts).find(
@@ -359,14 +514,14 @@ export function createHandlers(
             session.activeAttempt.status = record.evaluation.status;
         }
         state.evaluations[String(params.id)] = structuredClone(record);
-        repository.write(state);
+        activeRepository.write(state);
       }
       return HttpResponse.json(record.evaluation);
     }),
     http.get(`${base}/attempts/:id/feedback`, ({ params, request }) => {
       const identity = actor(request);
       if (!identity) return error("UNAUTHORIZED", 401);
-      const state = repository.read();
+      const state = activeRepository.read();
       const latest = state.attempts[String(params.id)];
       const requested = new URL(request.url).searchParams.get("evaluationId");
       if (requested !== null && !idSchema.safeParse(requested).success)

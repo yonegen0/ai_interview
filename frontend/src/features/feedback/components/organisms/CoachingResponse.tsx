@@ -50,6 +50,8 @@ function CurrentResponse({
       </Text>
       <Text>{feedback.result.follow_up_question}</Text>
       <AnswerSubmission
+        workspace={state.workspace}
+        onClear={state.clearInput}
         field={state.form.register("answer")}
         count={countCodePoints(state.answer)}
         phase={state.phase}

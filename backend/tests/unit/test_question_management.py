@@ -262,6 +262,11 @@ def test_session_creation_retries_against_latest_complete_bank(runtime):
     checks = [
         a["ConditionCheck"] for a in client.writes[-1]["TransactItems"] if "ConditionCheck" in a
     ]
+    star_checks = [a for a in checks if a["Key"]["PK"] == {"S": "USER#user"}]
+    assert len(star_checks) == 1 and star_checks[0]["Key"]["SK"] == {
+        "S": f"STAR_REQUEST#{uid(862)}"
+    }
+    checks = [a for a in checks if a not in star_checks]
     assert len(checks) == 2
     assert {a["Key"]["SK"]["S"] for a in checks} == {"CURRENT", f"OP#user#{uid(862)}"}
     assert all(a["Key"]["PK"] == {"S": "SYSTEM#QUESTION_BANK"} for a in checks)

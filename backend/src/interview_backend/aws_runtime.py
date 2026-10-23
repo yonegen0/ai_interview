@@ -5,23 +5,22 @@ from functools import lru_cache
 from time import monotonic
 from uuid import uuid4
 
-from interview_backend.api.handler import Handler, error
-from interview_backend.application.service import Application
-from interview_backend.assets import load_questions
 from interview_backend.aws_settings import AwsSettings
-from interview_backend.evaluation.dispatch import Dispatcher, Recovery, SQSPublisher
-from interview_backend.evaluation.events import InternalHandlers
-from interview_backend.evaluation.selection import select_provider
-from interview_backend.evaluation.worker import Worker
 from interview_backend.observability import Metrics, ObservedRepository
 from interview_backend.operational_logs import invocation_context, log_event
 from interview_backend.repositories.budget import storage_budget
 from interview_backend.repositories.dynamodb import DynamoDBRepository, client_for
 
 
+def _api_error(status, code):
+    from interview_backend.api.handler import error
+
+    return error(status, code)
+
+
 class ApiEntry:
     def __init__(self, settings, handler, metrics=None):
-        self.settings, self.handler = settings, handler
+        self.settings, self.handler = (settings, handler)
         self.metrics = metrics or Metrics("api")
 
     def __call__(self, event, context):
@@ -34,18 +33,17 @@ class ApiEntry:
             if not (
                 event.get("version") == "2.0"
                 and request.get("accountId") == self.settings.account
-                and request.get("apiId") == self.settings.api_id
-                and request.get("stage") == self.settings.stage
-                and claims.get("token_use") == "access"
-                and claims.get("client_id") == self.settings.client_id
-                and claims.get("iss") == self.settings.issuer
-                and type(claims.get("sub")) is str
+                and (request.get("apiId") == self.settings.api_id)
+                and (request.get("stage") == self.settings.stage)
+                and (claims.get("token_use") == "access")
+                and (claims.get("client_id") == self.settings.client_id)
+                and (claims.get("iss") == self.settings.issuer)
+                and (type(claims.get("sub")) is str)
                 and claims["sub"].strip()
             ):
                 self.metrics.emit("Unauthorized")
-                return error(401, "UNAUTHORIZED")
-            # HTTP API v2 includes named execute-api stages in the request path.
-            path, prefix = event.get("rawPath"), f"/{self.settings.stage}"
+                return _api_error(401, "UNAUTHORIZED")
+            path, prefix = (event.get("rawPath"), f"/{self.settings.stage}")
             if isinstance(path, str) and (path == prefix or path.startswith(prefix + "/")):
                 event = {**event, "rawPath": path[len(prefix) :] or "/"}
             with storage_budget(context.get_remaining_time_in_millis):
@@ -56,7 +54,7 @@ class ApiEntry:
             return result
         except Exception:
             self.metrics.emit("ApiFailure")
-            result = error(500, "INTERNAL_SERVER_ERROR")
+            result = _api_error(500, "INTERNAL_SERVER_ERROR")
             return result
         finally:
             elapsed = max(0, (monotonic() - started) * 1000)
@@ -67,8 +65,11 @@ class ApiEntry:
 
 
 class WorkerEntry:
-    def __init__(self, settings, worker, metrics=None):
+    def __init__(self, settings, worker, metrics=None, *, wif_smoke_only=False):
+        from interview_backend.evaluation.events import InternalHandlers
+
         self.settings = settings
+        self.wif_smoke_only = wif_smoke_only
         self.metrics = metrics or Metrics("worker")
         self.handlers = InternalHandlers(
             worker,
@@ -88,6 +89,8 @@ class WorkerEntry:
                 from interview_backend.evaluation.wif_smoke import smoke
 
                 return smoke(self.settings, os.environ, event)
+            if self.wif_smoke_only:
+                raise ValueError("FakeEvaluationForbidden")
             return self.handlers.sqs(event, context)
         except Exception:
             self.metrics.emit("InternalInvocationFailed")
@@ -96,6 +99,8 @@ class WorkerEntry:
 
 class DispatcherEntry:
     def __init__(self, settings, dispatcher, recovery, metrics=None):
+        from interview_backend.evaluation.events import InternalHandlers
+
         self.settings = settings
         self.metrics = metrics or Metrics("dispatcher")
         self.handlers = InternalHandlers(
@@ -114,8 +119,6 @@ class DispatcherEntry:
             alias = self.settings.require_invocation(context, {"streams", "recovery"})
             if alias == "streams":
                 return self.handlers.streams(event, context)
-            # Authorization is the scheduler execution role and qualified invocation ARN.
-            # Never consume a payload-supplied source ARN as authentication.
             self.handlers.scheduler(event, context, source_arn=self.settings.schedule_arn)
             return None
         except Exception:
@@ -126,6 +129,30 @@ class DispatcherEntry:
 @lru_cache(maxsize=4)
 def build_entry(component):
     settings = AwsSettings.load(os.environ, component)
+    provider = None
+    smoke_only = False
+    if component == "worker":
+        from interview_backend.evaluation.provider_configuration import provider_values
+        from interview_backend.evaluation.selection import (
+            checked_provider_environment,
+            select_provider,
+        )
+        from interview_backend.evaluation.worker import Worker
+
+        provider_mode = os.environ.get("INTERVIEW_AI_PROVIDER")
+        validation_only = os.environ.get("INTERVIEW_VALIDATION_ONLY") == "true"
+        scenario = provider_mode == "fake" and "INTERVIEW_FAKE_SCENARIO" in os.environ
+        smoke_only = (
+            provider_mode == "fake"
+            and os.environ.get("INTERVIEW_WIF_SMOKE_ENABLED") == "true"
+            and (not scenario)
+        )
+        if provider_mode not in {"bedrock", "openai"} and (
+            not (validation_only and (scenario or smoke_only))
+        ):
+            raise ValueError("InvalidProviderSelection")
+        checked_provider_environment(provider_values(os.environ), settings.account, settings.region)
+        provider = select_provider(os.environ)
     metrics = Metrics(
         component, environment="test" if "-test-" in settings.function_name else "dev"
     )
@@ -133,18 +160,33 @@ def build_entry(component):
         DynamoDBRepository(client_for(settings.region), settings.table), metrics
     )
     if component == "api":
+        from interview_backend.api.handler import Handler
+        from interview_backend.application.service import Application
+        from interview_backend.assets import load_questions
+
         application = Application(repository, load_questions(), lambda: str(uuid4()))
         return ApiEntry(settings, Handler(application), metrics)
     if component == "admin":
         from interview_backend.api.admin import AdminHandler
+        from interview_backend.assets import load_questions
 
         return ApiEntry(settings, AdminHandler(repository, load_questions()), metrics)
     if component == "worker":
+        from interview_backend.star_assist.live_provider import select_star_provider
+
         return WorkerEntry(
             settings,
-            Worker(repository, select_provider(os.environ), metric=metrics.classification),
+            Worker(
+                repository,
+                provider,
+                metric=metrics.classification,
+                star_provider=select_star_provider(provider),
+            ),
             metrics,
+            wif_smoke_only=smoke_only,
         )
+    from interview_backend.evaluation.dispatch import Dispatcher, Recovery, SQSPublisher
+
     publisher = SQSPublisher.for_aws(settings.region, settings.queue_url)
     dispatcher = Dispatcher(repository, publisher)
     recovery = Recovery(repository, dispatcher, metric=metrics.classification, observe=metrics.emit)
@@ -167,7 +209,7 @@ def _invoke_entry(component, environment, event, context):
         Metrics(component, environment=environment).emit("InvalidConfiguration")
         log_event("invalid_configuration")
         if component in {"api", "admin"}:
-            return error(500, "INTERNAL_SERVER_ERROR")
+            return _api_error(500, "INTERNAL_SERVER_ERROR")
         raise RuntimeError("InvalidConfiguration") from None
     return entry(event, context)
 

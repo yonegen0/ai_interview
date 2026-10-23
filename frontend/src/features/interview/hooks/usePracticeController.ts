@@ -16,15 +16,23 @@ export function usePracticeController(
   session: Session,
   retryFrom: string | null,
   timing?: EvaluationTiming,
+  previousAnswer?: string,
 ) {
   const { isActive } = useOperationScope();
   const router = useRouter();
-  const state = useAnswer(session, retryFrom, timing, undefined, (accepted) => {
-    if ((retryFrom || session.activeCoaching) && isActive())
-      router.push(
-        `/practice/session/?sessionId=${session.sessionId}&mode=evaluation&evaluationId=${accepted.evaluationId}`,
-      );
-  });
+  const state = useAnswer(
+    session,
+    retryFrom,
+    timing,
+    undefined,
+    (accepted) => {
+      if ((retryFrom || session.activeCoaching) && isActive())
+        router.push(
+          `/practice/session/?sessionId=${session.sessionId}&mode=evaluation&evaluationId=${accepted.evaluationId}`,
+        );
+    },
+    previousAnswer,
+  );
   const [confirm, setConfirm] = useState(false);
   const navigated = useRef<string | null>(null);
   useEffect(() => {
@@ -56,6 +64,12 @@ export function usePracticeController(
       longWaitSeconds: timing?.longWaitSeconds,
     } satisfies PracticeView,
     form: {
+      workspace: state.workspace,
+      previousAnswer: retryFrom
+        ? (previousAnswer ?? session.activeCoaching?.initialAnswer)
+        : undefined,
+      onClear: state.clearInput,
+      onRestorePrevious: state.restorePrevious,
       field: state.form.register("answer"),
       count: countCodePoints(state.answer),
       phase: state.phase,

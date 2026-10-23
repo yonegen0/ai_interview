@@ -3,6 +3,7 @@
 import hashlib
 import importlib.util
 import json
+from copy import deepcopy
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
@@ -31,12 +32,12 @@ class LocalApi:
     def __init__(self, runtime, owner, admin=False):
         self.runtime, self.owner, self.admin = runtime, owner, admin
 
-    def call(self, method, path, payload=None, key=None):
+    def call(self, method, path, payload=None, key=None, headers=None):
         parts = urlsplit(path)
         event = {
             "rawPath": parts.path,
             "body": json.dumps(payload),
-            "headers": {"Idempotency-Key": key},
+            "headers": {"Idempotency-Key": key, **(headers or {})},
             "queryStringParameters": {k: v[0] for k, v in parse_qs(parts.query).items()},
             "requestContext": {
                 "http": {"method": method},
@@ -76,6 +77,31 @@ def test_live_flow_preparation_all_rounds_offline(rounds):
     live.coaching_flow(a, b, run, expected_rounds=rounds, wait=wait)
     assert all(r["status"] == "passed" for r in run.rows)
     assert any(r["check"] == "other-owner-feedback" for r in run.rows)
+    assert any(r["check"] == "retry-attempt-feedback" for r in run.rows)
+    assert all(e.status == "completed" for e in runtime.repository.snapshot().evaluations.values())
+
+
+@pytest.mark.parametrize("status", ["failed", "processing"])
+def test_coaching_flow_does_not_pass_an_unfinished_or_failed_retry(status):
+    live = tool("coaching_live")
+    runtime = build_runtime()
+    a, b = LocalApi(runtime, "user-a"), LocalApi(runtime, "user-b")
+    waited = []
+
+    def wait(api, eid):
+        waited.append(eid)
+        if len(waited) == 2:
+            return {"status": status}
+        runtime.worker.run("user-a", eid)
+        return api.call("GET", f"/evaluations/{eid}")[1]
+
+    run = live.Run("retry-terminal")
+    with pytest.raises(AssertionError, match="LiveValidationAssertionFailed"):
+        live.coaching_flow(a, b, run, wait=wait)
+    assert len(waited) == 2 and waited[0] != waited[1]
+    assert run.rows[-1]["check"] == "retry-attempt-completed"
+    assert run.rows[-1]["status"] == "failed"
+    assert len(runtime.repository.snapshot().evaluations) == 2
 
 
 def test_admin_operations_restore_original_and_conflicts_offline():
@@ -87,6 +113,321 @@ def test_admin_operations_restore_original_and_conflicts_offline():
     live.admin_flow(user, admin, run, writes=True)
     assert admin.call("GET", "/admin/question-bank")[1]["questions"] == original
     assert all(r["status"] == "passed" for r in run.rows)
+
+
+@pytest.mark.parametrize("status", ["processing", "unknown"])
+def test_coaching_flow_rejects_nonterminal_result_before_reading_feedback(status):
+    live = tool("coaching_live")
+    runtime = build_runtime()
+    a, b = LocalApi(runtime, "user-a"), LocalApi(runtime, "user-b")
+
+    def wait(api, eid):
+        runtime.worker.run("user-a", eid)
+        return {"status": status}
+
+    run = live.Run("initial-terminal")
+    with pytest.raises(AssertionError, match="LiveValidationAssertionFailed"):
+        live.coaching_flow(a, b, run, wait=wait)
+    assert run.rows[-1]["check"] == "evaluation-completed"
+    assert len(runtime.repository.snapshot().evaluations) == 1
+
+
+@pytest.mark.parametrize("read", [2, 3, 4, 5])
+@pytest.mark.parametrize("field", ["questions", "version", "status"])
+def test_admin_flow_rejects_corrupted_mutation_readback_and_restores_owned_state(read, field):
+    live = tool("coaching_live")
+    runtime = build_runtime()
+    user = LocalApi(runtime, "user")
+
+    class CorruptRead(LocalApi):
+        reads = 0
+
+        def call(self, method, path, *args, **kwargs):
+            status, body, headers = super().call(method, path, *args, **kwargs)
+            if method == "GET" and path == "/admin/question-bank":
+                self.reads += 1
+                if self.reads == read:
+                    body = deepcopy(body)
+                    if field == "questions":
+                        body["questions"][0]["question"] = "破損した読戻し"
+                    elif field == "version":
+                        body["version"] += 1
+                    else:
+                        status = 503
+            return status, body, headers
+
+    admin = CorruptRead(runtime, "admin", True)
+    original = LocalApi(runtime, "admin", True).call("GET", "/admin/question-bank")[1]
+    run = live.Run("admin-corrupt")
+    with pytest.raises(AssertionError, match="LiveValidationAssertionFailed"):
+        live.admin_flow(user, admin, run, writes=True)
+    assert any(r["check"].endswith("-readback") and r["status"] == "failed" for r in run.rows)
+    assert admin.call("GET", "/admin/question-bank")[1]["questions"] == original["questions"]
+
+
+@pytest.mark.parametrize("field", ["questions", "version", "status"])
+def test_admin_restore_requires_exact_readback_and_never_repeats_restore(field):
+    live = tool("coaching_live")
+    runtime = build_runtime()
+    user = LocalApi(runtime, "user")
+    run = live.Run("admin-restore-proof")
+
+    class CorruptRestore(LocalApi):
+        reads = 0
+        restores = 0
+
+        def call(self, method, path, payload=None, key=None, **kwargs):
+            status, body, headers = super().call(method, path, payload, key, **kwargs)
+            if method == "POST" and key == run.key("restore-bank"):
+                self.restores += 1
+            if method == "GET" and path == "/admin/question-bank":
+                self.reads += 1
+                if self.reads == 2 or self.restores:
+                    body = deepcopy(body)
+                    if self.reads == 2 or field == "questions":
+                        body["questions"][0]["question"] = "破損した読戻し"
+                    elif field == "version":
+                        body["version"] += 1
+                    else:
+                        status = 503
+            return status, body, headers
+
+    admin = CorruptRestore(runtime, "admin", True)
+    with pytest.raises(AssertionError, match="LiveValidationAssertionFailed"):
+        live.admin_flow(user, admin, run, writes=True)
+    assert admin.restores == 1
+    assert run.rows[-1]["check"] == "admin-restore-readback"
+    assert run.rows[-1]["status"] == "failed"
+
+
+def test_star_business_flow_preserves_assist_and_no_early_evaluation():
+    live = tool("coaching_live")
+    runtime = build_runtime()
+    a, b = LocalApi(runtime, "star-a"), LocalApi(runtime, "star-b")
+
+    def wait(api, gid):
+        assert not runtime.repository.snapshot().evaluations
+        runtime.worker.run("star-a", gid)
+        return api.call("GET", f"/star-assist/generations/{gid}")[1]
+
+    def evaluate(api, eid):
+        state = runtime.repository.snapshot()
+        assert len(state.evaluations) == 1 and len(state.attempts) == 1
+        runtime.worker.run("star-a", eid)
+        return api.call("GET", f"/evaluations/{eid}")[1]
+
+    run = live.Run("star-functional")
+    result = live.star_flow(a, b, run, wait=wait, evaluate=evaluate)
+    from interview_backend.star_assist.repository import ref
+
+    assist = runtime.repository._read(ref("AnswerAssist", "star-a", result["evaluationId"]))
+    # This edit precedes Apply; `edited` compares the formal answer with applied text.
+    assert assist and not assist.edited and assist.candidate_id == "A"
+    assert runtime.worker.star_worker.provider.calls == 1
+    assert a.call("GET", "/star-assist/quota")[1]["user"]["consumed"] == 1
+    assert all(r["status"] == "passed" for r in run.rows)
+    # Only safe identifiers/statuses are journaled, never generated content or notes.
+    assert "検証用編集" not in json.dumps(run.rows, ensure_ascii=False)
+
+
+@pytest.mark.parametrize(
+    ("field", "read"),
+    [
+        ("notes", 1),
+        ("targetCategory", 1),
+        ("industry", 1),
+        ("company", 1),
+        ("candidates", 2),
+        ("generationId", 2),
+        ("candidates", 3),
+        ("company", 3),
+        ("selectedCandidateId", 3),
+    ],
+)
+def test_star_flow_rejects_corrupted_restored_input_or_generated_candidates(field, read):
+    live = tool("coaching_live")
+    runtime = build_runtime()
+
+    class CorruptRead(LocalApi):
+        reads = 0
+        writes = 0
+
+        def call(self, method, path, *args, **kwargs):
+            if method == "PUT":
+                self.writes += 1
+            status, value, headers = super().call(method, path, *args, **kwargs)
+            if method == "GET" and path.endswith("/drafts"):
+                self.reads += 1
+                if self.reads == read:
+                    value = deepcopy(value)
+                    draft = value["starDraft"]
+                    if field == "candidates":
+                        draft[field][1]["text"] = "出典と異なる回答です。"
+                    elif field == "notes":
+                        draft[field]["R"] = "元の成果と異なります。"
+                    elif field == "generationId":
+                        draft[field] = "10000000-0000-4000-8000-000000000099"
+                    elif field == "selectedCandidateId":
+                        draft[field] = "B"
+                    else:
+                        draft[field] = None if field == "targetCategory" else "復元不整合"
+            return status, value, headers
+
+    a, b = CorruptRead(runtime, "star-a"), LocalApi(runtime, "star-b")
+
+    def wait(api, gid):
+        runtime.worker.run("star-a", gid)
+        return api.call("GET", f"/star-assist/generations/{gid}")[1]
+
+    def evaluate(api, eid):
+        runtime.worker.run("star-a", eid)
+        return api.call("GET", f"/evaluations/{eid}")[1]
+
+    run = live.Run("star-restoration")
+    with pytest.raises(AssertionError, match="LiveValidationAssertionFailed"):
+        live.star_flow(a, b, run, wait=wait, evaluate=evaluate)
+    assert not runtime.repository.snapshot().evaluations
+    assert a.writes == read - 1
+    assert run.rows[-1]["status"] == "failed"
+
+
+@pytest.mark.parametrize("failure", ["NEEDS_INFORMATION", "OUTCOME_UNKNOWN", "FAILED_AFTER_START"])
+def test_star_flow_stops_without_formal_submission_on_nonready_result(failure):
+    live = tool("coaching_live")
+    runtime = build_runtime()
+    a, b = LocalApi(runtime, "star-a"), LocalApi(runtime, "star-b")
+    run = live.Run("star-stop")
+    with pytest.raises(AssertionError):
+        live.star_flow(a, b, run, wait=lambda *_: {"status": failure, "result": None})
+    assert not runtime.repository.snapshot().evaluations
+    assert run.rows[-1] == {"run_id": "star-stop", "check": "star-ready", "status": "failed"}
+
+
+def test_star_poll_handles_all_inflight_states_and_does_not_retry_unknown():
+    live = tool("coaching_live")
+
+    class Api:
+        states = iter(["QUEUED", "PREPARED", "STARTED", "OUTCOME_UNKNOWN"])
+        calls = 0
+
+        def call(self, method, path):
+            assert method == "GET"
+            self.calls += 1
+            return 200, {"status": next(self.states)}, {}
+
+    api = Api()
+    assert live.poll_star(api, "synthetic", clock=lambda: 0, sleep=lambda _: None) == {
+        "status": "OUTCOME_UNKNOWN"
+    }
+    assert api.calls == 4
+
+
+def test_star_flow_does_not_resend_a_write_with_unknown_result():
+    live = tool("coaching_live")
+
+    class Api:
+        calls = 0
+
+        def call(self, *args, **kwargs):
+            self.calls += 1
+            raise TimeoutError("synthetic-unknown-write")
+
+    api = Api()
+    with pytest.raises(TimeoutError):
+        live.star_flow(api, api, live.Run("star-no-replay"))
+    assert api.calls == 1
+
+
+def test_star_corpus_is_valid_and_uses_locked_converse_shape_without_network(monkeypatch):
+    import socket
+
+    import botocore
+    from botocore.loaders import Loader
+    from botocore.model import ServiceModel
+    from botocore.validate import validate_parameters
+
+    from interview_backend.evaluation.bedrock_provider import BedrockProvider
+    from interview_backend.star_assist.live_provider import LiveStarProvider
+    from interview_backend.star_assist.models import StarInput
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("NetworkNotAllowed")
+
+    monkeypatch.setattr(socket, "create_connection", forbidden)
+    monkeypatch.setattr(socket.socket, "connect", forbidden)
+    # Service model lookup only: no client/credential/config discovery.
+    loader = Loader(
+        extra_search_paths=[str(Path(botocore.__file__).parent / "data")],
+        include_default_search_paths=False,
+    )
+    sdk = ServiceModel(loader.load_service_model("bedrock-runtime", "service-2"))
+    shape = sdk.operation_model("Converse").input_shape
+    corpus = tool("coaching_live").star_corpus()
+    assert corpus["synthetic_only"] and corpus["live_result"] is None
+    assert len({case["id"] for case in corpus["cases"]}) == 12
+    for case in corpus["cases"]:
+
+        class Client:
+            def __init__(self):
+                self.requests = []
+
+            def converse(self, **request):
+                validate_parameters(request, shape)
+                assert request["modelId"] == "jp.anthropic.claude-haiku-5-5"
+                assert request["inferenceConfig"] == {"maxTokens": 2048}
+                assert len(json.dumps(request, ensure_ascii=True).encode()) <= 24000
+                self.requests.append(request)
+                # Safe synthetic clarification validates corpus request feasibility only.
+                return {
+                    "stopReason": "end_turn",
+                    "output": {
+                        "message": {
+                            "role": "assistant",
+                            "content": [
+                                {
+                                    "text": json.dumps(
+                                        {
+                                            "status": "needs_information",
+                                            "candidates": [],
+                                            "missingInformation": [
+                                                "本人の行動を確認してください。"
+                                            ],
+                                        }
+                                    )
+                                }
+                            ],
+                        }
+                    },
+                }
+
+        client = Client()
+        provider = LiveStarProvider(
+            BedrockProvider(client_factory=lambda *a, client=client, **k: client)
+        )
+        result = provider.generate("工夫した経験は？", StarInput.model_validate(case["input"]))
+        assert result.status == "needs_information"
+        assert len(client.requests) <= 1
+        assert len(client.requests) == (0 if case["id"] in {"contradiction", "boundary-401"} else 1)
+
+
+def test_offline_sdk_cannot_read_host_config_or_credentials(monkeypatch):
+    import os
+
+    import botocore.configloader
+    import botocore.session
+
+    original = botocore.configloader.raw_config_parse
+    paths = []
+
+    def isolated(path, *args, **kwargs):
+        # Check before opening, so a regression cannot read the host's files.
+        assert path == os.devnull
+        paths.append(path)
+        return original(path, *args, **kwargs)
+
+    monkeypatch.setattr(botocore.configloader, "raw_config_parse", isolated)
+    assert botocore.session.Session().full_config == {"profiles": {}}
+    assert paths and set(paths) == {os.devnull}
 
 
 def test_failed_validation_always_invokes_closure_callback():

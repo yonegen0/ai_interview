@@ -17,6 +17,7 @@ from interview_backend.evaluation.provider import (
 )
 from interview_backend.models.internal import ExecutionConfig
 from interview_backend.models.public import CoachingResult, EvaluationResult, Feedback, FeedbackV2
+from interview_backend.operational_logs import log_provider_usage
 from interview_backend.repositories.budget import invocation_budget
 from interview_backend.repositories.domain import utc_ms
 from interview_backend.text_limits import score_values
@@ -32,6 +33,7 @@ class Worker:
         new_execution_id=lambda: str(uuid4()),
         config=None,
         metric=lambda classification: None,
+        star_provider=None,
     ):
         self.repository, self.provider, self.clock = repository, provider, clock
         self.monotonic, self.new_execution_id = monotonic_clock, new_execution_id
@@ -44,9 +46,20 @@ class Worker:
             self.config, prompt_version=COACHING_PROMPT_VERSION, result_schema_version=2
         )
         self.metric = metric
+        from interview_backend.star_assist.worker import StarWorker
+
+        self.star_worker = StarWorker(
+            repository,
+            star_provider,
+            monotonic_clock=monotonic_clock,
+            metric=metric,
+            authorize_owner=getattr(provider, "authorize_owner", None),
+        )
 
     @invocation_budget(60000)
     def run(self, owner, evaluation_id, generation=1, remaining_ms=None):
+        if self.repository.job_kind(owner, evaluation_id) == "star":
+            return self.star_worker.run(owner, evaluation_id, generation, remaining_ms)
         entered = False
         started = self.monotonic()
         remaining = remaining_ms or (
@@ -98,7 +111,7 @@ class Worker:
                 "applied",
                 "already_terminal",
             }
-        if config.provider_id.startswith("openai"):
+        if config.provider_id.startswith(("openai", "bedrock")):
             quota = self.repository.reserve_provider_call(
                 lease,
                 self.provider.settings.monthly_user_limit,
@@ -125,7 +138,7 @@ class Worker:
                 raise RuntimeError("already_called")
             entered = True
             called_at = self.monotonic()
-            if config.provider_id.startswith("openai"):
+            if config.provider_id.startswith(("openai", "bedrock")):
                 from interview_backend.evaluation.openai_provider import Deadline
 
                 budget = min(
@@ -195,10 +208,15 @@ class Worker:
                     else "PROVIDER_TIMEOUT"
                     if error.kind == "TIMEOUT"
                     else "INVALID_RESULT"
-                    if error.kind in {"INVALID_JSON", "INVALID_SCHEMA"}
+                    if error.kind in {"INVALID_JSON", "INVALID_SCHEMA", "INCOMPLETE"}
                     else "PROVIDER_FAILED"
                 )
             else:
                 reason = "PROVIDER_FAILED"
+        if entered and config.provider_id.startswith(("openai", "bedrock")):
+            log_provider_usage(
+                "bedrock" if config.provider_id.startswith("bedrock") else "openai",
+                getattr(self.provider, "last_observation", None),
+            )
         result = self.repository.finish(lease, feedback, reason)
         return result.status in {"applied", "already_terminal"}

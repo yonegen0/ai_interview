@@ -1,4 +1,5 @@
 /** @file index.ts @description Storybookで共有する決定的な面接データFixture。 */
+import { emptyStarState } from "../../src/mocks/star";
 import {
   evaluationSchema,
   legacyFeedbackSchema,
@@ -107,6 +108,7 @@ export const createStoryState = (options?: {
   const evaluation = options?.evaluation;
   return {
     version: 3,
+    star: emptyStarState(),
     evaluations:
       feedback && evaluation
         ? {

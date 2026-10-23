@@ -191,3 +191,8 @@ CORSは許可Originを明示し、Authorization／Content-Type／Idempotency-Key
 非同期起動・受付保存と起動の整合・重複防止・期限切れ回復・物理データ設計は[次工程の必須事項](../設計書一覧/04_横断仕様/06_決定事項_未確定事項.md)を参照します。同じ練習・復旧E2Eを実Backendでも検証します。
 
 参照: [MSW Browser integration](https://mswjs.io/docs/integrations/browser/)、[Next.js Static Exports](https://nextjs.org/docs/app/guides/static-exports)、[Storybook Next.js Vite](https://storybook.js.org/docs/get-started/frameworks/nextjs-vite)。
+## STAR Assist Ver.1.4 追加契約
+
+既存回答Body・V1/V2復旧を維持し、任意`X-Star-Application-Id`だけを補助使用記録に追加する。
+STARのAPI/期限/CAS/quota/新version3復旧envelopeは[STAR_V14_DESIGN.md](STAR_V14_DESIGN.md)を参照。
+Backend/Frontend/Mockの共有fixtureは`contracts/star-v14-fixtures.json`。

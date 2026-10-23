@@ -15,7 +15,7 @@ from interview_backend.evaluation.provider import FakeProvider
 from interview_backend.evaluation.worker import Worker
 from interview_backend.models.internal import StorageUnavailable
 from interview_backend.observability import Metrics, ObservedRepository
-from interview_backend.operational_logs import invocation_context, log_event
+from interview_backend.operational_logs import invocation_context, log_event, log_provider_usage
 from interview_backend.repositories.codec import decode, encode
 from interview_backend.support_history import summarize_evaluation
 
@@ -51,6 +51,87 @@ def test_privacy_allowlist_never_serializes_secrets_or_arbitrary_objects():
     assert not any(marker in rows[0] for marker in ("secret", "private@", "nan"))
     assert value["gatewayRequestId"] == "gateway-id" and value["lambdaRequestId"] == "lambda-id"
     assert "_aws" not in value
+
+
+def test_bedrock_usage_logs_only_numeric_allowlisted_fields():
+    rows = []
+    with invocation("worker"):
+        log_event(
+            "provider_usage",
+            sink=rows.append,
+            provider="bedrock",
+            inputTokens=12,
+            outputTokens="secret-tokens",
+            totalTokens=True,
+            ownerSub="private@example.invalid",
+            answer="secret-answer",
+        )
+    assert len(rows) == 1
+    value = json.loads(rows[0])
+    assert value["provider"] == "bedrock"
+    assert value["inputTokens"] == 12
+    assert "outputTokens" not in value
+    assert "totalTokens" not in value
+    assert "ownerSub" not in value
+    assert "answer" not in value
+    assert "secret" not in rows[0]
+
+
+@pytest.mark.parametrize("generation_id", [None, uid(901)])
+def test_manual_openai_usage_is_normalized_without_double_counting(capsys, generation_id):
+    with invocation("worker"):
+        log_provider_usage(
+            "openai",
+            {
+                "input_tokens": 120,
+                "output_tokens": 50,
+                "cached_tokens": 20,
+                "reasoning_tokens": 30,
+                "answer": "secret-answer",
+                "provider": "secret-provider",
+                "totalTokens": 9999,
+            },
+            generation_id=generation_id,
+        )
+    line = capsys.readouterr().out
+    result = json.loads(line)
+    assert result["inputTokens"] == 120 and result["outputTokens"] == 50
+    assert result["cacheReadInputTokens"] == 20 and result["reasoningTokens"] == 30
+    assert "totalTokens" not in result  # Reasoning is already included in outputTokens.
+    assert result["workload"] == ("star" if generation_id else "evaluation")
+    assert result.get("generationId") == generation_id
+    assert "secret" not in line
+
+
+def test_openai_worker_emits_usage_once_even_when_output_is_rejected(runtime, capsys):
+    from test_openai_provider import Authentication, Transport, response, start
+
+    from interview_backend.evaluation.openai_provider import OpenAIProvider
+
+    transport = Transport(
+        response(
+            status="incomplete",
+            usage={
+                "input_tokens": 120,
+                "output_tokens": 50,
+                "output_tokens_details": {"reasoning_tokens": 30},
+            },
+        )
+    )
+    worker = Worker(
+        runtime.repository,
+        OpenAIProvider(Authentication(), transport=transport),
+        runtime.worker.clock,
+    )
+    identifier = start(runtime)
+    with invocation("worker"):
+        assert worker.run("owner", identifier)
+        assert not worker.run("owner", identifier)
+    row = json.loads(capsys.readouterr().out)
+    assert row["event"] == "provider_usage" and row["workload"] == "evaluation"
+    assert row["inputTokens"] == 120 and row["outputTokens"] == 50
+    assert row["reasoningTokens"] == 30 and len(transport.requests) == 1
+    assert runtime.repository.snapshot().evaluations[identifier].status == "failed"
 
 
 def test_logging_sink_failure_and_warm_context_isolation(capsys):
@@ -213,7 +294,7 @@ def test_recovery_failure_never_emits_a_success_heartbeat(durable, monkeypatch):
     monkeypatch.setattr(repo, "get_cursor", lambda _: (_ for _ in ()).throw(StorageUnavailable()))
     recovery.tick(lambda: 30000)
     assert not any("RecoveryHeartbeat" in json.loads(r) for r in rows)
-    assert any(json.loads(r).get("RecoveryPartitionBlocked") == 3 for r in rows)
+    assert any(json.loads(r).get("RecoveryPartitionBlocked") == 4 for r in rows)
 
 
 def test_caught_api_500_is_returned_and_emits_business_failure(capsys):
