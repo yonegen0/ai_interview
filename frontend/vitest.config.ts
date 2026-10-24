@@ -20,8 +20,7 @@ export default defineConfig({
     include: ["@hookform/resolvers/zod", "@mui/material/Typography"],
   },
   test: {
-    // Vitest 5 serves browser tests through the shared top-level API server.
-    api: { host: "127.0.0.1", port: 4174, strictPort: true },
+    // Vitest 5 uses its localhost-only browser API default; avoid port collisions.
     projects: [
       {
         extends: true,
