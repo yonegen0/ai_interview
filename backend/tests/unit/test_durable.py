@@ -248,7 +248,12 @@ def test_partial_relations_do_not_call_provider(durable):
     assert worker.provider.calls == 0
 
 
-def test_recovery_paging_and_cursor_cas(durable):
+def test_recovery_paging_and_cursor_cas(durable, monkeypatch):
+    from interview_backend.repositories import domain
+
+    # Recovery pagination stress fixture intentionally creates more Sessions
+    # than the production monthly limit; isolate its synthetic budget override.
+    monkeypatch.setattr(domain, "SESSION_CREATION_MONTHLY_LIMIT", 110)
     clock, repo, app, _, publisher, dispatcher = durable
     for n in range(103):
         accept(app, key=1000 + n * 2)

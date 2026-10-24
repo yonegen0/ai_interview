@@ -159,7 +159,7 @@ def test_t01_and_t02_sdk_shape_and_five_item_acceptance():
     assert records["Attempt"].answer == payload["answer"]
     empty = SnapshotClient({})
     db(empty).create_once(OWNER, uid(100), "a" * 64, load_questions()[:3], lambda: uid(1))
-    assert set(written(empty)) == {"Session", "IdempotencyRecord"}
+    assert set(written(empty)) == {"Session", "IdempotencyRecord", "SessionCreationBudget"}
 
 
 def test_t02_commit_response_loss_replays_without_second_write():
