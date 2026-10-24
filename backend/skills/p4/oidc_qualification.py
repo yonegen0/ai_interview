@@ -30,6 +30,51 @@ HTTP_MAX = 16
 AWS_MAX = 10
 READ_MAX = 1024 * 1024
 SECONDS_MAX = 600
+EXPECTED_DENIALS = {
+    "denied-standard-role-read": ("GetRole", {"AccessDenied", "AccessDeniedException"}),
+    "denied-opposite-environment": ("AssumeRoleWithWebIdentity", {"AccessDenied"}),
+}
+FAILURE_STAGES = frozenset(
+    {
+        "preflight",
+        "control-plane",
+        "oidc-token",
+        "assume-expected-environment",
+        "session-validation",
+        "caller-identity",
+        "caller-validation",
+        "allowed-bucket-location",
+        "bucket-region-validation",
+        "denied-standard-role-read",
+        "denied-opposite-environment",
+        "call-graph-validation",
+    }
+)
+FAILURE_CLASSES = frozenset(
+    {
+        "validation-failed",
+        "unexpected-error",
+        "aws-error-code-mismatch",
+        "aws-operation-mismatch",
+        "aws-response-metadata-invalid",
+        "unexpected-allow",
+        "bucket-region-mismatch",
+    }
+)
+
+
+def failure_class(error: Exception) -> str:
+    """Map only our fixed validation reasons, never AWS messages or identifiers."""
+    reasons = {
+        "QualificationUnexpectedAwsFailure": "aws-error-code-mismatch",
+        "QualificationAwsOperationMismatch": "aws-operation-mismatch",
+        "QualificationAwsResponseUnknown": "aws-response-metadata-invalid",
+        "QualificationNegativeProbeAllowed": "unexpected-allow",
+        "QualificationBucketRegionMismatch": "bucket-region-mismatch",
+    }
+    if isinstance(error, DeploymentError):
+        return reasons.get(str(error), "validation-failed")
+    return "unexpected-error"
 
 
 def require(condition, reason):
@@ -280,6 +325,7 @@ def restriction(account, role, bucket, expiry):
 def aws_call(state, label, call, *, denied=False, target=None):
     from botocore.exceptions import ClientError
 
+    state["failure_stage"] = label
     checkpoint(state)
     require(state["aws"] < AWS_MAX, "QualificationAwsLimit")
     state["aws"] += 1
@@ -296,13 +342,20 @@ def aws_call(state, label, call, *, denied=False, target=None):
         result = call()
     except ClientError as error:
         metadata = error.response.get("ResponseMetadata", {})
+        expected_operation, expected_codes = EXPECTED_DENIALS.get(label, (None, set()))
         require(
-            denied
-            and error.response.get("Error", {}).get("Code") == "AccessDenied"
-            and metadata.get("HTTPStatusCode") == 403
-            and isinstance(metadata.get("RequestId"), str)
-            and metadata["RequestId"],
+            denied and error.response.get("Error", {}).get("Code") in expected_codes,
             "QualificationUnexpectedAwsFailure",
+        )
+        require(
+            error.operation_name == expected_operation,
+            "QualificationAwsOperationMismatch",
+        )
+        require(
+            metadata.get("HTTPStatusCode") == 403
+            and isinstance(metadata.get("RequestId"), str)
+            and metadata["RequestId"].strip(),
+            "QualificationAwsResponseUnknown",
         )
         record(
             state,
@@ -320,7 +373,9 @@ def aws_call(state, label, call, *, denied=False, target=None):
     require(not denied, "QualificationNegativeProbeAllowed")
     metadata = result.get("ResponseMetadata", {})
     require(
-        metadata.get("HTTPStatusCode") == 200 and metadata.get("RequestId"),
+        metadata.get("HTTPStatusCode") == 200
+        and isinstance(metadata.get("RequestId"), str)
+        and metadata["RequestId"].strip(),
         "QualificationAwsResponseUnknown",
     )
     record(
@@ -377,6 +432,7 @@ def qualify(state):
     opposite = ROLES["dev-apply" if state["name"] == "dev-plan" else "dev-plan"]
     for role, wrong_role in zip(ROLES[state["name"]], opposite, strict=True):
         state["role"] = role
+        state["failure_stage"] = "oidc-token"
         token = oidc_token(state)
         bucket_kind = "artifacts" if role.startswith("artifact-") else "state"
         bucket = f"ai-interview-{bucket_kind}-{account}-{REGION}"
@@ -395,6 +451,7 @@ def qualify(state):
             target=role,
         )
         acquired_at = datetime.now(UTC)
+        state["failure_stage"] = "session-validation"
         expected = f"arn:aws:sts::{account}:assumed-role/{ROLE_PREFIX}{role}/{session_name}"
         credentials = response["Credentials"]
         require(
@@ -434,6 +491,7 @@ def qualify(state):
             ).get_caller_identity(),
             target=role,
         )
+        state["failure_stage"] = "caller-validation"
         require(
             identity.get("Account") == account and identity.get("Arn") == expected,
             "QualificationCallerMismatch",
@@ -461,10 +519,11 @@ def qualify(state):
             ).get_bucket_location(Bucket=bucket, ExpectedBucketOwner=account),
             target=bucket_kind,
         )
+        state["failure_stage"] = "bucket-region-validation"
         require(location.get("LocationConstraint") == REGION, "QualificationBucketRegionMismatch")
         aws_call(
             state,
-            "denied-bootstrap-role-read",
+            "denied-standard-role-read",
             lambda session=session, role=role: client(
                 session, "iam", state, config, "https://iam.amazonaws.com"
             ).get_role(RoleName=ROLE_PREFIX + role),
@@ -481,6 +540,7 @@ def qualify(state):
             target=wrong_role,
         )
         del token, request, credentials, response, session
+    state["failure_stage"] = "call-graph-validation"
     require(state["aws"] == AWS_MAX, "QualificationCallGraphIncomplete")
 
 
@@ -491,7 +551,7 @@ def publish_result(state, runner_temp, success):
         "assume-expected-environment": "allowed",
         "caller-identity": "allowed",
         "allowed-bucket-location": "allowed",
-        "denied-bootstrap-role-read": "denied",
+        "denied-standard-role-read": "denied",
         "denied-opposite-environment": "denied",
     }
     for row in state.get("checks", []):
@@ -554,6 +614,14 @@ def publish_result(state, runner_temp, success):
         "checks": checks,
         "sessions": sessions,
     }
+    if not success:
+        stage = state.get("failure_stage", "preflight")
+        classification = state.get("failure_class", "unexpected-error")
+        require(
+            stage in FAILURE_STAGES and classification in FAILURE_CLASSES,
+            "QualificationPublicProjectionMismatch",
+        )
+        result.update(failure_stage=stage, failure_class=classification)
     raw = json.dumps(result, sort_keys=True).encode()
     require(len(raw) <= 32768, "QualificationPublicResultTooLarge")
     output = Path(runner_temp) / "p4-qualification-public"
@@ -583,6 +651,7 @@ def main():
             "http": 0,
             "aws": 0,
             "http_bytes": 0,
+            "failure_stage": "preflight",
         }
         checkpoint(state)
         record(
@@ -593,12 +662,14 @@ def main():
             run_id=env["GITHUB_RUN_ID"],
             attempt=1,
         )
+        state["failure_stage"] = "control-plane"
         verify_control_plane(state)
         qualify(state)
         success = True
-    except Exception:
+    except Exception as error:
         # Raw SDK/HTTP failures can contain tokens or identifiers. Never print them.
-        pass
+        if state is not None:
+            state["failure_class"] = failure_class(error)
     try:
         if state is not None:
             publish_result(state, env["RUNNER_TEMP"], success)
