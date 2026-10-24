@@ -34,6 +34,7 @@ jobs:
           set -euo pipefail
           npm pkg set 'devDependencies.storybook=^10.6.3' 'devDependencies.@storybook/addon-a11y=^10.6.3' 'devDependencies.@storybook/addon-docs=^10.6.3' 'devDependencies.@storybook/addon-vitest=^10.6.3' 'devDependencies.@storybook/nextjs-vite=^10.6.3' 'devDependencies.eslint-plugin-storybook=^10.6.3'
           rm -rf node_modules
+          rm -f package-lock.json
           npm install --package-lock-only --ignore-scripts
           npm update vite vitest @vitest/browser-playwright @vitest/coverage-v8 --package-lock-only --ignore-scripts
           npm audit fix --package-lock-only --ignore-scripts || true
