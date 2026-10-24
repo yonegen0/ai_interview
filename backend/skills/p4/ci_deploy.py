@@ -28,6 +28,11 @@ from interview_backend.deployment import (
     terraform_environment,
 )
 
+PLAN_OBJECT_MAX_BYTES = 10 * 1024 * 1024
+
+PACKAGE_KEYS = frozenset(
+    {"artifact_bucket", "artifact_key", "artifact_version", "artifact_sha256_base64"}
+)
 
 
 def standard_package_base(environment):
@@ -48,13 +53,6 @@ def verify_standard_package_base(envelope, environment):
     base = standard_package_base(environment)
     if not isinstance(envelope, dict) or envelope.get("package_base_sha") != base:
         raise DeploymentError("PlanPackageBaseMismatch")
-
-
-PLAN_OBJECT_MAX_BYTES = 10 * 1024 * 1024
-
-PACKAGE_KEYS = frozenset(
-    {"artifact_bucket", "artifact_key", "artifact_version", "artifact_sha256_base64"}
-)
 
 
 def preflight(environment):
