@@ -133,9 +133,21 @@ def test_package_change_detection_over_multiple_commits(tmp_path):
     assert module.decision(
         tmp_path, {"pull_request": {"base": {"sha": base}}}, "pull_request", head
     )["build_package"]
+    assert module.decision(tmp_path, {}, "workflow_dispatch", head, base) == {
+        "base": base,
+        "head": head,
+        "build_package": True,
+        "reason": "package_inputs_changed",
+    }
     assert not module.decision(tmp_path, {}, "workflow_dispatch", head, middle)["build_package"]
     with pytest.raises(ValueError, match="BaseRequired"):
         module.decision(tmp_path, {}, "workflow_dispatch", head)
+    with pytest.raises(ValueError, match="BaseRequired"):
+        module.decision(tmp_path, {}, "workflow_dispatch", head, "not-a-commit")
+    with pytest.raises(subprocess.CalledProcessError):
+        module.decision(tmp_path, {}, "workflow_dispatch", head, "a" * 40)
+    with pytest.raises(subprocess.CalledProcessError):
+        module.decision(tmp_path, {}, "workflow_dispatch", middle, head)
     with pytest.raises(subprocess.CalledProcessError):
         module.decision(tmp_path, {"before": "a" * 40}, "push", head)
     git("mv", "backend/src/application.py", "renamed-doc.md")

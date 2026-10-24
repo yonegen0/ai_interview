@@ -23,6 +23,12 @@ Plan also retains its existing immutable approval package and recipient certific
 these bind artifact/configuration/expiry and provide encrypted evidence, not Hello
 identity. Approval values remain unissued until an explicit external approval.
 Apply is a separate dispatch with its own issue/expiry, Plan run ID and binary SHA.
+Both dispatches also require `package_base_sha`: use the same explicit existing
+ancestor checked by the successful Plan's offline `package_changes` job. Confirm
+the recorded base/head and package-input diff before dispatching Apply; do not
+substitute the current source SHA as its own base to skip verification. Package
+changes still trigger the locked Linux build/import checks. This offline comparison
+does not replace Apply's existing saved-binary digest, source and transport checks.
 Plan dispatch does not start Apply. Reruns are refused; the first matching dispatch
 consumes the operation, including failed/queued runs. Do not delete run history.
 

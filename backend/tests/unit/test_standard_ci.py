@@ -2,9 +2,29 @@
 
 import base64
 import json
+import re
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import pytest
+
+
+@pytest.mark.parametrize("operation", ["plan", "apply"])
+def test_standard_dispatch_passes_explicit_package_base_to_offline(operation):
+    workflows = Path(__file__).resolve().parents[3] / ".github/workflows"
+    workflow = (workflows / f"p4-standard-{operation}.yml").read_text()
+    inputs = workflow.split("    inputs:\n", 1)[1].split("\npermissions:", 1)[0]
+    base_input = re.search(r"^      package_base_sha:\n((?:        .*\n)+)", inputs, re.M)
+    assert base_input is not None, "Manual package comparison requires an explicit ancestor"
+    assert "        type: string\n" in base_input[1]
+    assert "        required: true\n" in base_input[1]
+    assert "default:" not in base_input[1]
+    offline = workflow.split("  offline:\n", 1)[1].split(f"\n  {operation}:\n", 1)[0]
+    assert "    uses: ./.github/workflows/p4-static.yml\n" in offline
+    assert "    with:\n      package_base_sha: ${{ inputs.package_base_sha }}" in offline
+    static = (workflows / "p4-static.yml").read_text()
+    assert "          PACKAGE_BASE_SHA: ${{ inputs.package_base_sha }}\n" in static
+    assert "run: python3 backend/skills/p4/package_changes.py\n" in static
 
 
 def context(operation="plan"):

@@ -7,6 +7,10 @@ on:
         description: Explicitly approved current main commit (40 hex)
         type: string
         required: true
+      package_base_sha:
+        description: Same existing ancestor used for the successful Plan package comparison (40 hex)
+        type: string
+        required: true
       approved_at_utc:
         description: Approval issue UTC, YYYY-MM-DDTHH:MM:SSZ
         type: string
@@ -33,6 +37,8 @@ jobs:
   offline:
     if: github.ref == 'refs/heads/main' && github.actor_id == '76547980' && github.triggering_actor == 'yonegen0' && github.run_attempt == 1 && inputs.source_sha == github.sha
     uses: ./.github/workflows/p4-static.yml
+    with:
+      package_base_sha: ${{ inputs.package_base_sha }}
   apply:
     needs: [backend, offline]
     environment: dev-apply
