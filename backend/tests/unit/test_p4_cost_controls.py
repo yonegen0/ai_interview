@@ -39,6 +39,51 @@ def cost_deployment(admin_deployment):
         requestTimeEpoch="$context.requestTimeEpoch", responseLatency="$context.responseLatency"
     )
     stage["AccessLogSettings"]["Format"] = json.dumps(format_)
+    cors = data["apigatewayv2", "get_api", ""]["CorsConfiguration"]
+    cors["AllowMethods"].append("PUT")
+    cors["AllowHeaders"].append("X-Star-Application-Id")
+    for route in (
+        "GET /star-assist/options",
+        "GET /star-assist/preferences",
+        "PUT /star-assist/preferences",
+        "POST /sessions/{sessionId}/answer-contexts",
+        "GET /answer-contexts/{contextId}/drafts",
+        "POST /answer-contexts/{contextId}/answer-drafts",
+        "PUT /answer-drafts/{draftId}",
+        "POST /answer-drafts/{draftId}/discard",
+        "POST /answer-contexts/{contextId}/star-drafts",
+        "PUT /star-drafts/{draftId}",
+        "POST /star-drafts/{draftId}/discard",
+        "POST /star-assist/generations",
+        "GET /star-assist/generations/{generationId}",
+        "GET /star-assist/quota",
+        "POST /star-drafts/{draftId}/applications",
+        "GET /star-assist/requests/{requestKey}",
+    ):
+        data["apigatewayv2", "get_routes", ""]["Items"].append(
+            {
+                "RouteKey": route,
+                "Target": "integrations/integration",
+                "AuthorizationType": "JWT",
+                "AuthorizerId": "auth",
+            }
+        )
+    statements = data["iam", "get_role_policy", "ai-interview-dev-api-runtime"]["PolicyDocument"][
+        "Statement"
+    ]
+    statements[2]["Action"].append("dynamodb:ConditionCheckItem")
+    statements.append(
+        {
+            "Effect": "Allow",
+            "Action": ["dynamodb:PutItem", "dynamodb:ConditionCheckItem"],
+            "Resource": copy.deepcopy(statements[2]["Resource"]),
+            "Condition": {
+                "ForAllValues:StringEquals": {"dynamodb:LeadingKeys": ["SYSTEM#STAR_QUOTA"]},
+                "Null": {"dynamodb:LeadingKeys": "false"},
+                "StringEquals": {"dynamodb:EnclosingOperation": "TransactWriteItems"},
+            },
+        }
+    )
     return m, data, session
 
 

@@ -312,7 +312,9 @@ def verify_question_permissions(iam, lambdas, m, prefix):
                 {"Effect": "Allow", "Action": ["dynamodb:GetItem"], "Resource": [table]},
                 {
                     "Effect": "Allow",
-                    "Action": ["dynamodb:PutItem"],
+                    "Action": ["dynamodb:PutItem", "dynamodb:ConditionCheckItem"]
+                    if m["schema_version"] == 4
+                    else ["dynamodb:PutItem"],
                     "Resource": [table],
                     "Condition": transaction
                     | {
@@ -327,6 +329,21 @@ def verify_question_permissions(iam, lambdas, m, prefix):
                     "Condition": bank | transaction,
                 },
             ]
+            if m["schema_version"] == 4:
+                statements.append(
+                    {
+                        "Effect": "Allow",
+                        "Action": ["dynamodb:PutItem", "dynamodb:ConditionCheckItem"],
+                        "Resource": [table],
+                        "Condition": transaction
+                        | {
+                            "ForAllValues:StringEquals": {
+                                "dynamodb:LeadingKeys": ["SYSTEM#STAR_QUOTA"]
+                            },
+                            "Null": {"dynamodb:LeadingKeys": "false"},
+                        },
+                    }
+                )
         name = f"{prefix}-{role}-runtime"
         if pages(iam.list_role_policies, "PolicyNames", token="Marker", RoleName=name) != [
             "business"
@@ -378,8 +395,17 @@ def verify_api(api, m, prefix):
     cors = observed["CorsConfiguration"]
     for key, values in {
         "AllowOrigins": c["cors_origins"],
-        "AllowMethods": ["GET", "POST", "OPTIONS"],
-        "AllowHeaders": ["authorization", "content-type", "idempotency-key"],
+        "AllowMethods": ["GET", "POST", "OPTIONS", "PUT"]
+        if m["schema_version"] == 4
+        else ["GET", "POST", "OPTIONS"],
+        "AllowHeaders": [
+            "authorization",
+            "content-type",
+            "idempotency-key",
+            "x-star-application-id",
+        ]
+        if m["schema_version"] == 4
+        else ["authorization", "content-type", "idempotency-key"],
         "ExposeHeaders": ["allow"],
     }.items():
         if sorted(
@@ -453,6 +479,27 @@ def verify_api(api, m, prefix):
     }
     if version3:
         business.add("GET /practice-options")
+    if m["schema_version"] == 4:
+        business.update(
+            {
+                "GET /star-assist/options",
+                "GET /star-assist/preferences",
+                "PUT /star-assist/preferences",
+                "POST /sessions/{sessionId}/answer-contexts",
+                "GET /answer-contexts/{contextId}/drafts",
+                "POST /answer-contexts/{contextId}/answer-drafts",
+                "PUT /answer-drafts/{draftId}",
+                "POST /answer-drafts/{draftId}/discard",
+                "POST /answer-contexts/{contextId}/star-drafts",
+                "PUT /star-drafts/{draftId}",
+                "POST /star-drafts/{draftId}/discard",
+                "POST /star-assist/generations",
+                "GET /star-assist/generations/{generationId}",
+                "GET /star-assist/quota",
+                "POST /star-drafts/{draftId}/applications",
+                "GET /star-assist/requests/{requestKey}",
+            }
+        )
     admin_routes = {"GET /admin/question-bank", "POST /admin/question-bank"} if version3 else set()
     expected_routes = (
         business
