@@ -131,10 +131,7 @@ def test_standard_deploy_job_receives_same_base_as_offline(operation):
     with_inputs = _mapping_block(offline, 4, "with")
     assert "      package_base_sha: ${{ inputs.package_base_sha }}\n" in with_inputs
     deployment = _mapping_block(jobs, 2, operation)
-    assert (
-        "      P4_PACKAGE_BASE_SHA: ${{ inputs.package_base_sha }}\n"
-        in deployment
-    )
+    assert "      P4_PACKAGE_BASE_SHA: ${{ inputs.package_base_sha }}\n" in deployment
     assert "    needs: [backend, offline]\n" in deployment
 
 
@@ -179,4 +176,3 @@ def test_non_ancestor_comparison_fails_closed(tmp_path, monkeypatch):
     with pytest.raises(ValueError, match="NonAncestor"):
         mod.decision(tmp_path, {}, "workflow_dispatch", head, base)
     assert ("merge-base", "--is-ancestor", base, head) in calls
-
