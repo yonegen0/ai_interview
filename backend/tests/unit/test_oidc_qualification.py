@@ -248,6 +248,52 @@ def test_caps_expiry_and_retry_send_stop_before_next_request(tmp_path):
         q.checkpoint(st)
 
 
+@pytest.mark.parametrize(
+    "service,endpoint,signing_region",
+    [
+        ("iam", "https://iam.amazonaws.com", "us-east-1"),
+        ("sts", "https://sts.ap-northeast-1.amazonaws.com", "ap-northeast-1"),
+    ],
+)
+def test_explicit_endpoints_sign_for_the_service_region_without_sending(
+    tmp_path, service, endpoint, signing_region
+):
+    import boto3
+    import oidc_qualification as q
+    from botocore.config import Config
+
+    st = state(tmp_path)
+    st["sends"] = 0
+
+    def synthetic_client(*args, **kwargs):
+        return boto3.Session(region_name=q.REGION).client(
+            *args,
+            aws_access_key_id="synthetic",
+            aws_secret_access_key="synthetic",
+            **kwargs,
+        )
+
+    session = SimpleNamespace(client=synthetic_client)
+    sdk = q.client(session, service, st, Config(retries={"total_max_attempts": 1}), endpoint)
+    signed = []
+
+    def stop_before_network(request, **_):
+        signed.append(request)
+        raise RuntimeError("offline-network-stop")
+
+    sdk.meta.events.register("before-send.*.*", stop_before_network)
+    with pytest.raises(RuntimeError, match="offline-network-stop"):
+        if service == "iam":
+            sdk.get_role(RoleName="synthetic")
+        else:
+            sdk.get_caller_identity()
+    assert len(signed) == 1 and st["sends"] == 1
+    assert signed[0].url == endpoint + "/"
+    assert (
+        f"/{signing_region}/{service}/aws4_request" in signed[0].headers["Authorization"].decode()
+    )
+
+
 def test_context_and_journal_failure_never_expose_original_exception(tmp_path, monkeypatch, capsys):
     import oidc_qualification as q
 

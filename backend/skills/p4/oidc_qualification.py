@@ -340,7 +340,13 @@ def aws_call(state, label, call, *, denied=False, target=None):
 
 def client(session, service, state, config, endpoint):
     """Reject SDK redirects/retries before a second HTTP send, even for S3."""
-    result = session.client(service, config=config, endpoint_url=endpoint)
+    # An explicit endpoint bypasses the SDK's global IAM signing-region default.
+    result = session.client(
+        service,
+        config=config,
+        endpoint_url=endpoint,
+        region_name="us-east-1" if service == "iam" else REGION,
+    )
 
     def sending(**_):
         checkpoint(state)
