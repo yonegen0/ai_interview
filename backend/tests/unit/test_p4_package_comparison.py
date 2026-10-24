@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import pytest
+
 from test_p4_tools import tool
 
 
@@ -12,7 +13,8 @@ ROOT = Path(__file__).resolve().parents[3]
 def test_apply_passes_required_base_to_reusable_offline_workflow():
     text = (ROOT / ".github/workflows/p4-standard-apply.yml").read_text(encoding="utf-8")
     assert "      package_base_sha:\n        description:" in text
-    assert "        required: true" in text.split("      package_base_sha:", 1)[1].split("\n      ", 1)[0]
+    input_block = text.split("      package_base_sha:", 1)[1].split("\n      ", 1)[0]
+    assert "        required: true" in input_block
     assert (
         "    uses: ./.github/workflows/p4-static.yml\n"
         "    with:\n"
