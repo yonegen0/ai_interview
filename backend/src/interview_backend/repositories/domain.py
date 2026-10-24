@@ -26,6 +26,7 @@ from interview_backend.models.internal import (
     RecoveryCursor,
     Reply,
     Session,
+    SessionCreationBudget,
 )
 from interview_backend.models.public import (
     CATEGORY_LABELS,
@@ -44,6 +45,8 @@ from interview_backend.star_assist.repository import StarRepositoryMixin
 from interview_backend.text_limits import code_point_length
 
 SESSION_UPDATE_RESERVE_BYTES = 1024
+# Maximum new Sessions per authenticated owner and UTC calendar month.
+SESSION_CREATION_MONTHLY_LIMIT = 60
 
 
 def utc_ms():
@@ -151,6 +154,20 @@ class DomainRepository(StarRepositoryMixin, CoachingRepositoryMixin):
                     encode("Session", session, 0, reserve_bytes=SESSION_UPDATE_RESERVE_BYTES)
                 except ItemTooLarge:
                     raise BusinessError(400, "QUESTION_BANK_TOO_LARGE") from None
+            # Counter, Session and idempotency response commit atomically.
+            # _post handles cached idempotency keys before calling this branch.
+            month = datetime.fromtimestamp(now / 1000, UTC).strftime("%Y-%m")
+            budget_id = str(uuid5(NAMESPACE_URL, "interview-session-budget:" + month))
+            budget_ref = ref("SessionCreationBudget", owner, budget_id)
+            budget = tx.get(budget_ref)
+            if budget is None:
+                budget = SessionCreationBudget(owner, budget_id, month)
+            if budget.owner != owner or budget.month != month:
+                raise IntegrityError("session_budget_relation")
+            if budget.count >= SESSION_CREATION_MONTHLY_LIMIT:
+                raise BusinessError(429, "SESSION_CREATION_LIMIT")
+            budget.count += 1
+            tx.put(budget_ref, budget)
             tx.new(ref("Session", owner, session.id), session)
             return Reply(201, {"sessionId": session.id})
 

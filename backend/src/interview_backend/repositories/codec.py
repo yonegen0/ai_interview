@@ -27,6 +27,7 @@ from interview_backend.models.internal import (
     RecoveryCursor,
     Reply,
     Session,
+    SessionCreationBudget,
     StorageFormatError,
 )
 from interview_backend.models.public import (
@@ -67,6 +68,8 @@ KINDS["AttemptCoaching"] = AttemptCoaching
 PREFIXES["AttemptCoaching"] = "COACHING"
 KINDS["ProviderUsage"] = ProviderUsage
 PREFIXES["ProviderUsage"] = "PROVIDER_USAGE"
+KINDS["SessionCreationBudget"] = SessionCreationBudget
+PREFIXES["SessionCreationBudget"] = "SESSION_BUDGET"
 KINDS.update(RECORDS)
 PREFIXES.update(STAR_PREFIXES)
 MAX_TIME = 9999999999999
@@ -176,6 +179,10 @@ def validate(record):
         r"\d{4}-(?:0[1-9]|1[0-2])", record.month
     ):
         raise StorageFormatError("provider_usage_month")
+    if isinstance(record, SessionCreationBudget) and not re.fullmatch(
+        r"\d{4}-(?:0[1-9]|1[0-2])", record.month
+    ):
+        raise StorageFormatError("session_budget_month")
     if isinstance(record, Evaluation) and record.provider_usage_month is not None:
         if not re.fullmatch(r"\d{4}-(?:0[1-9]|1[0-2])", record.provider_usage_month):
             raise StorageFormatError("provider_usage_month")

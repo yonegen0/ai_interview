@@ -34,6 +34,7 @@ MESSAGES = {
     "QUESTION_BANK_TOO_LARGE": "Question bank too large.",
     "CATEGORY_UNAVAILABLE": "Category unavailable.",
     "SESSION_COMPLETED": "Practice completed.",
+    "SESSION_CREATION_LIMIT": "Monthly session creation limit reached.",
     "REQUEST_TOO_LARGE": "Request too large.",
     "UNAUTHORIZED": "Authentication required.",
     "SESSION_NOT_FOUND": "Session not found.",

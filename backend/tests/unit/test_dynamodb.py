@@ -3,6 +3,7 @@
 from copy import deepcopy
 from dataclasses import replace
 from itertools import count
+from uuid import NAMESPACE_URL, uuid5
 
 import boto3
 import pytest
@@ -50,6 +51,7 @@ def snapshot(repo):
     result = {}
     for kind, records in (
         ("Session", state.sessions),
+        ("SessionCreationBudget", state.session_creation_budgets),
         ("Attempt", state.attempts),
         ("AttemptCoaching", state.coachings),
         ("Evaluation", state.evaluations),
@@ -157,7 +159,7 @@ def test_t01_and_t02_sdk_shape_and_five_item_acceptance():
     assert records["Attempt"].answer == payload["answer"]
     empty = SnapshotClient({})
     db(empty).create_once(OWNER, uid(100), "a" * 64, load_questions()[:3], lambda: uid(1))
-    assert set(written(empty)) == {"Session", "IdempotencyRecord"}
+    assert set(written(empty)) == {"Session", "IdempotencyRecord", "SessionCreationBudget"}
 
 
 def test_t02_commit_response_loss_replays_without_second_write():
@@ -538,6 +540,21 @@ def test_stubber_real_transaction_request_validation(sdk):
             },
         )
         stub.add_response(
+            "get_item",
+            {},
+            {
+                "TableName": "test-table",
+                "Key": to_wire(
+                    key(
+                        "SessionCreationBudget",
+                        OWNER,
+                        str(uuid5(NAMESPACE_URL, "interview-session-budget:2026-09")),
+                    )
+                ),
+                "ConsistentRead": True,
+            },
+        )
+        stub.add_response(
             "transact_write_items", {}, {"TransactItems": ANY, "ClientRequestToken": ANY}
         )
         assert (
@@ -547,6 +564,30 @@ def test_stubber_real_transaction_request_validation(sdk):
             == 201
         )
         stub.assert_no_pending_responses()
+
+
+def test_session_creation_budget_commits_atomically_in_dynamodb_request():
+    client = SnapshotClient({})
+    reply = db(client).create_once(OWNER, uid(100), "a" * 64, load_questions()[:3], lambda: uid(1))
+    assert reply.status == 201
+    writes = [
+        from_wire(item["Put"]["Item"])
+        for item in client.writes[0]["TransactItems"]
+        if "Put" in item
+    ]
+    assert {item["kind"] for item in writes} == {
+        "Session",
+        "SessionCreationBudget",
+        "IdempotencyRecord",
+    }
+    budget = next(item for item in writes if item["kind"] == "SessionCreationBudget")
+    assert budget["PK"] == f"USER#{OWNER}"
+    assert '"count":1' in budget["data"]
+    assert all(
+        item["Put"]["ConditionExpression"] == "attribute_not_exists(PK)"
+        for item in client.writes[0]["TransactItems"]
+        if "Put" in item
+    )
 
 
 @pytest.mark.parametrize("present", [True, False])

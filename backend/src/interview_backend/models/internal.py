@@ -137,6 +137,16 @@ class ProviderUsage:
 
 
 @dataclass
+class SessionCreationBudget:
+    """Per-owner UTC calendar-month Session creation counter, without TTL."""
+
+    owner: str
+    id: str
+    month: str
+    count: int = 0
+
+
+@dataclass
 class IdempotentReply:
     fingerprint: str
     reply: Reply
@@ -317,4 +327,5 @@ class State:
     question_bank_changes: dict[tuple[str, str], QuestionBankChange] = field(default_factory=dict)
     coachings: dict[str, AttemptCoaching] = field(default_factory=dict)
     provider_usage: dict[str, ProviderUsage] = field(default_factory=dict)
+    session_creation_budgets: dict[str, SessionCreationBudget] = field(default_factory=dict)
     star_records: dict = field(default_factory=dict)
