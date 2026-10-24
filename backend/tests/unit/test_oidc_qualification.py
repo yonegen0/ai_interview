@@ -108,7 +108,7 @@ def public_state(tmp_path):
         "assume-expected-environment": "allowed",
         "caller-identity": "allowed",
         "allowed-bucket-location": "allowed",
-        "denied-bootstrap-role-read": "denied",
+        "denied-standard-role-read": "denied",
         "denied-opposite-environment": "denied",
     }
     st["checks"] = [
@@ -213,13 +213,13 @@ def test_token_claim_mismatch(tmp_path, change):
         q.claims(token(st, **change), st)
 
 
-def denial(code="AccessDenied", status=403):
+def denial(code="AccessDenied", status=403, operation="GetRole", request_id="synthetic"):
     return ClientError(
         {
             "Error": {"Code": code, "Message": "sentinel-secret"},
-            "ResponseMetadata": {"HTTPStatusCode": status, "RequestId": "synthetic"},
+            "ResponseMetadata": {"HTTPStatusCode": status, "RequestId": request_id},
         },
-        "GetRole",
+        operation,
     )
 
 
@@ -232,8 +232,179 @@ def test_negative_probe_requires_exact_error_and_never_accepts_success(tmp_path)
             q.aws_call(st, "probe", lambda e=error: (_ for _ in ()).throw(e))
     with pytest.raises(ValueError, match="NegativeProbeAllowed"):
         q.aws_call(st, "probe", lambda: {}, denied=True)
-    assert q.aws_call(st, "probe", lambda: (_ for _ in ()).throw(denial()), denied=True) is None
-    assert "sentinel-secret" not in "".join(path.read_text() for path in tmp_path.iterdir())
+    assert (
+        q.aws_call(
+            st, "denied-standard-role-read", lambda: (_ for _ in ()).throw(denial()), denied=True
+        )
+        is None
+    )
+    assert "sentinel-secret" not in "".join(
+        path.read_text() for path in tmp_path.glob("*.private.json")
+    )
+
+
+@pytest.mark.parametrize(
+    "label,operation,code,status,request_id,passes",
+    [
+        ("denied-standard-role-read", "GetRole", "AccessDenied", 403, "synthetic", True),
+        ("denied-standard-role-read", "GetRole", "AccessDeniedException", 403, "synthetic", True),
+        (
+            "denied-opposite-environment",
+            "AssumeRoleWithWebIdentity",
+            "AccessDenied",
+            403,
+            "synthetic",
+            True,
+        ),
+        (
+            "denied-opposite-environment",
+            "AssumeRoleWithWebIdentity",
+            "AccessDeniedException",
+            403,
+            "synthetic",
+            False,
+        ),
+        ("denied-standard-role-read", "GetRole", "UnknownError", 403, "synthetic", False),
+        ("denied-standard-role-read", "GetRole", "ExpiredTokenException", 403, "synthetic", False),
+        ("denied-standard-role-read", "GetRole", "InvalidClientTokenId", 403, "synthetic", False),
+        ("denied-standard-role-read", "GetRole", "NoSuchEntity", 404, "synthetic", False),
+        ("denied-standard-role-read", "GetRole", "AccessDenied", 200, "synthetic", False),
+        ("denied-standard-role-read", "GetRole", "AccessDenied", 403, None, False),
+        ("denied-standard-role-read", "GetRole", "AccessDenied", 403, " ", False),
+        (
+            "denied-standard-role-read",
+            "AssumeRoleWithWebIdentity",
+            "AccessDenied",
+            403,
+            "synthetic",
+            False,
+        ),
+    ],
+)
+def test_operation_specific_denial(tmp_path, label, operation, code, status, request_id, passes):
+    import oidc_qualification as q
+
+    st = state(tmp_path)
+    error = denial(code, status, operation, request_id)
+    if request_id is None:
+        del error.response["ResponseMetadata"]["RequestId"]
+
+    def call():
+        raise error
+
+    if passes:
+        assert q.aws_call(st, label, call, denied=True) is None
+        assert st["checks"] == [{"operation": label, "role": "plan", "outcome": "denied"}]
+    else:
+        with pytest.raises(ValueError):
+            q.aws_call(st, label, call, denied=True)
+        assert not st.get("checks")
+
+
+@pytest.mark.parametrize("label", ["denied-standard-role-read", "denied-opposite-environment"])
+def test_denial_cannot_accept_http_200(tmp_path, label):
+    import oidc_qualification as q
+
+    st = state(tmp_path)
+    with pytest.raises(ValueError, match="NegativeProbeAllowed"):
+        q.aws_call(
+            st,
+            label,
+            lambda: {"ResponseMetadata": {"HTTPStatusCode": 200, "RequestId": "synthetic"}},
+            denied=True,
+        )
+    assert not st.get("checks")
+
+
+@pytest.mark.parametrize("success", [False, True])
+@pytest.mark.parametrize("field", ["failure_stage", "failure_class"])
+def test_public_diagnostics_never_serialize_untrusted_values(tmp_path, success, field):
+    import oidc_qualification as q
+
+    st = public_state(tmp_path)
+    secret = "sentinel-secret arn:aws:iam::123456789012:role/private RequestId secret-token"
+    st.update(failure_stage="denied-standard-role-read", failure_class="aws-error-code-mismatch")
+    st[field] = secret
+    if not success:
+        with pytest.raises(ValueError, match="PublicProjectionMismatch"):
+            q.publish_result(st, tmp_path, success)
+        assert not (tmp_path / "p4-qualification-public").exists()
+    else:
+        q.publish_result(st, tmp_path, success)
+        raw = (tmp_path / "p4-qualification-public/result.json").read_text()
+        assert secret not in raw and "failure_stage" not in raw and "failure_class" not in raw
+
+
+@pytest.mark.parametrize(
+    "error,classification",
+    [
+        (ValueError("sentinel-secret"), "unexpected-error"),
+        (denial("ExpiredTokenException"), "unexpected-error"),
+    ],
+)
+def test_main_publishes_only_safe_failure_diagnostics(
+    tmp_path, monkeypatch, capsys, error, classification
+):
+    import oidc_qualification as q
+
+    env = environment() | {
+        "RUNNER_TEMP": str(tmp_path),
+        "P4_QUALIFY_STARTED_MONOTONIC": str(time.monotonic()),
+    }
+    monkeypatch.setattr(q.os, "environ", env)
+    monkeypatch.setattr(q, "verify_checkout", lambda *a: None)
+    monkeypatch.setattr(q, "verify_control_plane", lambda *a: None)
+
+    def fail(st):
+        st["failure_stage"] = "denied-standard-role-read"
+        raise error
+
+    monkeypatch.setattr(q, "qualify", fail)
+    assert q.main() == 1
+    result = json.loads((tmp_path / "p4-qualification-public/result.json").read_text())
+    assert result["status"] == "stopped"
+    assert result["failure_stage"] == "denied-standard-role-read"
+    assert result["failure_class"] == classification
+    raw = json.dumps(result) + capsys.readouterr().out
+    assert all(
+        value not in raw for value in ("sentinel-secret", "123456789012", "arn:aws:", "RequestId")
+    )
+
+
+@pytest.mark.parametrize(
+    "stage,reason,classification",
+    [
+        ("bucket-region-validation", "QualificationBucketRegionMismatch", "bucket-region-mismatch"),
+        (
+            "denied-standard-role-read",
+            "QualificationUnexpectedAwsFailure",
+            "aws-error-code-mismatch",
+        ),
+        (
+            "denied-standard-role-read",
+            "QualificationAwsOperationMismatch",
+            "aws-operation-mismatch",
+        ),
+        (
+            "denied-standard-role-read",
+            "QualificationAwsResponseUnknown",
+            "aws-response-metadata-invalid",
+        ),
+        ("denied-standard-role-read", "QualificationNegativeProbeAllowed", "unexpected-allow"),
+    ],
+)
+def test_fixed_failure_mapping_and_stopped_projection(tmp_path, stage, reason, classification):
+    import oidc_qualification as q
+
+    st = public_state(tmp_path)
+    st["checks"] = st["checks"][:3]
+    st["sessions"] = st["sessions"][:1]
+    st.update(failure_stage=stage, failure_class=q.failure_class(q.DeploymentError(reason)))
+    q.publish_result(st, tmp_path, False)
+    result = json.loads((tmp_path / "p4-qualification-public/result.json").read_text())
+    assert result["status"] == "stopped"
+    assert result["failure_stage"] == stage and result["failure_class"] == classification
+    assert len(result["checks"]) == 3 and len(result["sessions"]) == 1
 
 
 def test_caps_expiry_and_retry_send_stop_before_next_request(tmp_path):
@@ -246,6 +417,52 @@ def test_caps_expiry_and_retry_send_stop_before_next_request(tmp_path):
     st["started"] -= q.SECONDS_MAX
     with pytest.raises(ValueError, match="TimeExceeded"):
         q.checkpoint(st)
+
+
+@pytest.mark.parametrize(
+    "service,endpoint,signing_region",
+    [
+        ("iam", "https://iam.amazonaws.com", "us-east-1"),
+        ("sts", "https://sts.ap-northeast-1.amazonaws.com", "ap-northeast-1"),
+    ],
+)
+def test_explicit_endpoints_sign_for_the_service_region_without_sending(
+    tmp_path, service, endpoint, signing_region
+):
+    import boto3
+    import oidc_qualification as q
+    from botocore.config import Config
+
+    st = state(tmp_path)
+    st["sends"] = 0
+
+    def synthetic_client(*args, **kwargs):
+        return boto3.Session(region_name=q.REGION).client(
+            *args,
+            aws_access_key_id="synthetic",
+            aws_secret_access_key="synthetic",
+            **kwargs,
+        )
+
+    session = SimpleNamespace(client=synthetic_client)
+    sdk = q.client(session, service, st, Config(retries={"total_max_attempts": 1}), endpoint)
+    signed = []
+
+    def stop_before_network(request, **_):
+        signed.append(request)
+        raise RuntimeError("offline-network-stop")
+
+    sdk.meta.events.register("before-send.*.*", stop_before_network)
+    with pytest.raises(RuntimeError, match="offline-network-stop"):
+        if service == "iam":
+            sdk.get_role(RoleName="synthetic")
+        else:
+            sdk.get_caller_identity()
+    assert len(signed) == 1 and st["sends"] == 1
+    assert signed[0].url == endpoint + "/"
+    assert (
+        f"/{signing_region}/{service}/aws4_request" in signed[0].headers["Authorization"].decode()
+    )
 
 
 def test_context_and_journal_failure_never_expose_original_exception(tmp_path, monkeypatch, capsys):
@@ -346,12 +563,17 @@ def test_control_plane_uses_canonical_repository_endpoint(tmp_path, monkeypatch)
     q.verify_control_plane(st)
     assert requests == [base, base + "/branches/main"]
     assert st["http"] == 2 and st["aws"] == 0
-    assert "sentinel-secret" not in "".join(path.read_text() for path in tmp_path.iterdir())
+    assert "sentinel-secret" not in "".join(
+        path.read_text() for path in tmp_path.glob("*.private.json")
+    )
 
 
 @pytest.mark.parametrize("name", ["dev-plan", "dev-apply"])
 @pytest.mark.parametrize("identity_fails", [False, True])
-def test_exact_read_only_call_graph_and_restriction(tmp_path, monkeypatch, name, identity_fails):
+@pytest.mark.parametrize("location", ["ap-northeast-1", "us-east-1"])
+def test_exact_read_only_call_graph_and_restriction(
+    tmp_path, monkeypatch, name, identity_fails, location
+):
     import boto3
     import oidc_qualification as q
 
@@ -377,10 +599,16 @@ def test_exact_read_only_call_graph_and_restriction(tmp_path, monkeypatch, name,
                 calls.append(("assume", request["RoleArn"]))
                 role = request["RoleArn"].split(q.ROLE_PREFIX)[1]
                 if role not in q.ROLES[name]:
-                    raise denial()
+                    raise denial(operation="AssumeRoleWithWebIdentity")
                 policy = json.loads(request["Policy"])
                 actions = {row["Action"] for row in policy["Statement"] if row["Effect"] == "Allow"}
                 assert actions == {"sts:GetCallerIdentity", "s3:GetBucketLocation", "iam:GetRole"}
+                iam_allow = [
+                    row for row in policy["Statement"] if row.get("Action") == "iam:GetRole"
+                ]
+                assert iam_allow == [
+                    {"Effect": "Allow", "Action": "iam:GetRole", "Resource": request["RoleArn"]}
+                ]
                 assert request["DurationSeconds"] == 900
                 expirations[role] = datetime.now(UTC) + timedelta(seconds=900)
                 return {
@@ -412,11 +640,12 @@ def test_exact_read_only_call_graph_and_restriction(tmp_path, monkeypatch, name,
             def get_bucket_location(**request):
                 calls.append(("location", request["Bucket"]))
                 return {
-                    "LocationConstraint": q.REGION,
+                    "LocationConstraint": location,
                     "ResponseMetadata": {"HTTPStatusCode": 200, "RequestId": "synthetic"},
                 }
 
             def get_role(**request):
+                assert request["RoleName"] == q.ROLE_PREFIX + session.kwargs["aws_access_key_id"]
                 calls.append(("denied-role", request["RoleName"]))
                 raise denial()
 
@@ -436,16 +665,23 @@ def test_exact_read_only_call_graph_and_restriction(tmp_path, monkeypatch, name,
         with pytest.raises(ValueError, match="UnexpectedAwsFailure"):
             q.qualify(st)
         assert len(calls) == 2 and st["aws"] == 2 and len(tokens) == 1
+    elif location != q.REGION:
+        with pytest.raises(ValueError, match="BucketRegionMismatch"):
+            q.qualify(st)
+        assert len(calls) == 3 and st["aws"] == 3 and len(tokens) == 1
+        assert st["failure_stage"] == "bucket-region-validation"
     else:
         q.qualify(st)
+        st["env"]["P4_QUALIFY_ENVIRONMENT"] = name
+        q.publish_result(st, tmp_path, True)
         assert len(calls) == 10 and st["aws"] == 10 and len(tokens) == 2
         assert len([call for call in calls if call[0] == "assume"]) == 4
     after = datetime.now(UTC)
-    rows = [json.loads(path.read_text()) for path in sorted(tmp_path.iterdir())]
+    rows = [json.loads(path.read_text()) for path in sorted(tmp_path.glob("*.private.json"))]
     acquired = [row for row in rows if row["stage"] == "session-acquired"]
     confirmed = [row for row in rows if row["stage"] == "session-identity-confirmed"]
-    assert len(acquired) == (1 if identity_fails else 2)
-    assert len(confirmed) == (0 if identity_fails else 2)
+    assert len(acquired) == (1 if identity_fails or location != q.REGION else 2)
+    assert len(confirmed) == (0 if identity_fails else (1 if location != q.REGION else 2))
     for row in acquired:
         role = row["role"]
         assert row["assumed_role_arn"] == (
@@ -467,5 +703,5 @@ def test_exact_read_only_call_graph_and_restriction(tmp_path, monkeypatch, name,
     hooks[0]()
     with pytest.raises(ValueError, match="SdkRetryForbidden"):
         hooks[0]()
-    evidence = "".join(path.read_text() for path in tmp_path.iterdir())
+    evidence = "".join(path.read_text() for path in tmp_path.glob("*.private.json"))
     assert "sentinel-token" not in evidence and "sentinel-secret" not in evidence
