@@ -114,8 +114,7 @@ def test_offline_workflow_consumes_explicit_package_base():
     jobs = _mapping_block(text, 0, "jobs")
     comparison = _mapping_block(jobs, 2, "package_changes")
     assert (
-        "        env:\n"
-        "          PACKAGE_BASE_SHA: ${{ inputs.package_base_sha }}\n"
+        "        env:\n          PACKAGE_BASE_SHA: ${{ inputs.package_base_sha }}\n"
     ) in comparison
     assert "run: python3 backend/skills/p4/package_changes.py" in comparison
     package = _mapping_block(jobs, 2, "package")
