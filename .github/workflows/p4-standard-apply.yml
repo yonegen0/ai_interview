@@ -66,6 +66,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       P4_PLAN_RUN_ID: ${{ inputs.plan_run_id }}
       P4_PLAN_HASH: ${{ inputs.plan_hash }}
+      P4_PACKAGE_BASE_SHA: ${{ inputs.package_base_sha }}
     steps:
       - name: Record job clock before setup
         run: |

@@ -49,8 +49,10 @@ def decision(root, event, event_name, head, explicit_base=""):
             }
     elif event_name == "pull_request":
         base = event.get("pull_request", {}).get("base", {}).get("sha", "")
-    else:
+    elif event_name == "workflow_dispatch":
         base = explicit_base
+    else:
+        raise ValueError("UnsupportedPackageComparisonEvent")
     if not re.fullmatch(r"[0-9a-f]{40}", base) or base == "0" * 40:
         raise ValueError("PackageComparisonBaseRequired")
     if event_name == "workflow_dispatch" and base == head:

@@ -36,6 +36,9 @@ def _assert_apply_package_base_contract(text):
     with_inputs = _mapping_block(offline, 4, "with")
     forwarded = re.findall(r"(?m)^      package_base_sha:[ \t]*([^\n]*?)[ \t]*$", with_inputs)
     assert forwarded == ["${{ inputs.package_base_sha }}"]
+    apply_job = _mapping_block(jobs, 2, "apply")
+    dependencies = re.findall(r"(?m)^    needs:[ \t]*([^\n]*?)[ \t]*$", apply_job)
+    assert dependencies == ["[backend, offline]"]
 
 
 def test_apply_passes_required_base_to_reusable_offline_workflow():
@@ -96,3 +99,85 @@ def test_explicit_ancestor_is_compared_and_package_changes_are_preserved(tmp_pat
     assert result["head"] == head
     assert result["build_package"] is True
     assert ("merge-base", "--is-ancestor", base, head) in calls
+    assert ("diff", "--no-renames", "--name-only", "-z", base, head) in calls
+    assert ("cat-file", "-e", base + "^{commit}") in calls
+    assert ("cat-file", "-e", head + "^{commit}") in calls
+
+
+def test_offline_workflow_consumes_explicit_package_base():
+    text = (ROOT / ".github/workflows/p4-static.yml").read_text(encoding="utf-8")
+    on = _mapping_block(text, 0, "on")
+    call = _mapping_block(on, 2, "workflow_call")
+    package_input = _mapping_block(_mapping_block(call, 4, "inputs"), 6, "package_base_sha")
+    types = re.findall(r"(?m)^        type:[ \t]*([^\n]*?)[ \t]*$", package_input)
+    assert types == ["string"]
+    jobs = _mapping_block(text, 0, "jobs")
+    comparison = _mapping_block(jobs, 2, "package_changes")
+    assert (
+        "        env:\n"
+        "          PACKAGE_BASE_SHA: ${{ inputs.package_base_sha }}\n"
+    ) in comparison
+    assert "run: python3 backend/skills/p4/package_changes.py" in comparison
+    package = _mapping_block(jobs, 2, "package")
+    assert "    needs: package_changes\n" in package
+    assert "needs.package_changes.outputs.build_package == 'true'" in package
+
+
+@pytest.mark.parametrize("operation", ["plan", "apply"])
+def test_standard_deploy_job_receives_same_base_as_offline(operation):
+    filename = f"p4-standard-{operation}.yml"
+    text = (ROOT / ".github/workflows" / filename).read_text(encoding="utf-8")
+    jobs = _mapping_block(text, 0, "jobs")
+    offline = _mapping_block(jobs, 2, "offline")
+    with_inputs = _mapping_block(offline, 4, "with")
+    assert "      package_base_sha: ${{ inputs.package_base_sha }}\n" in with_inputs
+    deployment = _mapping_block(jobs, 2, operation)
+    assert (
+        "      P4_PACKAGE_BASE_SHA: ${{ inputs.package_base_sha }}\n"
+        in deployment
+    )
+    assert "    needs: [backend, offline]\n" in deployment
+
+
+@pytest.mark.parametrize("bad_base", ["", "0" * 40, "g" * 40, "a" * 39, "b" * 40])
+def test_standard_deploy_rejects_invalid_or_head_base(bad_base):
+    module = tool("ci_deploy")
+    env = {"GITHUB_SHA": "b" * 40, "P4_PACKAGE_BASE_SHA": bad_base}
+    with pytest.raises(ValueError, match="StandardPackageBaseRequired"):
+        module.standard_package_base(env)
+
+
+@pytest.mark.parametrize("plan_base", [None, "", "c" * 40, 17])
+def test_standard_apply_rejects_unbound_plan_base(plan_base):
+    module = tool("ci_deploy")
+    env = {"GITHUB_SHA": "b" * 40, "P4_PACKAGE_BASE_SHA": "a" * 40}
+    envelope = {} if plan_base is None else {"package_base_sha": plan_base}
+    with pytest.raises(ValueError, match="PlanPackageBaseMismatch"):
+        module.verify_standard_package_base(envelope, env)
+    module.verify_standard_package_base({"package_base_sha": "a" * 40}, env)
+
+
+def test_unrecognized_package_comparison_event_rejected(tmp_path):
+    mod = tool("package_changes")
+    with pytest.raises(ValueError, match="UnsupportedPackageComparisonEvent"):
+        mod.decision(tmp_path, {}, "schedule", "b" * 40, "a" * 40)
+
+
+def test_non_ancestor_comparison_fails_closed(tmp_path, monkeypatch):
+    mod = tool("package_changes")
+    base, head = "a" * 40, "b" * 40
+    calls = []
+
+    def fake_git(root, *arguments):
+        calls.append(arguments)
+        if arguments == ("merge-base", "--is-ancestor", base, head):
+            raise ValueError("NonAncestor")
+        if arguments[0] == "diff":
+            pytest.fail("diff executed after rejected ancestry")
+        return ""
+
+    monkeypatch.setattr(mod, "git", fake_git)
+    with pytest.raises(ValueError, match="NonAncestor"):
+        mod.decision(tmp_path, {}, "workflow_dispatch", head, base)
+    assert ("merge-base", "--is-ancestor", base, head) in calls
+

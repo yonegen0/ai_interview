@@ -28,6 +28,28 @@ from interview_backend.deployment import (
     terraform_environment,
 )
 
+
+
+def standard_package_base(environment):
+    """Require an explicit ancestor distinct from the standard deployment HEAD."""
+    base = environment.get("P4_PACKAGE_BASE_SHA", "")
+    if (
+        not isinstance(base, str)
+        or not re.fullmatch(r"[0-9a-f]{40}", base)
+        or base == "0" * 40
+        or base == environment.get("GITHUB_SHA")
+    ):
+        raise DeploymentError("StandardPackageBaseRequired")
+    return base
+
+
+def verify_standard_package_base(envelope, environment):
+    """Apply may use only the exact comparison baseline stored by its saved Plan."""
+    base = standard_package_base(environment)
+    if not isinstance(envelope, dict) or envelope.get("package_base_sha") != base:
+        raise DeploymentError("PlanPackageBaseMismatch")
+
+
 PLAN_OBJECT_MAX_BYTES = 10 * 1024 * 1024
 
 PACKAGE_KEYS = frozenset(
@@ -58,6 +80,8 @@ def preflight(environment):
         ):
             raise DeploymentError("StandardCredentialSourceConflict")
     require_aws_execution(environment)
+    if environment.get("P4_STANDARD_ACTIVE") == "true":
+        standard_package_base(environment)
     operation = environment.get("P4_OPERATION")
     if operation not in {"plan", "apply"}:
         raise DeploymentError("InvalidOperation")
@@ -481,6 +505,8 @@ def main():
                 "package": package_info,
                 "review_version": review_version,
             }
+            if os.environ.get("P4_STANDARD_ACTIVE") == "true":
+                envelope["package_base_sha"] = standard_package_base(os.environ)
             put(s3, bucket, f"{plan_prefix}/envelope.json", json.dumps(envelope).encode())
             guard.check("plan-transport-completed", 0)
             guard.record("plan-transport-completed")
@@ -495,6 +521,8 @@ def main():
             plan_prefix = f"plans/{source_run}/{source_attempt}"
             s3 = s3_client(role_session("deploy", account, region))
             envelope = json.loads(get(s3, bucket, f"{plan_prefix}/envelope.json"))
+            if os.environ.get("P4_STANDARD_ACTIVE") == "true":
+                verify_standard_package_base(envelope, os.environ)
             approved = os.environ["P4_PLAN_HASH"]
             if (
                 envelope["operation"] != "plan"
