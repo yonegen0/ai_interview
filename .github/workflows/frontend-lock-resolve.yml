@@ -25,6 +25,7 @@ jobs:
         run: |
           set -euo pipefail
           npm install --package-lock-only --ignore-scripts --save-exact next@16.4.3 eslint-config-next@16.4.3
+          npm update zod source-map-js --package-lock-only --ignore-scripts
           npm ci --ignore-scripts
           node - <<'JS'
           const pkg = require("./package.json");
@@ -42,6 +43,7 @@ jobs:
           node - <<'JS'
           const fs = require("fs");
           const j = JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+"/npm-audit.json", "utf8"));
+          if(j.metadata?.vulnerabilities?.total !== 0) throw new Error("ProductionVulnerabilitiesRemain:"+JSON.stringify(j.metadata?.vulnerabilities));
           console.log("PRODUCTION_AUDIT", JSON.stringify({
             vulnerabilities: j.metadata?.vulnerabilities,
             details: Object.entries(j.vulnerabilities||{}).map(([key,v])=>({name:key,severity:v.severity,range:v.range,fixAvailable:v.fixAvailable})),
