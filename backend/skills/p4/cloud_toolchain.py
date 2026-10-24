@@ -28,14 +28,14 @@ def qualify():
             raise ValueError("CloudToolMissing")
         try:
             process = subprocess.run([executable, *args], env=env, capture_output=True, timeout=15)
-        except (OSError, subprocess.TimeoutExpired):
+        except OSError, subprocess.TimeoutExpired:
             raise ValueError("CloudToolQualificationFailed") from None
         if process.returncode != 0:
             raise ValueError("CloudToolQualificationFailed")
         if name == "terraform":
             try:
                 actual_version = json.loads(process.stdout).get("terraform_version")
-            except (ValueError, AttributeError, UnicodeError):
+            except ValueError, AttributeError, UnicodeError:
                 raise ValueError("CloudTerraformVersionMismatch") from None
             if actual_version != EXPECTED_TERRAFORM_VERSION:
                 raise ValueError("CloudTerraformVersionMismatch")

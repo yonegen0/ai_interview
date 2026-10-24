@@ -17,8 +17,7 @@ def _fake_tools(monkeypatch, *, uv=b"uv 0.13.5 (test)", tf=b'{"terraform_version
         assert kw["timeout"] == 15
         assert kw["capture_output"] is True
         assert not any(
-            k.startswith(("AWS_", "ACTIONS_", "GH_", "GITHUB_", "P4_", "TF_"))
-            for k in kw["env"]
+            k.startswith(("AWS_", "ACTIONS_", "GH_", "GITHUB_", "P4_", "TF_")) for k in kw["env"]
         )
         return SimpleNamespace(returncode=0, stdout=tf if args[0] == "terraform" else uv)
 
