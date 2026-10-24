@@ -23,6 +23,8 @@ const messages: Record<string, string> = {
   CATEGORY_UNAVAILABLE:
     "このカテゴリの質問がありません。カテゴリを選び直してください。",
   SESSION_COMPLETED: "この練習は完了しています。",
+  SESSION_CREATION_LIMIT:
+    "今月の面接練習の新規作成上限に達しました。翌月から再び作成できます。",
   UNAUTHORIZED: "この操作には認証が必要です。",
   FORBIDDEN: "この操作を行う権限がありません。",
   RATE_LIMITED: "利用が制限されています。時間をおいて再度お試しください。",
