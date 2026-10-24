@@ -68,7 +68,8 @@ def test_utc_month_rollover_preserves_prior_session_and_replay(monkeypatch):
         app.create(OWNER, uid(102), PAYLOAD)
     assert limited.value.status == 429
     assert app.question(OWNER, old.body["sessionId"]).status == 200
-    assert {(v.month, v.count) for v in repository.snapshot().session_creation_budgets.values()} == {
+    months = {(v.month, v.count) for v in repository.snapshot().session_creation_budgets.values()}
+    assert months == {
         ("2026-09", 1),
         ("2026-10", 1),
     }
