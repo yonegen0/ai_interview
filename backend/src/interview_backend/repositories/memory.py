@@ -26,6 +26,7 @@ from interview_backend.star_assist.models import RECORDS
 
 COLLECTIONS = {
     "ProviderUsage": "provider_usage",
+    "SessionCreationBudget": "session_creation_budgets",
     "AttemptCoaching": "coachings",
     "Session": "sessions",
     "Attempt": "attempts",
