@@ -176,3 +176,9 @@ def test_non_ancestor_comparison_fails_closed(tmp_path, monkeypatch):
     with pytest.raises(ValueError, match="NonAncestor"):
         mod.decision(tmp_path, {}, "workflow_dispatch", head, base)
     assert ("merge-base", "--is-ancestor", base, head) in calls
+
+
+def test_static_workflow_changes_trigger_fresh_lambda_package_check():
+    module = tool("package_changes")
+    assert module.needs_package([".github/workflows/p4-static.yml"])
+    assert not module.needs_package([".github/workflows/frontend.yml"])

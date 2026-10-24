@@ -11,6 +11,7 @@ PACKAGE_PATHS = {
     "backend/uv.lock",
     "backend/skills/p4/build_lambda.py",
     "backend/skills/p4/package_changes.py",
+    ".github/workflows/p4-static.yml",
 }
 
 
