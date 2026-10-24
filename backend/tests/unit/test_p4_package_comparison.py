@@ -5,7 +5,6 @@ from pathlib import Path
 import pytest
 from test_p4_tools import tool
 
-
 ROOT = Path(__file__).resolve().parents[3]
 
 
