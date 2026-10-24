@@ -155,10 +155,13 @@ def http_json(state, request):
 
 def github_get(state, suffix):
     env = state["env"]
+    url = f"https://api.github.com/repos/{REPOSITORY}"
+    if suffix:
+        url += "/" + suffix
     return http_json(
         state,
         Request(
-            f"https://api.github.com/repos/{REPOSITORY}/{suffix}",
+            url,
             headers={
                 "Authorization": "Bearer " + env["GH_TOKEN"],
                 "Accept": "application/vnd.github+json",
