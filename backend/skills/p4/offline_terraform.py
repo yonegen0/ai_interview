@@ -9,7 +9,14 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-ROOTS = ("bootstrap", "environments/dev", "environments/test", "modules/service")
+ROOTS = (
+    "bootstrap",
+    "environments/dev",
+    "environments/test",
+    "modules/service",
+    "environments/web",
+    "modules/frontend",
+)
 TOKEN = re.compile(
     r'\s+|\#[^\n]*|//[^\n]*|/\*[\s\S]*?\*/|"(?:[^"\\\x00-\x1f]|\\.)*"'
     r"|[A-Za-z_][A-Za-z_0-9]*|[{}\[\]=,]"
@@ -136,6 +143,7 @@ def copy_configuration(repository, destination, snapshot):
         if not (
             name.endswith((".tf", ".tf.json", ".tftest.hcl"))
             or relative.name == ".terraform.lock.hcl"
+            or name == "terraform/modules/frontend/rewrite.js"
         ):
             continue
         if any(p in {".terraform", ".git", ".p4-artifacts"} for p in relative.parts):
@@ -192,7 +200,7 @@ def validate(repository, temp_parent):
             assert_additive(before, lock.read_text(encoding="utf-8"))
             terraform(root, "init", "-backend=false", "-input=false", "-lockfile=readonly")
             terraform(root, "validate", "-no-color")
-        for root in ("modules/service", "bootstrap"):
+        for root in ("modules/service", "bootstrap", "modules/frontend"):
             terraform(root, "test", "-no-color")
     finally:
         if tracked_snapshot(repository) != snapshot:
