@@ -123,6 +123,13 @@ settings. Existing five required checks and ruleset are unchanged. Future option
 extras/non-default Python dependency groups need an explicit coverage decision;
 platform markers are evaluated on the Linux audit runner.
 
+The first follow-up branch CI exposed an existing test's fixed count of eleven
+setup-uv workflows. The new workflow legitimately adds a twelfth. The contract
+test now asserts the exact twelve filenames, retaining every Action SHA, uv, and
+Python version check. Focused local toolchain/CA tests: 3 passed; Ruff lint/format
+passed. Failed historical attempts remain failures; only the latest head's CI can
+authorize this follow-up merge.
+
 References: [npm audit](https://docs.npmjs.com/cli/v10/commands/npm-audit/),
 [uv export](https://docs.astral.sh/uv/concepts/projects/export/),
 [pip-audit](https://github.com/pypa/pip-audit),
