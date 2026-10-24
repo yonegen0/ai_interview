@@ -87,6 +87,25 @@ it.each([
     }
   },
 );
+it("reports monthly creation quota 429 without retrying or exposing server text", async () => {
+  const handler = vi.fn(() =>
+    HttpResponse.json(
+      { code: "SESSION_CREATION_LIMIT", message: "private owner and counter" },
+      { status: 429 },
+    ),
+  );
+  server.use(http.post("http://localhost/api/sessions", handler));
+  const key = crypto.randomUUID();
+  await expect(createSession("job_change", key)).rejects.toMatchObject({
+    code: "SESSION_CREATION_LIMIT",
+    status: 429,
+    message:
+      "今月の面接練習の新規作成上限に達しました。翌月から再び作成できます。",
+  });
+  expect(handler).toHaveBeenCalledTimes(1);
+  expect(Object.keys(repository.read().sessions)).toHaveLength(0);
+});
+
 it.each([
   ["AI_TIMEOUT", 504],
   ["AI_UPSTREAM_ERROR", 502],
