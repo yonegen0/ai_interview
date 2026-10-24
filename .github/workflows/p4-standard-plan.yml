@@ -72,6 +72,7 @@ jobs:
       P4_PLAN_EVIDENCE_CERT_PEM: ${{ secrets.P4_PLAN_EVIDENCE_CERT_PEM }}
       P4_PLAN_EVIDENCE_CERT_SHA256: ${{ inputs.evidence_cert_sha256 }}
       P4_PACKAGE_SHA256: ${{ inputs.package_sha256 }}
+      P4_PACKAGE_BASE_SHA: ${{ inputs.package_base_sha }}
     steps:
       - name: Record job clock before setup
         run: |
