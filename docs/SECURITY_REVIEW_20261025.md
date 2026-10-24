@@ -29,6 +29,13 @@ The fresh review in this task was an agent review; it is not a GitHub approving
 review or independent human approval. Ready transition and merge used the expected
 head SHA, without branch deletion or protection changes.
 
+Post-merge main runs also completed successfully, all at attempt 1 and exactly
+`2f7c3cffb4571f0dcafa0ab75378d5f1d8b68e8e`: Backend 40121756345,
+Frontend 40121756243, and offline infrastructure/package 40121756392. The required
+five jobs again ended in four SUCCESS results and the expected package SKIPPED;
+both npm audits and Playwright E2E succeeded. The merged two files match the
+reviewed PR head exactly.
+
 ## Local dependency verification
 
 Used an isolated clean source checkout of the audited main, preserving the user's
