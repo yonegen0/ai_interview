@@ -46,7 +46,10 @@ def test_apply_passes_required_base_to_reusable_offline_workflow():
 @pytest.mark.parametrize(
     ("original", "replacement"),
     [
-        ("      package_base_sha:\n        description:", "      other_input:\n        description:"),
+        (
+            "      package_base_sha:\n        description:",
+            "      other_input:\n        description:",
+        ),
         ("        required: true\npermissions:", "        required: false\npermissions:"),
         (
             "        required: true\npermissions:",
