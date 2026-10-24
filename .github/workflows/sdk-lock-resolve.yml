@@ -1,0 +1,42 @@
+name: Resolve pinned Python security lock
+on:
+  push:
+    branches:
+      - codex/security-sdk-ca-20261024
+permissions:
+  contents: read
+jobs:
+  resolve:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          version: '0.13.5'
+          python-version: '3.14.9'
+          enable-cache: false
+      - name: Resolve official PyPI dependencies without AWS
+        run: |
+          set -euo pipefail
+          uv lock --upgrade-package boto3 --upgrade-package botocore --upgrade-package urllib3
+          uv lock --check
+          uv sync --locked
+          uv run --locked python -c "import boto3, botocore, urllib3; print('SDK_LOCK_VERIFIED', boto3.__version__, botocore.__version__, urllib3.__version__)"
+          uv run --locked pytest -q tests/unit/test_ca_bundle.py
+      - name: Print new lock for audit and exact source transfer
+        run: |
+          python3 - <<'PY'
+          from base64 import b64encode
+          from pathlib import Path
+          data = b64encode(Path("uv.lock").read_bytes()).decode("ascii")
+          print("LOCK_BASE64_BEGIN")
+          for start in range(0, len(data), 120):
+              print(data[start:start+120])
+          print("LOCK_BASE64_END")
+          PY
