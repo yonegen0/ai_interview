@@ -32,7 +32,9 @@ jobs:
       - name: Resolve patched stable Storybook and dev dependencies
         run: |
           set -euo pipefail
-          npm install --package-lock-only --ignore-scripts --save-dev 'storybook@^10.6.2' '@storybook/addon-a11y@^10.6.2' '@storybook/addon-docs@^10.6.2' '@storybook/addon-vitest@^10.6.2' '@storybook/nextjs-vite@^10.6.2' 'eslint-plugin-storybook@^10.6.2'
+          npm pkg set 'devDependencies.storybook=^10.6.3' 'devDependencies.@storybook/addon-a11y=^10.6.3' 'devDependencies.@storybook/addon-docs=^10.6.3' 'devDependencies.@storybook/addon-vitest=^10.6.3' 'devDependencies.@storybook/nextjs-vite=^10.6.3' 'devDependencies.eslint-plugin-storybook=^10.6.3'
+          rm -rf node_modules
+          npm install --package-lock-only --ignore-scripts
           npm update vite vitest @vitest/browser-playwright @vitest/coverage-v8 --package-lock-only --ignore-scripts
           npm audit fix --package-lock-only --ignore-scripts || true
           npm ci --ignore-scripts
