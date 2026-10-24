@@ -1,0 +1,58 @@
+name: Resolve frontend runtime security lock
+on:
+  push:
+    branches:
+      - codex/security-frontend-runtime-20261024
+permissions:
+  contents: read
+jobs:
+  resolve:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22.23.4'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Resolve new npm package-lock without running scripts
+        run: |
+          set -euo pipefail
+          npm install --package-lock-only --ignore-scripts --save-exact next@16.4.3 eslint-config-next@16.4.3
+          npm ci --ignore-scripts
+          node - <<'JS'
+          const pkg = require("./package.json");
+          const lock = require("./package-lock.json");
+          for (const name of ["next","eslint-config-next"]) {
+            if (pkg[name] !== undefined) throw new Error("wrong manifest section");
+            const key = name === "next" ? "dependencies" : "devDependencies";
+            if (pkg[key][name] !== "16.4.3" || lock.packages["node_modules/"+name].version !== "16.4.3") throw new Error("NextLockMismatch");
+          }
+          console.log("NEXT_LOCK_VERIFIED", lock.packages["node_modules/next"].version);
+          JS
+      - name: Inspect production npm advisories
+        run: |
+          npm audit --omit=dev --json > "$RUNNER_TEMP/npm-audit.json" || true
+          node - <<'JS'
+          const fs = require("fs");
+          const j = JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+"/npm-audit.json", "utf8"));
+          console.log("PRODUCTION_AUDIT", JSON.stringify({
+            vulnerabilities: j.metadata?.vulnerabilities,
+            details: Object.entries(j.vulnerabilities||{}).map(([key,v])=>({name:key,severity:v.severity,range:v.range,fixAvailable:v.fixAvailable})),
+          }));
+          JS
+      - name: Print exact regenerated package lock
+        run: |
+          node - <<'JS'
+          const fs=require("fs");
+          const data=fs.readFileSync("package-lock.json").toString("base64");
+          console.log("NPM_LOCK_BASE64_BEGIN");
+          for(let i=0;i<data.length;i+=160)console.log(data.slice(i,i+160));
+          console.log("NPM_LOCK_BASE64_END");
+          JS
