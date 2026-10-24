@@ -53,6 +53,8 @@ def decision(root, event, event_name, head, explicit_base=""):
         base = explicit_base
     if not re.fullmatch(r"[0-9a-f]{40}", base) or base == "0" * 40:
         raise ValueError("PackageComparisonBaseRequired")
+    if event_name == "workflow_dispatch" and base == head:
+        raise ValueError("PackageComparisonBaseMustPrecedeHead")
     for revision in (base, head):
         git(root, "cat-file", "-e", revision + "^{commit}")
     if event_name == "pull_request":
