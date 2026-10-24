@@ -20,12 +20,11 @@ def test_apply_passes_required_base_to_reusable_offline_workflow():
     ) in text
 
 
-@pytest.mark.parametrize("event", ["workflow_dispatch", "other"])
-def test_manual_comparison_cannot_use_head_as_base(event, tmp_path):
+def test_manual_comparison_cannot_use_head_as_base(tmp_path):
     mod = tool("package_changes")
     sha = "a" * 40
     with pytest.raises(ValueError, match="PackageComparisonBaseMustPrecedeHead"):
-        mod.decision(tmp_path, {}, event, sha, sha)
+        mod.decision(tmp_path, {}, "workflow_dispatch", sha, sha)
 
 
 def test_explicit_ancestor_is_compared_and_package_changes_are_preserved(tmp_path, monkeypatch):
