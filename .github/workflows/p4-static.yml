@@ -57,7 +57,7 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
-      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
           version: '0.13.5'
           python-version: '3.14.9'
@@ -67,9 +67,9 @@ jobs:
         run: |
           set -euo pipefail
           uv export --locked --no-dev --no-emit-project --format requirements-txt --output-file "$RUNNER_TEMP/p4-requirements.txt"
-          uv pip install --python 3.14 --python-platform x86_64-manylinux_2_34 --target "$RUNNER_TEMP/p4-deps" --only-binary=:all: --require-hashes -r "$RUNNER_TEMP/p4-requirements.txt"
-          uv run --no-project --python 3.14 python skills/p4/build_lambda.py --source src/interview_backend --dependencies "$RUNNER_TEMP/p4-deps" --lock uv.lock --output "$RUNNER_TEMP/p4.zip" --manifest "$RUNNER_TEMP/p4-package.json" --code-sha "$GITHUB_SHA"
-          uv run --no-project --python 3.14 python -m zipfile -e "$RUNNER_TEMP/p4.zip" "$RUNNER_TEMP/p4-expanded"
+          uv pip install --python 3.14.9 --python-platform x86_64-manylinux_2_34 --target "$RUNNER_TEMP/p4-deps" --only-binary=:all: --require-hashes -r "$RUNNER_TEMP/p4-requirements.txt"
+          uv run --no-project --python 3.14.9 python skills/p4/build_lambda.py --source src/interview_backend --dependencies "$RUNNER_TEMP/p4-deps" --lock uv.lock --output "$RUNNER_TEMP/p4.zip" --manifest "$RUNNER_TEMP/p4-package.json" --code-sha "$GITHUB_SHA"
+          uv run --no-project --python 3.14.9 python -m zipfile -e "$RUNNER_TEMP/p4.zip" "$RUNNER_TEMP/p4-expanded"
       - name: Record the fresh ZIP digest for offline comparison
         env:
           P4_PACKAGE_PATH: ${{ runner.temp }}/p4.zip
@@ -93,7 +93,7 @@ jobs:
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/p4-expanded"
-          uv run --no-project --python 3.14 python - <<'PY'
+          uv run --no-project --python 3.14.9 python - <<'PY'
           import pathlib
           import socket
 
