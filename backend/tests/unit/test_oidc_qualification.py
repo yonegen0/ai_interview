@@ -1,6 +1,7 @@
 """Qualification boundaries: synthetic tokens/clients only, no external services."""
 
 import base64
+import io
 import json
 import time
 from datetime import UTC, datetime, timedelta
@@ -318,6 +319,34 @@ def test_environment_control_and_main_sha_rejection(tmp_path, monkeypatch):
     values["branches/main"]["commit"]["sha"] = "d" * 40
     with pytest.raises(ValueError, match="MainChanged"):
         q.verify_control_plane(st)
+
+
+def test_control_plane_uses_canonical_repository_endpoint(tmp_path, monkeypatch):
+    import oidc_qualification as q
+
+    st = state(tmp_path)
+    st["env"]["GH_TOKEN"] = "sentinel-secret"
+    base = f"https://api.github.com/repos/{q.REPOSITORY}"
+    responses = {
+        base: {"id": 1361325921, "owner": {"id": 76547980}},
+        base + "/branches/main": {"protected": True, "commit": {"sha": "a" * 40}},
+    }
+    requests = []
+
+    class Opener:
+        def open(self, request, *, timeout):
+            requests.append(request.full_url)
+            assert timeout == 15
+            assert request.get_header("Authorization") == "Bearer sentinel-secret"
+            # GitHub returns 404 for the repository endpoint with a trailing slash.
+            assert request.full_url in responses
+            return io.BytesIO(json.dumps(responses[request.full_url]).encode())
+
+    monkeypatch.setattr(q, "build_opener", lambda *handlers: Opener())
+    q.verify_control_plane(st)
+    assert requests == [base, base + "/branches/main"]
+    assert st["http"] == 2 and st["aws"] == 0
+    assert "sentinel-secret" not in "".join(path.read_text() for path in tmp_path.iterdir())
 
 
 @pytest.mark.parametrize("name", ["dev-plan", "dev-apply"])
