@@ -26,8 +26,9 @@ GitHub: ruleset `main-pr-and-ci` (24886774) was active, strict, with all five ch
 review-thread resolution, no bypass actors, deletion/force-push protection, and
 zero required approving reviews. No reviews or unresolved review threads existed.
 The fresh review in this task was an agent review; it is not a GitHub approving
-review or independent human approval. Ready transition and merge used the expected
-head SHA, without branch deletion or protection changes.
+review or independent human approval. After rechecking head/base, the PR was marked
+ready; the merge supplied the expected head SHA. No branch deletion or protection
+change was performed.
 
 Post-merge main runs also completed successfully, all at attempt 1 and exactly
 `2f7c3cffb4571f0dcafa0ab75378d5f1d8b68e8e`: Backend 40121756345,
