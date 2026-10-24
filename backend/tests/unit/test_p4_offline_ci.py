@@ -66,6 +66,7 @@ def test_copy_only_configuration_and_strip_environment(tmp_path, monkeypatch):
         "terraform/bootstrap/main.tf",
         "terraform/bootstrap/.terraform.lock.hcl",
         "terraform/bootstrap/tests/contract.tftest.hcl",
+        "terraform/modules/frontend/rewrite.js",
         "terraform/bootstrap/settings.tfvars",
         "terraform/bootstrap/terraform.tfstate",
         "terraform/environments/dev/backend-dev.hcl",
@@ -76,7 +77,7 @@ def test_copy_only_configuration_and_strip_environment(tmp_path, monkeypatch):
         path.write_text("synthetic")
     module.copy_configuration(repo, dest, dict.fromkeys(names, "unused"))
     assert sorted(p.relative_to(dest).as_posix() for p in dest.rglob("*") if p.is_file()) == sorted(
-        names[:3]
+        names[:4]
     )
     for name in ("AWS_ACCESS_KEY_ID", "TF_CLI_ARGS", "TF_PLUGIN_CACHE_DIR", "TERRAFORM_CONFIG"):
         monkeypatch.setenv(name, "synthetic-secret")
@@ -143,8 +144,8 @@ def test_terraform_orchestration_preserves_original_and_checks_before_init(
             module.validate(repository, tmp_path)
     else:
         module.validate(repository, tmp_path)
-        assert len(calls) == 18
-        assert sum(c[0] == "test" for c in calls) == 2
+        assert len(calls) == 27
+        assert sum(c[0] == "test" for c in calls) == 3
     assert len(reads) == 2
     if failure in {"selection", "command"}:
         assert len(calls) == 2
