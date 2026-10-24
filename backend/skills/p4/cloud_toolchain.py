@@ -8,7 +8,7 @@ import sys
 
 
 def qualify():
-    if sys.version_info[:2] != (3, 14):
+    if sys.version_info[:3] < (3, 14, 9) or sys.version_info[:2] != (3, 14):
         raise ValueError("CloudPythonVersionMismatch")
     env = {
         k: v
@@ -27,7 +27,7 @@ def qualify():
         if name == "terraform":
             if json.loads(process.stdout).get("terraform_version") != "1.14.9":
                 raise ValueError("CloudTerraformVersionMismatch")
-        elif not process.stdout.decode().startswith("uv 0.11.8 "):
+        elif not process.stdout.decode().startswith("uv 0.13.5 "):
             raise ValueError("CloudUvVersionMismatch")
         result[name] = True
     return result

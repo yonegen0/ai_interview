@@ -19,7 +19,7 @@ def test_installed_tools_are_checked_without_credential_environment(monkeypatch)
         return SimpleNamespace(
             returncode=0,
             stdout=(
-                b'{"terraform_version":"1.14.9"}' if args[0] == "terraform" else b"uv 0.11.8 (test)"
+                b'{"terraform_version":"1.14.9"}' if args[0] == "terraform" else b"uv 0.13.5 (test)"
             ),
         )
 
@@ -44,4 +44,28 @@ def test_missing_tool_is_rejected_before_oidc(monkeypatch):
     m = tool("cloud_toolchain")
     monkeypatch.setattr(m.shutil, "which", lambda name: None)
     with pytest.raises(ValueError, match="CloudToolMissing"):
+        m.qualify()
+
+
+def test_outdated_uv_is_rejected_before_oidc(monkeypatch):
+    m = tool("cloud_toolchain")
+    monkeypatch.setattr(m.shutil, "which", lambda name: name)
+
+    def run(args, **kw):
+        return SimpleNamespace(
+            returncode=0,
+            stdout=(
+                b'{"terraform_version":"1.14.9"}' if args[0] == "terraform" else b"uv 0.11.8 (test)"
+            ),
+        )
+
+    monkeypatch.setattr(m.subprocess, "run", run)
+    with pytest.raises(ValueError, match="CloudUvVersionMismatch"):
+        m.qualify()
+
+
+def test_outdated_python_patch_is_rejected_before_oidc(monkeypatch):
+    m = tool("cloud_toolchain")
+    monkeypatch.setattr(m.sys, "version_info", (3, 14, 8))
+    with pytest.raises(ValueError, match="CloudPythonVersionMismatch"):
         m.qualify()
