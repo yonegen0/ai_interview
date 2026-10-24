@@ -3,7 +3,6 @@
 from pathlib import Path
 
 import pytest
-
 from test_p4_tools import tool
 
 
@@ -37,7 +36,7 @@ def test_explicit_ancestor_is_compared_and_package_changes_are_preserved(tmp_pat
     def fake_git(root, *arguments):
         calls.append(arguments)
         if arguments[:2] == ("diff", "--no-renames"):
-            return "backend/src/interview_backend/aws_runtime.py\\0"
+            return "backend/src/interview_backend/aws_runtime.py\0"
         return ""
 
     monkeypatch.setattr(mod, "git", fake_git)
