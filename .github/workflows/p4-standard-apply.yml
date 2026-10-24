@@ -21,6 +21,10 @@ on:
       plan_hash:
         type: string
         required: true
+      package_base_sha:
+        description: Explicit ancestor commit used for package comparison (same verified baseline as the new Plan)
+        type: string
+        required: true
 permissions:
   contents: read
 concurrency:
@@ -33,6 +37,8 @@ jobs:
   offline:
     if: github.ref == 'refs/heads/main' && github.actor_id == '76547980' && github.triggering_actor == 'yonegen0' && github.run_attempt == 1 && inputs.source_sha == github.sha
     uses: ./.github/workflows/p4-static.yml
+    with:
+      package_base_sha: ${{ inputs.package_base_sha }}
   apply:
     needs: [backend, offline]
     environment: dev-apply
