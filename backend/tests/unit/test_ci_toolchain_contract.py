@@ -13,7 +13,20 @@ ACTION = "astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e"
 def test_all_setup_uv_workflows_pin_verified_action_and_uv_python():
     files = sorted(WORKFLOWS.glob("*.yml"))
     users = [p for p in files if "astral-sh/setup-uv@" in p.read_text(encoding="utf-8")]
-    assert len(users) == 11
+    assert {path.name for path in users} == {
+        "backend.yml",
+        "dependency-audit.yml",
+        "p4-cloud-plan.yml",
+        "p4-compound.yml",
+        "p4-deploy.yml",
+        "p4-dynamodb.yml",
+        "p4-mapping-tag-probe.yml",
+        "p4-oidc-discovery.yml",
+        "p4-standard-apply.yml",
+        "p4-standard-plan.yml",
+        "p4-standard-qualify.yml",
+        "p4-static.yml",
+    }
     for path in users:
         content = path.read_text(encoding="utf-8")
         assert content.count(ACTION) == 1, path
