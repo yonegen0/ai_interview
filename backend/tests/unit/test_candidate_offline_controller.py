@@ -121,7 +121,14 @@ def test_review_gate_order_and_non_authorization(sample, monkeypatch):
     args = {
         "bundle": bundle,
         "version_json": {},
-        "configurations": {},
+        "configurations": {
+            name: files[name]
+            for scope, filename in m.preflight.ROOTS.items()
+            for name in (
+                f"terraform/{scope}/{filename}",
+                f"terraform/{scope}/.terraform.lock.hcl",
+            )
+        },
         "binary": b"synthetic",
         "approval": approval,
         "journal": {},
@@ -140,6 +147,9 @@ def test_review_gate_order_and_non_authorization(sample, monkeypatch):
     assert not calls
     with pytest.raises(ValueError, match="CandidateReviewExpiredOrInvalid"):
         m.review_offline(**(args | {"now": now + timedelta(hours=1)}))
+    assert not calls
+    with pytest.raises(ValueError, match="CandidateReviewedConfigurationMismatch"):
+        m.review_offline(**(args | {"configurations": {**args["configurations"], "terraform/new.tf": b"x"}}))
     assert not calls
     monkeypatch.setattr(m.preflight, "verify", lambda *a, **kw: {"authorized": True})
     with pytest.raises(ValueError, match="CandidatePreflightMustNotAuthorize"):
