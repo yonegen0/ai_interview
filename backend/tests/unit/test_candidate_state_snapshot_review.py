@@ -148,7 +148,6 @@ def test_legacy_candidate_json_comparison_is_not_an_approval(plans):
     assert result["status"] == "CANDIDATE_SYNTHETIC_NOOP_NOT_APPLY_APPROVAL"
 
 
-
 @pytest.mark.parametrize("invalid_format", [None, "2.0", "1.0.0", True])
 def test_show_json_major_version_or_missing_format_is_rejected(plans, invalid_format):
     before, candidate = plans
@@ -162,10 +161,7 @@ def test_show_json_major_version_or_missing_format_is_rejected(plans, invalid_fo
 
 def test_raw_state_rejects_duplicate_keys_and_nonfinite_json():
     module = tool("candidate_state_snapshot_review")
-    raw = (
-        b'{"version":4,"lineage":"synthetic","serial":1,"serial":1,'
-        b'"resources":[],"outputs":{}}'
-    )
+    raw = b'{"version":4,"lineage":"synthetic","serial":1,"serial":1,"resources":[],"outputs":{}}'
     identity = {
         "lineage": "synthetic",
         "serial": 1,

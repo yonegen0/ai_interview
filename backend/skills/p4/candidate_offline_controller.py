@@ -85,7 +85,6 @@ def source_inventory_digest(tracked_paths, checkout_files):
     ).hexdigest()
 
 
-
 def _git_read(root, *args):
     """Read local Git objects only. Does not authenticate origin or fetch remotely."""
     environment = os.environ.copy()
@@ -151,8 +150,7 @@ def verified_git_source_inventory(repo_root, source_sha):
             and name == str(PurePosixPath(name))
             and "\\" not in name
             and all(
-                part and part not in {".", "..", ".git", ".terraform"}
-                for part in name.split("/")
+                part and part not in {".", "..", ".git", ".terraform"} for part in name.split("/")
             )
             and name not in expected,
             "CandidateSourcePathInvalid",

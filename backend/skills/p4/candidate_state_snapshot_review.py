@@ -141,6 +141,7 @@ def inspect_raw_state(raw, identity):
         type(raw) is bytes and hashlib.sha256(raw).hexdigest() == identity["sha256"],
         "CandidateRawStateDigestMismatch",
     )
+
     def unique_fields(pairs):
         result = {}
         for key, value in pairs:

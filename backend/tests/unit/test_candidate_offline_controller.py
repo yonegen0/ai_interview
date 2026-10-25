@@ -236,7 +236,6 @@ def test_legacy_terraform_contract_untouched(sample):
     assert tool("cloud_toolchain").EXPECTED_TERRAFORM_VERSION == "1.14.9"
 
 
-
 @pytest.fixture
 def synthetic_git_checkout(tmp_path, sample):
     if shutil.which("git") is None:
@@ -252,8 +251,17 @@ def synthetic_git_checkout(tmp_path, sample):
     subprocess.run(["git", "-C", str(root), "add", "--", "terraform"], check=True)
     subprocess.run(
         [
-            "git", "-C", str(root), "-c", "user.name=Offline Test",
-            "-c", "user.email=offline@example.invalid", "commit", "-q", "-m", "fixture",
+            "git",
+            "-C",
+            str(root),
+            "-c",
+            "user.name=Offline Test",
+            "-c",
+            "user.email=offline@example.invalid",
+            "commit",
+            "-q",
+            "-m",
+            "fixture",
         ],
         check=True,
     )
@@ -276,7 +284,7 @@ def test_git_tree_source_verifies_real_blobs_and_detects_checkout_mutation(
     with pytest.raises(ValueError, match="CandidateGitBlobMismatch"):
         m.verified_git_source_inventory(root, source_sha)
     changed.write_bytes(sample[2]["terraform/bootstrap/variables.tf"])
-    (root / "terraform/bootstrap/override.tf").write_text('terraform {}')
+    (root / "terraform/bootstrap/override.tf").write_text("terraform {}")
     with pytest.raises(ValueError, match="CandidateGitUntrackedFile"):
         m.verified_git_source_inventory(root, source_sha)
 
@@ -298,6 +306,7 @@ def test_git_checkout_rejects_missing_files_wrong_sha_and_symlinks(synthetic_git
 def test_git_review_cannot_override_checkout_inventory(synthetic_git_checkout, sample, monkeypatch):
     root, source_sha = synthetic_git_checkout
     m = sample[0]
+
     def fake_review(**kwargs):
         assert kwargs["bundle"]["source_sha"] == source_sha
         assert kwargs["checkout_files"] == sample[2]

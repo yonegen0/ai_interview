@@ -328,7 +328,6 @@ def test_old_execution_contract_remains_unchanged(fixture):
     assert fixture[0].NAMESPACE != "p4-bootstrap-maintenance-legacy"
 
 
-
 @pytest.mark.parametrize(
     "operation,wrong_plan_operation",
     [
