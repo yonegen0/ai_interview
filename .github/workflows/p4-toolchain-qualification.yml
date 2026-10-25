@@ -4,14 +4,14 @@ on:
     paths:
       - 'terraform/**'
       - 'backend/skills/p4/**'
-      - 'backend/tests/unit/test_toolchain_migration.py'
+      - 'backend/tests/unit/test_toolchain_*.py'
       - '.github/workflows/p4-toolchain-qualification.yml'
   push:
     branches: [main]
     paths:
       - 'terraform/**'
       - 'backend/skills/p4/**'
-      - 'backend/tests/unit/test_toolchain_migration.py'
+      - 'backend/tests/unit/test_toolchain_*.py'
       - '.github/workflows/p4-toolchain-qualification.yml'
 permissions:
   contents: read
@@ -41,4 +41,5 @@ jobs:
           python3 backend/skills/p4/toolchain_migration.py \
             --temp-parent "$RUNNER_TEMP" \
             --terraform "$(command -v terraform)" \
-            --candidate "$CANDIDATE_TERRAFORM"
+            --candidate "$CANDIDATE_TERRAFORM" \
+            --compare-provider-schemas
