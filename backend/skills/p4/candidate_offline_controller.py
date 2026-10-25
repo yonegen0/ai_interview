@@ -75,7 +75,12 @@ def source_inventory_digest(tracked_paths, checkout_files):
         "CandidateTerraformHclMissing",
     )
     return hashlib.sha256(
-        encoded({name: hashlib.sha256(checkout_files[name]).hexdigest() for name in sorted(tracked_paths)})
+        encoded(
+            {
+                name: hashlib.sha256(checkout_files[name]).hexdigest()
+                for name in sorted(tracked_paths)
+            }
+        )
     ).hexdigest()
 
 
@@ -102,6 +107,7 @@ def inspect_review(review, bundle, approval, source_hash, *, now):
         and review["namespace"] == preflight.NAMESPACE
         and review["namespace"] == bundle.get("namespace")
         and review["source_sha"] == bundle.get("source_sha")
+        and type(review["source_sha"]) is str
         and HEX40.fullmatch(review["source_sha"]) is not None
         and review["approval_id"] == approval.get("approval_id")
         and review["attempt_id"] == approval.get("attempt_id")
@@ -155,7 +161,10 @@ def review_offline(
     require(
         type(configurations) is dict
         and set(configurations) == required
-        and all(type(raw) is bytes and checkout_files[name] == raw for name, raw in configurations.items()),
+        and all(
+            type(raw) is bytes and checkout_files[name] == raw
+            for name, raw in configurations.items()
+        ),
         "CandidateReviewedConfigurationMismatch",
     )
     inspect_review(review, bundle, approval, source_hash, now=now)
@@ -253,11 +262,19 @@ def reserve_offline_attempt(root, *, approval_id, attempt_id, approval_sha256):
     exclusive_marker(
         approvals,
         approval_id,
-        {"namespace": preflight.NAMESPACE, "approval_sha256": approval_sha256, "attempt_id": attempt_id},
+        {
+            "namespace": preflight.NAMESPACE,
+            "approval_sha256": approval_sha256,
+            "attempt_id": attempt_id,
+        },
     )
     exclusive_marker(
         attempts,
         attempt_id,
-        {"namespace": preflight.NAMESPACE, "approval_id": approval_id, "state": "STARTED_UNKNOWN_ON_RESTART"},
+        {
+            "namespace": preflight.NAMESPACE,
+            "approval_id": approval_id,
+            "state": "STARTED_UNKNOWN_ON_RESTART",
+        },
     )
     return {"status": "LOCAL_RESERVATION_ONLY", "authorized": False, "aws_operations": 0}
