@@ -6,7 +6,6 @@ No AWS, Terraform process, backend init, State read, credentials or Plan/Apply.
 from copy import deepcopy
 
 import pytest
-
 from test_p4_tools import tool
 
 AWS = "registry.terraform.io/hashicorp/aws"
