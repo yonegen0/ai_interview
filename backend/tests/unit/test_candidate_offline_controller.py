@@ -1,7 +1,6 @@
 """Candidate-only local evidence and durable no-retry marker tests (no AWS)."""
 
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 
 import pytest
 from test_p4_tools import tool
