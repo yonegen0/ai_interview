@@ -308,7 +308,6 @@ def test_plan_claim_rejects_nonstandard_integer_and_booleans(sample):
             run((m, changed, expected, raw, plan, apply))
 
 
-
 def test_recursive_comparison_state_identity_fails_closed(sample):
     m, claim, expected, raw, plan, apply = sample
     claim["state_identity"]["lineage"] = claim["state_identity"]

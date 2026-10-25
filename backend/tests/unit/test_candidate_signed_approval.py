@@ -362,7 +362,6 @@ def test_canonical_json_stable_for_field_order_and_escape(sample):
         m.canonical_payload(escaped)
 
 
-
 def test_recursive_expected_state_fails_closed(sample):
     m, now, _, expected, envelope = sample
     expected["state_identity"]["lineage"] = expected["state_identity"]
