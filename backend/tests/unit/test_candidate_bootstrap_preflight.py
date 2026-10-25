@@ -63,11 +63,12 @@ def fixture():
     return m, bundle, version, configurations, binary, approval, journal
 
 
-def run(f, *, saved_plan=None):
+def run(f, *, saved_plan=None, saved_plan_binary=None, saved_plan_approval=None):
     m, bundle, version, configurations, binary, approval, journal = f
     return m.verify(
         bundle, version, configurations, binary=binary, approval=approval,
-        journal=journal, saved_plan=saved_plan
+        journal=journal, saved_plan=saved_plan, saved_plan_binary=saved_plan_binary,
+        saved_plan_approval=saved_plan_approval
     )
 
 
@@ -170,7 +171,8 @@ def candidate_saved_plan(fixture, operation):
     bundle["operation"] = operation
     fixture[5]["operation"] = operation
     bundle["approval_sha256"] = m.sha(m.canonical(fixture[5]))
-    return {
+    plan_binary = b"synthetic-offline-candidate-saved-plan-bytes"
+    plan = {
         "schema_version": 2,
         "kind": "p4-bootstrap-candidate-plan-v2",
         "operation": "maintenance-plan" if operation == "maintenance-apply" else "recovery-plan",
@@ -178,15 +180,28 @@ def candidate_saved_plan(fixture, operation):
             "namespace", "source_sha", "terraform_version", "provider_version",
             "platform", "terraform_sha256", "lock_sha256", "state_identity"
         )},
-        "plan_sha256": "e" * 64,
-        "plan_approval_sha256": "f" * 64,
+        "plan_sha256": m.sha(plan_binary),
+        "plan_approval_sha256": "",
     }
+    plan_approval = {
+        "schema_version": 2,
+        "kind": "p4-bootstrap-candidate-plan-approval-v2",
+        "approval_id": "e" * 40,
+        **{k: plan[k] for k in (
+            "namespace", "source_sha", "terraform_version", "provider_version",
+            "platform", "state_identity", "terraform_sha256", "lock_sha256",
+            "plan_sha256",
+        )},
+    }
+    plan["plan_approval_sha256"] = m.sha(m.canonical(plan_approval))
+    return plan, plan_binary, plan_approval
 
 
 @pytest.mark.parametrize("operation", ["maintenance-apply", "recovery-apply"])
 def test_separate_candidate_plan_binding_is_required(fixture, operation):
-    plan = candidate_saved_plan(fixture, operation)
-    assert run(fixture, saved_plan=plan)["authorized"] is False
+    plan, binary, approval = candidate_saved_plan(fixture, operation)
+    assert run(fixture, saved_plan=plan, saved_plan_binary=binary,
+               saved_plan_approval=approval)["authorized"] is False
     for mutation in ("old-cli", "old-namespace", "old-state", "same-approval", "missing"):
         altered = deepcopy(plan)
         if mutation == "old-cli":
@@ -200,7 +215,14 @@ def test_separate_candidate_plan_binding_is_required(fixture, operation):
         elif mutation == "missing":
             del altered["plan_sha256"]
         with pytest.raises(ValueError):
-            run(fixture, saved_plan=altered)
+            run(fixture, saved_plan=altered, saved_plan_binary=binary,
+                saved_plan_approval=approval)
+    with pytest.raises(ValueError, match="CandidateSavedPlanBinaryMismatch"):
+        run(fixture, saved_plan=plan, saved_plan_binary=b"legacy-binary",
+            saved_plan_approval=approval)
+    with pytest.raises(ValueError, match="CandidateFreshPlanApprovalRequired"):
+        run(fixture, saved_plan=plan, saved_plan_binary=binary,
+            saved_plan_approval={**approval, "approval_id": "0" * 40})
     with pytest.raises(ValueError, match="CandidateSavedPlanBindingMissing"):
         run(fixture)
 
