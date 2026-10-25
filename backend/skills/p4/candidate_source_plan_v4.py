@@ -124,6 +124,9 @@ def validate_source_plan(
         and terminal_state == "COMPLETED",
         "CandidateSourcePlanSchemaOrStateHOLD",
     )
+    # Fail closed on malformed nested State before recursive equality is possible.
+    signed.preflight.state_identity(claim["state_identity"])
+    signed.preflight.state_identity(expected["state_identity"])
     _compare(claim, expected, SHARED)
     signed.require(
         claim["namespace"] == signed.preflight.NAMESPACE
@@ -237,8 +240,8 @@ def validate_source_plan(
         and receipt["plan_attempt_id"] == claim["plan_attempt_id"],
         "CandidateSourcePlanReceiptMissingOrInvalid",
     )
-    _compare(receipt, claim, RECEIPT_SHARED)
     signed.preflight.state_identity(receipt["state_identity"])
+    _compare(receipt, claim, RECEIPT_SHARED)
     return {
         "status": "OFFLINE_SOURCE_PLAN_MATCH_ORIGIN_UNVERIFIED_HOLD",
         "binding_consistent": True,

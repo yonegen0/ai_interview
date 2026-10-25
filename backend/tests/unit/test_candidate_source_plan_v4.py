@@ -306,3 +306,12 @@ def test_plan_claim_rejects_nonstandard_integer_and_booleans(sample):
         changed["max_execution_seconds"] = invalid
         with pytest.raises(ValueError):
             run((m, changed, expected, raw, plan, apply))
+
+
+
+def test_recursive_comparison_state_identity_fails_closed(sample):
+    m, claim, expected, raw, plan, apply = sample
+    claim["state_identity"]["lineage"] = claim["state_identity"]
+    expected["state_identity"]["lineage"] = expected["state_identity"]
+    with pytest.raises(ValueError, match="CandidateStateIdentityInvalid"):
+        run((m, claim, expected, raw, plan, apply))

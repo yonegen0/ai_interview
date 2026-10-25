@@ -217,6 +217,8 @@ def validate_payload(payload: object, expected: object, *, now: datetime) -> Non
         type(expected) is dict and set(expected) == TARGET_FIELDS,
         "CandidateSignedApprovalExpectedFields",
     )
+    # Validate nested expected types before equality to avoid recursive containers.
+    preflight.state_identity(expected["state_identity"])
     # Validate the caller's expectation too, to prevent bool == 1 or other aliases.
     reference = {**payload, **expected}
     require(
