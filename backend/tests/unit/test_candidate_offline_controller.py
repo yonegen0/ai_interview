@@ -1,9 +1,8 @@
 """Candidate-only local evidence and durable no-retry marker tests (no AWS)."""
 
-from datetime import UTC, datetime, timedelta
-from pathlib import Path
 import shutil
 import subprocess
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from test_p4_tools import tool
@@ -262,7 +261,9 @@ def synthetic_git_checkout(tmp_path, sample):
     return root, sha
 
 
-def test_git_tree_source_verifies_real_blobs_and_detects_checkout_mutation(synthetic_git_checkout, sample):
+def test_git_tree_source_verifies_real_blobs_and_detects_checkout_mutation(
+    synthetic_git_checkout, sample
+):
     root, source_sha = synthetic_git_checkout
     m = sample[0]
     verified = m.verified_git_source_inventory(root, source_sha)
@@ -303,7 +304,9 @@ def test_git_review_cannot_override_checkout_inventory(synthetic_git_checkout, s
         return {"status": "MOCK_OFFLINE", "authorized": False, "aws_operations": 0}
 
     monkeypatch.setattr(m, "review_offline", fake_review)
-    result = m.review_git_checkout_offline(root, source_sha=source_sha, bundle={"source_sha": source_sha})
+    result = m.review_git_checkout_offline(
+        root, source_sha=source_sha, bundle={"source_sha": source_sha}
+    )
     assert result["authorized"] is False
     assert result["git_origin_authenticated"] is False
     with pytest.raises(ValueError, match="CandidateGitSourceOverrideForbidden"):

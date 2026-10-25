@@ -150,7 +150,10 @@ def verified_git_source_inventory(repo_root, source_sha):
             name.startswith("terraform/")
             and name == str(PurePosixPath(name))
             and "\\" not in name
-            and all(part and part not in {".", "..", ".git", ".terraform"} for part in name.split("/"))
+            and all(
+                part and part not in {".", "..", ".git", ".terraform"}
+                for part in name.split("/")
+            )
             and name not in expected,
             "CandidateSourcePathInvalid",
         )
