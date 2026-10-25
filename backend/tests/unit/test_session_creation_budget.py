@@ -155,15 +155,12 @@ def test_session_budget_corrupt_serialization_rejected(field, value):
         decode(item)
 
 
-def test_session_budget_wrong_reference_identity_fails_closed(monkeypatch):
-    from interview_backend.repositories.domain import ref
-
+def test_session_budget_wrong_reference_identity_fails_closed():
     app, repository = app_for(lambda: 1789171200000)
     first = app.create(OWNER, uid(400), PAYLOAD)
     month = "2026-09"
     identifier = str(uuid5(NAMESPACE_URL, "interview-session-budget:" + month))
-    reference = ref("SessionCreationBudget", OWNER, identifier)
-    repository._data.session_creation_budgets[identifier].id = uid(888)
+    repository._state.session_creation_budgets[identifier].id = uid(888)
     with pytest.raises(IntegrityError):
         app.create(OWNER, uid(401), PAYLOAD)
     assert app.create(OWNER, uid(400), PAYLOAD) == first
