@@ -37,6 +37,7 @@ PLAN_FIELDS = {
     "provider_version",
     "platform",
     "terraform_sha256",
+    "configuration_sha256",
     "lock_sha256",
     "state_identity",
     "plan_sha256",
@@ -274,6 +275,7 @@ def verify(
                     "provider_version",
                     "platform",
                     "terraform_sha256",
+                    "configuration_sha256",
                     "lock_sha256",
                     "state_identity",
                 )
@@ -299,6 +301,7 @@ def verify(
             "platform",
             "state_identity",
             "terraform_sha256",
+            "configuration_sha256",
             "lock_sha256",
             "plan_sha256",
             "approval_id",
