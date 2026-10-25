@@ -1004,7 +1004,7 @@ def test_session_budget_invalid_stored_row_fails_closed(corruption):
     row = from_wire(items[name])
     corruption(row)
     client = SnapshotClient({**items, name: to_wire(row)})
-    with pytest.raises((StorageFormatError, Exception)) as failure:
+    with pytest.raises((StorageFormatError, IntegrityError)):
         session_app(db(client)).create(
             OWNER, uid(20007), {"category": "job_change", "difficulty": "standard"}
         )
