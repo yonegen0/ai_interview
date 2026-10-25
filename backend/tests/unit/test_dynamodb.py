@@ -1015,3 +1015,57 @@ def test_session_budget_invalid_stored_row_fails_closed(corruption):
             OWNER, uid(20007), {"category": "job_change", "difficulty": "standard"}
         )
     assert not client.writes
+
+
+def test_session_budget_retry_keeps_request_start_month_across_midnight(monkeypatch):
+    from interview_backend.repositories import domain
+
+    monkeypatch.setattr(domain, "SESSION_CREATION_MONTHLY_LIMIT", 1)
+    instant = [1790812799000]  # 2026-09-30 23:59:59 UTC
+    memory = MemoryRepository(lambda: instant[0])
+    committed = session_app(memory)
+    client = SnapshotClient(snapshot(memory))
+    contender_key = uid(20030)
+
+    def race(_request):
+        # Another September request wins just before midnight.
+        assert committed.create(
+            OWNER, uid(20031), {"category": "job_change", "difficulty": "standard"}
+        ).status == 201
+        client.items = snapshot(memory)
+        instant[0] = 1790812801000  # 2026-10-01 00:00:01 UTC
+        raise ClientError(
+            {
+                "Error": {"Code": "TransactionCanceledException"},
+                "CancellationReasons": [{"Code": "ConditionalCheckFailed"}],
+            },
+            "TransactWriteItems",
+        )
+
+    client.on_write = race
+    with pytest.raises(BusinessError) as limited:
+        session_app(db(client, clock=lambda: instant[0]), first=1000).create(
+            OWNER, contender_key, {"category": "job_change", "difficulty": "standard"}
+        )
+    assert (limited.value.status, limited.value.code) == (429, "SESSION_CREATION_LIMIT")
+    assert len(client.writes) == 1
+    submitted = [
+        from_wire(action["Put"]["Item"])
+        for action in client.writes[0]["TransactItems"]
+        if "Put" in action
+    ]
+    assert decode(next(row for row in submitted if row["kind"] == "SessionCreationBudget"))[
+        0
+    ].month == "2026-09"
+    assert instant[0] == 1790812801000
+    state = memory.snapshot()
+    assert (OWNER, contender_key) not in state.requests
+    assert len(state.sessions) == 1
+    assert {row.month for row in state.session_creation_budgets.values()} == {"2026-09"}
+    # A genuinely new post-midnight request uses October's separate budget.
+    assert committed.create(
+        OWNER, uid(20032), {"category": "job_change", "difficulty": "standard"}
+    ).status == 201
+    assert {row.month for row in memory.snapshot().session_creation_budgets.values()} == {
+        "2026-09", "2026-10"
+    }
