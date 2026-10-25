@@ -88,16 +88,26 @@ def inspect_plan(document):
         mask(proposed, allow_metadata=True)
     for stage in ("prior_state", "planned_values"):
         container = document.get(stage)
-        require(type(container) is dict and type(container.get("values" if stage == "prior_state" else "root_module")) is dict
-                if stage == "prior_state" else type(container) is dict and type(container.get("root_module")) is dict,
-                "CandidatePlanStateStructureMissing")
-        module = container["values"]["root_module"] if stage == "prior_state" else container["root_module"]
+        require(type(container) is dict, "CandidatePlanStateStructureMissing")
+        if stage == "prior_state":
+            values = container.get("values")
+            require(type(values) is dict, "CandidatePlanStateStructureMissing")
+            module = values.get("root_module")
+        else:
+            module = container.get("root_module")
+        require(type(module) is dict, "CandidatePlanStateStructureMissing")
         resource_metadata(module)
     require(type(document.get("resource_changes")) is list, "CandidatePlanChangesMissing")
     for row in document["resource_changes"]:
-        require(type(row) is dict and type(row.get("change")) is dict, "CandidatePlanChangeMalformed")
+        require(
+            type(row) is dict and type(row.get("change")) is dict,
+            "CandidatePlanChangeMalformed",
+        )
         change = row["change"]
-        require("deposed" not in row and "action_reason" not in row, "CandidatePlanExtraActionReview")
+        require(
+            "deposed" not in row and "action_reason" not in row,
+            "CandidatePlanExtraActionReview",
+        )
         sensitive_mask(change.get("before_sensitive", {}))
         sensitive_mask(change.get("after_sensitive", {}))
         if "after_unknown" in change:
@@ -120,8 +130,10 @@ def compare_offline_plans(baseline, candidate):
 def inspect_raw_state(raw, identity):
     """Check provided raw State bytes, not where those bytes came from."""
     preflight.state_identity(identity)
-    require(type(raw) is bytes and hashlib.sha256(raw).hexdigest() == identity["sha256"],
-            "CandidateRawStateDigestMismatch")
+    require(
+        type(raw) is bytes and hashlib.sha256(raw).hexdigest() == identity["sha256"],
+        "CandidateRawStateDigestMismatch",
+    )
     try:
         state = json.loads(raw)
     except (UnicodeError, ValueError) as error:
