@@ -9,6 +9,7 @@ import { getQuestion } from "@/lib/api/interview";
 import type { FeedbackV2, Session } from "@/lib/api/schemas";
 import { countCodePoints } from "@/lib/textLimits";
 import { Text } from "@/components/atoms/Text";
+import { ErrorView } from "@/components/organisms/ErrorView";
 import { Panel } from "@/components/atoms/Panel";
 import { AnswerSubmission } from "@/features/interview/components/organisms/AnswerSubmission";
 
@@ -80,7 +81,14 @@ export function CoachingResponse({ feedback }: { feedback: FeedbackV2 }) {
   if (query.isPending)
     return <Text role="status">現在の質問を確認しています…</Text>;
   if (query.error)
-    return <Text role="alert">現在の質問を取得できませんでした。</Text>;
+    return (
+      <ErrorView
+        error={new Error("現在の質問を取得できませんでした。")}
+        retry={() => {
+          if (isActive()) void query.refetch();
+        }}
+      />
+    );
   if (
     !query.data ||
     progress?.stage !== "awaiting_answer" ||
