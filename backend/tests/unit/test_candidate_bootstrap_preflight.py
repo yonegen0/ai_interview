@@ -240,6 +240,7 @@ def candidate_saved_plan(fixture, operation):
                 "provider_version",
                 "platform",
                 "terraform_sha256",
+                "configuration_sha256",
                 "lock_sha256",
                 "state_identity",
             )
@@ -261,6 +262,7 @@ def candidate_saved_plan(fixture, operation):
                 "platform",
                 "state_identity",
                 "terraform_sha256",
+                "configuration_sha256",
                 "lock_sha256",
                 "plan_sha256",
             )
@@ -279,7 +281,7 @@ def test_separate_candidate_plan_binding_is_required(fixture, operation):
         ]
         is False
     )
-    for mutation in ("old-cli", "old-namespace", "old-state", "same-approval", "missing"):
+    for mutation in ("old-cli", "old-namespace", "old-state", "old-config", "same-approval", "missing"):
         altered = deepcopy(plan)
         if mutation == "old-cli":
             altered["terraform_version"] = "1.14.9"
@@ -287,6 +289,8 @@ def test_separate_candidate_plan_binding_is_required(fixture, operation):
             altered["namespace"] = "p4-bootstrap-legacy"
         elif mutation == "old-state":
             altered["state_identity"]["serial"] = 99
+        elif mutation == "old-config":
+            altered["configuration_sha256"] = "0" * 64
         elif mutation == "same-approval":
             altered["plan_approval_sha256"] = fixture[1]["approval_sha256"]
         elif mutation == "missing":
