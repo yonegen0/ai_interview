@@ -16,6 +16,7 @@ candidate adoption or HOLD release. Issue #39 stays OPEN. Formal Terraform remai
 | `backend/skills/p4/candidate_toolchain_probe.py` | P1: require separate Linux network namespace with only loopback; exact binary/package pins; internally generated disposable HCL, empty HOME and allowlisted environment; filesystem mirror only; fixed version/init-without-backend/validate/schema commands | `test_candidate_toolchain_probe.py`: namespace/interface and pre-execution binary/version/lock rejection. Real two-version probe separately described below. No Plan/Apply or repository backend. |
 | `backend/pyproject.toml`, `backend/uv.lock` | P1: pin `cryptography==50.0.2` using uv 0.13.5, retaining other installed package versions; lock-generated cffi 2.1.1 / pycparser 3.12 | `uv sync --locked` succeeds on Windows and Linux Python 3.14.9. No manual lock hashes. |
 | `backend/tests/unit/test_candidate_ed25519_required.py`, `.github/workflows/backend.yml` | P1: unconditional cryptography import, RFC 8032 7.1 TEST 1/2/3 sign/verify plus mutated message/signature, v4 operation/domain/message/key negatives; explicit mandatory CI step | 9 real crypto tests, no dependency-absent success path or skip. Existing optional-dependency regression remains intact. |
+| `backend/skills/p4/build_lambda.py`, `backend/tests/unit/test_candidate_package_crypto.py` | P2: exclude only the pinned cryptography wheel's exact non-runtime `cryptography/hazmat/bindings/_rust/test_support.pyi` from Lambda ZIP and filtered RECORD | Five regressions verify deterministic omission and retained rejection of executable/sibling/source test files and symlinks. No general test-path exception. |
 
 Self-review also corrected a SQLite connection leak (SQLite context managers do
 not close connections), ensured related Journal reads share one checkpoint,
@@ -37,13 +38,23 @@ This is self-review, not an independent security review.
   15 further probe/input/related-read cases. Matching commit/Actions IDs belong
   in the PR body. The 75 new cases comprise SQLite 35, crypto 9, integration 15,
   snapshots 8 and probe boundaries 8.
-- Ruff check and **247-file** format check PASS; `git diff --check` PASS.
+- Initial Ruff check and **247-file** format check PASS; `git diff --check` PASS.
 - No newly added test skip. Existing two Linux skips remain existing behavior.
 - Side-effect tests deny socket connect, subprocess creation and boto3 client
   creation in evidence/Journal paths. Git and crash/competition tests intentionally
   use local subprocesses. All full-regression children run without external
   networking. Dependency/public archive downloads occurred separately, before
   isolation; none contacted AWS.
+
+Initial current-HEAD Actions at `4b08ea3` exposed a packaging failure:
+run **40193865786**, job **121170431312**, `Build from locked production
+requirements`, `contents/UnsafePackageContent`. The pinned crypto wheel includes
+the official test typing stub cited above. It is now omitted rather than allowed
+into the package; safety rejection remains for similar executable/other/source
+paths. Targeted package/previous packaging/required-crypto regression:
+**52 passed**. Total new cases after this fix: **80**. Ruff format now checks
+**248 files**. Final new-HEAD full regression, package build/import and CI results
+belong in the PR body; the failed older run is not new-HEAD success evidence.
 
 ## Actual disposable Terraform / Provider probe
 
