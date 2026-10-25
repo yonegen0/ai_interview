@@ -79,6 +79,10 @@ def check_entry(entry: object, binding: object) -> datetime:
         entry["revision"] in STATE_REVISIONS[entry["state"]],
         "CandidateJournalStateRevisionInvalid",
     )
+    require(
+        entry["approval_id"] != entry["attempt_id"],
+        "CandidateJournalIdReused",
+    )
     return approval_contract.instant(entry["updated_at"])
 
 
@@ -122,8 +126,7 @@ def check_history(entries: object, binding: object) -> dict[str, object]:
 def check_unique_histories(histories: object) -> dict[str, object]:
     """Catch collisions visible in histories; omission/rollback remains unprovable."""
     require(type(histories) is list and len(histories) > 0, "CandidateJournalMissing")
-    approvals: set[str] = set()
-    attempts: set[str] = set()
+    seen_ids: set[str] = set()
     for history in histories:
         require(type(history) is list and bool(history), "CandidateJournalMissing")
         head = history[0]
@@ -132,10 +135,10 @@ def check_unique_histories(histories: object) -> dict[str, object]:
         check_history(history, binding)
         approval_id, attempt_id = head["approval_id"], head["attempt_id"]
         require(
-            approval_id not in approvals and attempt_id not in attempts, "CandidateJournalIdReused"
+            approval_id not in seen_ids and attempt_id not in seen_ids,
+            "CandidateJournalIdReused",
         )
-        approvals.add(approval_id)
-        attempts.add(attempt_id)
+        seen_ids.update((approval_id, attempt_id))
     return {
         "status": "OFFLINE_VISIBLE_IDS_DISTINCT_ONLY",
         "global_uniqueness_proven": False,
