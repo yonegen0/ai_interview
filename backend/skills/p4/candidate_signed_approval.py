@@ -24,20 +24,49 @@ REGION = re.compile(r"[a-z]{2}-[a-z]+-\d\Z")
 TIME = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z\Z")
 MAX_BYTES = 16384
 MAX_TTL = timedelta(hours=1)
-FIELDS = frozenset({
-    "schema_version", "kind", "namespace", "issuer", "key_id", "algorithm",
-    "trust_revision", "operation", "source_sha", "git_tree_sha",
-    "terraform_sources_sha256", "configuration_sha256", "lock_sha256",
-    "terraform_version", "terraform_sha256", "provider_version",
-    "provider_inventory_sha256", "platform", "state_identity", "plan_sha256",
-    "approval_id", "attempt_id", "issued_at", "expires_at",
-    "account_id", "region", "resource_scope", "max_execution_seconds",
-    "max_cost_usd_cents",
-})
+FIELDS = frozenset(
+    {
+        "schema_version",
+        "kind",
+        "namespace",
+        "issuer",
+        "key_id",
+        "algorithm",
+        "trust_revision",
+        "operation",
+        "source_sha",
+        "git_tree_sha",
+        "terraform_sources_sha256",
+        "configuration_sha256",
+        "lock_sha256",
+        "terraform_version",
+        "terraform_sha256",
+        "provider_version",
+        "provider_inventory_sha256",
+        "platform",
+        "state_identity",
+        "plan_sha256",
+        "approval_id",
+        "attempt_id",
+        "issued_at",
+        "expires_at",
+        "account_id",
+        "region",
+        "resource_scope",
+        "max_execution_seconds",
+        "max_cost_usd_cents",
+    }
+)
 ENVELOPE_FIELDS = FIELDS | {"signature"}
 TARGET_FIELDS = FIELDS - {
-    "schema_version", "kind", "issuer", "key_id", "algorithm", "trust_revision",
-    "issued_at", "expires_at",
+    "schema_version",
+    "kind",
+    "issuer",
+    "key_id",
+    "algorithm",
+    "trust_revision",
+    "issued_at",
+    "expires_at",
 }
 
 
@@ -60,12 +89,13 @@ def _reject_numeric(_: str) -> None:
 
 def parse_json(raw: bytes) -> dict[str, object]:
     """UTF-8 JSON with no duplicate keys, float, NaN or boolean/integer aliases."""
-    require(type(raw) is bytes and 0 < len(raw) <= MAX_BYTES,
-            "CandidateSignedApprovalJsonInvalid")
+    require(type(raw) is bytes and 0 < len(raw) <= MAX_BYTES, "CandidateSignedApprovalJsonInvalid")
     try:
         result = json.loads(
-            raw.decode("utf-8", errors="strict"), object_pairs_hook=_pairs,
-            parse_float=_reject_numeric, parse_constant=_reject_numeric,
+            raw.decode("utf-8", errors="strict"),
+            object_pairs_hook=_pairs,
+            parse_float=_reject_numeric,
+            parse_constant=_reject_numeric,
             parse_int=lambda n: int(n) if len(n) <= 20 else _reject_numeric(n),
         )
     except (UnicodeError, json.JSONDecodeError, RecursionError) as exc:
@@ -76,8 +106,7 @@ def parse_json(raw: bytes) -> dict[str, object]:
 
 def _ascii_tree(value: object) -> None:
     if type(value) is str:
-        require(all(32 <= ord(char) <= 126 for char in value),
-                "CandidateSignedApprovalAsciiOnly")
+        require(all(32 <= ord(char) <= 126 for char in value), "CandidateSignedApprovalAsciiOnly")
     elif type(value) is dict:
         for key, child in value.items():
             require(type(key) is str, "CandidateSignedApprovalKeyType")
@@ -93,11 +122,13 @@ def _ascii_tree(value: object) -> None:
 
 def canonical_payload(payload: dict[str, object]) -> bytes:
     """Fixed-profile canonical JSON (ASCII-only, integers/null/strings), NOT RFC 8785."""
-    require(type(payload) is dict and set(payload) == FIELDS,
-            "CandidateSignedApprovalFields")
+    require(type(payload) is dict and set(payload) == FIELDS, "CandidateSignedApprovalFields")
     _ascii_tree(payload)
     return json.dumps(
-        payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True,
+        payload,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
         allow_nan=False,
     ).encode("ascii")
 
@@ -107,8 +138,10 @@ def signed_bytes(payload: dict[str, object]) -> bytes:
 
 
 def _instant(value: object) -> datetime:
-    require(type(value) is str and TIME.fullmatch(value) is not None,
-            "CandidateSignedApprovalTimeInvalid")
+    require(
+        type(value) is str and TIME.fullmatch(value) is not None,
+        "CandidateSignedApprovalTimeInvalid",
+    )
     try:
         return datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
     except ValueError as exc:
@@ -116,27 +149,36 @@ def _instant(value: object) -> datetime:
 
 
 def validate_payload(payload: object, expected: object, *, now: datetime) -> None:
-    require(type(payload) is dict and set(payload) == FIELDS,
-            "CandidateSignedApprovalFields")
+    require(type(payload) is dict and set(payload) == FIELDS, "CandidateSignedApprovalFields")
     canonical_payload(payload)
     require(
-        type(payload["schema_version"]) is int and payload["schema_version"] == 4
+        type(payload["schema_version"]) is int
+        and payload["schema_version"] == 4
         and payload["kind"] == KIND
         and payload["namespace"] == preflight.NAMESPACE
         and payload["algorithm"] == "ed25519"
-        and all(type(payload[k]) is str and NAME.fullmatch(payload[k])
-                for k in ("issuer", "key_id", "resource_scope"))
+        and all(
+            type(payload[k]) is str and NAME.fullmatch(payload[k])
+            for k in ("issuer", "key_id", "resource_scope")
+        )
         and type(payload["trust_revision"]) is str
         and SHA.fullmatch(payload["trust_revision"]) is not None
         and payload["operation"] in legacy.OPERATIONS
-        and all(type(payload[k]) is str and ID.fullmatch(payload[k])
-                for k in ("source_sha", "git_tree_sha", "approval_id", "attempt_id"))
+        and all(
+            type(payload[k]) is str and ID.fullmatch(payload[k])
+            for k in ("source_sha", "git_tree_sha", "approval_id", "attempt_id")
+        )
         and payload["approval_id"] != payload["attempt_id"]
-        and all(type(payload[k]) is str and SHA.fullmatch(payload[k])
-                for k in (
-                    "terraform_sources_sha256", "configuration_sha256", "lock_sha256",
-                    "terraform_sha256", "provider_inventory_sha256",
-                ))
+        and all(
+            type(payload[k]) is str and SHA.fullmatch(payload[k])
+            for k in (
+                "terraform_sources_sha256",
+                "configuration_sha256",
+                "lock_sha256",
+                "terraform_sha256",
+                "provider_inventory_sha256",
+            )
+        )
         and payload["terraform_version"] == preflight.CLI
         and payload["provider_version"] == preflight.PROVIDER
         and payload["platform"] == preflight.PLATFORM
@@ -144,7 +186,7 @@ def validate_payload(payload: object, expected: object, *, now: datetime) -> Non
             payload["plan_sha256"] is None
             if payload["operation"] in legacy.PLAN_OPERATIONS
             else type(payload["plan_sha256"]) is str
-                 and SHA.fullmatch(payload["plan_sha256"]) is not None
+            and SHA.fullmatch(payload["plan_sha256"]) is not None
         )
         and type(payload["account_id"]) is str
         and re.fullmatch(r"\d{12}", payload["account_id"]) is not None
@@ -157,23 +199,30 @@ def validate_payload(payload: object, expected: object, *, now: datetime) -> Non
         "CandidateSignedApprovalBindingInvalid",
     )
     preflight.state_identity(payload["state_identity"])
-    require(type(expected) is dict and set(expected) == TARGET_FIELDS,
-            "CandidateSignedApprovalExpectedFields")
+    require(
+        type(expected) is dict and set(expected) == TARGET_FIELDS,
+        "CandidateSignedApprovalExpectedFields",
+    )
     # Validate the caller's expectation too, to prevent bool == 1 or other aliases.
     reference = {**payload, **expected}
     require(
-        all(type(payload[key]) is type(expected[key]) and payload[key] == expected[key]
-            for key in TARGET_FIELDS),
+        all(
+            type(payload[key]) is type(expected[key]) and payload[key] == expected[key]
+            for key in TARGET_FIELDS
+        ),
         "CandidateSignedApprovalTargetMismatch",
     )
     canonical_payload(reference)
     preflight.state_identity(expected["state_identity"])
-    require(isinstance(now, datetime) and now.tzinfo is not None
-            and now.utcoffset() is not None, "CandidateSignedApprovalClockInvalid")
+    require(
+        isinstance(now, datetime) and now.tzinfo is not None and now.utcoffset() is not None,
+        "CandidateSignedApprovalClockInvalid",
+    )
     issued, expires = _instant(payload["issued_at"]), _instant(payload["expires_at"])
     require(
         issued <= now.astimezone(UTC) < expires
-        and issued < expires and expires - issued <= MAX_TTL,
+        and issued < expires
+        and expires - issued <= MAX_TTL,
         "CandidateSignedApprovalExpiredOrFuture",
     )
 
@@ -194,18 +243,24 @@ class TrustedKey:
 def _trusted(key: object, payload: dict[str, object], current: datetime) -> None:
     require(type(key) is TrustedKey, "CandidateSignedApprovalUnknownKeyHOLD")
     require(
-        type(key.public_key) is bytes and len(key.public_key) == 32
+        type(key.public_key) is bytes
+        and len(key.public_key) == 32
         and type(key.operations) is frozenset
         and all(type(op) is str and op in legacy.OPERATIONS for op in key.operations)
-        and type(key.issuer) is str and key.issuer == payload["issuer"]
-        and type(key.namespace) is str and key.namespace == payload["namespace"]
+        and type(key.issuer) is str
+        and key.issuer == payload["issuer"]
+        and type(key.namespace) is str
+        and key.namespace == payload["namespace"]
         and type(key.trust_revision) is str
         and key.trust_revision == payload["trust_revision"]
         and payload["operation"] in key.operations
-        and type(key.revoked) is bool and not key.revoked
-        and isinstance(key.not_before, datetime) and key.not_before.tzinfo is not None
+        and type(key.revoked) is bool
+        and not key.revoked
+        and isinstance(key.not_before, datetime)
+        and key.not_before.tzinfo is not None
         and key.not_before.utcoffset() is not None
-        and isinstance(key.not_after, datetime) and key.not_after.tzinfo is not None
+        and isinstance(key.not_after, datetime)
+        and key.not_after.tzinfo is not None
         and key.not_after.utcoffset() is not None
         and key.not_before.astimezone(UTC) <= current < key.not_after.astimezone(UTC),
         "CandidateSignedApprovalKeyPolicyHOLD",
@@ -213,7 +268,10 @@ def _trusted(key: object, payload: dict[str, object], current: datetime) -> None
 
 
 def verify_signed_approval(
-    envelope_json: bytes, expected: dict[str, object], *, trust_registry: dict[str, TrustedKey],
+    envelope_json: bytes,
+    expected: dict[str, object],
+    *,
+    trust_registry: dict[str, TrustedKey],
     now: datetime,
 ) -> dict[str, object]:
     """Check local cryptographic signature; NEVER authenticate enrollment or authorize."""
@@ -222,20 +280,26 @@ def verify_signed_approval(
     payload = {field: envelope[field] for field in FIELDS}
     validate_payload(payload, expected, now=now)
     encoded = envelope["signature"]
-    require(type(encoded) is str and len(encoded) == 88,
-            "CandidateSignedApprovalSignatureEncodingInvalid")
+    require(
+        type(encoded) is str and len(encoded) == 88,
+        "CandidateSignedApprovalSignatureEncodingInvalid",
+    )
     try:
         signature = base64.b64decode(encoded, validate=True)
     except (binascii.Error, ValueError) as exc:
         raise ValueError("CandidateSignedApprovalSignatureEncodingInvalid") from exc
-    require(len(signature) == 64 and base64.b64encode(signature).decode("ascii") == encoded,
-            "CandidateSignedApprovalSignatureEncodingInvalid")
+    require(
+        len(signature) == 64 and base64.b64encode(signature).decode("ascii") == encoded,
+        "CandidateSignedApprovalSignatureEncodingInvalid",
+    )
     require(type(trust_registry) is dict, "CandidateSignedApprovalRegistryInvalidHOLD")
     # No automatically trusted keys exist. An empty registry remains UNVERIFIED/HOLD.
     if not trust_registry:
         return {
-            "status": "UNVERIFIED_HOLD", "signature_verified": False,
-            "trust_enrollment_authenticated": False, "authorized": False,
+            "status": "UNVERIFIED_HOLD",
+            "signature_verified": False,
+            "trust_enrollment_authenticated": False,
+            "authorized": False,
             "aws_operations": 0,
         }
     key = trust_registry.get(payload["key_id"])
@@ -251,8 +315,12 @@ def verify_signed_approval(
         raise ValueError("CandidateSignedApprovalBadSignatureHOLD") from exc
     return {
         "status": "LOCAL_SIGNATURE_VERIFIED_ENROLLMENT_UNVERIFIED_HOLD",
-        "signature_verified": True, "trusted_key_policy_matched": True,
+        "signature_verified": True,
+        "trusted_key_policy_matched": True,
         "trust_enrollment_authenticated": False,
-        "clock_authenticated": False, "origin_authenticated": False,
-        "state_readback_verified": False, "authorized": False, "aws_operations": 0,
+        "clock_authenticated": False,
+        "origin_authenticated": False,
+        "state_readback_verified": False,
+        "authorized": False,
+        "aws_operations": 0,
     }
