@@ -250,12 +250,13 @@ def test_create_never_overwrites_and_new_identity_rejected(storage, tmp_path):
 
 def test_database_and_checkpoint_rollback_together_cannot_prove_one_use(storage):
     m, repo, event = storage
-    checkpoint = repo._checkpoint
+    checkpoint = repo.reserve(event("NEW", 0), event("RESERVED", 1))["checkpoint"]
     previous = repo.path.read_bytes()
-    repo.reserve(event("NEW", 0), event("RESERVED", 1))
+    changes = {"approval_id": "e" * 40, "attempt_id": "f" * 40}
+    repo.reserve(event("NEW", 0, **changes), event("RESERVED", 1, **changes))
     repo.path.write_bytes(previous)
     restored = reopen(m, repo, checkpoint)
-    result = restored.reserve(event("NEW", 0), event("RESERVED", 1))
+    result = restored.reserve(event("NEW", 0, **changes), event("RESERVED", 1, **changes))
     # The caller's floor was also rolled back: local consistency is not authority.
     assert result["authorized"] is False
     assert result["retry_permitted"] is False
