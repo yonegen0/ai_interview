@@ -104,6 +104,66 @@ def generated(star):
     return accepted, result
 
 
+def test_star_worker_can_finish_before_dispatch_confirmation(star):
+    from interview_backend.evaluation.dispatch import Dispatcher, FakePublisher
+
+    runtime, _, request, _, _, _, _, _, draft, _ = star
+    accepted = request(
+        "POST", "/star-assist/generations", {"starDraftId": draft["id"], "expectedVersion": 1}
+    )[1]
+    identifier = accepted["generationId"]
+    completed = []
+    publisher = FakePublisher(
+        lambda event: completed.append(runtime.worker.run("owner", event["generationId"]))
+    )
+    dispatcher = Dispatcher(runtime.repository, publisher, clock=runtime.repository.clock)
+
+    # SQS can deliver the message before the sender persists its confirmation.
+    assert dispatcher.dispatch("owner", identifier, 1) == "obsolete"
+    assert completed == [True]
+    assert request("GET", "/star-assist/generations/" + identifier)[1]["status"] == "SUCCEEDED"
+    dispatch = runtime.repository.snapshot().dispatches[identifier]
+    assert dispatch.status == "DONE"
+    assert dispatch.send_owner is None and dispatch.send_expires_at is None
+    assert not runtime.worker.run("owner", identifier)
+    runtime.repository.recover("owner", identifier)
+    assert runtime.worker.star_worker.provider.calls == 1
+    assert request("GET", "/star-assist/quota")[1]["user"] == {
+        "reserved": 0,
+        "consumed": 1,
+        "remaining": 19,
+    }
+
+
+def test_star_claim_fences_unconfirmed_sender(star):
+    runtime, now, request, _, _, _, _, _, draft, _ = star
+    identifier = request(
+        "POST", "/star-assist/generations", {"starDraftId": draft["id"], "expectedVersion": 1}
+    )[1]["generationId"]
+    delivery = runtime.repository.acquire_delivery("owner", identifier, 1, str(uuid4())).delivery
+    lease = runtime.repository.star_claim("owner", identifier, 1, str(uuid4()))
+    assert lease is not None
+    dispatch = runtime.repository.snapshot().dispatches[identifier]
+    assert dispatch.status == "CLAIMED"
+    assert dispatch.send_owner is None and dispatch.send_expires_at is None
+    assert runtime.repository.confirm_delivery(delivery).status == "obsolete"
+    assert runtime.repository.fail_delivery(delivery, now[0] + 10000).status == "obsolete"
+    assert runtime.repository.acquire_delivery("owner", identifier, 1, str(uuid4())).status == (
+        "obsolete"
+    )
+    assert runtime.repository.star_claim("owner", identifier, 1, str(uuid4())) is None
+    assert runtime.repository.star_start(lease)
+    now[0] = lease.lock_expires_at
+    runtime.repository.recover("owner", identifier)
+    runtime.repository.recover("owner", identifier)
+    assert (
+        request("GET", "/star-assist/generations/" + identifier)[1]["status"] == "OUTCOME_UNKNOWN"
+    )
+    assert not runtime.worker.run("owner", identifier)
+    assert runtime.worker.star_worker.provider.calls == 0
+    assert request("GET", "/star-assist/quota")[1]["user"]["consumed"] == 1
+
+
 def test_T01_T02_contract_owner_no_evaluation(star):
     runtime, _, request, _, _, cid, _, answer, draft, _ = star
     assert request("GET", "/answer-contexts/" + cid + "/drafts", owner="other")[0] == 404
