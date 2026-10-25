@@ -172,9 +172,52 @@ exercise IAM non-expansion negative tests and synthetic Plan JSON audit fixtures
 Keep update merge on hold until those checks pass. No Terraform init, formal
 Plan/Apply, State read/change, or AWS authentication/connection was executed here.
 
+
+## Follow-up: Session creation quota remediation (2026-10-25 JST)
+
+The preceding "one Medium finding" section is the original pre-PR #38 audit
+snapshot, **not** the current implementation status. PR
+[#38](https://github.com/yonegen0/ai_interview/pull/38) was merged normally to
+main commit `bb6ce8aef34b8893f57bd52701969a1cba661923`.
+Its UTC-month 60-new-Session per-owner budget atomically writes the
+SessionCreationBudget, Session, and IdempotencyRecord using DynamoDB
+conditional transactions; replay of the same key does not consume another
+slot, changed payload returns 409, and new keys above the budget return
+`429 SESSION_CREATION_LIMIT`. Historical Sessions are retained; no State,
+IAM, table-structure, or Terraform change was required.
+
+Authentic **post-merge main** runs on that exact commit completed successfully:
+Backend #40142968142, Frontend #40142968091, and P4 infrastructure/package
+#40142968102. This verifies CI, **not** AWS production behavior or release
+readiness.
+
+Follow-up branch `codex/session-quota-hardening-20261025` adds frontend
+localized 429 handling and visible practice-start regression coverage,
+Backend HTTP status/message/isolation checks, deterministic SDK shape and
+existing-revision CAS tests, quota contention/re-read tests, lost-response
+confirmation and unknown-result fail-closed tests, and corrupted budget
+record plus exact UTC-month boundary checks. The request-start UTC month
+remains fixed across CAS retries: this preserves the identity of the original
+idempotent operation, including when a retry crosses midnight.
+
+These follow-up assertions test *local contract and simulated effects*;
+`SnapshotClient` never evaluates DynamoDB's conditions, and a botocore
+`Stubber` only validates SDK request/response shape. They are not proof of
+live AWS concurrency correctness. At the time of this authored follow-up,
+new-branch tests, PR number, and independent review/CI are **pending
+verification**; record their verified results in the PR and new audit
+addendum rather than treating this note as success evidence.
+
+Residual risks: actual DynamoDB conditional-write semantics and response
+loss have not been exercised in AWS; initial pre-quota Sessions are not
+retroactively counted; valid owners can continue to create up to 60 new
+Sessions per UTC month; cost and quota monitoring are not certified. The
+original unlimited-creation finding is **source-remediated** by PR #38,
+but AWS validation and overall security release decision remain **HOLD**.
+
 ## Release status
 
-**NOT READY for public release.** Outstanding: the Medium Session budget finding,
+**NOT READY for public release.** Outstanding: AWS validation of the source-remediated Session quota,
 toolchain compatibility/security update, final security review, separately approved
 Stage2 Plan/Apply, real Bedrock verification, STAR integration verification, live
 AWS E2E/security validation, and fresh performance measurement. No AWS success or
