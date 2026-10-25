@@ -69,6 +69,7 @@ def fixture():
         "schema_version": 2,
         "kind": "p4-bootstrap-candidate-approval-v2",
         "approval_id": "c" * 40,
+        "attempt_id": "b" * 40,
     }
     bundle["approval_sha256"] = m.sha(m.canonical(approval))
     journal = {"namespace": m.NAMESPACE, "state": "NEW", "attempt_id": "b" * 40}
@@ -186,6 +187,7 @@ def test_candidate_hcl_and_provider_locks_must_match(fixture, change):
         "journal-failed",
         "journal-unknown",
         "journal-missing",
+    "journal-replay",
         "manifest-extra",
     ],
 )
@@ -211,6 +213,8 @@ def test_untrusted_or_partial_evidence_rejected(fixture, change):
         journal["state"] = "UNKNOWN"
     elif change == "journal-missing":
         del journal["attempt_id"]
+    elif change == "journal-replay":
+        journal["attempt_id"] = "a" * 40
     elif change == "manifest-extra":
         bundle["old_approval"] = "unsafe"
     with pytest.raises(ValueError):
