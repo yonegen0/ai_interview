@@ -112,9 +112,8 @@ def test_minor_version_json_remains_reviewable_but_never_authorized(plans):
     before, candidate = plans
     before["format_version"] = "1.2"
     candidate["format_version"] = "1.2"
-    assert tool("candidate_state_snapshot_review").compare_offline_plans(
-        before, candidate
-    )["authorized"] is False
+    result = tool("candidate_state_snapshot_review").compare_offline_plans(before, candidate)
+    assert result["authorized"] is False
 
 
 def test_local_raw_state_bytes_never_prove_remote_version():

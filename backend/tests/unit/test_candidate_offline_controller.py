@@ -230,6 +230,18 @@ def test_ledger_rejects_world_readable_and_symlink(tmp_path, sample):
         )
 
 
+@pytest.mark.skipif(__import__("os").name != "posix", reason="Linux-only private fsync ledger")
+def test_invalid_attempt_does_not_consume_approval(tmp_path, sample):
+    m = sample[0]
+    root = tmp_path / "ledger"
+    root.mkdir(mode=0o700)
+    with pytest.raises(ValueError, match="CandidateLedgerKeyInvalid"):
+        m.reserve_offline_attempt(
+            root, approval_id="a" * 40, attempt_id="invalid", approval_sha256="c" * 64
+        )
+    assert not (root / m.preflight.NAMESPACE).exists()
+
+
 def test_legacy_terraform_contract_untouched(sample):
     assert sample[0].preflight.CLI == "1.16.7"
     assert tool("maintenance_contract").TF_VERSION == "1.14.9"
@@ -301,6 +313,17 @@ def test_git_checkout_rejects_missing_files_wrong_sha_and_symlinks(synthetic_git
     candidate.symlink_to(root / "terraform/bootstrap/main.tf")
     with pytest.raises(ValueError, match="CandidateGitSymlinkForbidden"):
         m.verified_git_source_inventory(root, source_sha)
+
+
+def test_git_read_ignores_untrusted_git_directory_environment(
+    synthetic_git_checkout, sample, monkeypatch
+):
+    root, source_sha = synthetic_git_checkout
+    m = sample[0]
+    monkeypatch.setenv("GIT_DIR", str(root / "nonexistent.git"))
+    monkeypatch.setenv("GIT_WORK_TREE", str(root / "nonexistent-worktree"))
+    report = m.verified_git_source_inventory(root, source_sha)
+    assert report["git_origin_authenticated"] is False
 
 
 def test_git_review_cannot_override_checkout_inventory(synthetic_git_checkout, sample, monkeypatch):

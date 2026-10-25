@@ -87,7 +87,10 @@ def source_inventory_digest(tracked_paths, checkout_files):
 
 def _git_read(root, *args):
     """Read local Git objects only. Does not authenticate origin or fetch remotely."""
-    environment = os.environ.copy()
+    # Ignore caller-controlled Git repository/worktree/config overrides.
+    environment = {
+        key: value for key, value in os.environ.items() if not key.startswith("GIT_")
+    }
     environment.update(
         GIT_NO_REPLACE_OBJECTS="1",
         GIT_NO_LAZY_FETCH="1",
@@ -394,6 +397,14 @@ def reserve_offline_attempt(root, *, approval_id, attempt_id, approval_sha256):
     require(
         type(approval_sha256) is str and HEX64.fullmatch(approval_sha256) is not None,
         "CandidateLedgerDigestInvalid",
+    )
+    # Validate BOTH marker names before creating either one.
+    require(
+        type(approval_id) is str
+        and HEX40.fullmatch(approval_id) is not None
+        and type(attempt_id) is str
+        and HEX40.fullmatch(attempt_id) is not None,
+        "CandidateLedgerKeyInvalid",
     )
     root = protected_directory(root)
     namespace = private_subdirectory(root, preflight.NAMESPACE)
