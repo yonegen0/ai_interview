@@ -9,40 +9,77 @@ import hashlib
 import candidate_signed_approval as signed
 
 KIND = "p4-bootstrap-candidate-source-plan-claim-v4"
-FIELDS = frozenset({
-    "schema_version", "kind", "namespace", "operation",
-    "source_sha", "git_tree_sha", "terraform_sources_sha256",
-    "configuration_sha256", "lock_sha256", "terraform_version",
-    "terraform_sha256", "provider_version", "provider_inventory_sha256",
-    "platform", "state_identity", "plan_sha256",
-    "plan_approval_id", "plan_attempt_id",
-    "apply_approval_id", "apply_attempt_id", "generation_receipt",
-})
-RECEIPT_FIELDS = frozenset({
-    "kind", "producer_id", "producer_key_id", "receipt_sha256",
-    "plan_approval_id", "plan_attempt_id", "plan_sha256",
-    "source_sha", "git_tree_sha", "terraform_sources_sha256",
-    "configuration_sha256", "lock_sha256", "terraform_version",
-    "terraform_sha256", "provider_version", "provider_inventory_sha256",
-    "platform", "state_identity",
-})
+FIELDS = frozenset(
+    {
+        "schema_version",
+        "kind",
+        "namespace",
+        "operation",
+        "source_sha",
+        "git_tree_sha",
+        "terraform_sources_sha256",
+        "configuration_sha256",
+        "lock_sha256",
+        "terraform_version",
+        "terraform_sha256",
+        "provider_version",
+        "provider_inventory_sha256",
+        "platform",
+        "state_identity",
+        "plan_sha256",
+        "plan_approval_id",
+        "plan_attempt_id",
+        "apply_approval_id",
+        "apply_attempt_id",
+        "generation_receipt",
+    }
+)
+RECEIPT_FIELDS = frozenset(
+    {
+        "kind",
+        "producer_id",
+        "producer_key_id",
+        "receipt_sha256",
+        "plan_approval_id",
+        "plan_attempt_id",
+        "plan_sha256",
+        "source_sha",
+        "git_tree_sha",
+        "terraform_sources_sha256",
+        "configuration_sha256",
+        "lock_sha256",
+        "terraform_version",
+        "terraform_sha256",
+        "provider_version",
+        "provider_inventory_sha256",
+        "platform",
+        "state_identity",
+    }
+)
 PAIRS = {
     "maintenance-apply": "maintenance-plan",
     "recovery-apply": "recovery-plan",
 }
 SHARED = FIELDS - {
-    "schema_version", "kind", "operation",
-    "plan_approval_id", "plan_attempt_id",
-    "apply_approval_id", "apply_attempt_id", "generation_receipt",
+    "schema_version",
+    "kind",
+    "operation",
+    "plan_approval_id",
+    "plan_attempt_id",
+    "apply_approval_id",
+    "apply_attempt_id",
+    "generation_receipt",
 }
 RECEIPT_SHARED = SHARED - {"namespace"}
 
 
 def _compare(actual: object, expected: object, keys: frozenset[str]) -> None:
     signed.require(
-        type(actual) is dict and type(expected) is dict
+        type(actual) is dict
+        and type(expected) is dict
         and all(
-            key in actual and key in expected
+            key in actual
+            and key in expected
             and type(actual[key]) is type(expected[key])
             and actual[key] == expected[key]
             for key in keys
@@ -52,20 +89,27 @@ def _compare(actual: object, expected: object, keys: frozenset[str]) -> None:
 
 
 def validate_source_plan(
-    claim: object, expected: object, *, plan_bytes: bytes,
-    plan_approval: dict[str, object], apply_approval: dict[str, object],
+    claim: object,
+    expected: object,
+    *,
+    plan_bytes: bytes,
+    plan_approval: dict[str, object],
+    apply_approval: dict[str, object],
     terminal_state: str,
 ) -> dict[str, object]:
     """Match strict claims and operation-specific approval bindings, not origins."""
-    signed.require(type(claim) is dict and set(claim) == FIELDS,
-                   "CandidateSourcePlanFields")
-    signed.require(type(expected) is dict and set(expected) == SHARED,
-                   "CandidateSourcePlanExpectedFields")
+    signed.require(type(claim) is dict and set(claim) == FIELDS, "CandidateSourcePlanFields")
     signed.require(
-        type(claim["schema_version"]) is int and claim["schema_version"] == 4
+        type(expected) is dict and set(expected) == SHARED, "CandidateSourcePlanExpectedFields"
+    )
+    signed.require(
+        type(claim["schema_version"]) is int
+        and claim["schema_version"] == 4
         and claim["kind"] == KIND
-        and type(claim["operation"]) is str and claim["operation"] in PAIRS
-        and type(terminal_state) is str and terminal_state == "COMPLETED",
+        and type(claim["operation"]) is str
+        and claim["operation"] in PAIRS
+        and type(terminal_state) is str
+        and terminal_state == "COMPLETED",
         "CandidateSourcePlanSchemaOrStateHOLD",
     )
     _compare(claim, expected, SHARED)
@@ -77,32 +121,52 @@ def validate_source_plan(
         "CandidateSourcePlanToolchainInvalid",
     )
     signed.require(
-        all(signed.ID.fullmatch(claim[k]) is not None
-            for k in ("source_sha", "git_tree_sha"))
-        and all(signed.SHA.fullmatch(claim[k]) is not None for k in (
-            "terraform_sources_sha256", "configuration_sha256", "lock_sha256",
-            "terraform_sha256", "provider_inventory_sha256", "plan_sha256"
-        ))
-        and all(type(claim[k]) is str and signed.ID.fullmatch(claim[k]) is not None
-                for k in ("plan_approval_id", "plan_attempt_id",
-                          "apply_approval_id", "apply_attempt_id"))
-        and len({
-            claim["plan_approval_id"], claim["plan_attempt_id"],
-            claim["apply_approval_id"], claim["apply_attempt_id"]
-        }) == 4,
+        all(signed.ID.fullmatch(claim[k]) is not None for k in ("source_sha", "git_tree_sha"))
+        and all(
+            signed.SHA.fullmatch(claim[k]) is not None
+            for k in (
+                "terraform_sources_sha256",
+                "configuration_sha256",
+                "lock_sha256",
+                "terraform_sha256",
+                "provider_inventory_sha256",
+                "plan_sha256",
+            )
+        )
+        and all(
+            type(claim[k]) is str and signed.ID.fullmatch(claim[k]) is not None
+            for k in (
+                "plan_approval_id",
+                "plan_attempt_id",
+                "apply_approval_id",
+                "apply_attempt_id",
+            )
+        )
+        and len(
+            {
+                claim["plan_approval_id"],
+                claim["plan_attempt_id"],
+                claim["apply_approval_id"],
+                claim["apply_attempt_id"],
+            }
+        )
+        == 4,
         "CandidateSourcePlanIdsOrDigestsInvalid",
     )
     signed.preflight.state_identity(claim["state_identity"])
     signed.preflight.state_identity(expected["state_identity"])
     signed.require(
-        type(plan_bytes) is bytes and bool(plan_bytes)
+        type(plan_bytes) is bytes
+        and bool(plan_bytes)
         and hashlib.sha256(plan_bytes).hexdigest() == claim["plan_sha256"],
         "CandidateSourcePlanBytesMismatch",
     )
     # These must be distinct plan/apply approval claims, not ID-only strings.
     signed.require(
-        type(plan_approval) is dict and set(plan_approval) == signed.FIELDS
-        and type(apply_approval) is dict and set(apply_approval) == signed.FIELDS
+        type(plan_approval) is dict
+        and set(plan_approval) == signed.FIELDS
+        and type(apply_approval) is dict
+        and set(apply_approval) == signed.FIELDS
         and plan_approval["operation"] == PAIRS[claim["operation"]]
         and apply_approval["operation"] == claim["operation"],
         "CandidateSourcePlanApprovalOperationMismatch",
@@ -129,10 +193,13 @@ def validate_source_plan(
         )
     receipt = claim["generation_receipt"]
     signed.require(
-        type(receipt) is dict and set(receipt) == RECEIPT_FIELDS
+        type(receipt) is dict
+        and set(receipt) == RECEIPT_FIELDS
         and receipt["kind"] == "p4-bootstrap-candidate-origin-claim-v4"
-        and all(type(receipt[k]) is str and signed.NAME.fullmatch(receipt[k]) is not None
-                for k in ("producer_id", "producer_key_id"))
+        and all(
+            type(receipt[k]) is str and signed.NAME.fullmatch(receipt[k]) is not None
+            for k in ("producer_id", "producer_key_id")
+        )
         and type(receipt["receipt_sha256"]) is str
         and signed.SHA.fullmatch(receipt["receipt_sha256"]) is not None
         and receipt["plan_approval_id"] == claim["plan_approval_id"]
