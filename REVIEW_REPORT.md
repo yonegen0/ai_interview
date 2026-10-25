@@ -63,7 +63,13 @@ React Hook Formのサイトへのアクセスは検証環境のページ取得�
 
 ## 7. Git/承認と未確認の残課題
 
+以下は本報告作成時点（2026-10-19 JST）の記録です。後日のGit/PR/CI/承認状態を示すものではありません。
+
 - このパッケージは**オフライン成果物**。既存Gitブランチ・commit・PR・CI・merge変更はゼロ。
 - 正式Apply・Bootstrap/Stage2承認、対象Hash・State・Plan・証跡を**一切使用/更新していない**。
 - 適用前にmain/branch/head更新、private承認情報、未commit変更・複数worktreeの状況を本人PCで再監査する必要がある。
 - 既存Bootstrap実行で参照するmain/HEAD/出典SHAの不整合を起こす可能性があるので、GitHub mergeは既存承認境界の判断が済むまで保留する。
+
+### 2026-10-25更新（PR #44）
+
+本節のmerge保留は2026-10-19時点の記録です。2026-10-25、ユーザーは過去Stage2固定SHAによるPR #44の通常merge停止条件を解除しました。既存saved Plan／AWS実行承認の対象SHA・範囲制約は引き続き有効で、本PRでは再利用も変更もしません。

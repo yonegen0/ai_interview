@@ -1,7 +1,7 @@
 # AGENTS.md最適化 — オフライン作成パッケージ（2026-10-19）
 
 対象 `yonegen0/ai_interview`、GitHub main観測SHA: `ca4d7976e779473b6d0650f9f69484705bdb5798`。
-このパッケージは**リポジトリへ未反映**。AWS、Terraform、GitHubの書込み・有料AI推論は行っていません。
+このパッケージは**2026-10-19の作成時点でリポジトリへ未反映でした**。同日の作成ではAWS、Terraform、GitHubへの書き込み、有料AI推論を行っていません。
 
 ## 含まれる変更
 
