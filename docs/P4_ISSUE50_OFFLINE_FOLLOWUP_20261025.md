@@ -266,10 +266,10 @@ separate classic branch-protection object; that 404 does not negate the Ruleset.
 PR #43 has no unresolved inline review threads. Prior independent source review
 and the corrected PR #53 rollback test are reused for unchanged source; this
 recheck is a self-review, not a new independent production-adoption review.
-This documentation-only successor does not rerun the path-filtered candidate
-matrix; those source results are reused only after confirming unchanged source,
-Terraform and dependency bytes. Successor HEAD CI IDs are recorded on PR #43 and
-Issue #50 after completion, rather than predicted in this document.
+Although this successor changes only documentation, PR path filtering considers
+the cumulative diff against main, so the held PR's candidate matrix also runs.
+Source, Terraform and dependency bytes are unchanged. Successor HEAD CI IDs are
+recorded on PR #43 and Issue #50 after completion, rather than predicted here.
 
 ### Remaining acceptance work and ownership
 
