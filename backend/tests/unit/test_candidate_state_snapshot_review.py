@@ -57,14 +57,18 @@ def test_candidate_plan_risks_fail_closed(plans, change):
     before, candidate = plans
     if change == "proposed-unknown":
         candidate["proposed_unknown"] = {
-            "root_module": {"resources": [
-                {"address": "aws_api_gateway_rest_api.main", "values": {"id": True}}
-            ]}
+            "root_module": {
+                "resources": [{"address": "aws_api_gateway_rest_api.main", "values": {"id": True}}]
+            }
         }
     elif change == "proposed-malformed":
-        candidate["proposed_unknown"] = {"root_module": {"resources": [
-            {"address": "aws_api_gateway_rest_api.main", "values": {"id": "unknown"}}
-        ]}}
+        candidate["proposed_unknown"] = {
+            "root_module": {
+                "resources": [
+                    {"address": "aws_api_gateway_rest_api.main", "values": {"id": "unknown"}}
+                ]
+            }
+        }
     elif change == "after-unknown":
         candidate["resource_changes"][0]["change"]["after_unknown"] = {"id": True}
     elif change == "malformed-after-unknown":
@@ -82,9 +86,9 @@ def test_candidate_plan_risks_fail_closed(plans, change):
     elif change == "schema-upgrade":
         candidate["planned_values"]["root_module"]["resources"][0]["schema_version"] = 1
     elif change == "invalid-sensitive-mask":
-        candidate["prior_state"]["values"]["root_module"]["resources"][0][
-            "sensitive_values"
-        ] = {"id": "private"}
+        candidate["prior_state"]["values"]["root_module"]["resources"][0]["sensitive_values"] = {
+            "id": "private"
+        }
     elif change == "deposed":
         candidate["resource_changes"][0]["deposed"] = "deadbeef"
     elif change == "missing-prior":
@@ -97,9 +101,7 @@ def test_false_proposed_unknown_without_hidden_changes_is_reviewable(plans):
     before, candidate = plans
     candidate["proposed_unknown"] = {
         "root_module": {
-            "resources": [
-                {"address": "aws_api_gateway_rest_api.main", "values": {"id": False}}
-            ]
+            "resources": [{"address": "aws_api_gateway_rest_api.main", "values": {"id": False}}]
         }
     }
     result = tool("candidate_state_snapshot_review").compare_offline_plans(before, candidate)
