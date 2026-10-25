@@ -118,3 +118,22 @@ def test_actual_candidate_checkout_comparison_fails_closed_without_mutation(
         m.verify_candidate_checkout(*roots, "1.16.7")
         assert len(reads) == 4
     assert all((roots[0] / name).read_bytes() == raw for name, raw in before.items())
+
+
+@pytest.mark.parametrize("wrong_toolchain", [True, False])
+def test_test_closure_rejects_toolchain_before_sts(monkeypatch, wrong_toolchain):
+    """Wrong CLI fails before AWS session; valid CLI reaches the next local gate only."""
+    import sys
+
+    m = tool("test_closure_apply")
+    calls = []
+    monkeypatch.setattr(sys, "argv", ["test_closure_apply.py"])
+    monkeypatch.setattr(m, "require_aws_execution", lambda: calls.append("ready"))
+    def qualify():
+        calls.append("qualify")
+        if wrong_toolchain:
+            raise ValueError("CloudTerraformVersionMismatch")
+    monkeypatch.setattr(m, "qualify_tools_without_credentials", qualify)
+    with pytest.raises((ValueError, SystemExit)):
+        m.main()
+    assert calls == ["ready", "qualify"]
