@@ -81,7 +81,7 @@ def inspect_plan(document):
     # HashiCorp JSON output uses a major/minor format independent of raw State v4.
     version = document.get("format_version")
     require(
-        type(version) is str and re.fullmatch(r"1\\.\\d+", version) is not None,
+        type(version) is str and re.fullmatch(r"1\.\d+", version) is not None,
         "CandidatePlanFormatVersionUnsupported",
     )
     for name in ("resource_drift", "deferred_changes", "action_invocations"):

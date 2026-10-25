@@ -83,7 +83,22 @@ approval schemas, Terraform requirements or any AWS permissions.
   proof, a distributed lock, or an approved operational journal. It does not
   contact AWS or start Terraform; future real controllers cannot use it as a
   substitute for a separately reviewed immutable ledger.
-- `candidate_state_snapshot_review.py`: synthetic/raw-local State JSON digest,
+- `candidate_offline_controller.py` additionally exposes a **read-only local Git
+  SHA-1 repository/checkout inspection helper**: fixed HEAD commit and tree,
+  exact recursive tracked `terraform/` blobs, regular-file modes, no symlinks,
+  no untracked/ignored extra Terraform files, all six required scopes, and full
+  SHA-256 inventory. Synthetic Git repositories exercise tampering, missing
+  files, untracked HCL, wrong HEAD and symlink rejection. This does **not**
+  authenticate the Git origin, commit signer, executable Git binary, or
+  reviewed-commit provenance, and it does not provide atomic/TOCTOU-safe
+  execution snapshots. Actual source-to-saved-Plan origin remains unproven.
+- Candidate saved-Plan descriptors now reject mismatched plan operations both
+  ways: `maintenance-apply` requires `maintenance-plan`, whereas
+  `recovery-apply` requires `recovery-plan`. Matching descriptors alone never
+  authenticate Plan-producing CLI or allow an Apply.
+- `candidate_state_snapshot_review.py`: JSON Plan major-1
+  `format_version` check, raw State duplicate-key/non-finite rejection,
+  synthetic/raw-local State JSON digest,
   lineage, serial, raw State format-v4 checks, JSON resource schema presence,
   deferred and unsupported action rejection, proposed/after unknown-mask
   validation and sensitivity-metadata syntax checks. The review delegates
