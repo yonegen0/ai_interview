@@ -115,7 +115,7 @@ def test_valid_candidate_preflight_never_authorizes_aws_or_apply(fixture):
     ],
 )
 def test_cross_version_legacy_and_unknown_contracts_rejected(fixture, field, value):
-    mutated = deepcopy(fixture)
+    mutated = (fixture[0],) + deepcopy(fixture[1:])
     mutated[1][field] = value
     with pytest.raises(ValueError):
         run(mutated)
