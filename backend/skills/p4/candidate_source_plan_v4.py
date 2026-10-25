@@ -199,10 +199,9 @@ def validate_source_plan(
         and apply_approval["operation"] == claim["operation"],
         "CandidateSourcePlanApprovalOperationMismatch",
     )
-    signed.canonical_payload(plan_approval)
-    signed.canonical_payload(apply_approval)
-    signed.preflight.state_identity(plan_approval["state_identity"])
-    signed.preflight.state_identity(apply_approval["state_identity"])
+    # Full signed-claim syntax must be valid even though signatures are not verified here.
+    signed.validate_payload_fields(plan_approval)
+    signed.validate_payload_fields(apply_approval)
     for approval, role in (
         (plan_approval, "plan"),
         (apply_approval, "apply"),

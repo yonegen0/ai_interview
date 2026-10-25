@@ -276,3 +276,34 @@ def test_no_external_io_or_terraform_process(sample, monkeypatch):
     monkeypatch.setattr(socket, "create_connection", forbidden)
     monkeypatch.setattr(subprocess, "run", forbidden)
     assert run(sample)["authorized"] is False
+
+
+
+@pytest.mark.parametrize(
+    "approval_role,field,value",
+    [
+        ("plan", "issuer", ""),
+        ("apply", "key_id", {}),
+        ("plan", "algorithm", "none"),
+        ("apply", "trust_revision", "not-a-hash"),
+        ("plan", "issued_at", "not-a-time"),
+        ("apply", "expires_at", "2026-10-25T12:01:00Z"),
+        ("plan", "operation", {"invalid": "object"}),
+    ],
+)
+def test_structurally_invalid_approvals_cannot_pass_consistency(
+    sample, approval_role, field, value
+):
+    approval = sample[4] if approval_role == "plan" else sample[5]
+    approval[field] = value
+    with pytest.raises(ValueError):
+        run(sample)
+
+
+def test_plan_claim_rejects_nonstandard_integer_and_booleans(sample):
+    m, claim, expected, raw, plan, apply = sample
+    for invalid in (True, 1.0, None, [], {}):
+        changed = deepcopy(claim)
+        changed["max_execution_seconds"] = invalid
+        with pytest.raises(ValueError):
+            run((m, changed, expected, raw, plan, apply))

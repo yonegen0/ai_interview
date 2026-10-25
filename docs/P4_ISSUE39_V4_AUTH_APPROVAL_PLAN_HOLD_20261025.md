@@ -33,3 +33,13 @@ A clock passed by caller is not independently trusted; neither a registry suppli
 Validation and genuine CI run IDs are reported in the PR body after execution; all unfinished checks remain **UNVERIFIED**.
 
 Follow-up offline review: P2 candidate-source receipt originally omitted namespace/account/resource binding and nested State numeric type validation. This revision binds namespace, account/Region/resource scope and execution limits in both claim and synthetic receipt, validates each nested State identity, rejects non-integer approval schema and malformed claim digests, and adds negative regressions. These remain structural and NON_AUTHORIZING.
+
+
+## Follow-up independent review — 2026-10-25 JST
+
+- **P2, malformed operation type:** a signed-claim `operation` containing an object could reach a set-membership expression and raise an unexpected `TypeError`. The structural contract now requires `str` before membership; regression added.
+- **P2, incomplete approval semantics in Source-to-Plan:** previously, syntactically complete but invalid approval metadata (issuer/key ID, algorithm, trust revision or time window) could pass the `binding_consistent` result without a signature claim. Both plan/apply approvals now pass the same full **structural-only** validator used by the signed approval module. This is not signature validation and never grants execution permission.
+- **P2, recursive in-memory payload:** a caller-supplied cyclic Python dictionary could raise `RecursionError` while canonicalizing. Canonicalization now fails closed with `ValueError`; regression added.
+- **Interop:** canonical wire profile is Python `json.dumps(sort_keys=True, separators=(",", ":"), ensure_ascii=True)` on 7-bit printable ASCII text, JSON null and integers 0 through 2^53-1 only; duplicate keys and all non-integer JSON numbers are forbidden. Document and independently implement this exact profile before cross-language signers are trusted.
+- **Dependency HOLD:** official `cryptography` Ed25519 API documents raw 32-byte public keys, `verify(signature, data)` and `InvalidSignature`. Its 2026-09-30 changelog identifies **50.0.2** as a released maintenance version in a line with Python 3.14 support; RFC 8032 section 7.1 publishes official Ed25519 test vectors. These are review references, not installed or locked dependencies. **No `cryptography` pin or `uv.lock` change is introduced**: authenticated dependency resolution and real wheel-based vector testing remain HOLD.
+- Official references: https://cryptography.io/en/latest/hazmat/primitives/asymmetric/ed25519/ ; https://cryptography.io/en/latest/changelog/ ; https://www.rfc-editor.org/rfc/rfc8032.html#section-7.1 ; https://docs.astral.sh/uv/guides/projects/ .

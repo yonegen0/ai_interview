@@ -123,14 +123,17 @@ def _ascii_tree(value: object) -> None:
 def canonical_payload(payload: dict[str, object]) -> bytes:
     """Fixed-profile canonical JSON (ASCII-only, integers/null/strings), NOT RFC 8785."""
     require(type(payload) is dict and set(payload) == FIELDS, "CandidateSignedApprovalFields")
-    _ascii_tree(payload)
-    return json.dumps(
-        payload,
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=True,
-        allow_nan=False,
-    ).encode("ascii")
+    try:
+        _ascii_tree(payload)
+        return json.dumps(
+            payload,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
+            allow_nan=False,
+        ).encode("ascii")
+    except (RecursionError, TypeError, OverflowError) as exc:
+        raise ValueError("CandidateSignedApprovalCanonicalInvalid") from exc
 
 
 def signed_bytes(payload: dict[str, object]) -> bytes:
@@ -148,7 +151,8 @@ def _instant(value: object) -> datetime:
         raise ValueError("CandidateSignedApprovalTimeInvalid") from exc
 
 
-def validate_payload(payload: object, expected: object, *, now: datetime) -> None:
+def validate_payload_fields(payload: object) -> None:
+    """Validate complete v4 signed-claim structure without claiming trusted time."""
     require(type(payload) is dict and set(payload) == FIELDS, "CandidateSignedApprovalFields")
     canonical_payload(payload)
     require(
@@ -163,6 +167,7 @@ def validate_payload(payload: object, expected: object, *, now: datetime) -> Non
         )
         and type(payload["trust_revision"]) is str
         and SHA.fullmatch(payload["trust_revision"]) is not None
+        and type(payload["operation"]) is str
         and payload["operation"] in legacy.OPERATIONS
         and all(
             type(payload[k]) is str and ID.fullmatch(payload[k])
@@ -199,6 +204,15 @@ def validate_payload(payload: object, expected: object, *, now: datetime) -> Non
         "CandidateSignedApprovalBindingInvalid",
     )
     preflight.state_identity(payload["state_identity"])
+    issued, expires = _instant(payload["issued_at"]), _instant(payload["expires_at"])
+    require(
+        issued < expires and expires - issued <= MAX_TTL,
+        "CandidateSignedApprovalTimeWindowInvalid",
+    )
+
+
+def validate_payload(payload: object, expected: object, *, now: datetime) -> None:
+    validate_payload_fields(payload)
     require(
         type(expected) is dict and set(expected) == TARGET_FIELDS,
         "CandidateSignedApprovalExpectedFields",
