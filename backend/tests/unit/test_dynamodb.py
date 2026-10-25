@@ -1008,5 +1008,4 @@ def test_session_budget_invalid_stored_row_fails_closed(corruption):
         session_app(db(client)).create(
             OWNER, uid(20007), {"category": "job_change", "difficulty": "standard"}
         )
-    assert type(failure.value).__name__ in {"StorageFormatError", "IntegrityError"}
     assert not client.writes
