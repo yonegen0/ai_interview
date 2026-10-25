@@ -279,7 +279,9 @@ def _trusted(key: object, payload: dict[str, object], current: datetime) -> None
         and isinstance(key.not_after, datetime)
         and key.not_after.tzinfo is not None
         and key.not_after.utcoffset() is not None
-        and key.not_before.astimezone(UTC) <= current < key.not_after.astimezone(UTC),
+        and key.not_before.astimezone(UTC) <= current < key.not_after.astimezone(UTC)
+        # Enrollment must already be effective when the approval was issued.
+        and key.not_before.astimezone(UTC) <= _instant(payload["issued_at"]),
         "CandidateSignedApprovalKeyPolicyHOLD",
     )
 
