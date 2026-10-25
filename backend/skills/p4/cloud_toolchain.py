@@ -8,11 +8,22 @@ import subprocess
 import sys
 
 EXPECTED_UV_VERSION = "0.13.5"
-# New execution remains on the baseline until a separate qualified migration.
+# PR B proposal only: adoption remains HOLD until separately approved merge.
 # Historical maintenance/recovery readers keep their independent immutable pins.
-NEW_EXECUTION_TERRAFORM_VERSION = "1.14.9"
+NEW_EXECUTION_TERRAFORM_VERSION = "1.16.7"
+NEW_EXECUTION_TERRAFORM_PLATFORM = "linux_amd64"
 EXPECTED_TERRAFORM_VERSION = NEW_EXECUTION_TERRAFORM_VERSION
 MIN_PYTHON_VERSION = (3, 14, 9)
+
+
+def assert_execution_version(value):
+    if (
+        not isinstance(value, dict)
+        or value.get("terraform_version") != NEW_EXECUTION_TERRAFORM_VERSION
+        or value.get("platform") != NEW_EXECUTION_TERRAFORM_PLATFORM
+        or ("format_version" in value and value["format_version"] != "1.0")
+    ):
+        raise ValueError("CloudTerraformVersionMismatch")
 
 
 def qualify():
@@ -37,11 +48,10 @@ def qualify():
             raise ValueError("CloudToolQualificationFailed")
         if name == "terraform":
             try:
-                actual_version = json.loads(process.stdout).get("terraform_version")
+                value = json.loads(process.stdout)
             except ValueError, AttributeError, UnicodeError:
                 raise ValueError("CloudTerraformVersionMismatch") from None
-            if actual_version != EXPECTED_TERRAFORM_VERSION:
-                raise ValueError("CloudTerraformVersionMismatch")
+            assert_execution_version(value)
         elif not re.fullmatch(
             rb"uv " + re.escape(EXPECTED_UV_VERSION.encode("ascii")) + rb" \([^\r\n()]+\)\r?\n?",
             process.stdout,

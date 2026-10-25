@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 
+from cloud_toolchain import NEW_EXECUTION_TERRAFORM_PLATFORM
 from cloud_toolchain import NEW_EXECUTION_TERRAFORM_VERSION as TF_VERSION
 
 ACCOUNT = "835384817629"
@@ -71,7 +72,8 @@ def audit_plan(plan, binding, envelope, binary, approval, run_id, state_before):
         and binding["region"] == REGION
         and binding["state_key"] == "dev/terraform.tfstate"
         and binding["state_bucket"] == f"ai-interview-state-{ACCOUNT}-{REGION}"
-        and binding["terraform_version"] == TF_VERSION,
+        and binding["terraform_version"] == TF_VERSION
+        and binding.get("terraform_platform") == NEW_EXECUTION_TERRAFORM_PLATFORM,
         "BackendOrRuntimeMismatch",
     )
     require(

@@ -39,7 +39,7 @@ def test_all_setup_uv_workflows_pin_verified_action_and_uv_python():
 def test_workflows_match_credential_free_cloud_toolchain_contract():
     m = tool("cloud_toolchain")
     assert m.EXPECTED_UV_VERSION == "0.13.5"
-    assert m.EXPECTED_TERRAFORM_VERSION == "1.14.9"
+    assert m.EXPECTED_TERRAFORM_VERSION == "1.16.7"
     assert m.MIN_PYTHON_VERSION == (3, 14, 9)
     for path in WORKFLOWS.glob("*.yml"):
         content = path.read_text(encoding="utf-8")
