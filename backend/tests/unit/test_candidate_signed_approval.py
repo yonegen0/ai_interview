@@ -206,9 +206,12 @@ def test_plan_operation_requires_null_plan_hash(sample):
     with pytest.raises(ValueError):
         m.verify_signed_approval(as_json(envelope), expected, trust_registry={}, now=now)
     envelope["plan_sha256"] = expected["plan_sha256"] = None
-    assert m.verify_signed_approval(
-        as_json(envelope), expected, trust_registry={}, now=now
-    )["authorized"] is False
+    assert (
+        m.verify_signed_approval(as_json(envelope), expected, trust_registry={}, now=now)[
+            "authorized"
+        ]
+        is False
+    )
 
 
 def test_wrong_key_issuer_policy_revocation_and_missing_key(sample):
@@ -218,26 +221,36 @@ def test_wrong_key_issuer_policy_revocation_and_missing_key(sample):
         registry(m, claim, now, public_key=b"\x01" * 31),
         {
             claim["key_id"]: m.TrustedKey(
-                "another-issuer", b"\x01" * 32,
-                frozenset({"maintenance-apply"}), claim["namespace"],
-                claim["trust_revision"], now - timedelta(hours=1),
+                "another-issuer",
+                b"\x01" * 32,
+                frozenset({"maintenance-apply"}),
+                claim["namespace"],
+                claim["trust_revision"],
+                now - timedelta(hours=1),
                 now + timedelta(hours=1),
             )
         },
         {
             claim["key_id"]: m.TrustedKey(
-                claim["issuer"], b"\x01" * 32,
-                frozenset({"recovery-plan"}), claim["namespace"],
-                claim["trust_revision"], now - timedelta(hours=1),
+                claim["issuer"],
+                b"\x01" * 32,
+                frozenset({"recovery-plan"}),
+                claim["namespace"],
+                claim["trust_revision"],
+                now - timedelta(hours=1),
                 now + timedelta(hours=1),
             )
         },
         {
             claim["key_id"]: m.TrustedKey(
-                claim["issuer"], b"\x01" * 32,
-                frozenset({"maintenance-apply"}), claim["namespace"],
-                claim["trust_revision"], now - timedelta(hours=1),
-                now + timedelta(hours=1), revoked=True,
+                claim["issuer"],
+                b"\x01" * 32,
+                frozenset({"maintenance-apply"}),
+                claim["namespace"],
+                claim["trust_revision"],
+                now - timedelta(hours=1),
+                now + timedelta(hours=1),
+                revoked=True,
             )
         },
     ):
@@ -269,10 +282,14 @@ def test_real_ed25519_signature_or_crypto_dependency_fail_closed(sample):
         as_json(envelope), expected, trust_registry=enrolled, now=now
     ) == {
         "status": "LOCAL_SIGNATURE_VERIFIED_ENROLLMENT_UNVERIFIED_HOLD",
-        "signature_verified": True, "trusted_key_policy_matched": True,
-        "trust_enrollment_authenticated": False, "clock_authenticated": False,
-        "origin_authenticated": False, "state_readback_verified": False,
-        "authorized": False, "aws_operations": 0,
+        "signature_verified": True,
+        "trusted_key_policy_matched": True,
+        "trust_enrollment_authenticated": False,
+        "clock_authenticated": False,
+        "origin_authenticated": False,
+        "state_readback_verified": False,
+        "authorized": False,
+        "aws_operations": 0,
     }
     for mutation in ("message", "signature", "different-public-key"):
         forged = deepcopy(envelope)
@@ -287,7 +304,10 @@ def test_real_ed25519_signature_or_crypto_dependency_fail_closed(sample):
         elif mutation == "different-public-key":
             second = Ed25519PrivateKey.generate()
             trust = registry(
-                m, claim, now, public_key=second.public_key().public_bytes(
+                m,
+                claim,
+                now,
+                public_key=second.public_key().public_bytes(
                     encoding=serialization.Encoding.Raw,
                     format=serialization.PublicFormat.Raw,
                 ),
@@ -306,6 +326,9 @@ def test_no_network_or_process_in_pure_contract(sample, monkeypatch):
     monkeypatch.setattr(socket, "create_connection", forbidden)
     monkeypatch.setattr(subprocess, "run", forbidden)
     m, now, _, expected, envelope = sample
-    assert m.verify_signed_approval(
-        as_json(envelope), expected, trust_registry={}, now=now
-    )["authorized"] is False
+    assert (
+        m.verify_signed_approval(as_json(envelope), expected, trust_registry={}, now=now)[
+            "authorized"
+        ]
+        is False
+    )
