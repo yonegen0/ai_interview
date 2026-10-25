@@ -386,7 +386,7 @@ def test_marker_pins_directory_before_leaf_creation(tmp_path, sample, monkeypatc
             directory.rename(tmp_path / "original-markers")
             directory.symlink_to(redirected, target_is_directory=True)
         fd = original(path, flags, *args, **kwargs)
-        if not calls and flags & m.os.O_DIRECTORY:
+        if not calls and flags & m.os.O_DIRECTORY and str(path) in {str(directory), directory.name}:
             calls.append(fd)
             directory.rename(tmp_path / "original-markers")
             directory.symlink_to(redirected, target_is_directory=True)
@@ -397,3 +397,91 @@ def test_marker_pins_directory_before_leaf_creation(tmp_path, sample, monkeypatc
     assert len(calls) == 1
     assert not (redirected / ("a" * 40 + ".json")).exists()
     assert (tmp_path / "original-markers" / ("a" * 40 + ".json")).is_file()
+
+
+@pytest.mark.skipif(__import__("os").name != "posix", reason="Linux-only private fsync ledger")
+@pytest.mark.parametrize("operation", ["marker", "mkdir"])
+def test_ledger_ancestor_swap_never_redirects_writes(tmp_path, sample, monkeypatch, operation):
+    m = sample[0]
+    ancestor = tmp_path / "ancestor"
+    ancestor.mkdir(mode=0o700)
+    directory = ancestor / "markers"
+    directory.mkdir(mode=0o700)
+    redirected = tmp_path / "redirected"
+    redirected.mkdir(mode=0o700)
+    (redirected / "markers").mkdir(mode=0o700)
+    original_open = m.os.open
+    original_mkdir = m.os.mkdir
+    swapped = []
+
+    def swap():
+        if not swapped:
+            swapped.append(True)
+            ancestor.rename(tmp_path / "original-ancestor")
+            ancestor.symlink_to(redirected, target_is_directory=True)
+
+    def racing_open(path, flags, *args, **kwargs):
+        if operation == "marker" and str(path) in {str(directory), ancestor.name}:
+            swap()
+        return original_open(path, flags, *args, **kwargs)
+
+    def racing_mkdir(path, *args, **kwargs):
+        swap()
+        return original_mkdir(path, *args, **kwargs)
+
+    monkeypatch.setattr(m.os, "open", racing_open)
+    monkeypatch.setattr(m.os, "mkdir", racing_mkdir)
+    try:
+        if operation == "marker":
+            m.exclusive_marker(directory, "a" * 40, {"synthetic": True})
+        else:
+            m.private_subdirectory(directory, "child")
+    except OSError, ValueError:
+        pass
+    assert swapped
+    assert not list((redirected / "markers").iterdir())
+
+
+@pytest.mark.skipif(__import__("os").name != "posix", reason="Linux-only private fsync ledger")
+@pytest.mark.parametrize("failure", ["file", "directory"])
+def test_marker_sync_failure_preserves_consumed_marker(tmp_path, sample, monkeypatch, failure):
+    m = sample[0]
+    directory = tmp_path / "markers"
+    directory.mkdir(mode=0o700)
+    original = m.os.fsync
+
+    def fail_sync(fd):
+        is_directory = m.stat.S_ISDIR(m.os.fstat(fd).st_mode)
+        if is_directory == (failure == "directory"):
+            raise OSError("synthetic-sync-failure")
+        return original(fd)
+
+    monkeypatch.setattr(m.os, "fsync", fail_sync)
+    with pytest.raises(OSError, match="synthetic-sync-failure"):
+        m.exclusive_marker(directory, "a" * 40, {"synthetic": True})
+    monkeypatch.setattr(m.os, "fsync", original)
+    assert (directory / ("a" * 40 + ".json")).exists()
+    with pytest.raises(FileExistsError):
+        m.exclusive_marker(directory, "a" * 40, {"synthetic": True})
+
+
+@pytest.mark.skipif(__import__("os").name != "posix", reason="Linux-only private fsync ledger")
+def test_directory_walk_closes_pinned_descriptors_on_error(tmp_path, sample, monkeypatch):
+    m = sample[0]
+    original_open, original_close = m.os.open, m.os.close
+    active = set()
+
+    def tracked_open(path, *args, **kwargs):
+        fd = original_open(path, *args, **kwargs)
+        active.add(fd)
+        return fd
+
+    def tracked_close(fd):
+        active.remove(fd)
+        return original_close(fd)
+
+    monkeypatch.setattr(m.os, "open", tracked_open)
+    monkeypatch.setattr(m.os, "close", tracked_close)
+    with pytest.raises(FileNotFoundError):
+        m.open_directory_without_links(tmp_path / "missing" / "child")
+    assert not active
