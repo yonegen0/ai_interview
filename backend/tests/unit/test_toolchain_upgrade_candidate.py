@@ -173,7 +173,9 @@ def test_test_closure_rejects_toolchain_before_sts(tmp_path, monkeypatch, wrong_
     monkeypatch.setattr(m, "qualify_tools_without_credentials", qualify)
     monkeypatch.setattr(m, "read_manifest", lambda *args, **kw: {"run_id": "synthetic"})
     monkeypatch.setattr(m, "checked_session", checked_session)
-    expected_error = "CloudTerraformVersionMismatch" if wrong_toolchain else "SyntheticStopBeforeAws"
+    expected_error = (
+        "CloudTerraformVersionMismatch" if wrong_toolchain else "SyntheticStopBeforeAws"
+    )
     with pytest.raises(ValueError, match=expected_error):
         m.main()
     assert calls == (
