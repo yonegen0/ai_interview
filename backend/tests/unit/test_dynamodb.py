@@ -1029,9 +1029,12 @@ def test_session_budget_retry_keeps_request_start_month_across_midnight(monkeypa
 
     def race(_request):
         # Another September request wins just before midnight.
-        assert committed.create(
-            OWNER, uid(20031), {"category": "job_change", "difficulty": "standard"}
-        ).status == 201
+        assert (
+            committed.create(
+                OWNER, uid(20031), {"category": "job_change", "difficulty": "standard"}
+            ).status
+            == 201
+        )
         client.items = snapshot(memory)
         instant[0] = 1790812801000  # 2026-10-01 00:00:01 UTC
         raise ClientError(
@@ -1054,18 +1057,23 @@ def test_session_budget_retry_keeps_request_start_month_across_midnight(monkeypa
         for action in client.writes[0]["TransactItems"]
         if "Put" in action
     ]
-    assert decode(next(row for row in submitted if row["kind"] == "SessionCreationBudget"))[
-        0
-    ].month == "2026-09"
+    assert (
+        decode(next(row for row in submitted if row["kind"] == "SessionCreationBudget"))[0].month
+        == "2026-09"
+    )
     assert instant[0] == 1790812801000
     state = memory.snapshot()
     assert (OWNER, contender_key) not in state.requests
     assert len(state.sessions) == 1
     assert {row.month for row in state.session_creation_budgets.values()} == {"2026-09"}
     # A genuinely new post-midnight request uses October's separate budget.
-    assert committed.create(
-        OWNER, uid(20032), {"category": "job_change", "difficulty": "standard"}
-    ).status == 201
+    assert (
+        committed.create(
+            OWNER, uid(20032), {"category": "job_change", "difficulty": "standard"}
+        ).status
+        == 201
+    )
     assert {row.month for row in memory.snapshot().session_creation_budgets.values()} == {
-        "2026-09", "2026-10"
+        "2026-09",
+        "2026-10",
     }
