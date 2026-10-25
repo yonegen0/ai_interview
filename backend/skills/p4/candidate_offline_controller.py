@@ -147,6 +147,17 @@ def review_offline(
     No SDK, credentials, subprocess, backend or remote State. Cannot authorize.
     """
     source_hash = source_inventory_digest(tracked_paths, checkout_files)
+    required = {
+        f"terraform/{scope}/{name}"
+        for scope, filename in preflight.ROOTS.items()
+        for name in (filename, ".terraform.lock.hcl")
+    }
+    require(
+        type(configurations) is dict
+        and set(configurations) == required
+        and all(type(raw) is bytes and checkout_files[name] == raw for name, raw in configurations.items()),
+        "CandidateReviewedConfigurationMismatch",
+    )
     inspect_review(review, bundle, approval, source_hash, now=now)
     result = preflight.verify(
         bundle,
