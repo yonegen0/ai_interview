@@ -9,6 +9,7 @@ import hashlib
 import json
 import os
 import socket
+import stat
 import subprocess
 import sys
 import tempfile
@@ -31,14 +32,39 @@ def require_isolation() -> None:
     )
 
 
-def checked_bytes(path: Path, digest: str) -> bytes:
+def _regular_bytes(path: Path) -> bytes:
+    require(
+        hasattr(os, "O_NOFOLLOW") and hasattr(os, "O_NONBLOCK"),
+        "CandidateProbePlatformUnsupportedHOLD",
+    )
     require(
         path.is_absolute()
         and path.is_file()
         and all(not p.is_symlink() for p in (path, *path.parents)),
         "CandidateProbeBinaryPathHOLD",
     )
-    raw = path.read_bytes()
+    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    try:
+        before = os.fstat(descriptor)
+        require(stat.S_ISREG(before.st_mode), "CandidateProbeRegularFileHOLD")
+        with os.fdopen(descriptor, "rb", closefd=False) as stream:
+            raw = stream.read()
+        after = os.fstat(descriptor)
+        leaf = path.stat()
+        require(
+            all(not p.is_symlink() for p in (path, *path.parents))
+            and (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns)
+            == (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns)
+            == (leaf.st_dev, leaf.st_ino, leaf.st_size, leaf.st_mtime_ns),
+            "CandidateProbeFileChangedHOLD",
+        )
+        return raw
+    finally:
+        os.close(descriptor)
+
+
+def checked_bytes(path: Path, digest: str) -> bytes:
+    raw = _regular_bytes(path)
     require(
         type(digest) is str and hashlib.sha256(raw).hexdigest() == digest,
         "CandidateProbeBinaryDigestHOLD",
@@ -63,8 +89,7 @@ def probe(
     names = {provider.name, "LICENSE.txt"}
     require({p.name for p in provider.parent.iterdir()} == names, "CandidateProbePackageHOLD")
     license_path = provider.parent / "LICENSE.txt"
-    require(not license_path.is_symlink() and license_path.is_file(), "CandidateProbePackageHOLD")
-    license_raw = license_path.read_bytes()
+    license_raw = _regular_bytes(license_path)
     inventory = {
         provider.name: provider_sha256,
         "LICENSE.txt": hashlib.sha256(license_raw).hexdigest(),

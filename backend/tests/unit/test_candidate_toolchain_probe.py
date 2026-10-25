@@ -2,9 +2,60 @@
 
 import hashlib
 import subprocess
+import sys
 
 import pytest
 from test_p4_tools import tool
+
+
+@pytest.mark.parametrize("target", ["binary", "license"])
+@pytest.mark.skipif(sys.platform != "linux", reason="Linux probe requires POSIX FIFO/no-follow")
+def test_file_swapped_to_fifo_after_precheck_never_blocks(tmp_path, target):
+    m = tool("candidate_toolchain_probe")
+    script = r"""
+import hashlib
+import os
+import sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+import candidate_toolchain_probe as m
+root = Path(sys.argv[2])
+cli = root / "terraform"
+package = root / "package"
+package.mkdir()
+provider = package / "terraform-provider-aws_v6.70.0_x5"
+license = package / "LICENSE.txt"
+for path in (cli, provider, license):
+    path.write_bytes(b"synthetic-not-executed")
+victim = cli if sys.argv[3] == "binary" else license
+original = Path.is_file
+def swap(path):
+    result = original(path)
+    if path == victim and result:
+        path.unlink()
+        os.mkfifo(path)
+    return result
+Path.is_file = swap
+m.require_isolation = lambda: None
+try:
+    if sys.argv[3] == "binary":
+        m.checked_bytes(cli, hashlib.sha256(b"synthetic-not-executed").hexdigest())
+    else:
+        m.probe(cli, provider, version="1.16.7",
+                cli_sha256=hashlib.sha256(cli.read_bytes()).hexdigest(),
+                provider_sha256=hashlib.sha256(provider.read_bytes()).hexdigest(),
+                provider_inventory_sha256="0" * 64, lock_bytes=b"invalid")
+except ValueError as error:
+    assert str(error) == "CandidateProbeRegularFileHOLD", str(error)
+else:
+    raise AssertionError("FIFO accepted")
+"""
+    subprocess.run(
+        [sys.executable, "-c", script, str(m.Path(m.__file__).parent), str(tmp_path), target],
+        check=True,
+        capture_output=True,
+        timeout=5,
+    )
 
 
 @pytest.mark.parametrize(
