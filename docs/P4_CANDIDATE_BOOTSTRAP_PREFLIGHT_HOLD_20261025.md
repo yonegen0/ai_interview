@@ -166,3 +166,21 @@ the unchanged legacy source correctly rejected both candidate CLIs. Official
 HTTPS checksum/content-hash matches were checked; detached signer trust and real
 AWS State compatibility were not established. PR #43/#45 remain Draft/HOLD and
 Issue #39 remains OPEN, including after successful local tests or new-HEAD CI.
+
+## Second independent review and ancestor-race correction (2026-10-25)
+
+A different review agent reviewed the five-fix diff ending at `5498038` and
+reproduced a remaining P2: final-component `O_NOFOLLOW` did not prevent a marker
+write or child mkdir from following a concurrently replaced ancestor. The local
+helper now walks every ancestor using directory fds and `O_NOFOLLOW`, and mkdir
+uses its pinned parent fd. Two regressions first failed against the original
+HEAD, then passed after correction. File/directory fsync-failure retention and
+directory-fd cleanup tests were also added. See the
+[follow-up independent review](P4_PR45_FOLLOWUP_REVIEW_20261025.md).
+
+The new correction received a separate independent follow-up review: 419
+related tests, Ruff and diff checks passed with no concrete unresolved P1/P2 in
+the reviewed offline scope. Real tree
+replacement, owner deletion/rollback, cross-host uniqueness, authenticated Git
+provenance and an immutable source-to-execution snapshot remain unproven. All
+successful results remain non-authorizing; Draft/HOLD remains in force.

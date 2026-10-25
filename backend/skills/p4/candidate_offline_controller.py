@@ -352,21 +352,50 @@ def protected_directory(path):
 
 
 def sync_directory(path):
-    descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    descriptor = open_directory_without_links(path)
     try:
         os.fsync(descriptor)
     finally:
         os.close(descriptor)
 
 
+def open_directory_without_links(path):
+    """Pin each ancestor with openat; O_NOFOLLOW alone protects only the leaf."""
+    path = Path(path)
+    require(
+        path.is_absolute() and ".." not in path.parts,
+        "CandidateLedgerAbsolutePathRequired",
+    )
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    descriptor = os.open(path.anchor, flags)
+    try:
+        for component in path.parts[1:]:
+            child = os.open(component, flags, dir_fd=descriptor)
+            os.close(descriptor)
+            descriptor = child
+        return descriptor
+    except BaseException:
+        os.close(descriptor)
+        raise
+
+
 def private_subdirectory(parent, child):
     require(child not in {"", ".", ".."} and "/" not in child, "CandidateLedgerPathInvalid")
     destination = parent / child
+    descriptor = open_directory_without_links(parent)
     try:
-        os.mkdir(destination, 0o700)
-        sync_directory(parent)
-    except FileExistsError:
-        pass
+        info = os.fstat(descriptor)
+        require(
+            info.st_uid == os.getuid() and info.st_mode & 0o077 == 0,
+            "CandidateLedgerDirectoryUnsafe",
+        )
+        try:
+            os.mkdir(child, 0o700, dir_fd=descriptor)
+            os.fsync(descriptor)
+        except FileExistsError:
+            pass
+    finally:
+        os.close(descriptor)
     return protected_directory(destination)
 
 
@@ -374,9 +403,8 @@ def exclusive_marker(directory, key, receipt):
     """Create-only and fsynced; a failed write is a permanent stop, not a retry."""
     require(type(key) is str and HEX40.fullmatch(key) is not None, "CandidateLedgerKeyInvalid")
     payload = encoded(receipt)
-    # Pin the directory before creating the leaf. O_NOFOLLOW on the leaf alone
-    # does not stop a validated parent being replaced with a symlink.
-    parent = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    # Pin every ancestor and the final directory before creating the leaf.
+    parent = open_directory_without_links(directory)
     try:
         info = os.fstat(parent)
         require(
