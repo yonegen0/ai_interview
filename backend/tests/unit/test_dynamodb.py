@@ -835,8 +835,8 @@ def test_recovery_reclassifies_after_started_wins_conflict():
     assert written(client)["Dispatch"].generation == 1
 
 
-def session_app(repository):
-    ids = count(1)
+def session_app(repository, first=1):
+    ids = count(first)
     return Application(repository, load_questions(), lambda: uid(next(ids)))
 
 
@@ -854,7 +854,7 @@ def test_session_budget_existing_rev_cas_and_stubber(sdk):
     memory, _ = seed_session_budget()
     items = snapshot(memory)
     client = SnapshotClient(items)
-    result = session_app(db(client)).create(
+    result = session_app(db(client), first=1000).create(
         OWNER, uid(20000), {"category": "job_change", "difficulty": "standard"}
     )
     assert result.status == 201
@@ -899,7 +899,7 @@ def test_session_budget_existing_rev_cas_and_stubber(sdk):
                 "TransactItems": actions, "ClientRequestToken": ANY
             }
         )
-        assert session_app(db(sdk)).create(
+        assert session_app(db(sdk), first=1000).create(
             OWNER, uid(20000), {"category": "job_change", "difficulty": "standard"}
         ).status == 201
         stub.assert_no_pending_responses()
@@ -931,7 +931,7 @@ def test_session_budget_59_race_reloads_and_rechecks_limit(monkeypatch):
 
     client.on_write = race
     with pytest.raises(BusinessError) as exc:
-        session_app(db(client)).create(
+        session_app(db(client), first=1000).create(
             OWNER, uid(20002), {"category": "job_change", "difficulty": "standard"}
         )
     assert (exc.value.status, exc.value.code) == (429, "SESSION_CREATION_LIMIT")
@@ -956,7 +956,7 @@ def test_session_budget_commit_response_loss_replays_without_duplicate():
         raise EndpointConnectionError(endpoint_url="http://synthetic")
 
     client.on_write = lost
-    app = session_app(db(client))
+    app = session_app(db(client), first=1000)
     assert app.create(OWNER, key_value, payload) == expected
     assert len(client.writes) == 1
     assert app.create(OWNER, key_value, payload) == expected
@@ -977,7 +977,7 @@ def test_session_budget_unknown_commit_does_not_guess_success():
     client.on_write = lambda _: (_ for _ in ()).throw(
         EndpointConnectionError(endpoint_url="http://synthetic")
     )
-    app = session_app(db(client))
+    app = session_app(db(client), first=1000)
     with pytest.raises(StorageUnavailable):
         app.create(OWNER, uid(20006), {
             "category": "job_change", "difficulty": "standard"
@@ -1005,7 +1005,7 @@ def test_session_budget_invalid_stored_row_fails_closed(corruption):
     corruption(row)
     client = SnapshotClient({**items, name: to_wire(row)})
     with pytest.raises((StorageFormatError, IntegrityError)):
-        session_app(db(client)).create(
+        session_app(db(client), first=1000).create(
             OWNER, uid(20007), {"category": "job_change", "difficulty": "standard"}
         )
     assert not client.writes
