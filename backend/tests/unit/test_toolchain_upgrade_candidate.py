@@ -1,6 +1,7 @@
 """Unmerged PR B consistency; passing never releases the adoption HOLD."""
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from test_p4_tools import tool
@@ -38,6 +39,10 @@ def test_candidate_workflow_qualifies_explicit_legacy_source_without_aws_permiss
     assert "--compare-provider-schemas" in text
     assert "id-token:" not in text and "environment:" not in text
     assert "workflow_dispatch:" not in text
+    assert "  push:" not in text
+    assert "github.event_name == 'pull_request'" in text
+    assert "github.event.pull_request.head.repo.full_name == github.repository" in text
+    assert "head.ref == 'codex/issue39-upgrade-b-hold-20261025'" in text
 
 
 @pytest.mark.parametrize(
@@ -181,3 +186,108 @@ def test_test_closure_rejects_toolchain_before_sts(tmp_path, monkeypatch, wrong_
     assert calls == (
         ["ready", "qualify"] if wrong_toolchain else ["ready", "qualify", "checked_session"]
     )
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "ok",
+        "candidate",
+        "platform",
+        "format",
+        "missing-platform",
+        "json",
+        "scalar",
+        "exit",
+        "timeout",
+        "missing",
+        "host",
+    ],
+)
+def test_legacy_version_probe_is_credential_free_and_fails_closed(tmp_path, monkeypatch, case):
+    m = tool("bootstrap_maintenance")
+    binary = tmp_path / "terraform.exe"
+    binary.write_bytes(b"synthetic-not-executed")
+
+    def which(name, *, path):
+        assert name == "terraform" and path == "synthetic-path"
+        return None if case == "missing" else str(binary)
+
+    monkeypatch.setattr(m.shutil, "which", which)
+    monkeypatch.setattr(m.platform, "system", lambda: "Windows")
+    monkeypatch.setattr(m.platform, "machine", lambda: "arm64" if case == "host" else "AMD64")
+    value = {"terraform_version": "1.14.9", "platform": "windows_amd64"}
+    if case == "candidate":
+        value["terraform_version"] = "1.16.7"
+    elif case == "platform":
+        value["platform"] = "linux_amd64"
+    elif case == "format":
+        value["format_version"] = "2.0"
+    elif case == "missing-platform":
+        del value["platform"]
+    calls = []
+
+    def process(command, **kwargs):
+        calls.append(kwargs)
+        assert command == [str(binary), "version", "-json"]
+        assert Path(kwargs["cwd"]).is_dir() and Path(kwargs["cwd"]) != tmp_path
+        assert kwargs["timeout"] == 15 and kwargs["capture_output"] is True
+        env = kwargs["env"]
+        assert env["CHECKPOINT_DISABLE"] == "1" and env["PATH"] == "synthetic-path"
+        assert env["AWS_EC2_METADATA_DISABLED"] == "true"
+        assert env["AWS_CONFIG_FILE"] == env["AWS_SHARED_CREDENTIALS_FILE"] == m.os.devnull
+        assert Path(env["TF_CLI_CONFIG_FILE"]).is_relative_to(kwargs["cwd"])
+        assert "never-propagate" not in env.values()
+        if case == "timeout":
+            raise m.subprocess.TimeoutExpired(command, 15)
+        raw = b"invalid" if case == "json" else m.encoded([] if case == "scalar" else value)
+        return SimpleNamespace(returncode=1 if case == "exit" else 0, stdout=raw)
+
+    monkeypatch.setattr(m.subprocess, "run", process)
+    environment = dict.fromkeys(
+        [
+            "AWS_PROFILE",
+            "aws_secret_access_key",
+            "ACTIONS_TOKEN",
+            "GH_TOKEN",
+            "GITHUB_TOKEN",
+            "P4_READY",
+            "TF_CLI_ARGS",
+            "TERRAFORM_CONFIG",
+        ],
+        "never-propagate",
+    ) | {"PATH": "synthetic-path"}
+    if case == "ok":
+        m.qualify_legacy_terraform(environment=environment)
+    else:
+        with pytest.raises(ValueError, match="MaintenanceTerraform"):
+            m.qualify_legacy_terraform(environment=environment)
+    assert len(calls) == (0 if case in {"missing", "host"} else 1)
+    assert all(not Path(call["cwd"]).exists() for call in calls)
+
+
+@pytest.mark.parametrize("case", ["legacy", "candidate-hcl", "missing-hcl", "candidate-lock"])
+def test_legacy_configuration_never_rebinds_candidate_requirements(tmp_path, monkeypatch, case):
+    from test_toolchain_migration import lock
+
+    m = tool("bootstrap_maintenance")
+    provider = lock("6.70.0" if case == "candidate-lock" else "6.64.0", "~> 6.0")
+    version = "1.16.7" if case == "candidate-hcl" else "1.14.9"
+    hcl = (
+        b"terraform {}"
+        if case == "missing-hcl"
+        else (f'terraform {{ required_version = "= {version}" }}'.encode())
+    )
+
+    def git(root, *args):
+        if args[0] == "ls-tree":
+            return b"terraform/bootstrap/main.tf\nterraform/bootstrap/.terraform.lock.hcl\n"
+        assert args[0] == "show"
+        return provider if args[-1].endswith(".terraform.lock.hcl") else hcl
+
+    monkeypatch.setattr(m, "git", git)
+    if case == "legacy":
+        assert m.configuration_files(tmp_path, "a" * 40, m.hashed(provider))["main.tf"] == hcl
+    else:
+        with pytest.raises(ValueError, match="MaintenanceTerraformRequirement|ProviderSelection"):
+            m.configuration_files(tmp_path, "a" * 40, m.hashed(provider))

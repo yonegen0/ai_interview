@@ -6,17 +6,16 @@ on:
       - 'backend/skills/p4/**'
       - 'backend/tests/unit/test_toolchain_*.py'
       - '.github/workflows/p4-toolchain-qualification.yml'
-  push:
-    branches: [main]
-    paths:
-      - 'terraform/**'
-      - 'backend/skills/p4/**'
-      - 'backend/tests/unit/test_toolchain_*.py'
-      - '.github/workflows/p4-toolchain-qualification.yml'
 permissions:
   contents: read
 jobs:
   qualify:
+    # This immutable comparison belongs only to the held migration PR.
+    # Normal Terraform changes use the existing required terraform check.
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.ref == 'codex/issue39-upgrade-b-hold-20261025' &&
+      github.event.pull_request.head.repo.full_name == github.repository
     name: Offline Terraform ${{ matrix.terraform }}
     runs-on: ubuntu-latest
     timeout-minutes: 30

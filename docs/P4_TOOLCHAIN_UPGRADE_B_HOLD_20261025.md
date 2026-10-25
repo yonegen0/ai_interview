@@ -28,8 +28,13 @@ Issue #39 remains OPEN; public release remains NOT READY.
   testing instead of changing its accepted baseline. Before provider initialization,
   the matrix also compares the actual PR B checkout against that immutable source:
   file inventory and every other tracked Terraform byte must remain unchanged.
-  The normal `terraform` required
-  check separately validates the actual PR B configuration at its proposed version.
+  This immutable comparison runs only for the same-repository PR B branch
+  `codex/issue39-upgrade-b-hold-20261025`; it does not run on main pushes or ordinary
+  development PRs. Its skipped jobs on other branches are intentional. The normal
+  `terraform` required check separately validates the actual checkout, additive lock
+  integrity and mocks. Backend version-contract tests retain the exact reviewed
+  toolchain/workflow requirements. The five required check names and Ruleset are
+  unchanged. A future toolchain migration needs its own reviewed comparison scope.
 
 To repeat migration qualification locally, pass a separate checkout of that legacy
 source as `--repository`; the migration runner intentionally rejects already-upgraded
@@ -42,11 +47,25 @@ configuration as its baseline. All generated work must remain disposable and off
    checkout, toolchain, approvals and receipts. They must not be run against the new
    bootstrap HCL or silently allowed to accept a candidate version. A separate future
    operation/approval namespace and reviewed execution path are still required.
+   Legacy maintenance now checks CLI 1.14.9 and the native amd64 platform without
+   credentials, in an empty temporary directory, before authentication or attempt
+   consumption. It also rejects candidate/missing HCL requirements even with an old
+   Provider lock. Recovered Apply checks the approved absolute binary before its
+   reader or attempt journal. Existing later version/hash checks remain in place.
+   Read-only recovery/inspection do not execute Terraform; their existing immutable
+   configuration/approval checks remain. These guards prevent cross-use and do not
+   implement or authorize a candidate maintenance namespace. Old audit code hashes
+   and descriptors must remain unchanged; invoking revised code requires separately
+   reviewed fresh code manifests/approvals, not reusing a historical authorization.
 2. Provider shared/generated identity, default/readback and real instance State
    schema compatibility remain unproven. In particular, API Gateway Integration
    identity registration and the new SNS computed value require explicit assessment.
    No State data has been accessed. Any actual AWS/State assessment requires fresh
    account/environment/SHA/scope/cost/recovery authorization.
+   Explicit outstanding evidence includes computed/default values, identity/import
+   behavior, State upgrader behavior, real resource differences, and AWS readback
+   agreement. Equal provider resource schema versions or successful synthetic/no-op
+   comparisons do not prove these properties or real State compatibility.
 3. New saved Plans/bindings/approvals must bind exact CLI/platform, provider locks,
    source, inputs, Plan bytes and State identity. Historical authorizations/Plans
    cannot be migrated, even when synthetic JSON readers or mocks pass.
@@ -60,6 +79,44 @@ complete operational readiness. Keep this PR Draft and unmerged until all blocke
 are independently resolved and the user releases HOLD.
 
 ## Local validation
+
+### CI follow-up and independent review (2026-10-25 JST)
+
+At starting HEAD `63cb7db7e994cba08404655804a4a8cc863439a9`, all four genuine
+pull-request workflows succeeded: Backend `40161158192` (2448 passed, 2 skipped,
+57 deselected; 102 API contract tests), Frontend `40161158191` (669 tests, 37 mock
+E2E), Terraform/package `40161158189` (six scopes, 69 mocks and actual Linux ZIP
+build/import), and candidate matrix `40161158163` (1.16.7 and 1.17.0). Historical
+failed Ruff runs are superseded by these exact-HEAD results, not silently retried.
+
+An independent read-only code/security review found the late legacy version gate,
+the unbounded lifetime of the migration-only matrix, and malformed
+`proposed_unknown` containers being accepted by the generic unknown-mask recursion.
+The follow-up fixes these with regression tests. A second review caught normal
+`sensitive_values` metadata being over-rejected and PATH resolution ignoring the
+supplied environment; both were corrected. This is an independent code review,
+not an operational adoption approval or evidence of real AWS/State compatibility.
+
+`proposed_unknown` now validates its values-representation containers separately
+from unknown masks; known metadata and sensitivity masks remain distinct. Malformed
+root/module/resource/output containers and unknown or non-boolean value leaves fail
+closed on either side of the comparison. The existing Closure test still uses real
+CLI arguments, exact ValueError outcomes, and both rejected/accepted authentication
+ordering. It does not treat argument-parser SystemExit as a successful regression.
+The focused compatibility/candidate suite passes **111 tests** using Python 3.14.9
+and uv 0.13.5. Full suite and final-HEAD Actions results are recorded in the PR.
+On this Windows host, the inherited PowerShell 7 `PSModulePath` prevented the
+Windows PowerShell child from loading `Microsoft.PowerShell.Security` for ACL
+checks. The failing synthetic ACL tests pass with the child execution environment
+using `%WINDIR%/System32/WindowsPowerShell/v1.0/Modules`; no ACL gate is bypassed,
+no persistent host setting is changed, and no production evidence is touched.
+
+Official references consulted for the boundaries:
+[Terraform JSON values representation](https://developer.hashicorp.com/terraform/internals/json-format),
+[backend-disabled init](https://developer.hashicorp.com/terraform/cli/commands/init),
+[GitHub PR events](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows).
+
+### Earlier PR B qualification (retained historical result)
 
 Related runtime/version/binding/schema/closure/deployment/standard-CI tests:
 **304 passed**. Ruff check/format, native candidate `fmt -check -recursive`,
