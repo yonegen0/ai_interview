@@ -116,9 +116,7 @@ def test_second_boundary_with_one_second_precision(monkeypatch):
     september = app.create(OWNER, uid(300), PAYLOAD)
     with pytest.raises(BusinessError) as at_limit:
         app.create(OWNER, uid(301), PAYLOAD)
-    assert (at_limit.value.status, at_limit.value.code) == (
-        429, "SESSION_CREATION_LIMIT"
-    )
+    assert (at_limit.value.status, at_limit.value.code) == (429, "SESSION_CREATION_LIMIT")
     instant[0] = int(datetime(2026, 10, 1, 0, 0, 1, tzinfo=UTC).timestamp() * 1000)
     assert app.create(OWNER, uid(300), PAYLOAD) == september
     october = app.create(OWNER, uid(302), PAYLOAD)
