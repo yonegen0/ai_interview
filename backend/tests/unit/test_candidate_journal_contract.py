@@ -259,3 +259,20 @@ def test_snapshot_cannot_trust_unreachable_state_revision(
     m, binding, event = sample
     with pytest.raises(ValueError, match="CandidateJournalStateRevisionInvalid"):
         m.check_snapshot_rollback(event(state, revision), event(next_state, next_revision), binding)
+
+
+@pytest.mark.parametrize("collision", ["same-entry", "cross-entry"])
+def test_approval_and_attempt_ids_cannot_overlap_even_across_roles(sample, collision):
+    m, binding, event = sample
+    first = [event("NEW", 0)]
+    if collision == "same-entry":
+        first[0]["attempt_id"] = first[0]["approval_id"]
+        with pytest.raises(ValueError, match="CandidateJournalIdReused"):
+            m.check_history(first, binding | {"attempt_id": first[0]["attempt_id"]})
+    else:
+        second = [event("NEW", 0)]
+        for row in second:
+            row["approval_id"] = first[0]["attempt_id"]
+            row["attempt_id"] = "e" * 40
+        with pytest.raises(ValueError, match="CandidateJournalIdReused"):
+            m.check_unique_histories([first, second])
