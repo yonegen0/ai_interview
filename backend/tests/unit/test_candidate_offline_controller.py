@@ -149,7 +149,17 @@ def test_review_gate_order_and_non_authorization(sample, monkeypatch):
         m.review_offline(**(args | {"now": now + timedelta(hours=1)}))
     assert not calls
     with pytest.raises(ValueError, match="CandidateReviewedConfigurationMismatch"):
-        m.review_offline(**(args | {"configurations": {**args["configurations"], "terraform/new.tf": b"x"}}))
+        m.review_offline(
+            **(
+                args
+                | {
+                    "configurations": {
+                        **args["configurations"],
+                        "terraform/new.tf": b"x",
+                    }
+                }
+            )
+        )
     assert not calls
     monkeypatch.setattr(m.preflight, "verify", lambda *a, **kw: {"authorized": True})
     with pytest.raises(ValueError, match="CandidatePreflightMustNotAuthorize"):
