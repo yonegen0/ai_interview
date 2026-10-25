@@ -34,6 +34,11 @@ def sample():
             "sha256": "1" * 64,
         },
         "plan_sha256": hashlib.sha256(raw).hexdigest(),
+        "account_id": "123456789012",
+        "region": "ap-northeast-1",
+        "resource_scope": "bootstrap",
+        "max_execution_seconds": 120,
+        "max_cost_usd_cents": 0,
         "plan_approval_id": "2" * 40,
         "plan_attempt_id": "3" * 40,
         "apply_approval_id": "4" * 40,
@@ -171,6 +176,10 @@ def test_changed_state_identity_fails_closed(sample, field, value):
         "receipt-extra",
         "receipt-source",
         "receipt-invalid",
+        "receipt-namespace",
+        "receipt-state-type",
+        "approval-schema-float",
+        "account-redirect",
     ],
 )
 def test_replay_bad_receipt_or_partial_evidence_fails_closed(sample, mutation):
@@ -211,6 +220,14 @@ def test_replay_bad_receipt_or_partial_evidence_fails_closed(sample, mutation):
         claim["generation_receipt"]["source_sha"] = "9" * 40
     elif mutation == "receipt-invalid":
         claim["generation_receipt"]["receipt_sha256"] = "invalid"
+    elif mutation == "receipt-namespace":
+        claim["generation_receipt"]["namespace"] = "legacy"
+    elif mutation == "receipt-state-type":
+        claim["generation_receipt"]["state_identity"]["serial"] = 7.0
+    elif mutation == "approval-schema-float":
+        plan["schema_version"] = 4.0
+    elif mutation == "account-redirect":
+        claim["account_id"] = "999999999999"
     with pytest.raises(ValueError):
         run((m, claim, expected, raw, plan, apply))
 

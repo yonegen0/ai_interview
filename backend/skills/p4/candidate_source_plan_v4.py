@@ -5,6 +5,7 @@ Terraform process, a signed approval, remote State or journal one-use.
 """
 
 import hashlib
+import re
 
 import candidate_signed_approval as signed
 
@@ -26,6 +27,11 @@ FIELDS = frozenset(
         "provider_inventory_sha256",
         "platform",
         "state_identity",
+        "account_id",
+        "region",
+        "resource_scope",
+        "max_execution_seconds",
+        "max_cost_usd_cents",
         "plan_sha256",
         "plan_approval_id",
         "plan_attempt_id",
@@ -37,6 +43,7 @@ FIELDS = frozenset(
 RECEIPT_FIELDS = frozenset(
     {
         "kind",
+        "namespace",
         "producer_id",
         "producer_key_id",
         "receipt_sha256",
@@ -54,6 +61,11 @@ RECEIPT_FIELDS = frozenset(
         "provider_inventory_sha256",
         "platform",
         "state_identity",
+        "account_id",
+        "region",
+        "resource_scope",
+        "max_execution_seconds",
+        "max_cost_usd_cents",
     }
 )
 PAIRS = {
@@ -70,7 +82,7 @@ SHARED = FIELDS - {
     "apply_attempt_id",
     "generation_receipt",
 }
-RECEIPT_SHARED = SHARED - {"namespace"}
+RECEIPT_SHARED = SHARED
 
 
 def _compare(actual: object, expected: object, keys: frozenset[str]) -> None:
@@ -121,9 +133,12 @@ def validate_source_plan(
         "CandidateSourcePlanToolchainInvalid",
     )
     signed.require(
-        all(signed.ID.fullmatch(claim[k]) is not None for k in ("source_sha", "git_tree_sha"))
+        all(
+            type(claim[k]) is str and signed.ID.fullmatch(claim[k]) is not None
+            for k in ("source_sha", "git_tree_sha")
+        )
         and all(
-            signed.SHA.fullmatch(claim[k]) is not None
+            type(claim[k]) is str and signed.SHA.fullmatch(claim[k]) is not None
             for k in (
                 "terraform_sources_sha256",
                 "configuration_sha256",
@@ -156,6 +171,19 @@ def validate_source_plan(
     signed.preflight.state_identity(claim["state_identity"])
     signed.preflight.state_identity(expected["state_identity"])
     signed.require(
+        type(claim["account_id"]) is str
+        and re.fullmatch(r"\d{12}", claim["account_id"]) is not None
+        and type(claim["region"]) is str
+        and signed.REGION.fullmatch(claim["region"]) is not None
+        and type(claim["resource_scope"]) is str
+        and signed.NAME.fullmatch(claim["resource_scope"]) is not None
+        and type(claim["max_execution_seconds"]) is int
+        and 1 <= claim["max_execution_seconds"] <= 3600
+        and type(claim["max_cost_usd_cents"]) is int
+        and 0 <= claim["max_cost_usd_cents"] <= 10000,
+        "CandidateSourcePlanScopeInvalid",
+    )
+    signed.require(
         type(plan_bytes) is bytes
         and bool(plan_bytes)
         and hashlib.sha256(plan_bytes).hexdigest() == claim["plan_sha256"],
@@ -171,6 +199,10 @@ def validate_source_plan(
         and apply_approval["operation"] == claim["operation"],
         "CandidateSourcePlanApprovalOperationMismatch",
     )
+    signed.canonical_payload(plan_approval)
+    signed.canonical_payload(apply_approval)
+    signed.preflight.state_identity(plan_approval["state_identity"])
+    signed.preflight.state_identity(apply_approval["state_identity"])
     for approval, role in (
         (plan_approval, "plan"),
         (apply_approval, "apply"),
@@ -207,6 +239,7 @@ def validate_source_plan(
         "CandidateSourcePlanReceiptMissingOrInvalid",
     )
     _compare(receipt, claim, RECEIPT_SHARED)
+    signed.preflight.state_identity(receipt["state_identity"])
     return {
         "status": "OFFLINE_SOURCE_PLAN_MATCH_ORIGIN_UNVERIFIED_HOLD",
         "binding_consistent": True,
