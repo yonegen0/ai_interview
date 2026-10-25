@@ -1,5 +1,9 @@
 # P4：閉鎖状態のdev初回配備手順
 
+Terraform更新のAWS非接続準備は[Issue #39 qualification手順](P4_TOOLCHAIN_QUALIFICATION_20261025.md)を参照。
+候補CLIの隔離検証は正式Plan/Applyの版変更・旧Saved Plan再利用・過去承認移行を許可しない。
+現行の正式実行と既存の復旧証跡は引き続き1.14.9の契約を保持する。
+
 > 2026-10-09総合修正で更新済み。現在の安全条件・費用・手順は[総合修正レポート](P4_TOTAL_FIX_REPORT_20261009.md)、[Windows修正引継ぎ](P4_FIX_WINDOWS_HANDOFF_20261009.md)、[AWS受入チェックリスト](P4_FIX_AWS_ACCEPTANCE_20261009.md)を優先する。旧61固定、boolだけのtest閉鎖、FILL/1期間、17/22/42参照・旧費用は過去の計画/実装記録であり、新planへ流用しない。今回の開発工数に制約はなく、AWS受入未完了・cold FAIL・実AI30人未検証は継続。
 
 

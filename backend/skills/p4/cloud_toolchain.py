@@ -8,7 +8,10 @@ import subprocess
 import sys
 
 EXPECTED_UV_VERSION = "0.13.5"
-EXPECTED_TERRAFORM_VERSION = "1.14.9"
+# New execution remains on the baseline until a separate qualified migration.
+# Historical maintenance/recovery readers keep their independent immutable pins.
+NEW_EXECUTION_TERRAFORM_VERSION = "1.14.9"
+EXPECTED_TERRAFORM_VERSION = NEW_EXECUTION_TERRAFORM_VERSION
 MIN_PYTHON_VERSION = (3, 14, 9)
 
 
