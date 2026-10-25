@@ -281,7 +281,14 @@ def test_separate_candidate_plan_binding_is_required(fixture, operation):
         ]
         is False
     )
-    for mutation in ("old-cli", "old-namespace", "old-state", "old-config", "same-approval", "missing"):
+    for mutation in (
+        "old-cli",
+        "old-namespace",
+        "old-state",
+        "old-config",
+        "same-approval",
+        "missing",
+    ):
         altered = deepcopy(plan)
         if mutation == "old-cli":
             altered["terraform_version"] = "1.14.9"
