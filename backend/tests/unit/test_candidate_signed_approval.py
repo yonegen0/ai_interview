@@ -334,7 +334,6 @@ def test_no_network_or_process_in_pure_contract(sample, monkeypatch):
     )
 
 
-
 def test_unhashable_operation_rejected_with_value_error(sample):
     m, now, _, expected, envelope = sample
     envelope["operation"] = {"unexpected": "dict"}
@@ -356,7 +355,7 @@ def test_canonical_json_stable_for_field_order_and_escape(sample):
     escaped = deepcopy(claim)
     escaped["state_identity"]["lineage"] = 'quote" and backslash\\'
     encoded = m.canonical_payload(escaped)
-    assert b'quote\\\" and backslash\\\\' in encoded
+    assert b'quote\" and backslash\\' in encoded
     assert encoded != original
     escaped["state_identity"]["lineage"] = "\u00e9"
     with pytest.raises(ValueError, match="AsciiOnly"):

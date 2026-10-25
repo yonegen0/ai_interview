@@ -278,7 +278,6 @@ def test_no_external_io_or_terraform_process(sample, monkeypatch):
     assert run(sample)["authorized"] is False
 
 
-
 @pytest.mark.parametrize(
     "approval_role,field,value",
     [
