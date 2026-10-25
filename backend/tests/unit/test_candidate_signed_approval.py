@@ -368,6 +368,7 @@ def test_recursive_expected_state_fails_closed(sample):
     with pytest.raises(ValueError, match="CandidateStateIdentityInvalid"):
         m.verify_signed_approval(as_json(envelope), expected, trust_registry={}, now=now)
 
+
 def test_key_valid_now_but_not_at_issuance_is_rejected(sample):
     """A key enrolled after issuance cannot retroactively validate the approval."""
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
