@@ -111,9 +111,7 @@ def test_synthetic_api_gateway_and_sns_noop_does_not_authorize_apply():
         (ADDR_SNS, "id", "replaced-sns-identity"),
     ],
 )
-def test_synthetic_default_and_resource_identity_drift_rejected(
-    address, attribute, changed
-):
+def test_synthetic_default_and_resource_identity_drift_rejected(address, attribute, changed):
     checker = tool("toolchain_compatibility")
     before, after = synthetic_plan("1.14.9"), synthetic_plan("1.16.7")
     for row in after["planned_values"]["root_module"]["resources"]:
