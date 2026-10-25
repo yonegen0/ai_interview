@@ -1,4 +1,5 @@
 """Pure journal snapshots cannot establish remote atomicity or one-use proof."""
+
 from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 
@@ -11,16 +12,20 @@ def sample():
     m = tool("candidate_journal_contract")
     binding = {
         "namespace": m.approval_contract.preflight.NAMESPACE,
-        "approval_id": "a" * 40, "attempt_id": "b" * 40,
-        "source_sha": "c" * 40, "plan_sha256": "d" * 64,
+        "approval_id": "a" * 40,
+        "attempt_id": "b" * 40,
+        "source_sha": "c" * 40,
+        "plan_sha256": "d" * 64,
     }
     now = datetime(2026, 10, 25, 10, 0, tzinfo=UTC)
 
     def event(state, revision):
         return {
-            **binding, "schema_version": 3,
+            **binding,
+            "schema_version": 3,
             "kind": "p4-bootstrap-candidate-journal-v3",
-            "state": state, "revision": revision,
+            "state": state,
+            "revision": revision,
             "updated_at": (now + timedelta(seconds=revision)).isoformat(),
         }
 
@@ -29,8 +34,7 @@ def sample():
 
 def test_valid_history_never_proves_single_use(sample):
     m, binding, event = sample
-    history = [event("NEW", 0), event("RESERVED", 1),
-               event("STARTED", 2), event("COMPLETED", 3)]
+    history = [event("NEW", 0), event("RESERVED", 1), event("STARTED", 2), event("COMPLETED", 3)]
     assert m.transition(history[1], history[2], binding)["authorized"] is False
     result = m.check_history(history, binding)
     assert result["state"] == "COMPLETED"
@@ -42,18 +46,31 @@ def test_valid_history_never_proves_single_use(sample):
 @pytest.mark.parametrize("state", ["FAILED", "UNKNOWN", "COMPLETED"])
 def test_terminal_state_cannot_be_retried(sample, state):
     m, binding, event = sample
-    m.check_history([event("NEW", 0), event("RESERVED", 1),
-                     event("STARTED", 2), event(state, 3)], binding)
+    m.check_history(
+        [event("NEW", 0), event("RESERVED", 1), event("STARTED", 2), event(state, 3)], binding
+    )
     with pytest.raises(ValueError, match="CandidateJournalTransitionForbidden"):
         m.transition(event(state, 3), event("STARTED", 4), binding)
 
 
-@pytest.mark.parametrize("mutation", [
-    "wrong-state", "skipped-revision", "double-start", "out-of-order",
-    "partial-write", "old-schema", "old-namespace", "different-approval",
-    "different-attempt", "different-source", "different-plan", "bool-revision",
-    "naive-time",
-])
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "wrong-state",
+        "skipped-revision",
+        "double-start",
+        "out-of-order",
+        "partial-write",
+        "old-schema",
+        "old-namespace",
+        "different-approval",
+        "different-attempt",
+        "different-source",
+        "different-plan",
+        "bool-revision",
+        "naive-time",
+    ],
+)
 def test_ordering_and_partial_write_fail_closed(sample, mutation):
     m, binding, event = sample
     history = [event("NEW", 0), event("RESERVED", 1), event("STARTED", 2)]

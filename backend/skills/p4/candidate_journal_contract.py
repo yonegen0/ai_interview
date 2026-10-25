@@ -2,6 +2,7 @@
 
 No storage, locking, external I/O, retry granting, or authorization.
 """
+
 from datetime import datetime
 
 import candidate_approval_contract as approval_contract
@@ -43,20 +44,26 @@ def check_entry(entry: object, binding: object) -> datetime:
         "CandidateJournalBindingMissing",
     )
     require(
-        type(entry["schema_version"]) is int and entry["schema_version"] == 3
+        type(entry["schema_version"]) is int
+        and entry["schema_version"] == 3
         and entry["kind"] == "p4-bootstrap-candidate-journal-v3"
-        and type(entry["state"]) is str and entry["state"] in STATES
-        and type(entry["revision"]) is int and entry["revision"] >= 0
-        and all(type(entry[key]) is type(binding[key])
-                and entry[key] == binding[key] for key in IDENTITY_FIELDS),
+        and type(entry["state"]) is str
+        and entry["state"] in STATES
+        and type(entry["revision"]) is int
+        and entry["revision"] >= 0
+        and all(
+            type(entry[key]) is type(binding[key]) and entry[key] == binding[key]
+            for key in IDENTITY_FIELDS
+        ),
         "CandidateJournalInvalid",
     )
     require(
         entry["namespace"] == approval_contract.preflight.NAMESPACE
-        and all(approval_contract.hex_digest(entry[key], 40)
-                for key in ("approval_id", "attempt_id", "source_sha"))
-        and (entry["plan_sha256"] is None
-             or approval_contract.hex_digest(entry["plan_sha256"])),
+        and all(
+            approval_contract.hex_digest(entry[key], 40)
+            for key in ("approval_id", "attempt_id", "source_sha")
+        )
+        and (entry["plan_sha256"] is None or approval_contract.hex_digest(entry["plan_sha256"])),
         "CandidateJournalIdentityInvalid",
     )
     return approval_contract.instant(entry["updated_at"])
@@ -84,8 +91,10 @@ def check_history(entries: object, binding: object) -> dict[str, object]:
     """Detect missing/reordered events in *supplied* history, never authenticate it."""
     require(type(entries) is list and len(entries) > 0, "CandidateJournalMissing")
     check_entry(entries[0], binding)
-    require(entries[0]["revision"] == 0 and entries[0]["state"] == "NEW",
-            "CandidateJournalInitialStateInvalid")
+    require(
+        entries[0]["revision"] == 0 and entries[0]["state"] == "NEW",
+        "CandidateJournalInitialStateInvalid",
+    )
     for old, new in zip(entries, entries[1:], strict=False):
         transition(old, new, binding)
     return {
@@ -109,8 +118,9 @@ def check_unique_histories(histories: object) -> dict[str, object]:
         binding = {key: head.get(key) for key in IDENTITY_FIELDS}
         check_history(history, binding)
         approval_id, attempt_id = head["approval_id"], head["attempt_id"]
-        require(approval_id not in approvals and attempt_id not in attempts,
-                "CandidateJournalIdReused")
+        require(
+            approval_id not in approvals and attempt_id not in attempts, "CandidateJournalIdReused"
+        )
         approvals.add(approval_id)
         attempts.add(attempt_id)
     return {
@@ -126,10 +136,7 @@ def check_snapshot_rollback(previous_seen: object, observed: object, binding: ob
     check_entry(observed, binding)
     require(
         observed["revision"] >= previous_seen["revision"]
-        and (
-            observed["revision"] != previous_seen["revision"]
-            or observed == previous_seen
-        ),
+        and (observed["revision"] != previous_seen["revision"] or observed == previous_seen),
         "CandidateJournalRollbackOrRewrite",
     )
 

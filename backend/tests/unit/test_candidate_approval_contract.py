@@ -1,4 +1,5 @@
 """Offline approval claims are never an authenticated execution approval."""
+
 import base64
 from copy import deepcopy
 from datetime import UTC, datetime, timedelta
@@ -12,24 +13,38 @@ def sample():
     m = tool("candidate_approval_contract")
     now = datetime(2026, 10, 25, 10, 0, tzinfo=UTC)
     expected = {
-        "operation": "maintenance-apply", "namespace": m.preflight.NAMESPACE,
-        "source_sha": "a" * 40, "git_tree_sha": "b" * 40,
-        "terraform_sources_sha256": "c" * 64, "terraform_version": "1.16.7",
-        "terraform_sha256": "d" * 64, "provider_version": "6.70.0",
-        "platform": "linux_amd64", "configuration_sha256": "e" * 64,
-        "lock_sha256": "f" * 64, "plan_sha256": "0" * 64,
-        "state_identity": {"lineage": "synthetic", "serial": 7,
-                           "version_id": "synthetic-version", "sha256": "1" * 64},
-        "approval_id": "2" * 40, "attempt_id": "3" * 40,
+        "operation": "maintenance-apply",
+        "namespace": m.preflight.NAMESPACE,
+        "source_sha": "a" * 40,
+        "git_tree_sha": "b" * 40,
+        "terraform_sources_sha256": "c" * 64,
+        "terraform_version": "1.16.7",
+        "terraform_sha256": "d" * 64,
+        "provider_version": "6.70.0",
+        "platform": "linux_amd64",
+        "configuration_sha256": "e" * 64,
+        "lock_sha256": "f" * 64,
+        "plan_sha256": "0" * 64,
+        "state_identity": {
+            "lineage": "synthetic",
+            "serial": 7,
+            "version_id": "synthetic-version",
+            "sha256": "1" * 64,
+        },
+        "approval_id": "2" * 40,
+        "attempt_id": "3" * 40,
     }
     claim = {
-        **deepcopy(expected), "schema_version": 3,
+        **deepcopy(expected),
+        "schema_version": 3,
         "kind": "p4-bootstrap-candidate-approval-claim-v3",
         "issued_at": (now - timedelta(minutes=10)).isoformat(),
         "expires_at": (now + timedelta(minutes=20)).isoformat(),
         "signature_claim": {
-            "issuer": "claimed-issuer", "key_id": "claimed-key",
-            "algorithm": "ed25519", "signature": base64.b64encode(b"x" * 64).decode(),
+            "issuer": "claimed-issuer",
+            "key_id": "claimed-key",
+            "algorithm": "ed25519",
+            "signature": base64.b64encode(b"x" * 64).decode(),
         },
     }
     return m, now, expected, claim
@@ -45,18 +60,30 @@ def test_valid_syntax_is_unverified_and_not_authorized(sample):
     assert result["aws_operations"] == 0
 
 
-@pytest.mark.parametrize("key,value", [
-    ("schema_version", 2), ("schema_version", True), ("kind", "legacy"),
-    ("operation", "recovery-apply"), ("namespace", "legacy"),
-    ("source_sha", "9" * 40), ("git_tree_sha", "9" * 40),
-    ("terraform_sources_sha256", "9" * 64),
-    ("terraform_version", "1.14.9"), ("terraform_version", "1.17.0"),
-    ("terraform_sha256", "9" * 64), ("provider_version", "6.64.0"),
-    ("platform", "windows_amd64"), ("configuration_sha256", "9" * 64),
-    ("lock_sha256", "9" * 64), ("plan_sha256", "9" * 64),
-    ("approval_id", "9" * 40), ("attempt_id", "9" * 40),
-    ("attempt_id", None),
-])
+@pytest.mark.parametrize(
+    "key,value",
+    [
+        ("schema_version", 2),
+        ("schema_version", True),
+        ("kind", "legacy"),
+        ("operation", "recovery-apply"),
+        ("namespace", "legacy"),
+        ("source_sha", "9" * 40),
+        ("git_tree_sha", "9" * 40),
+        ("terraform_sources_sha256", "9" * 64),
+        ("terraform_version", "1.14.9"),
+        ("terraform_version", "1.17.0"),
+        ("terraform_sha256", "9" * 64),
+        ("provider_version", "6.64.0"),
+        ("platform", "windows_amd64"),
+        ("configuration_sha256", "9" * 64),
+        ("lock_sha256", "9" * 64),
+        ("plan_sha256", "9" * 64),
+        ("approval_id", "9" * 40),
+        ("attempt_id", "9" * 40),
+        ("attempt_id", None),
+    ],
+)
 def test_cross_contract_mismatch_fail_closed(sample, key, value):
     m, now, expected, claim = sample
     claim[key] = value
@@ -64,10 +91,16 @@ def test_cross_contract_mismatch_fail_closed(sample, key, value):
         m.validate_approval(claim, expected, now=now)
 
 
-@pytest.mark.parametrize("key,value", [
-    ("serial", 8), ("serial", True), ("lineage", "wrong"),
-    ("sha256", "9" * 64), ("version_id", "different"),
-])
+@pytest.mark.parametrize(
+    "key,value",
+    [
+        ("serial", 8),
+        ("serial", True),
+        ("lineage", "wrong"),
+        ("sha256", "9" * 64),
+        ("version_id", "different"),
+    ],
+)
 def test_state_identity_target_is_exact(sample, key, value):
     m, now, expected, claim = sample
     claim["state_identity"][key] = value
@@ -75,10 +108,19 @@ def test_state_identity_target_is_exact(sample, key, value):
         m.validate_approval(claim, expected, now=now)
 
 
-@pytest.mark.parametrize("mutation", [
-    "missing-field", "unknown-field", "old-schema", "unknown-evidence",
-    "missing-evidence", "bad-algorithm", "bad-signature", "invalid-json-type",
-])
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "missing-field",
+        "unknown-field",
+        "old-schema",
+        "unknown-evidence",
+        "missing-evidence",
+        "bad-algorithm",
+        "bad-signature",
+        "invalid-json-type",
+    ],
+)
 def test_missing_unknown_or_unauthenticated_claim_evidence_rejected(sample, mutation):
     m, now, expected, claim = sample
     if mutation == "missing-field":
@@ -101,10 +143,19 @@ def test_missing_unknown_or_unauthenticated_claim_evidence_rejected(sample, muta
         m.validate_approval(claim, expected, now=now)
 
 
-@pytest.mark.parametrize("mutation", [
-    "expired", "future", "long-ttl", "naive", "unknown-offset",
-    "bad-type", "zero-ttl", "naive-clock",
-])
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "expired",
+        "future",
+        "long-ttl",
+        "naive",
+        "unknown-offset",
+        "bad-type",
+        "zero-ttl",
+        "naive-clock",
+    ],
+)
 def test_expiry_future_and_malformed_timestamps_rejected(sample, mutation):
     m, now, expected, claim = sample
     if mutation == "expired":

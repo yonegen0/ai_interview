@@ -3,6 +3,7 @@
 A structurally correct signed-looking object is not a verified signature,
 an authenticated issuer, an approved policy, or an execution authorization.
 """
+
 import base64
 import binascii
 import re
@@ -57,8 +58,10 @@ def instant(value: object) -> datetime:
     require(type(value) is str and not value.endswith("-00:00"), "CandidateApprovalTimeInvalid")
     try:
         parsed = datetime.fromisoformat(value)
-        require(parsed.tzinfo is not None and parsed.utcoffset() is not None,
-                "CandidateApprovalTimeInvalid")
+        require(
+            parsed.tzinfo is not None and parsed.utcoffset() is not None,
+            "CandidateApprovalTimeInvalid",
+        )
     except (TypeError, ValueError) as error:
         raise ValueError("CandidateApprovalTimeInvalid") from error
     return parsed.astimezone(UTC)
@@ -73,12 +76,19 @@ def _binding(value: object) -> None:
         and value["terraform_version"] == preflight.CLI
         and value["provider_version"] == preflight.PROVIDER
         and value["platform"] == preflight.PLATFORM
-        and all(hex_digest(value[key], 40) for key in ("source_sha", "git_tree_sha",
-                                                       "approval_id", "attempt_id"))
-        and all(hex_digest(value[key]) for key in (
-            "terraform_sources_sha256", "terraform_sha256",
-            "configuration_sha256", "lock_sha256"
-        ))
+        and all(
+            hex_digest(value[key], 40)
+            for key in ("source_sha", "git_tree_sha", "approval_id", "attempt_id")
+        )
+        and all(
+            hex_digest(value[key])
+            for key in (
+                "terraform_sources_sha256",
+                "terraform_sha256",
+                "configuration_sha256",
+                "lock_sha256",
+            )
+        )
         and (
             value["plan_sha256"] is None
             if value["operation"] == "maintenance-plan"
@@ -101,8 +111,11 @@ def validate_approval(
     _binding({key: approval[key] for key in BINDING_FIELDS})
     _binding(expected_binding)
     require(
-        all(type(approval[key]) is type(expected_binding[key])
-            and approval[key] == expected_binding[key] for key in BINDING_FIELDS),
+        all(
+            type(approval[key]) is type(expected_binding[key])
+            and approval[key] == expected_binding[key]
+            for key in BINDING_FIELDS
+        ),
         "CandidateApprovalTargetMismatch",
     )
     require(
@@ -112,11 +125,11 @@ def validate_approval(
         "CandidateApprovalSchemaInvalid",
     )
     evidence = approval["signature_claim"]
-    require(type(evidence) is dict and set(evidence) == CLAIM_FIELDS,
-            "CandidateApprovalEvidenceMissing")
     require(
-        all(type(evidence[key]) is str and bool(evidence[key])
-            for key in CLAIM_FIELDS)
+        type(evidence) is dict and set(evidence) == CLAIM_FIELDS, "CandidateApprovalEvidenceMissing"
+    )
+    require(
+        all(type(evidence[key]) is str and bool(evidence[key]) for key in CLAIM_FIELDS)
         and evidence["algorithm"] == "ed25519",
         "CandidateApprovalEvidenceInvalid",
     )
@@ -125,15 +138,15 @@ def validate_approval(
     except (binascii.Error, ValueError) as error:
         raise ValueError("CandidateApprovalEvidenceInvalid") from error
     require(len(decoded) == 64, "CandidateApprovalEvidenceInvalid")
-    require(isinstance(now, datetime) and now.tzinfo is not None
-            and now.utcoffset() is not None, "CandidateApprovalClockInvalid")
+    require(
+        isinstance(now, datetime) and now.tzinfo is not None and now.utcoffset() is not None,
+        "CandidateApprovalClockInvalid",
+    )
     issued = instant(approval["issued_at"])
     expires = instant(approval["expires_at"])
     current = now.astimezone(UTC)
     require(
-        issued <= current < expires
-        and issued < expires
-        and expires - issued <= MAX_LIFETIME,
+        issued <= current < expires and issued < expires and expires - issued <= MAX_LIFETIME,
         "CandidateApprovalExpiredOrFuture",
     )
     return {
