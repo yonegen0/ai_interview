@@ -121,19 +121,63 @@ def test_actual_candidate_checkout_comparison_fails_closed_without_mutation(
 
 
 @pytest.mark.parametrize("wrong_toolchain", [True, False])
-def test_test_closure_rejects_toolchain_before_sts(monkeypatch, wrong_toolchain):
-    """Wrong CLI fails before AWS session; valid CLI reaches the next local gate only."""
-    import sys
-
+def test_test_closure_rejects_toolchain_before_sts(tmp_path, monkeypatch, wrong_toolchain):
+    """Verify the real argument path and prevent any unmocked AWS session."""
     m = tool("test_closure_apply")
+    run = tmp_path / ".p4-artifacts" / "synthetic-run"
+    run.mkdir(parents=True)
+    manifest = run / "manifest.json"
+    plan = run / "plan.tfplan"
+    proof = run / "proof.json"
+    for path in (manifest, plan, proof):
+        path.write_text("synthetic", encoding="utf-8")
+    monkeypatch.setattr(m, "PROJECT", tmp_path)
+    monkeypatch.setattr(
+        m.sys,
+        "argv",
+        [
+            "test_closure_apply.py",
+            "preflight",
+            "--manifest",
+            str(manifest),
+            "--account",
+            "123456789012",
+            "--region",
+            "ap-northeast-1",
+            "--directory",
+            str(run),
+            "--plan",
+            str(plan),
+            "--plan-hash",
+            "a" * 64,
+            "--proof",
+            str(proof),
+            "--proof-hash",
+            "b" * 64,
+            "--source-sha",
+            "c" * 40,
+        ],
+    )
     calls = []
-    monkeypatch.setattr(sys, "argv", ["test_closure_apply.py"])
     monkeypatch.setattr(m, "require_aws_execution", lambda: calls.append("ready"))
+
     def qualify():
         calls.append("qualify")
         if wrong_toolchain:
             raise ValueError("CloudTerraformVersionMismatch")
+
+    def checked_session(*args):
+        calls.append("checked_session")
+        raise ValueError("SyntheticStopBeforeAws")
+
     monkeypatch.setattr(m, "qualify_tools_without_credentials", qualify)
-    with pytest.raises((ValueError, SystemExit)):
+    monkeypatch.setattr(m, "read_manifest", lambda *args, **kw: {"run_id": "synthetic"})
+    monkeypatch.setattr(m, "checked_session", checked_session)
+    expected_error = "CloudTerraformVersionMismatch" if wrong_toolchain else "SyntheticStopBeforeAws"
+    with pytest.raises(ValueError, match=expected_error):
         m.main()
-    assert calls == ["ready", "qualify"]
+    assert calls == (
+        ["ready", "qualify"]
+        if wrong_toolchain
+        else ["ready", "qualify", "checked_session"]
+    )
