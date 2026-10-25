@@ -4,7 +4,10 @@ This **unmerged Draft** proposes Terraform **1.16.7** and AWS Provider **6.70.0*
 It does not authorize adoption, AWS authentication/API/read, remote State,
 formal Plan/Apply, readiness changes, deployment or paid inference.
 The deployed/formal baseline remains 1.14.9 until a separately approved merge.
-Issue #39 remains OPEN; public release remains NOT READY.
+Issue #39 is CLOSED; Issue #50 remains OPEN; public release remains NOT READY.
+Current source/CI and vendor-signature verification are recorded in the
+[2026-10-26 follow-up](P4_ISSUE50_OFFLINE_FOLLOWUP_20261025.md#current-head-recheck-2026-10-26-jst).
+The dated validation sections below retain historical SHA/status observations.
 
 ## Prepared candidate changes
 
@@ -23,7 +26,7 @@ Issue #39 remains OPEN; public release remains NOT READY.
   bind the platform/runtime; old or cross-platform bindings fail closed. Windows
   candidate qualification remains separate and does not authorize Windows execution.
 - The candidate matrix reads immutable pre-upgrade configuration at
-  `7ec3595aa02c5315f6d7600282b428d294d3d771` in a second credential-free checkout,
+  `b276568908d7c96c41c083d5bcbcc64d955945f6` in a second credential-free checkout,
   using current candidate validator code. This preserves genuine old -> new migration
   testing instead of changing its accepted baseline. Before provider initialization,
   the matrix also compares the actual PR B checkout against that immutable source:

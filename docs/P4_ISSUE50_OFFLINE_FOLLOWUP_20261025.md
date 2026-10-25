@@ -167,3 +167,136 @@ Official references checked: [Terraform init](https://developer.hashicorp.com/te
 [filesystem mirrors](https://developer.hashicorp.com/terraform/cli/config/config-file#provider-installation),
 [built-in terraform_data](https://developer.hashicorp.com/terraform/language/resources/terraform-data),
 [Python descriptor flags](https://docs.python.org/3.14/library/os.html#os.O_NONBLOCK).
+
+## Current HEAD recheck (2026-10-26 JST)
+
+The handoff was behind existing work. GitHub was checked again: main is
+`bac4263cb86ebeafef944f1110530efa90138ce8`; PR #53 is already MERGED, and held
+PR #43 source HEAD `b7d9a3f456a0af53c803bf8cf94784791a68503f` already contains
+that main through an ordinary merge. PR #51/#52 signature/snapshot repairs and
+PR #53's probe repair are preserved. No reimplementation, force push, additional
+merge or HOLD release was needed. Only PR #43 is open. Issue #39 is CLOSED;
+Issue #50 remains OPEN. Main's formal pin is still 1.14.9.
+
+All existing worktrees/branches were inventoried. Four existing worktrees had
+uncommitted files, including five entries in the original workspace; none was
+modified. This recheck used a new managed worktree and a separate disposable
+Linux export. The two ChatGPT-owned signature files remain unchanged.
+
+### Fresh observations at the source HEAD
+
+Both real CLIs again passed six backend-disabled, readonly-lock init/validate
+scopes and 69 Mock cases each (bootstrap 10, service 57, frontend 2). Provider
+6.70.0 schemas were compared against 6.64.0/6.65.0 for all 41 used resource types.
+The existing probe was reused, with the same CLI/Provider/package-inventory
+SHA256 values in the table above. `/proc` observations of actual CLI and Provider
+executables again matched these hashes. Execution used `env -i`, empty child
+HOME directories, filesystem mirrors and `unshare -n`; `socket.if_nameindex()`
+reported only `lo`. No AWS credentials or remote State were used. The disposable
+six-scope source/locks remained unchanged. These observations do not freeze a
+future executable or prove State/default/import/upgrader compatibility.
+
+Focused probe/SQLite/snapshot/evidence-gate/approval/Ed25519 tests: **135 PASS**.
+Source-to-Plan v4, migration and held-candidate contract tests: **142 PASS**.
+Ruff check and format check: **PASS**, 249 files. This is a local focused run,
+not a fresh local full-suite run. Genuine source-HEAD Backend CI below supplies
+the full regression result. Existing tests cover the v2/v3/v4 boundaries; their
+old/new evidence rejection was retained without expanding accepted versions.
+
+A fresh disposable built-in `terraform_data` root produced a real local saved
+Plan: **1,534 bytes**, SHA256
+`fd9a3510b3650fc558dbe5fae1166f68822d1faf0bad3ed3784531df7a294613`.
+Process completion, snapshot bytes, `show -json` and source agreement passed;
+Plan/source replacements were rejected. The original Plan was retained privately
+before the negative checks. It used no AWS Provider/resources and was not applied.
+The local harness's initial syntax/reporting failures were corrected in separate
+disposable directories; no failed harness output is counted as successful proof.
+No trusted AWS producer receipt or subsequently executed Plan identity is claimed.
+
+### Vendor signature verification added
+
+Previously, this report had only HTTPS checksum agreement. Fresh public checksum
+signatures and the public release key were retrieved before isolation. GnuPG
+2.4.4 verified all three checksum signatures in a new temporary keyring, with no
+auto key retrieval, inside the isolated namespace. Each `VALIDSIG` reported signing
+subkey `374EC75B485913604A831CC7C820C6D5CD27AB87` and primary fingerprint
+`C874011F0AB405110D02105534365D9472D7468F`. The primary fingerprint was matched
+against [HashiCorp's official security publication](https://www.hashicorp.com/en/trust/security#pgp-public-key)
+and its [2026 key-expiry update](https://discuss.hashicorp.com/t/hcsec-2026-03-hashicorp-gpg-key-72d7468f-update/77237).
+No production key registry or system keyring was changed.
+
+| Signed checksum file | Signature date (UTC) | Archive/binary agreement |
+| --- | --- | --- |
+| terraform_1.16.7_SHA256SUMS | 2026-10-22 | Linux ZIP hash and extracted CLI match the measured executable |
+| terraform_1.17.0_SHA256SUMS | 2026-10-21 | Linux ZIP hash and extracted CLI match the measured executable |
+| terraform-provider-aws_6.70.0_SHA256SUMS | 2026-10-22 | Linux ZIP hash and extracted Provider match the measured executable |
+
+This verifies release signatures and exact archive-to-binary bytes against the
+vendor key published over official HTTPS. It does not establish an independent
+out-of-band trust ceremony, organization-approved trust enrollment/revocation
+freshness, trusted time or immutable loaded-code attestation. The existing probe's
+`official_signer_authenticated=False` remains truthful: the probe does not itself
+perform signature verification. This separate signature evidence does not alter
+that API or grant execution authority. Native Windows CLI version/platform and
+executable hashes were also rechecked in empty directories with allowlisted child
+environments; both match the earlier values above. This was not a native network
+isolation/Provider test; Windows Provider execution remains untested.
+
+### Genuine Actions and review evidence
+
+All four PR workflows at source HEAD `b7d9a3f` completed successfully:
+
+| Workflow | Run | Verified scope |
+| --- | --- | --- |
+| Backend | [40203976514](https://github.com/yonegen0/ai_interview/actions/runs/40203976514) | 3,006 passed / 2 skipped / 57 deselected; Ed25519 9; API contracts 102; Ruff check/format |
+| Frontend | [40203976537](https://github.com/yonegen0/ai_interview/actions/runs/40203976537) | Frontend verify SUCCESS |
+| Infrastructure/package | [40203976539](https://github.com/yonegen0/ai_interview/actions/runs/40203976539) | terraform, package_changes and actual package jobs SUCCESS |
+| Candidate matrix | [40203976534](https://github.com/yonegen0/ai_interview/actions/runs/40203976534) | Both real CLI jobs SUCCESS |
+
+Main `bac4263` push runs are also SUCCESS: Backend 40203945696, Frontend
+40203945837, infrastructure 40203945739, candidate matrix 40203945591.
+The last dependency-audit Actions remains **40197182297** at `4e5a23c`; it is
+historical, not evidence of a newly run audit at either current SHA. The workflow
+has no manual-dispatch trigger, and no dependency files changed. Earlier local
+zero-vulnerability audits are retained as earlier observations, not fresh results.
+
+The active `main-pr-and-ci` Ruleset has five required checks, strict base matching,
+review-thread resolution, no force push/deletion and no bypass actors. There is no
+separate classic branch-protection object; that 404 does not negate the Ruleset.
+PR #43 has no unresolved inline review threads. Prior independent source review
+and the corrected PR #53 rollback test are reused for unchanged source; this
+recheck is a self-review, not a new independent production-adoption review.
+This documentation-only successor does not rerun the path-filtered candidate
+matrix; those source results are reused only after confirming unchanged source,
+Terraform and dependency bytes. Successor HEAD CI IDs are recorded on PR #43 and
+Issue #50 after completion, rather than predicted in this document.
+
+### Remaining acceptance work and ownership
+
+| Acceptance condition | Current classification | Owner, completion evidence and additional approval |
+| --- | --- | --- |
+| Local signatures including PR #52's issuance validity, snapshots, CLI/Provider identity, six scopes and schema/Mock qualification | VERIFIED (offline scope) | Codex; no further offline code defect reproduced. Vendor signature verification above completes the public-release signature check only. |
+| Local CAS, four-process same-DB competition, cross-role IDs, tombstones, crash/UNKNOWN, restart and retained-checkpoint rollback rejection | VERIFIED (tested local DB/filesystem) | Codex; DB+checkpoint rollback and separate-DB reuse are explicit demonstrated limits, never authorization/retry. |
+| Protected source/loaded-code execution and trusted producer receipt through later opened/executed Plan | IMPLEMENTED / UNVERIFIED | Codex + execution owner; exercise an independently protected producer/signer with exact CLI/Provider/source/Plan bytes and later opened Plan. Production trust/provisioning requires approval. |
+| Independent checkpoint and cross-host global one-use/CAS | BLOCKED | Operational owner; approve/select an authenticated monotonic authority outside DB restore scope, then prove restored DB+floor, host replacement, response loss and partition behavior. External provisioning/authentication needs approval. SQLite-only tests cannot close this row. |
+| Production approval/producer keys, revocation freshness and trusted time | AUTHORIZATION REQUIRED | User + security owner; authenticate/enroll keys, current authority, revocation policy and time under a separately approved policy. Vendor PGP verification is a different boundary. |
+| AWS/IAM/State/resource compatibility | AUTHORIZATION REQUIRED | User + AWS operator; fresh Account/Region/resource/SHA read-only approval, identity/State/default/import/upgrader/readback evidence. No AWS operation was performed. |
+| Formal Plan/Apply/migration/deployment/readiness/candidate adoption | AUTHORIZATION REQUIRED | User + operator; separate exact-SHA/input/State/Plan approvals and explicit PR #43 HOLD release. Existing approvals are not reusable. |
+| Production cost/monitoring/Closure acceptance | NOT STARTED (operational acceptance) | Operational reviewer; approve workload/cost scope, observe monitoring delivery and Closure on future exact Plan/State. Desk review below is complete, but cannot satisfy live acceptance. |
+
+The desk review mapped the existing runbook and
+[approval template](P4_DEV_VALIDATION_APPROVAL_TEMPLATE.md) to future acceptance:
+retain approved budget/workload and Worker concurrency 2; budget alerts are not
+a hard spend cap; verify Alarm/SNS delivery under approved synthetic inputs;
+require four specific closure directions and only approved validation-Alarm
+deletions; preserve code/alias/Artifact; require State/AWS readback and no lock or
+outside-State resources. Partial failure/unknown/State mismatch forbids an
+unapproved retry or forced Closure. These are existing gates, not new approval.
+No live cost/monitoring/Closure result is inferred from a schema or Mock test.
+
+Private raw recheck evidence was retained separately under
+`C:/Users/user/.codex/issue50-head-audit-20261026` and
+`/root/issue50-head-audit-20261026`; no Plan/State/private ledger is committed.
+No AWS authentication/API, IAM/Ruleset/readiness mutation, remote State, formal
+Plan/Apply, production key operation, deployment or paid AI inference occurred.
+Issue #50 stays OPEN and PR #43 stays Draft/HOLD.
