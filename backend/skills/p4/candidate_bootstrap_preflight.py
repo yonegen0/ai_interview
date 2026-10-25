@@ -211,6 +211,7 @@ def verify(
             "configuration_sha256",
             "lock_sha256",
             "approval_id",
+            "attempt_id",
         }
         and type(approval["schema_version"]) is int
         and approval["schema_version"] == 2
@@ -241,7 +242,8 @@ def verify(
         and journal["namespace"] == NAMESPACE
         and journal["state"] == "NEW"
         and isinstance(journal["attempt_id"], str)
-        and REVISION.fullmatch(journal["attempt_id"]) is not None,
+        and REVISION.fullmatch(journal["attempt_id"]) is not None
+        and approval["attempt_id"] == journal["attempt_id"],
         "CandidateAttemptNotNew",
     )
     if bundle["operation"] == "maintenance-plan":
