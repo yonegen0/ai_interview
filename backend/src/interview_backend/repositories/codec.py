@@ -6,6 +6,7 @@ import types
 from copy import deepcopy
 from dataclasses import fields, is_dataclass
 from decimal import Decimal
+from functools import lru_cache
 from typing import Literal, Union, get_args, get_origin, get_type_hints
 
 from boto3.dynamodb.types import TypeDeserializer, TypeSerializer
@@ -129,8 +130,14 @@ def check_type(value, hint):
     return isinstance(value, hint)
 
 
+@lru_cache(maxsize=64)
+def _record_hints(record_type: type) -> dict[str, object]:
+    # Storage schemas are fixed for the process; record values are checked on every call.
+    return get_type_hints(record_type)
+
+
 def validate(record):
-    hints = get_type_hints(type(record))
+    hints = _record_hints(type(record))
     for field in fields(record):
         value = getattr(record, field.name)
         if not check_type(value, hints[field.name]):
