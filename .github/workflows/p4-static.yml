@@ -78,6 +78,7 @@ jobs:
           import hashlib
           import json
           import os
+          import zipfile
           from pathlib import Path
 
           package = Path(os.environ["P4_PACKAGE_PATH"])
@@ -85,7 +86,29 @@ jobs:
               "package_sha256": hashlib.sha256(package.read_bytes()).hexdigest(),
               "package_bytes": package.stat().st_size,
           }))
+          with zipfile.ZipFile(package) as archive:
+              entries = [{
+                  "path": entry.filename,
+                  "size": entry.file_size,
+                  "sha256": hashlib.sha256(archive.read(entry)).hexdigest(),
+                  "timestamp": entry.date_time,
+                  "create_system": entry.create_system,
+                  "external_attr": entry.external_attr,
+                  "compress_type": entry.compress_type,
+              } for entry in archive.infolist()]
+          package.with_name("p4-zip-entries.json").write_text(
+              json.dumps(entries, indent=2) + "\n", encoding="utf-8"
+          )
           PY
+      - name: Retain public offline package comparison evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: offline-package-comparison
+          path: |
+            ${{ runner.temp }}/p4-zip-entries.json
+            ${{ runner.temp }}/p4-package.json
+          if-no-files-found: error
+          retention-days: 7
       - name: Import expanded ZIP with no AWS access
         env:
           AWS_EC2_METADATA_DISABLED: 'true'
