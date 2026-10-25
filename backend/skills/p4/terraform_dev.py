@@ -15,6 +15,7 @@ import time
 from decimal import Decimal
 from pathlib import Path
 
+from cloud_toolchain import NEW_EXECUTION_TERRAFORM_VERSION as TF_VERSION
 from plan_authorization import active_guard, required_guard
 
 from interview_backend.deployment import (
@@ -28,7 +29,6 @@ from interview_backend.deployment import (
 )
 
 PROJECT = Path(__file__).resolve().parents[3]
-TF_VERSION = "1.14.9"
 REPOSITORY = "yonegen0/ai_interview"
 INPUT_KEYS = frozenset(
     {

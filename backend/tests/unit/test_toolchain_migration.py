@@ -2,6 +2,7 @@
 
 import json
 import subprocess
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -133,11 +134,25 @@ def test_execution_pin_and_historical_evidence_remain_separate():
     repository = Path(__file__).resolve().parents[3]
     m = tool("cloud_toolchain")
     assert m.NEW_EXECUTION_TERRAFORM_VERSION == m.EXPECTED_TERRAFORM_VERSION == "1.14.9"
-    for name in ("bootstrap_state", "maintenance_contract", "terraform_dev"):
+    for name in ("bootstrap_state", "maintenance_contract"):
         assert tool(name).TF_VERSION == "1.14.9"
-    for operation in ("plan", "apply"):
-        workflow = (repository / f".github/workflows/p4-standard-{operation}.yml").read_text()
+    for name in ("terraform_dev", "cloud_controller_core", "test_closure_apply"):
+        assert tool(name).TF_VERSION == m.NEW_EXECUTION_TERRAFORM_VERSION
+    for name in ("standard-plan", "standard-apply", "cloud-plan", "compound", "deploy", "static"):
+        workflow = (repository / f".github/workflows/p4-{name}.yml").read_text()
         assert f"terraform_version: {m.NEW_EXECUTION_TERRAFORM_VERSION}\n" in workflow
+
+
+@pytest.mark.parametrize("candidate", ["1.16.7", "1.17.0"])
+def test_future_execution_contract_does_not_reinterpret_historical_versions(monkeypatch, candidate):
+    # Pure import test only; no candidate is enabled in the real execution configuration.
+    monkeypatch.setitem(
+        sys.modules, "cloud_toolchain", SimpleNamespace(NEW_EXECUTION_TERRAFORM_VERSION=candidate)
+    )
+    for name in ("terraform_dev", "cloud_controller_core", "test_closure_apply"):
+        assert tool(name).TF_VERSION == candidate
+    for name in ("bootstrap_state", "maintenance_contract"):
+        assert tool(name).TF_VERSION == "1.14.9"
 
 
 @pytest.mark.parametrize("candidate", ["1.16.7", "1.17.0"])

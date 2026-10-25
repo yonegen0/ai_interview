@@ -40,6 +40,14 @@ windows are notable used-resource additions. DocumentDB/RDS availability-zone co
 validation (6.68) and the 6.70 Route53 Domains import change target types not
 declared here. This is not proof of no changed defaults, replacement or State migration.
 
+Actual credential-free `providers schema -json` comparison covered all **41 used
+resource types**, with **no declared data sources**, for 6.64.0/6.65.0 -> 6.70.0.
+Only SNS topic (`maximum_message_size`, optional/computed number) and CloudWatch
+metric alarm (added `evaluation_window` block) differed; their schema versions
+stayed 0 and 1. Other used type schemas were equal. No used type or existing
+attribute/block was removed. This does not inspect State upgrader code or prove
+no replacement/default/IAM changes.
+
 ## Inventory / preserved contracts
 
 | Scope | CLI definition | Existing CLI | AWS lock | Local module dependency |
@@ -60,7 +68,8 @@ authenticate provenance; the runner obtains locks from the official registry CLI
 - `cloud_toolchain.NEW_EXECUTION_TERRAFORM_VERSION` explicitly names the future
   execution setting; it remains 1.14.9, with the old constant as a compatible alias.
 - `terraform_dev.py`, `cloud_controller_core.py`, `test_closure_apply.py` and all
-  existing execution checks retain 1.14.9. Candidate binaries fail the pre-OIDC gate.
+  their version checks now consume that new-execution constant, whose value remains
+  1.14.9. Candidate binaries fail the pre-OIDC gate. Historical pins do not import it.
 - Setup pins remain 1.14.9 in standard Plan/Apply, cloud-plan, compound, deploy,
   and static workflows. The new qualification workflow has no deployment permission.
 - Historical `bootstrap_state.py`, `maintenance_contract.py`, `recovery_contract.py`,
@@ -130,7 +139,7 @@ Windows 1.16.7 and 1.17.0 both completed six-scope lock generation, fmt, backend
 init/validate and mock tests: bootstrap **10**, service **57**, frontend **2** passed
 per candidate. Linux qualification and genuine CI are recorded in the PR;
 incomplete/missing reports never imply success. Local targeted Backend tests passed
-**105** cases, including **43** new migration/JSON/binding cases; Ruff check/format pass.
+**277** cases (2 skipped), including **45** new migration/JSON/binding cases; Ruff check/format pass.
 The first full Windows run reported 2313 passed, 40 failed, 9 errors, 4 skipped and
 57 deselected. Windows diagnostic ACL refusal was reproduced on unchanged main
 84f390c, and OpenSSL was absent from PATH; these are not a passing full-suite claim.
@@ -147,8 +156,8 @@ Linux current-HEAD CI remains mandatory. No ACL guard is relaxed to make tests p
 | Medium | Real-State upgrades, defaults/replacement/drift and effective IAM remain unverified |
 | Low | Explicit fixture/source provenance improves reproducibility; offline success still grants no execution authority |
 
-Adoption stays Draft/HOLD until the six-scope Windows/Linux matrix, used-resource
-schema/State upgrader review, every execution/historical consumer separation,
+Adoption stays Draft/HOLD until the six-scope Windows/Linux matrix, State upgrader
+review, bootstrap maintenance/recovery future execution design,
 Plan/Apply pins and exact locks, full operational JSON consumers, expiry/hash/source/
 platform/UNKNOWN/IAM/State negative tests, independent review and genuine CI pass.
 
