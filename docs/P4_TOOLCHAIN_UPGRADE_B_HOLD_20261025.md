@@ -116,6 +116,73 @@ Official references consulted for the boundaries:
 [backend-disabled init](https://developer.hashicorp.com/terraform/cli/commands/init),
 [GitHub PR events](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows).
 
+### Final verification and local environment repair (2026-10-25 JST)
+
+Verified source HEAD: `4a461a16c3ef1b9989609b274151ed0471ea939a`.
+GitHub main/base: `abaae3c19770ec43b0802594661c60fcd091987f`.
+PR #43 is OPEN, Draft and unmerged; Issue #39 is OPEN. The following genuine
+pull-request runs belong to that source HEAD. Their checkout logs identify the
+GitHub test merge `b244eefbca7f4094d68d6fa83210a42566356efc`, combining that
+HEAD with that base; this is not a merge into main.
+
+| Workflow / run | Jobs (all SUCCESS) | Verified log result |
+| --- | --- | --- |
+| [Backend / 40162323931](https://github.com/yonegen0/ai_interview/actions/runs/40162323931) | Backend verify `121076280762` | 2504 passed, 2 skipped, 57 deselected; API contracts 102 passed; Ruff check and 219-file format check pass |
+| [Frontend / 40162323985](https://github.com/yonegen0/ai_interview/actions/runs/40162323985) | Frontend verify `121076280915` | 65 test files / 669 tests; 37 Mock E2E; production, Storybook and Mock builds; lint/types; both dependency audits report 0 vulnerabilities |
+| [Offline infrastructure/package / 40162324105](https://github.com/yonegen0/ai_interview/actions/runs/40162324105) | terraform `121076281138`; package_changes `121076281277`; package `121076310362` | Six scopes; Mock tests 57 + 10 + 2 = 69; package required and actually built/imported on Linux |
+| [Candidate qualification / 40162323923](https://github.com/yonegen0/ai_interview/actions/runs/40162323923) | Offline Terraform 1.16.7 `121076280509`; Offline Terraform 1.17.0 `121076280713` | Both log six locking and six qualification scopes and successful completion with `--compare-provider-schemas` |
+
+The package log reports 30,980,577 bytes and SHA-256
+`32bbcfa09bd4c262528e685a4d954d0b1725660d005b7bb2fdfea1e3b8b38a1f`.
+Import checks block socket connections and verify the expanded ZIP modules,
+four handlers and 15 bundled questions. This is packaging evidence, not deployment.
+Candidate child Terraform output is captured in runner-local files, not printed
+in successful job logs. Thus the matrix logs confirm six-scope completion and
+successful execution of the schema/mock qualification path; they do not separately
+expose per-candidate mock counts or detailed schema reports. The explicit 69 count
+above comes from the normal `terraform` job, not an extracted matrix report.
+
+Local Windows verification on the same source and unchanged dependency locks:
+
+- Existing Git-provided `C:/Program Files/Git/usr/bin/openssl.exe` reports OpenSSL
+  3.5.5. Adding that directory to the test process PATH fixes the missing executable.
+  The test process also sets `PSModulePath` to
+  `%WINDIR%/System32/WindowsPowerShell/v1.0/Modules` for the existing ACL checks.
+  No persistent PATH/module setting, ACL gate or test expectation was changed.
+- `uv run --locked pytest -q tests/unit/test_plan_evidence.py`: **15 passed**.
+  Then `uv run --locked pytest -q -m "not dynamodb and not aws_e2e"`:
+  **2502 passed, 4 skipped, 57 deselected** (282.20s). This supersedes the earlier
+  local 9 fixture errors; it is distinct from Linux CI's 2504/2/57 result.
+  Ruff check and format check pass (219 files); uv 0.13.5 / Python 3.14.9.
+- Installed Chromium and Headless Shell revision **1248**, plus the required
+  FFmpeg, using the existing lock-installed Playwright CLI (`playwright install
+  chromium`); no package or lockfile update. The previously timed-out practice
+  integration file passes **7 tests** with unchanged timeouts and expectations.
+  `npm test` then passes **65 files / 669 tests**, without browser startup errors.
+  This does not establish the missing browser as the cause of the earlier separate
+  jsdom response-loss timeout; that timeout did not recur.
+- Lint, typecheck, production build and Mock build pass. Production export has no
+  `mockServiceWorker.js`; Mock export contains it. Local Mock E2E: **37 passed**.
+  Local Storybook build was not rerun; its success above is genuine CI evidence.
+- Local Node **24.22.1** / npm **11.19.1** differs from CI Node **22.23.4**.
+  Earlier `npm ci`/audit success is retained as historical setup evidence; neither
+  dependency installation nor audit was repeated merely for this documentation.
+- The pre-existing `frontend/public/mockServiceWorker.js` dirty indication is
+  retained. Its unfiltered Git blob hash equals HEAD exactly:
+  `0c970efc963c4096cae4fba9e70b7c881ad03ddd`; both index/worktree report LF while
+  system Git has `core.autocrlf=true`. No content was restored, staged or committed.
+  The original working directory and all its existing edits remain untouched.
+
+No additional implementation change was needed for these environment failures.
+The prior independent review covered the source gates, CI scope and synthetic
+regressions, with no unresolved P1/P2 reported after corrections. A fresh read-only
+review also found no concrete P1/P2 in the `63cb7db..4a461a1` source changes.
+Neither review is an independent operational adoption approval.
+
+This evidence-only follow-up retains every adoption blocker above. AWS/STS/OIDC,
+State, formal Plan/Apply, readiness/IAM/Ruleset changes, deployment and paid AI
+were not performed. Keep Draft, Issue #39 OPEN and public readiness NOT READY.
+
 ### Earlier PR B qualification (retained historical result)
 
 Related runtime/version/binding/schema/closure/deployment/standard-CI tests:
