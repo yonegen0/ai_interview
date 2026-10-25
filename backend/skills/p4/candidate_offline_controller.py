@@ -88,9 +88,7 @@ def source_inventory_digest(tracked_paths, checkout_files):
 def _git_read(root, *args):
     """Read local Git objects only. Does not authenticate origin or fetch remotely."""
     # Ignore caller-controlled Git repository/worktree/config overrides.
-    environment = {
-        key: value for key, value in os.environ.items() if not key.startswith("GIT_")
-    }
+    environment = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
     environment.update(
         GIT_NO_REPLACE_OBJECTS="1",
         GIT_NO_LAZY_FETCH="1",
