@@ -223,7 +223,11 @@ def test_plan_pair_fails_closed_on_defaults_state_changes_and_incomplete_evidenc
         del after["errored"]
     elif failure in {"proposed-unknown", "malformed-proposed-unknown"}:
         after["proposed_unknown"] = {
-            "root_module": {"resources": [{"values": {"id": True if failure == "proposed-unknown" else None}}]}
+            "root_module": {
+                "resources": [
+                    {"values": {"id": True if failure == "proposed-unknown" else None}}
+                ]
+            }
         }
     else:
         before = noop("1.14.9")
