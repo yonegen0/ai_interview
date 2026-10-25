@@ -46,6 +46,8 @@ jobs:
           set -euo pipefail
           python3 backend/skills/p4/toolchain_migration.py \
             --repository migration-baseline \
+            --candidate-repository . \
+            --checkout-candidate 1.16.7 \
             --temp-parent "$RUNNER_TEMP" \
             --terraform "$(command -v terraform)" \
             --candidate "$CANDIDATE_TERRAFORM" \

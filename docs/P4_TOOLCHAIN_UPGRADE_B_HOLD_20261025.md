@@ -25,7 +25,10 @@ Issue #39 remains OPEN; public release remains NOT READY.
 - The candidate matrix reads immutable pre-upgrade configuration at
   `7ec3595aa02c5315f6d7600282b428d294d3d771` in a second credential-free checkout,
   using current candidate validator code. This preserves genuine old -> new migration
-  testing instead of changing its accepted baseline. The normal `terraform` required
+  testing instead of changing its accepted baseline. Before provider initialization,
+  the matrix also compares the actual PR B checkout against that immutable source:
+  file inventory and every other tracked Terraform byte must remain unchanged.
+  The normal `terraform` required
   check separately validates the actual PR B configuration at its proposed version.
 
 To repeat migration qualification locally, pass a separate checkout of that legacy
