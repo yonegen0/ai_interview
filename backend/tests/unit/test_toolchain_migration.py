@@ -22,7 +22,7 @@ def lock(version, constraint, *, hashes=None, address=AWS):
 
 def configurations(candidate="1.16.7"):
     m = tool("toolchain_migration")
-    before = {"terraform/bootstrap/iam.tf": b'locals { action = "s3:GetObject" }'}
+    before = {"terraform/bootstrap/iam.tf": b'resource "aws_iam_role" "synthetic" {}'}
     for scope, (filename, version) in m.SCOPES.items():
         before[f"terraform/{scope}/{filename}"] = (
             b'terraform {\n  required_version = "= 1.14.9"\n'
@@ -285,3 +285,142 @@ def test_qualification_is_isolated_and_never_invokes_formal_plan_apply(
         assert not list(tmp_path.glob("p4-qualify-*/report.json"))
     if failure in {"version", "command", "lock", "hcl"}:
         assert all(c[0] != "init" for c in calls)
+
+
+@pytest.mark.parametrize(
+    "failure", [None, "state-version", "schema-change", "baseline-selection", "baseline-checksum"]
+)
+def test_opt_in_schema_matrix_uses_empty_backend_free_baselines(tmp_path, monkeypatch, failure):
+    m, before, _ = configurations()
+    before["terraform/bootstrap/iam.tf"] = b'resource "aws_iam_role" "synthetic" {}'
+    repository = tmp_path / "repository"
+    repository.mkdir()
+    executable = tmp_path / "terraform"
+    executable.touch()
+    for name, raw in before.items():
+        path = repository / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(raw)
+    monkeypatch.setattr(m, "tracked_snapshot", lambda path: dict.fromkeys(before, "synthetic"))
+    monkeypatch.setattr(m.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(m.platform, "machine", lambda: "x86_64")
+    calls = []
+
+    def run(args, *, cwd, env, **kwargs):
+        calls.append((cwd, args[1:]))
+        assert not cwd.is_relative_to(repository)
+        assert "AWS_ACCESS_KEY_ID" not in env
+        assert env["AWS_EC2_METADATA_DISABLED"] == "true"
+        assert args[1] not in {"plan", "apply", "show", "state"}
+        value = b"synthetic"
+        if args[1:3] == ["version", "-json"]:
+            value = json.dumps({"terraform_version": "1.16.7", "platform": "linux_amd64"}).encode()
+        elif args[1:3] == ["providers", "lock"]:
+            if cwd.name.startswith("schema-"):
+                assert args[3:] == ["-platform=linux_amd64"]
+                version = cwd.name.removeprefix("schema-")
+                if failure == "baseline-selection":
+                    version = "6.70.0"
+                hashes = ["zh:" + "d" * 64] if failure == "baseline-checksum" else None
+                (cwd / ".terraform.lock.hcl").write_bytes(lock(version, "~> 6.0", hashes=hashes))
+            else:
+                (cwd / ".terraform.lock.hcl").write_bytes(lock("6.70.0", "6.70.0"))
+        elif args[1] == "init":
+            assert args[2:] == ["-backend=false", "-input=false", "-lockfile=readonly"]
+            if cwd.name.startswith("schema-"):
+                assert set(path.name for path in cwd.iterdir()) == {
+                    "main.tf",
+                    ".terraform.lock.hcl",
+                }
+                assert b"backend" not in (cwd / "main.tf").read_bytes()
+                assert b"resource " not in (cwd / "main.tf").read_bytes()
+        elif args[1:3] == ["providers", "schema"]:
+            row = {"version": 0, "block": {"attributes": {}}}
+            if cwd.name == "bootstrap":
+                if failure == "state-version":
+                    row["version"] = 1
+                elif failure == "schema-change":
+                    row["block"]["attributes"]["unexpected"] = {"required": True}
+            value = json.dumps(
+                {
+                    "format_version": "1.0",
+                    "provider_schemas": {
+                        AWS: {"resource_schemas": {"aws_iam_role": row}},
+                    },
+                }
+            ).encode()
+        return subprocess.CompletedProcess(args, 0, stdout=value, stderr=b"")
+
+    monkeypatch.setattr(m.subprocess, "run", run)
+    if failure:
+        with pytest.raises(ValueError):
+            m.qualify(repository, tmp_path, executable, "1.16.7", compare_provider_schemas=True)
+        assert not list(tmp_path.glob("p4-qualify-*/report.json"))
+        if failure in {"baseline-selection", "baseline-checksum"}:
+            assert not any(args[0] == "init" for _, args in calls)
+    else:
+        work = m.qualify(repository, tmp_path, executable, "1.16.7", compare_provider_schemas=True)
+        report = json.loads((work / "report.json").read_text())
+        assert set(report["provider_schema_comparisons"]) == {"6.64.0", "6.65.0"}
+        assert sum(args[:2] == ["providers", "schema"] for _, args in calls) == 3
+
+
+@pytest.mark.parametrize(
+    "failure", [None, "source", "iam", "state", "lock", "missing-schema", "existing", "inside"]
+)
+def test_candidate_bundle_is_bound_non_overwriting_and_keeps_adoption_on_hold(
+    tmp_path, monkeypatch, failure
+):
+    m, before, after = configurations()
+    repository, qualification = tmp_path / "repository", tmp_path / "qualification"
+    for root, config in ((repository, before), (qualification / "checkout", after)):
+        for name, raw in config.items():
+            path = root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(raw)
+    snapshot = dict.fromkeys(before, "synthetic")
+    monkeypatch.setattr(m, "tracked_snapshot", lambda path: snapshot)
+    report = {
+        "status": "OFFLINE_QUALIFIED_NOT_DEPLOYMENT_APPROVAL",
+        "version": {"terraform_version": "1.16.7"},
+        "source_configuration_sha256": {} if failure == "source" else snapshot,
+        "provider_schema_comparisons": {}
+        if failure == "missing-schema"
+        else {
+            version: {
+                "resource_types": ["aws_iam_role"],
+                "schema_versions": {"aws_iam_role": 0},
+                "baseline_schema_sha256": "a" * 64,
+                "candidate_schema_sha256": "b" * 64,
+                "defaults_and_state_upgraders_proven": False,
+            }
+            for version in ("6.64.0", "6.65.0")
+        },
+    }
+    (qualification / "report.json").write_text(json.dumps(report))
+    if failure == "iam":
+        (qualification / "checkout/terraform/bootstrap/iam.tf").write_bytes(b"changed")
+    elif failure == "state":
+        (qualification / "checkout/terraform/bootstrap/terraform.tfstate").write_bytes(b"{}")
+    elif failure == "lock":
+        (qualification / "checkout/terraform/bootstrap/.terraform.lock.hcl").write_bytes(
+            lock("6.65.0", "6.65.0")
+        )
+    destination = repository / "bundle" if failure == "inside" else tmp_path / "bundle"
+    if failure == "existing":
+        destination.mkdir()
+        (destination / "preserve").write_bytes(b"preserve")
+    if failure:
+        with pytest.raises((ValueError, FileExistsError)):
+            m.export_candidate_bundle(repository, qualification, destination)
+        if failure == "existing":
+            assert (destination / "preserve").read_bytes() == b"preserve"
+        else:
+            assert not destination.exists()
+    else:
+        m.export_candidate_bundle(repository, qualification, destination)
+        manifest = json.loads((destination / "UPGRADE_HOLD.json").read_text())
+        assert manifest["status"] == "HOLD_INCOMPLETE_EXECUTION_MIGRATION_DO_NOT_MERGE"
+        assert len(manifest["files"]) == 12
+        assert not list(destination.rglob("*.tfstate"))
+    assert all((repository / name).read_bytes() == raw for name, raw in before.items())

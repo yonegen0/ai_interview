@@ -1,0 +1,427 @@
+{
+  "schema_version": 1,
+  "source": "https://raw.githubusercontent.com/hashicorp/terraform-provider-aws/v{version}/{path}",
+  "versions": [
+    "6.64.0",
+    "6.65.0",
+    "6.70.0"
+  ],
+  "scope": "41 primary resource files, four referenced State migration files, go.mod; not all transitive helpers/generated identity code/SDK behavior",
+  "aws_operations": 0,
+  "files": [
+    {
+      "path": "go.mod",
+      "sha256": {
+        "6.64.0": "8babbfe2a352f5ceb5a1c3faddfcf9504d25c33965a90195234d2693be3159dc",
+        "6.65.0": "0315a53bf9af5384ecc02d2da4d3d8f7b7d96c3fd2a8e7039058bccbc67efaeb",
+        "6.70.0": "1aa2ed1682f3fd7168d0b565e583f4f943a5a45371ccf31216d4a81c928717a9"
+      },
+      "unchanged": false
+    },
+    {
+      "path": "internal/service/apigatewayv2/api.go",
+      "sha256": {
+        "6.64.0": "725a016503e6f49e03617b59940439b463fc8e45e4df363a5bba07df9b570d97",
+        "6.65.0": "725a016503e6f49e03617b59940439b463fc8e45e4df363a5bba07df9b570d97",
+        "6.70.0": "725a016503e6f49e03617b59940439b463fc8e45e4df363a5bba07df9b570d97"
+      },
+      "unchanged": true
+    },
+    {
+      "path": "internal/service/apigatewayv2/authorizer.go",
+      "sha256": {
+        "6.64.0": "49b9c7cc5c0486d52e8259d696afb1551d1653c27ab324322d11d86c3d88edd4",
+        "6.65.0": "49b9c7cc5c0486d52e8259d696afb1551d1653c27ab324322d11d86c3d88edd4",
+        "6.70.0": "49b9c7cc5c0486d52e8259d696afb1551d1653c27ab324322d11d86c3d88edd4"
+      },
+      "unchanged": true
+    },
+    {
+      "path": "internal/service/apigatewayv2/integration.go",
+      "sha256": {
+        "6.64.0": "7c3039cea33e133e3b35b3fd82267d46995323c3a6c649e5d72029cd2d4e55db",
+        "6.65.0": "bea315893c807156c774f655fb9e72ca6d4d61bf7479add724c18361a0a9e11d",
+        "6.70.0": "bea315893c807156c774f655fb9e72ca6d4d61bf7479add724c18361a0a9e11d"
+      },
+      "unchanged": false
+    },
+    {
+      "path": "internal/service/apigatewayv2/route.go",
+      "sha256": {
+        "6.64.0": "ba29201641ddeecc238cba7fb8df11a501fd4a1687d141565163a331be295734",
+        "6.65.0": "ba29201641ddeecc238cba7fb8df11a501fd4a1687d141565163a331be295734",
+        "6.70.0": "ba29201641ddeecc238cba7fb8df11a501fd4a1687d141565163a331be295734"
+      },
+      "unchanged": true
+    },
+    {
+      "path": "internal/service/apigatewayv2/stage.go",
+      "sha256": {
+        "6.64.0": "3fd9a2b4e426e4f8e30da4dc613330748d4f4b87ff9816256e660dd7c769c58f",
+        "6.65.0": "3fd9a2b4e426e4f8e30da4dc613330748d4f4b87ff9816256e660dd7c769c58f",
+        "6.70.0": "3fd9a2b4e426e4f8e30da4dc613330748d4f4b87ff9816256e660dd7c769c58f"
+      },
+      "unchanged": true
+    },
+    {
+      "path": "internal/service/budgets/budget.go",
+      "sha256": {
+        "6.64.0": "33fc12e93368a9cd159bdb1d005791c13d7c634b3de88e2f33d10a0469a23255",
+        "6.65.0": "33fc12e93368a9cd159bdb1d005791c13d7c634b3de88e2f33d10a0469a23255",
+        "6.70.0": "33fc12e93368a9cd159bdb1d005791c13d7c634b3de88e2f33d10a0469a23255"
+      },
+      "unchanged": true
+    },
+    {
+      "path": "internal/service/cloudfront/distribution.go",
+      "sha256": {
+        "6.64.0": "b77fd5d8d57dda667651aa9af3ed3b241aabdcec78a782890d5ff0667f245fda",
+        "6.65.0": "b77fd5d8d57dda667651aa9af3ed3b241aabdcec78a782890d5ff0667f245fda",
+        "6.70.0": "b77fd5d8d57dda667651aa9af3ed3b241aabdcec78a782890d5ff0667f245fda"
+      },
+      "unchanged": true
+    },
+    {
+      "path": "internal/service/cloudfront/distribution_migrate.go",
+      "sha256": {
+        "6.64.0": "0f1a078e99660d29b39a0ed32cda8a1a78f1858930e28e10a5c2c024383ef947",
+        "6.65.0": "0f1a078e99660d29b39a0ed32cda8a1a78f1858930e28e10a5c2c024383ef947",
+        "6.70.0": "0f1a078e99660d29b39a0ed32cda8a1a78f1858930e28e10a5c2c024383ef947"
+      },
+      "unchanged": true
+    },
+    {
+      "path": "internal/service/cloudfront/function.go",
+      "sha256": {
+        "6.64.0": "da93bb16ec2b023e25d8d32b5f0d5b4f7c6e631dd70a1b8a94c1595e6082e01a",
+        "6.65.0": "da93bb16ec2b023e25d8d32b5f0d5b4f7c6e631dd70a1b8a94c1595e6082e01a",
+        "6.70.0": "da93bb16ec2b023e25d8d32b5f0d5b4f7c6e631dd70a1b8a94c1595e6082e01a"
+      },
+      "unchanged": true
+    },
+    {
+      "path": "internal/service/cloudfront/origin_access_control.go",
+      "sha256": {
+        "6.64.0": "2b8e215a0afd2f0ad15ee63967a543f8e8c0904ad10e7143dafc171067f9278d",
+        "6.65.0": "2b8e215a0afd2f0ad15ee63967a543f8e8c0904ad10e7143dafc171067f9278d",
+        "6.70.0": "2b8e215a0afd2f0ad15ee63967a543f8e8c0904ad10e7143dafc171067f9278d"
+      },
+      "unchanged": true
+    },
+    {
+      "path": "internal/service/cloudfront/response_headers_policy.go",
+      "sha256": {
+        "6.64.0": "3bc4ad216a98e0a90bb413f46765a9a4845f3fd0652f092bc9a3fc200d2d7228",
+        "6.65.0": "3bc4ad216a98e0a90bb413f46765a9a4845f3fd0652f092bc9a3fc200d2d7228",
+        "6.70.0": "3bc4ad216a98e0a90bb413f46765a9a4845f3fd0652f092bc9a3fc200d2d7228"
+      },
+      "unchanged": true
+    },
+    {
+      "path": "internal/service/cloudwatch/metric_alarm.go",
+      "sha256": {
+        "6.64.0": "30e66075b7711cbaa991b790b07662d7368d7eda81d0bf892cf59bd04598ff1f",
+        "6.65.0": "30e66075b7711cbaa991b790b07662d7368d7eda81d0bf892cf59bd04598ff1f",
+        "6.70.0": "3f10001d6c43533b5fe7296d02414f4996bff80c0674fb556e7773f523782b6f"
+      },
+      "unchanged": false
+    },
+    {
+      "path": "internal/service/cloudwatch/metric_alarm_migrate.go",
+      "sha256": {
+        "6.64.0": "8fe4171a88aac3140f925fb197b757c12a0721db10a8c2bb1a69be8f4746abb6",
+        "6.65.0": "8fe4171a88aac3140f925fb197b757c12a0721db10a8c2bb1a69be8f4746abb6",
+        "6.70.0": "8fe4171a88aac3140f925fb197b757c12a0721db10a8c2bb1a69be8f4746abb6"
+      },
+      "unchanged": true
+    },
+    {
+      "path": "internal/service/cognitoidp/user_group.go",
+      "sha256": {
+        "6.64.0": "0541c6aab9bc8550c42ce88dafae1470b47309a320509a60167a6f73926c888a",
+        "6.65.0": "0541c6aab9bc8550c42ce88dafae1470b47309a320509a60167a6f73926c888a",
+        "6.70.0": "0541c6aab9bc8550c42ce88dafae1470b47309a320509a60167a6f73926c888a"
+      },
+      "unchanged": true
+    },
+    {
+      "path": "internal/service/cognitoidp/user_pool.go",
+      "sha256": {
+        "6.64.0": "a55d7eb15ac31e5f71ce8f5a2560f2440ed6a288bc95ebf2de477dfb7b038e9b",
+        "6.65.0": "a55d7eb15ac31e5f71ce8f5a2560f2440ed6a288bc95ebf2de477dfb7b038e9b",
+        "6.70.0": "a55d7eb15ac31e5f71ce8f5a2560f2440ed6a288bc95ebf2de477dfb7b038e9b"
+      },
+      "unchanged": true
+    },
+    {
+      "path": "internal/service/cognitoidp/user_pool_client.go",
+      "sha256": {
+        "6.64.0": "12c3bbb7ade30a492296012dcac1cd8e62a30784b5b7a10350610ce9dfa53a4e",
+        "6.65.0": "12c3bbb7ade30a492296012dcac1cd8e62a30784b5b7a10350610ce9dfa53a4e",
+        "6.70.0": "12c3bbb7ade30a492296012dcac1cd8e62a30784b5b7a10350610ce9dfa53a4e"
+      },
+      "unchanged": true
+    },
+    {
+      "path": "internal/service/dynamodb/table.go",
+      "sha256": {
+        "6.64.0": "3f8819cb60d79ae2cb59df2a3a1bbc3a04f7e1299b26ccd7a6092609b5d310b8",
+        "6.65.0": "3f8819cb60d79ae2cb59df2a3a1bbc3a04f7e1299b26ccd7a6092609b5d310b8",
+        "6.70.0": "3f8819cb60d79ae2cb59df2a3a1bbc3a04f7e1299b26ccd7a6092609b5d310b8"
+      },
+      "unchanged": true
+    },
+    {
+      "path": "internal/service/dynamodb/table_migrate.go",
+      "sha256": {
+        "6.64.0": "d7bce91956628bbc8638c791e5fc33ae08e0013980b5eeb9e91153ec6dc7616e",
+        "6.65.0": "d7bce91956628bbc8638c791e5fc33ae08e0013980b5eeb9e91153ec6dc7616e",
+        "6.70.0": "d7bce91956628bbc8638c791e5fc33ae08e0013980b5eeb9e91153ec6dc7616e"
+      },
+      "unchanged": true
+    },
+    {
+      "path": "internal/service/iam/openid_connect_provider.go",
+      "sha256": {
+        "6.64.0": "2be1f46daf14c0845f3d9ecc213ef5262add737f0027072a6d2a0fea21d077fe",
+        "6.65.0": "2be1f46daf14c0845f3d9ecc213ef5262add737f0027072a6d2a0fea21d077fe",
+        "6.70.0": "a2e26868633040b570f0e9d5d35ed6c7a55c43badd33efe6ad2a15a842bad029"
+      },
+      "unchanged": false
+    },
+    {
+      "path": "internal/service/iam/policy.go",
+      "sha256": {
+        "6.64.0": "422373157c1b97a0c8f4485638162df806da7b4f6e7fe3eb1e30f8e5d3ed01b7",
+        "6.65.0": "422373157c1b97a0c8f4485638162df806da7b4f6e7fe3eb1e30f8e5d3ed01b7",
+        "6.70.0": "422373157c1b97a0c8f4485638162df806da7b4f6e7fe3eb1e30f8e5d3ed01b7"
+      },
+      "unchanged": true
+    },
+    {
+      "path": "internal/service/iam/role.go",
+      "sha256": {
+        "6.64.0": "940f1aba906f57b83dcbee6c3207f470ad36a714fc99f622d7057ec97bc01b09",
+        "6.65.0": "940f1aba906f57b83dcbee6c3207f470ad36a714fc99f622d7057ec97bc01b09",
+        "6.70.0": "940f1aba906f57b83dcbee6c3207f470ad36a714fc99f622d7057ec97bc01b09"
+      },
+      "unchanged": true
+    },
+    {
+      "path": "internal/service/iam/role_policy.go",
+      "sha256": {
+        "6.64.0": "603c8899378ff006d9702782ba260dcc13473f8292339ba75386e4a18fdba7fd",
+        "6.65.0": "603c8899378ff006d9702782ba260dcc13473f8292339ba75386e4a18fdba7fd",
+        "6.70.0": "603c8899378ff006d9702782ba260dcc13473f8292339ba75386e4a18fdba7fd"
+      },
+      "unchanged": true
+    },
+    {
+      "path": "internal/service/lambda/alias.go",
+      "sha256": {
+        "6.64.0": "7f48c46f18e367d3efdf3270b0d5b55a8065437a40aa0f8458dafda59db4296b",
+        "6.65.0": "7f48c46f18e367d3efdf3270b0d5b55a8065437a40aa0f8458dafda59db4296b",
+        "6.70.0": "7f48c46f18e367d3efdf3270b0d5b55a8065437a40aa0f8458dafda59db4296b"
+      },
+      "unchanged": true
+    },
+    {
+      "path": "internal/service/lambda/event_source_mapping.go",
+      "sha256": {
+        "6.64.0": "b4d754ad5abed8b9d4a13b4157b53dea0307c8436b3db4ce178c26359afa1b68",
+        "6.65.0": "b4d754ad5abed8b9d4a13b4157b53dea0307c8436b3db4ce178c26359afa1b68",
+        "6.70.0": "b4d754ad5abed8b9d4a13b4157b53dea0307c8436b3db4ce178c26359afa1b68"
+      },
+      "unchanged": true
+    },
+    {
+      "path": "internal/service/lambda/function.go",
+      "sha256": {
+        "6.64.0": "74ed679e89d78e1bf904eea799d55d2c7edacc40c988b4c20f35eae339a612cb",
+        "6.65.0": "74ed679e89d78e1bf904eea799d55d2c7edacc40c988b4c20f35eae339a612cb",
+        "6.70.0": "74ed679e89d78e1bf904eea799d55d2c7edacc40c988b4c20f35eae339a612cb"
+      },
+      "unchanged": true
+    },
+    {
+      "path": "internal/service/lambda/permission.go",
+      "sha256": {
+        "6.64.0": "574e72dcea6a636fcd958a62fb14bf96baa38504935ae3a4ce89559d1c357ca4",
+        "6.65.0": "574e72dcea6a636fcd958a62fb14bf96baa38504935ae3a4ce89559d1c357ca4",
+        "6.70.0": "574e72dcea6a636fcd958a62fb14bf96baa38504935ae3a4ce89559d1c357ca4"
+      },
+      "unchanged": true
+    },
+    {
+      "path": "internal/service/logs/group.go",
+      "sha256": {
+        "6.64.0": "71cf1453c4ac176ae80aa02d4d067be6ad41e38f6731351c5ba23abb49840467",
+        "6.65.0": "71cf1453c4ac176ae80aa02d4d067be6ad41e38f6731351c5ba23abb49840467",
+        "6.70.0": "71cf1453c4ac176ae80aa02d4d067be6ad41e38f6731351c5ba23abb49840467"
+      },
+      "unchanged": true
+    },
+    {
+      "path": "internal/service/s3/bucket.go",
+      "sha256": {
+        "6.64.0": "96b8a602b95d9737792a29a1e153b71f95944a777cceef0b23d813002ff5e193",
+        "6.65.0": "96b8a602b95d9737792a29a1e153b71f95944a777cceef0b23d813002ff5e193",
+        "6.70.0": "96b8a602b95d9737792a29a1e153b71f95944a777cceef0b23d813002ff5e193"
+      },
+      "unchanged": true
+    },
+    {
+      "path": "internal/service/s3/bucket_lifecycle_configuration.go",
+      "sha256": {
+        "6.64.0": "0999632e130240500bcba73e00b975fd39366caacf91377aa6cba5c9777b5f57",
+        "6.65.0": "0999632e130240500bcba73e00b975fd39366caacf91377aa6cba5c9777b5f57",
+        "6.70.0": "0999632e130240500bcba73e00b975fd39366caacf91377aa6cba5c9777b5f57"
+      },
+      "unchanged": true
+    },
+    {
+      "path": "internal/service/s3/bucket_lifecycle_configuration_migrate_v0.go",
+      "sha256": {
+        "6.64.0": "9c13bb035f0c76dd06389cbc6cb38985a5dfe7ee2383be150f9d11fbbcdccf6b",
+        "6.65.0": "9c13bb035f0c76dd06389cbc6cb38985a5dfe7ee2383be150f9d11fbbcdccf6b",
+        "6.70.0": "9c13bb035f0c76dd06389cbc6cb38985a5dfe7ee2383be150f9d11fbbcdccf6b"
+      },
+      "unchanged": true
+    },
+    {
+      "path": "internal/service/s3/bucket_ownership_controls.go",
+      "sha256": {
+        "6.64.0": "f1905f895a6be95f028e114959528b16a8b7fa5624192559418be7473ee745a3",
+        "6.65.0": "f1905f895a6be95f028e114959528b16a8b7fa5624192559418be7473ee745a3",
+        "6.70.0": "f1905f895a6be95f028e114959528b16a8b7fa5624192559418be7473ee745a3"
+      },
+      "unchanged": true
+    },
+    {
+      "path": "internal/service/s3/bucket_policy.go",
+      "sha256": {
+        "6.64.0": "fd9921ae2022c87fa1bcdda4d40139b97dd161e52320f5d5ef99ec3fac0294b4",
+        "6.65.0": "fd9921ae2022c87fa1bcdda4d40139b97dd161e52320f5d5ef99ec3fac0294b4",
+        "6.70.0": "fd9921ae2022c87fa1bcdda4d40139b97dd161e52320f5d5ef99ec3fac0294b4"
+      },
+      "unchanged": true
+    },
+    {
+      "path": "internal/service/s3/bucket_public_access_block.go",
+      "sha256": {
+        "6.64.0": "3cfff05240d3d52c502035704c510ffc0cbfbde5cc3083068eb8dadcb5929667",
+        "6.65.0": "3cfff05240d3d52c502035704c510ffc0cbfbde5cc3083068eb8dadcb5929667",
+        "6.70.0": "3cfff05240d3d52c502035704c510ffc0cbfbde5cc3083068eb8dadcb5929667"
+      },
+      "unchanged": true
+    },
+    {
+      "path": "internal/service/s3/bucket_server_side_encryption_configuration.go",
+      "sha256": {
+        "6.64.0": "ba6fccce684e9d675de6490ae49ea39aa7b586e8a0b715edbab5d361d2f3d48a",
+        "6.65.0": "ba6fccce684e9d675de6490ae49ea39aa7b586e8a0b715edbab5d361d2f3d48a",
+        "6.70.0": "ba6fccce684e9d675de6490ae49ea39aa7b586e8a0b715edbab5d361d2f3d48a"
+      },
+      "unchanged": true
+    },
+    {
+      "path": "internal/service/s3/bucket_versioning.go",
+      "sha256": {
+        "6.64.0": "ea990ade2e5e7b1cdacaaf9f43492371fc4517381655df10e16730e0b6ad8f6d",
+        "6.65.0": "ea990ade2e5e7b1cdacaaf9f43492371fc4517381655df10e16730e0b6ad8f6d",
+        "6.70.0": "ea990ade2e5e7b1cdacaaf9f43492371fc4517381655df10e16730e0b6ad8f6d"
+      },
+      "unchanged": true
+    },
+    {
+      "path": "internal/service/scheduler/schedule.go",
+      "sha256": {
+        "6.64.0": "41c504f2994a0648cda22c64c2b49694d4106ed1bb51cf9cb7e90ca443ebf0a2",
+        "6.65.0": "41c504f2994a0648cda22c64c2b49694d4106ed1bb51cf9cb7e90ca443ebf0a2",
+        "6.70.0": "41c504f2994a0648cda22c64c2b49694d4106ed1bb51cf9cb7e90ca443ebf0a2"
+      },
+      "unchanged": true
+    },
+    {
+      "path": "internal/service/scheduler/schedule_group.go",
+      "sha256": {
+        "6.64.0": "0ba98c8be068ec0bbb92207fcaa0e07fd4c99ddfcc87afb3cb319fc39e394b4c",
+        "6.65.0": "0ba98c8be068ec0bbb92207fcaa0e07fd4c99ddfcc87afb3cb319fc39e394b4c",
+        "6.70.0": "0ba98c8be068ec0bbb92207fcaa0e07fd4c99ddfcc87afb3cb319fc39e394b4c"
+      },
+      "unchanged": true
+    },
+    {
+      "path": "internal/service/ses/domain_dkim.go",
+      "sha256": {
+        "6.64.0": "25351097121e1bae29423a7e52d6baa4b0b89e14f43b1f5a3208d404d7076003",
+        "6.65.0": "25351097121e1bae29423a7e52d6baa4b0b89e14f43b1f5a3208d404d7076003",
+        "6.70.0": "25351097121e1bae29423a7e52d6baa4b0b89e14f43b1f5a3208d404d7076003"
+      },
+      "unchanged": true
+    },
+    {
+      "path": "internal/service/ses/domain_identity.go",
+      "sha256": {
+        "6.64.0": "9f49a02c89c92173bf84a4451e2b570c810ab4d59bd18dacf6b55d0ce8c14cdb",
+        "6.65.0": "9f49a02c89c92173bf84a4451e2b570c810ab4d59bd18dacf6b55d0ce8c14cdb",
+        "6.70.0": "9f49a02c89c92173bf84a4451e2b570c810ab4d59bd18dacf6b55d0ce8c14cdb"
+      },
+      "unchanged": true
+    },
+    {
+      "path": "internal/service/ses/email_identity.go",
+      "sha256": {
+        "6.64.0": "f714227d89e203a744e46891a4fe402f19442cdbf96eb4a03873a38b14a26223",
+        "6.65.0": "f714227d89e203a744e46891a4fe402f19442cdbf96eb4a03873a38b14a26223",
+        "6.70.0": "f714227d89e203a744e46891a4fe402f19442cdbf96eb4a03873a38b14a26223"
+      },
+      "unchanged": true
+    },
+    {
+      "path": "internal/service/sns/topic.go",
+      "sha256": {
+        "6.64.0": "3358f69d235a197ad47566504caf23308ea5d8f10bf4249cab9e74ddaf8b8182",
+        "6.65.0": "3358f69d235a197ad47566504caf23308ea5d8f10bf4249cab9e74ddaf8b8182",
+        "6.70.0": "05012bd52cae16c6233bcdd9f5731258c60029da3fd27a322972b887e7e9764d"
+      },
+      "unchanged": false
+    },
+    {
+      "path": "internal/service/sns/topic_policy.go",
+      "sha256": {
+        "6.64.0": "14122cc0e94abe560f71ee2fef7979272baa391f34fe4cf2a6f2e34ed5d2243d",
+        "6.65.0": "14122cc0e94abe560f71ee2fef7979272baa391f34fe4cf2a6f2e34ed5d2243d",
+        "6.70.0": "14122cc0e94abe560f71ee2fef7979272baa391f34fe4cf2a6f2e34ed5d2243d"
+      },
+      "unchanged": true
+    },
+    {
+      "path": "internal/service/sns/topic_subscription.go",
+      "sha256": {
+        "6.64.0": "f7a4523b42ca652ae919420fbfd9deba14403892db602f207b4e66e157c4a1e3",
+        "6.65.0": "f7a4523b42ca652ae919420fbfd9deba14403892db602f207b4e66e157c4a1e3",
+        "6.70.0": "f7a4523b42ca652ae919420fbfd9deba14403892db602f207b4e66e157c4a1e3"
+      },
+      "unchanged": true
+    },
+    {
+      "path": "internal/service/sqs/queue.go",
+      "sha256": {
+        "6.64.0": "7e014ef6444f35ee142be16b7e8bec1015d92d37573ced796711e0c06a7f5abe",
+        "6.65.0": "7e014ef6444f35ee142be16b7e8bec1015d92d37573ced796711e0c06a7f5abe",
+        "6.70.0": "7e014ef6444f35ee142be16b7e8bec1015d92d37573ced796711e0c06a7f5abe"
+      },
+      "unchanged": true
+    },
+    {
+      "path": "internal/service/sqs/queue_redrive_allow_policy.go",
+      "sha256": {
+        "6.64.0": "ba63cb2326d66195e979aaf620b996ac1af332552146d7c2dadec3def38793b5",
+        "6.65.0": "ba63cb2326d66195e979aaf620b996ac1af332552146d7c2dadec3def38793b5",
+        "6.70.0": "ba63cb2326d66195e979aaf620b996ac1af332552146d7c2dadec3def38793b5"
+      },
+      "unchanged": true
+    }
+  ]
+}

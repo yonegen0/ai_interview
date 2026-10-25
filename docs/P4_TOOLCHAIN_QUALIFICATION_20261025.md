@@ -1,5 +1,7 @@
 # Issue #39: offline toolchain qualification (2026-10-25 JST)
 
+Follow-up implementation: [operational compatibility and PR B preparation](P4_TOOLCHAIN_OPERATIONAL_COMPATIBILITY_20261025.md).
+
 This prepares a migration; it does **not** adopt a new runtime. Formal execution
 remains Terraform 1.14.9 with existing provider locks. Issue #39 stays open and
 public release remains **NOT READY**. Offline success is not AWS/State/IAM proof.
