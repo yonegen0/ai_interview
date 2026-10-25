@@ -42,6 +42,13 @@ def encoded(data):
     return json.dumps(data, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
 
 
+def linked_component(path):
+    return any(
+        part.is_symlink() or getattr(part, "is_junction", lambda: False)()
+        for part in (path, *path.parents)
+    )
+
+
 def source_inventory_digest(tracked_paths, checkout_files):
     """Bind ALL tracked Terraform bytes, not only six main.tf/versions.tf + locks.
 
@@ -119,7 +126,7 @@ def verified_git_source_inventory(repo_root, source_sha):
         "CandidateGitCommitInvalid",
     )
     root = Path(repo_root)
-    require(root.is_absolute() and not root.is_symlink(), "CandidateGitRootInvalid")
+    require(root.is_absolute() and not linked_component(root), "CandidateGitRootInvalid")
     root = root.resolve(strict=True)
     top = _git_read(root, "rev-parse", "--show-toplevel").decode("utf-8").strip()
     require(Path(top).resolve() == root, "CandidateGitRootMismatch")
@@ -335,6 +342,7 @@ def protected_directory(path):
     """Only permit an owned, private, real directory on the Linux candidate host."""
     path = Path(path)
     require(path.is_absolute(), "CandidateLedgerAbsolutePathRequired")
+    require(not linked_component(path), "CandidateLedgerDirectoryUnsafe")
     info = path.lstat()
     require(
         stat.S_ISDIR(info.st_mode) and info.st_uid == os.getuid() and info.st_mode & 0o077 == 0,
@@ -365,22 +373,29 @@ def private_subdirectory(parent, child):
 def exclusive_marker(directory, key, receipt):
     """Create-only and fsynced; a failed write is a permanent stop, not a retry."""
     require(type(key) is str and HEX40.fullmatch(key) is not None, "CandidateLedgerKeyInvalid")
-    target = directory / (key + ".json")
-    fd = os.open(
-        target,
-        os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
-        0o600,
-    )
+    payload = encoded(receipt)
+    # Pin the directory before creating the leaf. O_NOFOLLOW on the leaf alone
+    # does not stop a validated parent being replaced with a symlink.
+    parent = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
     try:
-        payload = encoded(receipt)
+        info = os.fstat(parent)
+        require(
+            info.st_uid == os.getuid() and info.st_mode & 0o077 == 0,
+            "CandidateLedgerDirectoryUnsafe",
+        )
+        fd = os.open(
+            key + ".json",
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+            0o600,
+            dir_fd=parent,
+        )
         with os.fdopen(fd, "wb") as stream:
             stream.write(payload)
             stream.flush()
             os.fsync(stream.fileno())
+        os.fsync(parent)
     finally:
-        # fdopen closed the descriptor even when writing failed.
-        pass
-    sync_directory(directory)
+        os.close(parent)
 
 
 def reserve_offline_attempt(root, *, approval_id, attempt_id, approval_sha256):

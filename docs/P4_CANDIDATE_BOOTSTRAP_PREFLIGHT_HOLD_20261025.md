@@ -142,3 +142,27 @@ exists. Critical unproven prerequisites remain:
 A successful GitHub CI run and synthetic JSON test provide **no real AWS State
 or Apply-safety guarantees**. PR #45 and PR #43 remain Draft/HOLD, Issue #39
 remains OPEN and formal Terraform remains 1.14.9.
+
+## Codex independent offline verification (2026-10-25)
+
+The original eight-file change at `184ebab29fcde3374c5e6620b6bba72c5c1a1099`
+received an independent code review plus actual network-isolated Linux CLI,
+official package checksum, six-scope disposable configuration and filesystem
+fault verification. See [the independent review report](P4_CANDIDATE_INDEPENDENT_REVIEW_20261025.md)
+for the five reproduced P2 findings, minimal fixes, tests and explicit limits.
+Codex's new fixes received self-review, not a second independent review.
+
+Candidate-only fixes reject deferred action invocations, contradictory change
+identities, structural-metadata re-entry inside unknown attribute masks and
+static linked root ancestors. Marker creation now pins its final directory
+before writing, preventing the reproduced parent-symlink redirected write.
+This does not freeze all ancestors or make a local ledger tamper/rollback proof.
+Owner deletion/root replacement still allows local re-reservation; operational
+execution must not rely on that local reservation as authority.
+
+PR #45's tracked Terraform remains the legacy contract. Positive candidate CLI
+tests used an explicitly identified disposable PR #43 requirement/lock overlay;
+the unchanged legacy source correctly rejected both candidate CLIs. Official
+HTTPS checksum/content-hash matches were checked; detached signer trust and real
+AWS State compatibility were not established. PR #43/#45 remain Draft/HOLD and
+Issue #39 remains OPEN, including after successful local tests or new-HEAD CI.
