@@ -355,7 +355,7 @@ def test_canonical_json_stable_for_field_order_and_escape(sample):
     escaped = deepcopy(claim)
     escaped["state_identity"]["lineage"] = 'quote" and backslash\\'
     encoded = m.canonical_payload(escaped)
-    assert b'quote\" and backslash\\' in encoded
+    assert json.loads(encoded)["state_identity"]["lineage"] == escaped["state_identity"]["lineage"]
     assert encoded != original
     escaped["state_identity"]["lineage"] = "\u00e9"
     with pytest.raises(ValueError, match="AsciiOnly"):
