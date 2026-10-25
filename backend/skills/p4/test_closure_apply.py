@@ -13,6 +13,7 @@ import sys
 from pathlib import Path
 
 from bootstrap_state import private_path, write_record
+from cloud_toolchain import NEW_EXECUTION_TERRAFORM_VERSION as TF_VERSION
 from deployment_guards import read_state_snapshot, sha256
 from manifest import read_manifest, verify_live_manifest
 from test_closure_guard import apply_once, guard
@@ -46,7 +47,7 @@ class Driver:
         self.env["TF_DATA_DIR"] = str(directory / ".terraform")
         self.env["TF_WORKSPACE"] = "default"
         self.check_source()
-        if json.loads(self.command("version", "-json"))["terraform_version"] != "1.14.9":
+        if json.loads(self.command("version", "-json"))["terraform_version"] != TF_VERSION:
             raise ValueError("TerraformVersionMismatch")
         self.command(
             "init",

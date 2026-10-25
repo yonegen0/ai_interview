@@ -1,0 +1,121 @@
+{
+  "provenance": "Actual official Windows AMD64 CLI output; synthetic output-only local plan, no providers/backend/AWS. Not production or saved-plan approval evidence.",
+  "version": {
+    "terraform_version": "1.14.9",
+    "platform": "windows_amd64",
+    "provider_selections": {},
+    "terraform_outdated": false
+  },
+  "show": {
+    "format_version": "1.2",
+    "terraform_version": "1.14.9",
+    "variables": {
+      "worker_wif_enabled": {
+        "value": false
+      }
+    },
+    "planned_values": {
+      "outputs": {
+        "constant": {
+          "sensitive": false,
+          "type": "string",
+          "value": "synthetic-offline-only"
+        },
+        "null_value": {
+          "sensitive": false,
+          "type": "dynamic",
+          "value": null
+        },
+        "worker_wif_enabled": {
+          "sensitive": false,
+          "type": "bool",
+          "value": false
+        }
+      },
+      "root_module": {}
+    },
+    "output_changes": {
+      "constant": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": "synthetic-offline-only",
+        "after_unknown": false,
+        "before_sensitive": false,
+        "after_sensitive": false
+      },
+      "null_value": {
+        "actions": [
+          "no-op"
+        ],
+        "before": null,
+        "after": null,
+        "after_unknown": false,
+        "before_sensitive": false,
+        "after_sensitive": false
+      },
+      "worker_wif_enabled": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": false,
+        "after_unknown": false,
+        "before_sensitive": false,
+        "after_sensitive": false
+      }
+    },
+    "prior_state": {
+      "format_version": "1.0",
+      "terraform_version": "1.14.9",
+      "values": {
+        "outputs": {
+          "constant": {
+            "sensitive": false,
+            "value": "synthetic-offline-only",
+            "type": "string"
+          },
+          "worker_wif_enabled": {
+            "sensitive": false,
+            "value": false,
+            "type": "bool"
+          }
+        },
+        "root_module": {}
+      }
+    },
+    "configuration": {
+      "root_module": {
+        "outputs": {
+          "constant": {
+            "expression": {
+              "constant_value": "synthetic-offline-only"
+            }
+          },
+          "null_value": {
+            "expression": {
+              "constant_value": null
+            }
+          },
+          "worker_wif_enabled": {
+            "expression": {
+              "references": [
+                "var.worker_wif_enabled"
+              ]
+            }
+          }
+        },
+        "variables": {
+          "worker_wif_enabled": {
+            "default": false
+          }
+        }
+      }
+    },
+    "timestamp": "2026-10-25T02:23:46Z",
+    "applyable": true,
+    "complete": true,
+    "errored": false
+  }
+}

@@ -4,6 +4,8 @@ import hashlib
 import json
 import os
 
+from cloud_toolchain import NEW_EXECUTION_TERRAFORM_VERSION as TF_VERSION
+
 ACCOUNT = "835384817629"
 REGION = "ap-northeast-1"
 MAIN = os.environ.get("GITHUB_SHA", "")
@@ -69,7 +71,7 @@ def audit_plan(plan, binding, envelope, binary, approval, run_id, state_before):
         and binding["region"] == REGION
         and binding["state_key"] == "dev/terraform.tfstate"
         and binding["state_bucket"] == f"ai-interview-state-{ACCOUNT}-{REGION}"
-        and binding["terraform_version"] == "1.14.9",
+        and binding["terraform_version"] == TF_VERSION,
         "BackendOrRuntimeMismatch",
     )
     require(
@@ -95,7 +97,7 @@ def audit_plan(plan, binding, envelope, binary, approval, run_id, state_before):
     require(binding["inputs_sha256"] == digest(expected_input), "SavedInputsHashMismatch")
     require(not plan.get("errored") and not plan.get("deferred_changes"), "ErroredOrDeferredPlan")
     require(not plan.get("resource_drift"), "UnexpectedPlanDrift")
-    require(plan.get("terraform_version") == "1.14.9", "SavedPlanTerraformVersionMismatch")
+    require(plan.get("terraform_version") == TF_VERSION, "SavedPlanTerraformVersionMismatch")
     require(
         all(plan["variables"][k]["value"] is False for k in FLAGS), "PlannedEnablementForbidden"
     )
