@@ -9,6 +9,7 @@ import tempfile
 from pathlib import Path
 
 from offline_terraform import (
+    assert_additive,
     copy_configuration,
     isolated_environment,
     parse_lock,
@@ -247,6 +248,13 @@ def qualify(repository, temp_parent, executable, candidate, *, compare_provider_
                     encoding="utf-8",
                 )
                 (schema_root / ".terraform.lock.hcl").write_bytes(raw_lock)
+                # Baseline locks may contain Windows h1 only. Add the official native
+                # package hash in this disposable root, preserving selection and hashes.
+                terraform(schema_root, "providers", "lock", f"-platform={expected_platform}")
+                assert_additive(
+                    raw_lock.decode("utf-8"),
+                    (schema_root / ".terraform.lock.hcl").read_text(encoding="utf-8"),
+                )
                 terraform(
                     schema_root, "init", "-backend=false", "-input=false", "-lockfile=readonly"
                 )

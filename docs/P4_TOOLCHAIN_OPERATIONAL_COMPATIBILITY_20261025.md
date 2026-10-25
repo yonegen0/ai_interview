@@ -52,7 +52,9 @@ explains why schema versions and upgrader implementations must be assessed separ
 backend-disabled roots from the existing official provider locks and compares
 their schemas with 6.70.0 for all **41 used types**. These roots contain no resources,
 data sources or repository backend. Source provider selection is checked before
-initialization. Credentials/configuration isolation is inherited from the existing
+initialization. Official native-platform checksums are added only to the disposable
+baseline locks, using the existing additive guard to preserve selection and every
+original checksum before readonly init. Credentials/configuration isolation is inherited from the existing
 runner. Only the two reviewed additions are allowed; missing types, changed schema
 versions, unrelated schema changes, new providers or unsupported formats fail closed.
 Both candidate Linux CI jobs now perform this comparison alongside the existing

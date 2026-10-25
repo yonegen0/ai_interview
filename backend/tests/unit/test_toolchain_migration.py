@@ -287,7 +287,9 @@ def test_qualification_is_isolated_and_never_invokes_formal_plan_apply(
         assert all(c[0] != "init" for c in calls)
 
 
-@pytest.mark.parametrize("failure", [None, "state-version", "schema-change"])
+@pytest.mark.parametrize(
+    "failure", [None, "state-version", "schema-change", "baseline-selection", "baseline-checksum"]
+)
 def test_opt_in_schema_matrix_uses_empty_backend_free_baselines(tmp_path, monkeypatch, failure):
     m, before, _ = configurations()
     before["terraform/bootstrap/iam.tf"] = b'resource "aws_iam_role" "synthetic" {}'
@@ -314,7 +316,15 @@ def test_opt_in_schema_matrix_uses_empty_backend_free_baselines(tmp_path, monkey
         if args[1:3] == ["version", "-json"]:
             value = json.dumps({"terraform_version": "1.16.7", "platform": "linux_amd64"}).encode()
         elif args[1:3] == ["providers", "lock"]:
-            (cwd / ".terraform.lock.hcl").write_bytes(lock("6.70.0", "6.70.0"))
+            if cwd.name.startswith("schema-"):
+                assert args[3:] == ["-platform=linux_amd64"]
+                version = cwd.name.removeprefix("schema-")
+                if failure == "baseline-selection":
+                    version = "6.70.0"
+                hashes = ["zh:" + "d" * 64] if failure == "baseline-checksum" else None
+                (cwd / ".terraform.lock.hcl").write_bytes(lock(version, "~> 6.0", hashes=hashes))
+            else:
+                (cwd / ".terraform.lock.hcl").write_bytes(lock("6.70.0", "6.70.0"))
         elif args[1] == "init":
             assert args[2:] == ["-backend=false", "-input=false", "-lockfile=readonly"]
             if cwd.name.startswith("schema-"):
@@ -346,6 +356,8 @@ def test_opt_in_schema_matrix_uses_empty_backend_free_baselines(tmp_path, monkey
         with pytest.raises(ValueError):
             m.qualify(repository, tmp_path, executable, "1.16.7", compare_provider_schemas=True)
         assert not list(tmp_path.glob("p4-qualify-*/report.json"))
+        if failure in {"baseline-selection", "baseline-checksum"}:
+            assert not any(args[0] == "init" for _, args in calls)
     else:
         work = m.qualify(repository, tmp_path, executable, "1.16.7", compare_provider_schemas=True)
         report = json.loads((work / "report.json").read_text())
