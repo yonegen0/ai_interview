@@ -121,6 +121,13 @@ ConditionCheck and Update of the same item. DynamoDB documents atomic
 window. That window cannot serve as permanent replay prevention.
 [DynamoDB TransactWriteItems](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_TransactWriteItems.html).
 
+IDs must also be disjoint across roles: an approval ID cannot become an attempt
+ID or vice versa, either within one entry or across histories. The durable
+layout must use a common namespace-wide ID claim key (without a role prefix)
+for both IDs, reserving both in the same transaction, in addition to any
+role-specific indexes. Separate approval/attempt keyspaces alone cannot enforce
+this cross-role rule. The Mock now models one shared used-ID set under its lock.
+
 Do not TTL or delete one-use tombstones when an approval expires or a run ends.
 Separate privacy retention for encrypted event details from permanent digest/ID
 evidence. IDs and payload digests must not contain credentials or full private
@@ -252,3 +259,39 @@ authenticated source, or real Provider/State compatibility were exercised.
 The independent source review is complete for these three files. Genuine CI on
 the final pushed HEAD is recorded separately by the integrating agent. Draft/HOLD
 and all operational authenticity and approval gates above remain in force.
+
+## Independent follow-up: namespace-wide ID separation
+
+The same independent reviewer separately examined PR #46's subsequent
+`677b0fd113f617e836909eac7afa33b6a8c0e807` and
+`7df6ad855438a3b9fcca00b211cd73f1649c8cde` changes: entry-level approval/attempt
+inequality and one combined seen-ID set across supplied histories. At immutable
+HEAD `7df6ad8`, Linux `unshare -n` execution passed **151 contract tests in
+7.95s**, with Ruff check/format passing for the two changed files. An independent
+eight-case script also checked same-role collisions, both cross-role directions,
+full role swap, identical IDs within one entry, and distinct fresh IDs. All
+accepted/rejected outcomes matched the namespace-wide separation rule; accepted
+results remained non-authorizing.
+
+After the normal integration merge `389038a`, the reviewer examined this P3
+follow-up's actual working diff without modifying implementation or tests.
+`MockJournalRepository` now checks and reserves both roles in one `_used_ids` set
+inside the existing lock. Collision validation precedes consumption, both IDs
+are added at the modeled atomic boundary, and CAS cannot change either identity.
+The five additional test cases cover competing cross-role reservations in both
+directions, rejection without partial consumption in both directions, and
+same-entry equality rejection before either ID is consumed. The design's common
+namespace-wide durable claim key correctly carries this stronger invariant
+beyond role-specific indexes; no durable adapter has been implemented.
+
+Independent Linux `unshare -n` verification of the final follow-up snapshot:
+**185 passed in 6.89s** — 34 model tests plus 151 PR #46 contract tests. Ruff check
+and format check passed for both model Python files; `git diff --check` passed.
+The earlier 29/178 and 149 counts above describe the previously reviewed
+snapshots, not this updated one.
+
+No new concrete unresolved P1/P2 was identified in this follow-up scope. The
+mock-only and non-authorizing result boundaries, response-loss HOLD requirement,
+and all unimplemented authenticity/durability/runtime gates remain unchanged.
+These checks are independent local evidence, not new-HEAD GitHub CI or actual
+distributed storage, Terraform, AWS, signature verification or adoption approval.

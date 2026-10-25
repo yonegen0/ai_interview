@@ -51,7 +51,7 @@ class MockJournalRepository:
 
     def __init__(self) -> None:
         self._lock = Lock()
-        self._approvals: set[str] = set()
+        self._used_ids: set[str] = set()
         self._histories: dict[str, list[dict[str, object]]] = {}
 
     def reserve(
@@ -65,13 +65,13 @@ class MockJournalRepository:
         contract.require(reserved["state"] == "RESERVED", "CandidateModelReservationInvalid")
         approval_id, attempt_id = initial["approval_id"], initial["attempt_id"]
         with self._lock:
-            if approval_id in self._approvals or attempt_id in self._histories:
+            if approval_id in self._used_ids or attempt_id in self._used_ids:
                 raise ModelConflict("CandidateModelIdReused")
             if fault == "before_commit":
                 raise ModelIndeterminateError("CandidateModelOutcomeUnknownHold")
             # No fault boundary exists between indexes and history: this is the
             # atomicity a real transactional storage adapter must independently prove.
-            self._approvals.add(approval_id)
+            self._used_ids.update((approval_id, attempt_id))
             self._histories[attempt_id] = [initial, reserved]
             if fault == "after_commit":
                 raise ModelIndeterminateError("CandidateModelOutcomeUnknownHold")

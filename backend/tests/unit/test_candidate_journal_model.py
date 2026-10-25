@@ -48,7 +48,9 @@ def test_mock_lifecycle_and_all_results_stay_non_authorizing(model):
         assert result["retry_permitted"] is False
 
 
-@pytest.mark.parametrize("collision", ["approval", "attempt", "both"])
+@pytest.mark.parametrize(
+    "collision", ["approval", "attempt", "both", "approval-as-attempt", "attempt-as-approval"]
+)
 def test_two_host_clients_cannot_reserve_same_ids_in_shared_mock(model, collision):
     m, repo, event = model
     barrier = Barrier(2)
@@ -59,6 +61,10 @@ def test_two_host_clients_cannot_reserve_same_ids_in_shared_mock(model, collisio
             changes["attempt_id"] = "e" * 40
         elif number == 1 and collision == "attempt":
             changes["approval_id"] = "f" * 40
+        elif number == 1 and collision == "approval-as-attempt":
+            changes = {"approval_id": "f" * 40, "attempt_id": "a" * 40}
+        elif number == 1 and collision == "attempt-as-approval":
+            changes = {"approval_id": "b" * 40, "attempt_id": "e" * 40}
         initial, reserved = event("NEW", 0, **changes), event("RESERVED", 1, **changes)
         barrier.wait(timeout=5)
         try:
@@ -81,19 +87,33 @@ def test_distinct_mock_ids_can_reserve_independently(model):
     assert repo.read("f" * 40)["entry"]["approval_id"] == "e" * 40
 
 
-@pytest.mark.parametrize("collision", ["approval", "attempt"])
+@pytest.mark.parametrize(
+    "collision", ["approval", "attempt", "approval-as-attempt", "attempt-as-approval"]
+)
 def test_rejected_reservation_does_not_partially_consume_other_id(model, collision):
     m, repo, event = model
     repo.reserve(event("NEW", 0), event("RESERVED", 1))
     conflicting = {"approval_id": "a" * 40, "attempt_id": "e" * 40}
     if collision == "attempt":
         conflicting = {"approval_id": "f" * 40, "attempt_id": "b" * 40}
+    elif collision == "approval-as-attempt":
+        conflicting = {"approval_id": "f" * 40, "attempt_id": "a" * 40}
+    elif collision == "attempt-as-approval":
+        conflicting = {"approval_id": "b" * 40, "attempt_id": "e" * 40}
     with pytest.raises(m.ModelConflict):
         repo.reserve(event("NEW", 0, **conflicting), event("RESERVED", 1, **conflicting))
     fresh = {"approval_id": "f" * 40, "attempt_id": "e" * 40}
     assert (
         repo.reserve(event("NEW", 0, **fresh), event("RESERVED", 1, **fresh))["authorized"] is False
     )
+
+
+def test_same_entry_cross_role_collision_is_rejected_without_consumption(model):
+    _, repo, event = model
+    same_id = {"attempt_id": "a" * 40}
+    with pytest.raises(ValueError, match="CandidateJournalIdReused"):
+        repo.reserve(event("NEW", 0, **same_id), event("RESERVED", 1, **same_id))
+    assert repo.reserve(event("NEW", 0), event("RESERVED", 1))["authorized"] is False
 
 
 @pytest.mark.parametrize("mutation", ["partial", "identity", "gap", "schema", "fault"])
