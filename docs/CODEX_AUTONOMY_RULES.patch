@@ -1,0 +1,9 @@
+diff --git a/docs/CODEX_AUTONOMY_RULES.md b/docs/CODEX_AUTONOMY_RULES.md
+--- a/docs/CODEX_AUTONOMY_RULES.md
++++ b/docs/CODEX_AUTONOMY_RULES.md
+@@ -39,3 +39,3 @@
+-P4一時Enablementの正常・異常経路はAGENTS.mdの条件付き自動Closure、
+-[承認テンプレート](P4_DEV_VALIDATION_APPROVAL_TEMPLATE.md)、[runbook](P4_TERRAFORM_RUNBOOK.md)に従う。
++P4一時Enablementの正常・異常経路は[承認テンプレート](P4_DEV_VALIDATION_APPROVAL_TEMPLATE.md)に規定する条件付き自動Closureと、
++[runbook](P4_TERRAFORM_RUNBOOK.md)に従う。
+ Enablement成功かつState/AWS実体が正常なら、Smoke/性能のPASS/FAIL・inbox未確認によらず閉鎖まで完了する。
