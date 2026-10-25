@@ -248,6 +248,31 @@ def test_create_never_overwrites_and_new_identity_rejected(storage, tmp_path):
         reopen(m, repo)
 
 
+def test_database_and_checkpoint_rollback_together_cannot_prove_one_use(storage):
+    m, repo, event = storage
+    checkpoint = repo.reserve(event("NEW", 0), event("RESERVED", 1))["checkpoint"]
+    previous = repo.path.read_bytes()
+    changes = {"approval_id": "e" * 40, "attempt_id": "f" * 40}
+    repo.reserve(event("NEW", 0, **changes), event("RESERVED", 1, **changes))
+    repo.path.write_bytes(previous)
+    restored = reopen(m, repo, checkpoint)
+    result = restored.reserve(event("NEW", 0, **changes), event("RESERVED", 1, **changes))
+    # The caller's floor was also rolled back: local consistency is not authority.
+    assert result["authorized"] is False
+    assert result["retry_permitted"] is False
+    assert result["rollback_verification"] == "UNVERIFIED_HOLD"
+
+
+def test_separate_databases_do_not_share_id_consumption(storage, tmp_path):
+    m, repo, event = storage
+    other = m.SQLiteJournalRepository.create(tmp_path / "independent.db")
+    for database in (repo, other):
+        result = database.reserve(event("NEW", 0), event("RESERVED", 1))
+        assert result["global_uniqueness_proven"] is False
+        assert result["authorized"] is False
+        assert result["retry_permitted"] is False
+
+
 def test_no_network_or_aws_and_copy_isolation(storage, monkeypatch):
     import socket
 
