@@ -36,7 +36,11 @@ def mask(value, *, allow_metadata=False):
             if allow_metadata and key in STRUCTURAL_KEYS:
                 require(type(item) in {str, int}, "CandidateUnknownMaskMalformed")
             else:
-                mask(item, allow_metadata=key in {"root_module", "child_modules", "resources"})
+                mask(
+                    item,
+                    allow_metadata=allow_metadata
+                    and key in {"root_module", "child_modules", "resources"},
+                )
     elif type(value) is list:
         for item in value:
             mask(item, allow_metadata=allow_metadata)
@@ -71,6 +75,13 @@ def resource_metadata(module):
             "CandidateStateResourceSchemaUnproven",
         )
         sensitive_mask(row.get("sensitive_values", {}))
+        if row.get("identity") is not None:
+            require(
+                type(row["identity"]) is dict
+                and type(row.get("identity_schema_version")) is int
+                and row["identity_schema_version"] >= 0,
+                "CandidateStateResourceSchemaUnproven",
+            )
     for child in children:
         resource_metadata(child)
 
@@ -84,7 +95,12 @@ def inspect_plan(document):
         type(version) is str and re.fullmatch(r"1\.\d+", version) is not None,
         "CandidatePlanFormatVersionUnsupported",
     )
-    for name in ("resource_drift", "deferred_changes", "action_invocations"):
+    for name in (
+        "resource_drift",
+        "deferred_changes",
+        "action_invocations",
+        "deferred_action_invocations",
+    ):
         require(
             name not in document or document[name] == [],
             "CandidateDeferredOrUnsupportedChanges",
@@ -93,6 +109,7 @@ def inspect_plan(document):
         proposed = document["proposed_unknown"]
         require(type(proposed) is dict, "CandidateUnknownMaskMalformed")
         mask(proposed, allow_metadata=True)
+    inventories = {}
     for stage in ("prior_state", "planned_values"):
         container = document.get(stage)
         require(type(container) is dict, "CandidatePlanStateStructureMissing")
@@ -104,6 +121,7 @@ def inspect_plan(document):
             module = container.get("root_module")
         require(type(module) is dict, "CandidatePlanStateStructureMissing")
         resource_metadata(module)
+        inventories[stage] = compatibility.plan_resources(module)
     require(type(document.get("resource_changes")) is list, "CandidatePlanChangesMissing")
     for row in document["resource_changes"]:
         require(
@@ -111,6 +129,21 @@ def inspect_plan(document):
             "CandidatePlanChangeMalformed",
         )
         change = row["change"]
+        address = row.get("address")
+        require(
+            type(address) is str
+            and all(address in inventory for inventory in inventories.values()),
+            "CandidatePlanIdentityMismatch",
+        )
+        before_identity = inventories["prior_state"][address].get("identity")
+        after_identity = inventories["planned_values"][address].get("identity")
+        require(
+            preflight.canonical(change.get("before_identity"))
+            == preflight.canonical(before_identity)
+            == preflight.canonical(after_identity)
+            == preflight.canonical(change.get("after_identity")),
+            "CandidatePlanIdentityMismatch",
+        )
         require(
             "deposed" not in row and "action_reason" not in row,
             "CandidatePlanExtraActionReview",

@@ -181,3 +181,68 @@ def test_raw_state_rejects_duplicate_keys_and_nonfinite_json():
     raw = raw.replace(b'"serial":1,"serial":1', b'"serial":NaN')
     with pytest.raises(ValueError, match="CandidateRawStateMalformed"):
         module.inspect_raw_state(raw, identity | {"sha256": module.preflight.sha(raw)})
+
+
+@pytest.mark.parametrize("deferred", [[{"reason": "unknown"}], {}, None, False])
+def test_deferred_action_invocations_cannot_hide_in_noop_plan(plans, deferred):
+    before, candidate = plans
+    candidate["deferred_action_invocations"] = deferred
+    with pytest.raises(ValueError, match="CandidateDeferredOrUnsupportedChanges"):
+        tool("candidate_state_snapshot_review").compare_offline_plans(before, candidate)
+
+
+@pytest.mark.parametrize("stage", ["baseline", "candidate"])
+@pytest.mark.parametrize("mutation", ["changed", "missing-before", "missing-after", "unbound"])
+def test_change_identity_must_match_values_inventory(plans, stage, mutation):
+    before, candidate = plans
+    for document in plans:
+        for container in (document["prior_state"]["values"], document["planned_values"]):
+            row = container["root_module"]["resources"][0]
+            row["identity_schema_version"] = 0
+            row["identity"] = {"id": "original"}
+        document["resource_changes"][0]["change"].update(
+            before_identity={"id": "original"}, after_identity={"id": "original"}
+        )
+    document = before if stage == "baseline" else candidate
+    change = document["resource_changes"][0]["change"]
+    if mutation == "changed":
+        change["after_identity"]["id"] = "different"
+    elif mutation == "missing-before":
+        del change["before_identity"]
+    elif mutation == "missing-after":
+        del change["after_identity"]
+    else:
+        change.update(before_identity={"id": "unbound"}, after_identity={"id": "unbound"})
+    with pytest.raises(ValueError, match="CandidatePlanIdentityMismatch"):
+        tool("candidate_state_snapshot_review").compare_offline_plans(before, candidate)
+
+
+def test_unchanged_identity_is_reviewable_without_authorization(plans):
+    for document in plans:
+        document["deferred_action_invocations"] = []
+        for container in (document["prior_state"]["values"], document["planned_values"]):
+            row = container["root_module"]["resources"][0]
+            row["identity_schema_version"] = 0
+            row["identity"] = {"id": "original"}
+        document["resource_changes"][0]["change"].update(
+            before_identity={"id": "original"}, after_identity={"id": "original"}
+        )
+    assert (
+        tool("candidate_state_snapshot_review").compare_offline_plans(*plans)["authorized"] is False
+    )
+
+
+def test_attribute_names_cannot_reenter_structural_unknown_metadata(plans):
+    before, candidate = plans
+    candidate["proposed_unknown"] = {
+        "root_module": {
+            "resources": [
+                {
+                    "address": "aws_api_gateway_rest_api.main",
+                    "values": {"resources": [{"address": "malformed-unknown"}]},
+                }
+            ]
+        }
+    }
+    with pytest.raises(ValueError, match="CandidateUnknownOrMalformedMask"):
+        tool("candidate_state_snapshot_review").compare_offline_plans(before, candidate)

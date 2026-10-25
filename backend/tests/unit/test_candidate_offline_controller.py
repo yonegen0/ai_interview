@@ -345,3 +345,55 @@ def test_git_review_cannot_override_checkout_inventory(synthetic_git_checkout, s
         m.review_git_checkout_offline(
             root, source_sha=source_sha, bundle={"source_sha": source_sha}, checkout_files={}
         )
+
+
+def test_git_checkout_rejects_symlink_in_root_ancestors(synthetic_git_checkout, sample):
+    root, source_sha = synthetic_git_checkout
+    alias = root.parent / "alias"
+    alias.symlink_to(root.parent, target_is_directory=True)
+    with pytest.raises(ValueError, match="CandidateGitRootInvalid"):
+        sample[0].verified_git_source_inventory(alias / root.name, source_sha)
+
+
+@pytest.mark.skipif(__import__("os").name != "posix", reason="Linux-only private fsync ledger")
+def test_ledger_rejects_symlink_in_root_ancestors(tmp_path, sample):
+    root = tmp_path / "ledger"
+    root.mkdir(mode=0o700)
+    alias = tmp_path / "alias"
+    alias.symlink_to(tmp_path, target_is_directory=True)
+    with pytest.raises(ValueError, match="CandidateLedgerDirectoryUnsafe"):
+        sample[0].reserve_offline_attempt(
+            alias / root.name,
+            approval_id="a" * 40,
+            attempt_id="b" * 40,
+            approval_sha256="c" * 64,
+        )
+
+
+@pytest.mark.skipif(__import__("os").name != "posix", reason="Linux-only private fsync ledger")
+def test_marker_pins_directory_before_leaf_creation(tmp_path, sample, monkeypatch):
+    m = sample[0]
+    directory, redirected = tmp_path / "markers", tmp_path / "redirected"
+    directory.mkdir(mode=0o700)
+    redirected.mkdir(mode=0o700)
+    original = m.os.open
+    calls = []
+
+    def swap_after_directory_open(path, flags, *args, **kwargs):
+        if not calls and not flags & m.os.O_DIRECTORY:
+            # The old implementation created the leaf before pinning its parent.
+            calls.append("unpinned-leaf")
+            directory.rename(tmp_path / "original-markers")
+            directory.symlink_to(redirected, target_is_directory=True)
+        fd = original(path, flags, *args, **kwargs)
+        if not calls and flags & m.os.O_DIRECTORY:
+            calls.append(fd)
+            directory.rename(tmp_path / "original-markers")
+            directory.symlink_to(redirected, target_is_directory=True)
+        return fd
+
+    monkeypatch.setattr(m.os, "open", swap_after_directory_open)
+    m.exclusive_marker(directory, "a" * 40, {"synthetic": True})
+    assert len(calls) == 1
+    assert not (redirected / ("a" * 40 + ".json")).exists()
+    assert (tmp_path / "original-markers" / ("a" * 40 + ".json")).is_file()
