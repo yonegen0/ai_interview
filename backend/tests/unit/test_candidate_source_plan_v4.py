@@ -39,9 +39,7 @@ def sample():
         "apply_approval_id": "4" * 40,
         "apply_attempt_id": "5" * 40,
     }
-    receipt = {
-        k: deepcopy(claim[k]) for k in m.RECEIPT_SHARED
-    } | {
+    receipt = {k: deepcopy(claim[k]) for k in m.RECEIPT_SHARED} | {
         "kind": "p4-bootstrap-candidate-origin-claim-v4",
         "producer_id": "untrusted-producer",
         "producer_key_id": "untrusted-key",
@@ -62,10 +60,7 @@ def sample():
             "algorithm": "ed25519",
             "trust_revision": "7" * 64,
             "operation": operation,
-            **{
-                key: deepcopy(claim[key])
-                for key in m.SHARED - {"namespace", "plan_sha256"}
-            },
+            **{key: deepcopy(claim[key]) for key in m.SHARED - {"namespace", "plan_sha256"}},
             "plan_sha256": plan_hash,
             "approval_id": aid,
             "attempt_id": tid,
@@ -78,19 +73,29 @@ def sample():
             "max_cost_usd_cents": 0,
         }
 
-    return m, claim, expected, raw, approval(
-        "maintenance-plan", claim["plan_approval_id"], claim["plan_attempt_id"], None
-    ), approval(
-        "maintenance-apply", claim["apply_approval_id"],
-        claim["apply_attempt_id"], claim["plan_sha256"]
+    return (
+        m,
+        claim,
+        expected,
+        raw,
+        approval("maintenance-plan", claim["plan_approval_id"], claim["plan_attempt_id"], None),
+        approval(
+            "maintenance-apply",
+            claim["apply_approval_id"],
+            claim["apply_attempt_id"],
+            claim["plan_sha256"],
+        ),
     )
 
 
 def run(sample, **overrides):
     m, claim, expected, raw, plan, apply = sample
     return m.validate_source_plan(
-        claim, expected, plan_bytes=overrides.pop("plan_bytes", raw),
-        plan_approval=plan, apply_approval=apply,
+        claim,
+        expected,
+        plan_bytes=overrides.pop("plan_bytes", raw),
+        plan_approval=plan,
+        apply_approval=apply,
         terminal_state=overrides.pop("terminal_state", "COMPLETED"),
         **overrides,
     )
@@ -148,12 +153,24 @@ def test_changed_state_identity_fails_closed(sample, field, value):
 @pytest.mark.parametrize(
     "mutation",
     [
-        "wrong-operation", "unknown", "extra", "missing",
-        "bool-schema", "old-schema", "empty", "tamper",
-        "id-reuse-plan-apply", "id-cross-role", "id-cross-attempt",
-        "wrong-plan-approval", "wrong-apply-approval",
-        "receipt-missing", "receipt-id", "receipt-extra",
-        "receipt-source", "receipt-invalid",
+        "wrong-operation",
+        "unknown",
+        "extra",
+        "missing",
+        "bool-schema",
+        "old-schema",
+        "empty",
+        "tamper",
+        "id-reuse-plan-apply",
+        "id-cross-role",
+        "id-cross-attempt",
+        "wrong-plan-approval",
+        "wrong-apply-approval",
+        "receipt-missing",
+        "receipt-id",
+        "receipt-extra",
+        "receipt-source",
+        "receipt-invalid",
     ],
 )
 def test_replay_bad_receipt_or_partial_evidence_fails_closed(sample, mutation):
