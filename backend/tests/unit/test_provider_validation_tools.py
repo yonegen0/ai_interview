@@ -81,6 +81,47 @@ def test_live_flow_preparation_all_rounds_offline(rounds):
     assert all(e.status == "completed" for e in runtime.repository.snapshot().evaluations.values())
 
 
+@pytest.mark.parametrize("flow", ["coaching", "star"])
+@pytest.mark.parametrize("question_count", [1, 2])
+def test_live_flows_accept_question_bank_without_career(runtime, flow, question_count):
+    live = tool("coaching_live")
+    run = live.Run(f"bank-{flow}-{question_count}")
+    a, b = LocalApi(runtime, "user-a"), LocalApi(runtime, "user-b")
+    admin = LocalApi(runtime, "admin", True)
+    questions = [q.wire() for q in load_questions() if q.category != "career"][:question_count]
+    assert len(questions) == question_count
+    assert (
+        admin.call(
+            "POST",
+            "/admin/question-bank",
+            {"expectedVersion": 0, "questions": questions},
+            run.key("question-bank"),
+        )[0]
+        == 200
+    )
+    original = admin.call("GET", "/admin/question-bank")[1]
+
+    def wait(api, eid):
+        runtime.worker.run("user-a", eid)
+        return api.call("GET", f"/evaluations/{eid}")[1]
+
+    def wait_star(api, gid):
+        runtime.worker.run("user-a", gid)
+        return api.call("GET", f"/star-assist/generations/{gid}")[1]
+
+    if flow == "coaching":
+        live.coaching_flow(a, b, run, wait=wait)
+    else:
+        live.star_flow(a, b, run, wait=wait_star, evaluate=wait)
+
+    assert all(row["status"] == "passed" for row in run.rows)
+    assert admin.call("GET", "/admin/question-bank")[1] == original
+    session = next(iter(runtime.repository.snapshot().sessions.values()))
+    assert session.practice_mode == "full"
+    assert [q.wire() for q in session.questions] == questions
+    assert all(e.status == "completed" for e in runtime.repository.snapshot().evaluations.values())
+
+
 @pytest.mark.parametrize("status", ["failed", "processing"])
 def test_coaching_flow_does_not_pass_an_unfinished_or_failed_retry(status):
     live = tool("coaching_live")
