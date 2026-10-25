@@ -187,7 +187,7 @@ def test_candidate_hcl_and_provider_locks_must_match(fixture, change):
         "journal-failed",
         "journal-unknown",
         "journal-missing",
-    "journal-replay",
+        "journal-replay",
         "manifest-extra",
     ],
 )
