@@ -151,6 +151,8 @@ def test_nested_noop_synthetic_plan_pair(version):
         "input",
         "empty",
         "missing-errored",
+        "proposed-unknown",
+        "malformed-proposed-unknown",
     ],
 )
 def test_plan_pair_fails_closed_on_defaults_state_changes_and_incomplete_evidence(failure):
@@ -219,6 +221,10 @@ def test_plan_pair_fails_closed_on_defaults_state_changes_and_incomplete_evidenc
         after["variables"]["flag"]["value"] = 0
     elif failure == "missing-errored":
         del after["errored"]
+    elif failure in {"proposed-unknown", "malformed-proposed-unknown"}:
+        after["proposed_unknown"] = {
+            "root_module": {"resources": [{"values": {"id": True if failure == "proposed-unknown" else None}}]}
+        }
     else:
         before = noop("1.14.9")
         after = noop("1.16.7")
