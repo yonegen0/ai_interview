@@ -58,3 +58,72 @@ All remote State access, formal Plan/Apply, AWS, paid inference, Environment
 readiness and PR #43 merge remain **HOLD**. Do not invoke historical
 controllers with candidate evidence or reuse historical Plan binaries,
 approvals, receipts, or ledgers.
+
+
+## Supplementary offline evidence review (Issue #39 follow-up)
+
+Two **non-executing** candidate-only modules extend the existing preflight without
+changing `bootstrap_maintenance.py`, `bootstrap_recovered_apply.py`, their
+approval schemas, Terraform requirements or any AWS permissions.
+
+- `candidate_offline_controller.py`: SHA-256 inventory of **all supplied
+  tracked Terraform files** (rather than only the twelve candidate version/lock
+  files), comparison of preflight configuration bytes to this inventory, exact
+  candidate namespace / source / approval / attempt bindings, UTC-aware
+  one-hour maximum review interval and expiration rejection. A signed and
+  independently authenticated Git commit/tree is still required to establish
+  the legitimacy of `tracked_paths` and `checkout_files`. The v3 review
+  descriptor is **not a genuine signed approval**, and review success always
+  returns `authorized=false`.
+- A Linux-only, private local create-only reservation helper writes and fsyncs
+  the approval marker **before** the attempt marker. Reuse fails, and a crash
+  between those writes permanently freezes that approval. Stored
+  `STARTED_UNKNOWN_ON_RESTART` markers must never be interpreted as permission
+  to retry. This is local best-effort persistence, **not** a tamper/rollback
+  proof, a distributed lock, or an approved operational journal. It does not
+  contact AWS or start Terraform; future real controllers cannot use it as a
+  substitute for a separately reviewed immutable ledger.
+- `candidate_state_snapshot_review.py`: synthetic/raw-local State JSON digest,
+  lineage, serial, raw State format-v4 checks, JSON resource schema presence,
+  deferred and unsupported action rejection, proposed/after unknown-mask
+  validation and sensitivity-metadata syntax checks. The review delegates
+  no-op pair comparison to existing `toolchain_compatibility.py`, leaving its
+  existing behavior unchanged. Synthetic API Gateway identity and SNS default
+  values remain review fixtures, not proof of real provider behavior.
+  The claimed S3 VersionId is **not independently validated** by this library.
+
+HashiCorp's JSON output specification requires consumers to handle
+`proposed_unknown`, `after_unknown`, `sensitive_values` and JSON
+`format_version` deliberately. A provider lock's `h1:`/`zh:` entries are
+checksum *formats*; their syntactic presence does **not** authenticate provider
+packages or signer trust. References:
+
+- https://developer.hashicorp.com/terraform/internals/json-format
+- https://developer.hashicorp.com/terraform/language/files/dependency-lock
+- https://developer.hashicorp.com/terraform/cli/commands/show
+
+## Still HOLD: no transition from candidate-only review to execution
+
+The new supplementary modules intentionally do not construct or launch a
+candidate maintenance/recovery controller; no bridge to real AWS or Terraform
+exists. Critical unproven prerequisites remain:
+
+1. Independently verified Git source identity, complete authenticated tree and
+   executable controller code identity, without untracked or changed bytes.
+2. Official Terraform 1.16.7 checksum/platform provenance, AWS Provider 6.70.0
+   official package/signature checks, real binary `version -json`, complete
+   parser-based HCL checks and sterile disposable `init -backend=false` /
+   `validate` before AWS authentication.
+3. Fresh, independently signed/verified one-use execution approvals and
+   separate maintenance-plan, maintenance-apply and recovery-apply grants,
+   with immutable commit / binary / State / saved-Plan / configuration binding.
+4. Independently approved **remote** atomic attempt and approval journal
+   semantics, including crash, timeout, partial success and UNKNOWN freeze;
+   durable local files alone cannot authorize action.
+5. Separate AWS read/Plan/Apply authorizations, real remote State
+   VersionId/lineage/serial/hash readback, actual provider schema/state upgrader
+   qualification and an independent SHA-fixed code review.
+
+A successful GitHub CI run and synthetic JSON test provide **no real AWS State
+or Apply-safety guarantees**. PR #45 and PR #43 remain Draft/HOLD, Issue #39
+remains OPEN and formal Terraform remains 1.14.9.
