@@ -832,3 +832,180 @@ def test_recovery_reclassifies_after_started_wins_conflict():
     assert db(client, lambda: NOW + 90000).recover(OWNER, eid).status == "failed"
     assert written(client)["Evaluation"].failure_reason == "OUTCOME_UNKNOWN"
     assert written(client)["Dispatch"].generation == 1
+
+
+def session_app(repository):
+    ids = count(1)
+    return Application(repository, load_questions(), lambda: uid(next(ids)))
+
+
+def seed_session_budget(limit=59):
+    memory = MemoryRepository(lambda: NOW)
+    app = session_app(memory)
+    for index in range(limit):
+        assert app.create(OWNER, uid(10000 + index), {
+            "category": "job_change", "difficulty": "standard"
+        }).status == 201
+    return memory, app
+
+
+def test_session_budget_existing_rev_cas_and_stubber(sdk):
+    memory, _ = seed_session_budget()
+    items = snapshot(memory)
+    client = SnapshotClient(items)
+    result = session_app(db(client)).create(
+        OWNER, uid(20000), {"category": "job_change", "difficulty": "standard"}
+    )
+    assert result.status == 201
+    actions = client.writes[0]["TransactItems"]
+    budget_puts = [
+        action["Put"] for action in actions
+        if "Put" in action and from_wire(action["Put"]["Item"])["kind"]
+        == "SessionCreationBudget"
+    ]
+    assert len(budget_puts) == 1
+    budget_put = budget_puts[0]
+    stored = from_wire(budget_put["Item"])
+    assert decode(stored)[0].count == 60
+    assert budget_put["ConditionExpression"] == (
+        "attribute_exists(PK) AND rev = :r AND kind = :k AND schema_version = :v"
+    )
+    original = from_wire(items[(stored["PK"], stored["SK"])])
+    assert from_wire(budget_put["ExpressionAttributeValues"]) == {
+        ":r": original["rev"], ":k": "SessionCreationBudget", ":v": 1
+    }
+    assert stored["rev"] == original["rev"] + 1
+    assert {from_wire(a["Put"]["Item"])["kind"] for a in actions if "Put" in a} == {
+        "SessionCreationBudget", "Session", "IdempotencyRecord"
+    }
+    with Stubber(sdk) as stub:
+        for method, parameters in client.reads:
+            assert method == "get"
+            k = from_wire(parameters["Key"])
+            response = (
+                {"Item": items[(k["PK"], k["SK"])]}
+                if (k["PK"], k["SK"]) in items else {}
+            )
+            if response and parameters.get("ProjectionExpression"):
+                names = parameters["ExpressionAttributeNames"]
+                response = {"Item": {
+                    names[n.strip()]: response["Item"][names[n.strip()]]
+                    for n in parameters["ProjectionExpression"].split(",")
+                }}
+            stub.add_response("get_item", response, parameters)
+        stub.add_response(
+            "transact_write_items", {}, {
+                "TransactItems": actions, "ClientRequestToken": ANY
+            }
+        )
+        assert session_app(db(sdk)).create(
+            OWNER, uid(20000), {"category": "job_change", "difficulty": "standard"}
+        ).status == 201
+        stub.assert_no_pending_responses()
+
+
+def test_session_budget_59_race_reloads_and_rechecks_limit(monkeypatch):
+    from interview_backend.repositories import domain
+
+    monkeypatch.setattr(domain, "SESSION_CREATION_MONTHLY_LIMIT", 60)
+    memory, competitor = seed_session_budget()
+    client = SnapshotClient(snapshot(memory))
+    first_write = [True]
+
+    def race(_request):
+        if first_write[0]:
+            first_write[0] = False
+            assert competitor.create(
+                OWNER, uid(20001), {"category": "job_change", "difficulty": "standard"}
+            ).status == 201
+            client.items = snapshot(memory)  # Deterministic competing commit.
+            raise ClientError(
+                {
+                    "Error": {"Code": "TransactionCanceledException"},
+                    "CancellationReasons": [{"Code": "ConditionalCheckFailed"}],
+                },
+                "TransactWriteItems",
+            )
+        pytest.fail("Stale contender must not write after observing count=60")
+
+    client.on_write = race
+    with pytest.raises(BusinessError) as exc:
+        session_app(db(client)).create(
+            OWNER, uid(20002), {"category": "job_change", "difficulty": "standard"}
+        )
+    assert (exc.value.status, exc.value.code) == (429, "SESSION_CREATION_LIMIT")
+    assert len(client.writes) == 1
+    assert sum(method == "get" for method, _ in client.reads) >= 8
+    persisted = memory.snapshot()
+    assert len(persisted.sessions) == len(persisted.requests) == 60
+    assert next(iter(persisted.session_creation_budgets.values())).count == 60
+    assert (OWNER, uid(20002)) not in persisted.requests
+
+
+def test_session_budget_commit_response_loss_replays_without_duplicate():
+    memory, committed = seed_session_budget(limit=1)
+    items = snapshot(memory)
+    client = SnapshotClient(items)
+    key_value = uid(20005)
+    payload = {"category": "job_change", "difficulty": "standard"}
+    expected = committed.create(OWNER, key_value, payload)
+
+    def lost(_request):
+        client.items = snapshot(memory)  # Post-commit fixture, not Dynamo emulation.
+        raise EndpointConnectionError(endpoint_url="http://synthetic")
+
+    client.on_write = lost
+    app = session_app(db(client))
+    assert app.create(OWNER, key_value, payload) == expected
+    assert len(client.writes) == 1
+    assert app.create(OWNER, key_value, payload) == expected
+    assert len(client.writes) == 1
+    with pytest.raises(BusinessError) as changed:
+        app.create(OWNER, key_value, {
+            "category": "motivation", "difficulty": "standard"
+        })
+    assert (changed.value.status, changed.value.code) == (409, "IDEMPOTENCY_CONFLICT")
+    state = memory.snapshot()
+    assert len(state.sessions) == len(state.requests) == 2
+    assert next(iter(state.session_creation_budgets.values())).count == 2
+
+
+def test_session_budget_unknown_commit_does_not_guess_success():
+    memory, _ = seed_session_budget(limit=1)
+    client = SnapshotClient(snapshot(memory))
+    client.on_write = lambda _: (_ for _ in ()).throw(
+        EndpointConnectionError(endpoint_url="http://synthetic")
+    )
+    app = session_app(db(client))
+    with pytest.raises(StorageUnavailable):
+        app.create(OWNER, uid(20006), {
+            "category": "job_change", "difficulty": "standard"
+        })
+    assert len(client.writes) == 3
+    assert client.writes[0] == client.writes[1] == client.writes[2]
+    assert len(memory.snapshot().sessions) == 1
+
+
+@pytest.mark.parametrize(
+    "corruption",
+    [
+        lambda row: row.update(rev="bad"),
+        lambda row: row.update(data="not-json"),
+        lambda row: row.update(data=row["data"].replace("2026-09", "2026-13")),
+        lambda row: row.update(data=row["data"].replace(OWNER, "different-owner")),
+        lambda row: row.update(SK="SESSION_BUDGET#wrong"),
+    ],
+)
+def test_session_budget_invalid_stored_row_fails_closed(corruption):
+    memory, _ = seed_session_budget(limit=1)
+    items = snapshot(memory)
+    name = next(k for k in items if k[1].startswith("SESSION_BUDGET#"))
+    row = from_wire(items[name])
+    corruption(row)
+    client = SnapshotClient({**items, name: to_wire(row)})
+    with pytest.raises((StorageFormatError, Exception)) as failure:
+        session_app(db(client)).create(
+            OWNER, uid(20007), {"category": "job_change", "difficulty": "standard"}
+        )
+    assert type(failure.value).__name__ in {"StorageFormatError", "IntegrityError"}
+    assert not client.writes
