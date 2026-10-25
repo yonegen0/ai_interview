@@ -204,10 +204,18 @@ idempotent operation, including when a retry crosses midnight.
 These follow-up assertions test *local contract and simulated effects*;
 `SnapshotClient` never evaluates DynamoDB's conditions, and a botocore
 `Stubber` only validates SDK request/response shape. They are not proof of
-live AWS concurrency correctness. At the time of this authored follow-up,
-new-branch tests and independent review/CI are **pending
-verification**; record their verified results in the PR and new audit
-addendum rather than treating this note as success evidence.
+live AWS concurrency correctness. Genuine GitHub Actions checks on tested
+PR #40 code HEAD `5ef01da7ec59547c28ce12410029c351cda06910` passed:
+Backend run #40145541563 (Ruff check/format, pytest 2,328 passed /
+2 skipped / 57 deselected, and 102 frontend-contract cases),
+Frontend run #40145541562 (both npm audits zero vulnerabilities,
+lint/typecheck, 669 Vitest cases, production/Storybook/mock builds,
+and 37 Playwright E2E cases), and P4 offline/package run
+#40145541571 (terraform, package_changes and package SUCCESS).
+This addendum is a documentation-only commit after the tested code
+HEAD; *the new final HEAD's required checks must pass separately* before
+merge. Independent human review and AWS runtime verification were not
+performed.
 
 Residual risks: actual DynamoDB conditional-write semantics and response
 loss have not been exercised in AWS; initial pre-quota Sessions are not
