@@ -6,6 +6,7 @@ provider upgrader behavior or that caller-supplied bytes came from remote State.
 
 import hashlib
 import json
+import re
 
 import candidate_bootstrap_preflight as preflight
 import toolchain_compatibility as compatibility
@@ -77,6 +78,12 @@ def resource_metadata(module):
 def inspect_plan(document):
     """Strict candidate supplement for unknown, sensitive and deferred evidence."""
     require(type(document) is dict, "CandidatePlanDocumentMalformed")
+    # HashiCorp JSON output uses a major/minor format independent of raw State v4.
+    version = document.get("format_version")
+    require(
+        type(version) is str and re.fullmatch(r"1\\.\\d+", version) is not None,
+        "CandidatePlanFormatVersionUnsupported",
+    )
     for name in ("resource_drift", "deferred_changes", "action_invocations"):
         require(
             name not in document or document[name] == [],
@@ -134,8 +141,18 @@ def inspect_raw_state(raw, identity):
         type(raw) is bytes and hashlib.sha256(raw).hexdigest() == identity["sha256"],
         "CandidateRawStateDigestMismatch",
     )
+    def unique_fields(pairs):
+        result = {}
+        for key, value in pairs:
+            require(key not in result, "CandidateRawStateMalformed")
+            result[key] = value
+        return result
+
+    def no_nonfinite(_):
+        raise ValueError("CandidateRawStateMalformed")
+
     try:
-        state = json.loads(raw)
+        state = json.loads(raw, object_pairs_hook=unique_fields, parse_constant=no_nonfinite)
     except (UnicodeError, ValueError) as error:
         raise ValueError("CandidateRawStateMalformed") from error
     require(

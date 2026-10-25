@@ -10,6 +10,7 @@ import json
 import os
 import re
 import stat
+import subprocess
 from datetime import UTC, datetime, timedelta
 from pathlib import Path, PurePosixPath
 
@@ -82,6 +83,146 @@ def source_inventory_digest(tracked_paths, checkout_files):
             }
         )
     ).hexdigest()
+
+
+
+def _git_read(root, *args):
+    """Read local Git objects only. Does not authenticate origin or fetch remotely."""
+    environment = os.environ.copy()
+    environment.update(
+        GIT_NO_REPLACE_OBJECTS="1",
+        GIT_NO_LAZY_FETCH="1",
+        GIT_OPTIONAL_LOCKS="0",
+        GIT_TERMINAL_PROMPT="0",
+    )
+    try:
+        return subprocess.run(
+            ["git", "-C", str(root), "-c", "core.fsmonitor=false", *args],
+            check=True,
+            capture_output=True,
+            timeout=15,
+            env=environment,
+        ).stdout
+    except (OSError, subprocess.SubprocessError) as error:
+        raise ValueError("CandidateGitReadFailed") from error
+
+
+def verified_git_source_inventory(repo_root, source_sha):
+    """Compare *local* HEAD Git tree/blob IDs with an entirely clean Terraform checkout.
+
+    Only SHA-1 Git repositories are supported. The returned bytes may be used for
+    OFFLINE review, never as a signed commit, trusted remote origin, or a
+    TOCTOU-safe source-to-execution/Plan binding.
+    """
+    require(
+        type(source_sha) is str and HEX40.fullmatch(source_sha) is not None,
+        "CandidateGitCommitInvalid",
+    )
+    root = Path(repo_root)
+    require(root.is_absolute() and not root.is_symlink(), "CandidateGitRootInvalid")
+    root = root.resolve(strict=True)
+    top = _git_read(root, "rev-parse", "--show-toplevel").decode("utf-8").strip()
+    require(Path(top).resolve() == root, "CandidateGitRootMismatch")
+    head = _git_read(root, "rev-parse", "HEAD").decode("ascii").strip()
+    require(head == source_sha, "CandidateGitHeadMismatch")
+    tree_sha = _git_read(root, "rev-parse", "HEAD^{tree}").decode("ascii").strip()
+    require(HEX40.fullmatch(tree_sha) is not None, "CandidateGitTreeInvalid")
+    raw_tree = _git_read(root, "ls-tree", "-r", "-z", "--full-tree", source_sha, "--", "terraform")
+    expected = {}
+    for entry in raw_tree.split(b"\0"):
+        if not entry:
+            continue
+        meta, separator, filename = entry.partition(b"\t")
+        fields = meta.split()
+        require(separator and len(fields) == 3, "CandidateGitTreeMalformed")
+        mode, kind, blob_sha = fields
+        require(
+            mode in {b"100644", b"100755"}
+            and kind == b"blob"
+            and re.fullmatch(rb"[0-9a-f]{40}", blob_sha) is not None,
+            "CandidateGitNonregularFile",
+        )
+        try:
+            name = filename.decode("utf-8")
+        except UnicodeDecodeError as error:
+            raise ValueError("CandidateSourcePathInvalid") from error
+        require(
+            name.startswith("terraform/")
+            and name == str(PurePosixPath(name))
+            and "\\" not in name
+            and all(part and part not in {".", "..", ".git", ".terraform"} for part in name.split("/"))
+            and name not in expected,
+            "CandidateSourcePathInvalid",
+        )
+        expected[name] = blob_sha.decode("ascii")
+
+    source_dir = root / "terraform"
+    require(source_dir.is_dir() and not source_dir.is_symlink(), "CandidateGitTerraformRootMissing")
+    found = set()
+    # Do not ignore Git-ignored files: extra HCL, tfvars, generated overrides
+    # and any unexpected path require an explicit review of a sterile checkout.
+    for directory, directories, filenames in os.walk(source_dir, followlinks=False):
+        for name in directories:
+            require(
+                not (Path(directory) / name).is_symlink(),
+                "CandidateGitSymlinkForbidden",
+            )
+        for name in filenames:
+            path = Path(directory) / name
+            require(not path.is_symlink(), "CandidateGitSymlinkForbidden")
+            relative = path.relative_to(root).as_posix()
+            require(relative in expected, "CandidateGitUntrackedFile")
+            found.add(relative)
+    require(found == set(expected), "CandidateGitTrackedFileMissing")
+
+    checkout = {}
+    for name, blob_sha in expected.items():
+        fd = os.open(root / name, os.O_RDONLY | os.O_NOFOLLOW)
+        try:
+            require(stat.S_ISREG(os.fstat(fd).st_mode), "CandidateGitNonregularFile")
+            with os.fdopen(fd, "rb", closefd=False) as stream:
+                data = stream.read()
+        finally:
+            os.close(fd)
+        git_blob_sha = hashlib.sha1(b"blob " + str(len(data)).encode() + b"\0" + data).hexdigest()
+        require(git_blob_sha == blob_sha, "CandidateGitBlobMismatch")
+        checkout[name] = data
+    digest = source_inventory_digest(set(expected), checkout)
+    return {
+        "commit_sha": source_sha,
+        "git_tree_sha": tree_sha,
+        "terraform_sources_sha256": digest,
+        "tracked_paths": set(expected),
+        "checkout_files": checkout,
+        "git_origin_authenticated": False,
+        "authorized": False,
+    }
+
+
+def review_git_checkout_offline(repo_root, *, source_sha, **kwargs):
+    """Bind offline review to locally verified Git bytes, not caller-supplied lists."""
+    require(
+        "tracked_paths" not in kwargs and "checkout_files" not in kwargs,
+        "CandidateGitSourceOverrideForbidden",
+    )
+    bundle = kwargs.get("bundle")
+    require(
+        type(bundle) is dict and bundle.get("source_sha") == source_sha,
+        "CandidateGitManifestCommitMismatch",
+    )
+    inventory = verified_git_source_inventory(repo_root, source_sha)
+    result = review_offline(
+        **kwargs,
+        tracked_paths=inventory["tracked_paths"],
+        checkout_files=inventory["checkout_files"],
+    )
+    require(result.get("authorized") is False, "CandidatePreflightMustNotAuthorize")
+    return {
+        **result,
+        "git_tree_sha": inventory["git_tree_sha"],
+        "git_origin_authenticated": False,
+        "authorized": False,
+    }
 
 
 def parse_instant(value):

@@ -326,3 +326,18 @@ def test_old_execution_contract_remains_unchanged(fixture):
     assert tool("maintenance_contract").TF_VERSION == "1.14.9"
     assert tool("cloud_toolchain").EXPECTED_TERRAFORM_VERSION == "1.14.9"
     assert fixture[0].NAMESPACE != "p4-bootstrap-maintenance-legacy"
+
+
+
+@pytest.mark.parametrize(
+    "operation,wrong_plan_operation",
+    [
+        ("maintenance-apply", "recovery-plan"),
+        ("recovery-apply", "maintenance-plan"),
+    ],
+)
+def test_apply_operation_must_match_its_own_saved_plan(fixture, operation, wrong_plan_operation):
+    plan, binary, approval = candidate_saved_plan(fixture, operation)
+    plan["operation"] = wrong_plan_operation
+    with pytest.raises(ValueError, match="CandidateHistoricalPlanOrApprovalRejected"):
+        run(fixture, saved_plan=plan, saved_plan_binary=binary, saved_plan_approval=approval)

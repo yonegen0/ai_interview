@@ -146,3 +146,34 @@ def test_legacy_candidate_json_comparison_is_not_an_approval(plans):
     before, candidate = deepcopy(plans)
     result = tool("candidate_state_snapshot_review").compare_offline_plans(before, candidate)
     assert result["status"] == "CANDIDATE_SYNTHETIC_NOOP_NOT_APPLY_APPROVAL"
+
+
+
+@pytest.mark.parametrize("invalid_format", [None, "2.0", "1.0.0", True])
+def test_show_json_major_version_or_missing_format_is_rejected(plans, invalid_format):
+    before, candidate = plans
+    if invalid_format is None:
+        del candidate["format_version"]
+    else:
+        candidate["format_version"] = invalid_format
+    with pytest.raises(ValueError, match="CandidatePlanFormatVersionUnsupported"):
+        tool("candidate_state_snapshot_review").compare_offline_plans(before, candidate)
+
+
+def test_raw_state_rejects_duplicate_keys_and_nonfinite_json():
+    module = tool("candidate_state_snapshot_review")
+    raw = (
+        b'{"version":4,"lineage":"synthetic","serial":1,"serial":1,'
+        b'"resources":[],"outputs":{}}'
+    )
+    identity = {
+        "lineage": "synthetic",
+        "serial": 1,
+        "version_id": "synthetic-id",
+        "sha256": module.preflight.sha(raw),
+    }
+    with pytest.raises(ValueError, match="CandidateRawStateMalformed"):
+        module.inspect_raw_state(raw, identity)
+    raw = raw.replace(b'"serial":1,"serial":1', b'"serial":NaN')
+    with pytest.raises(ValueError, match="CandidateRawStateMalformed"):
+        module.inspect_raw_state(raw, identity | {"sha256": module.preflight.sha(raw)})

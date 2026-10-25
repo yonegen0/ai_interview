@@ -261,11 +261,8 @@ def verify(
             type(saved_plan["schema_version"]) is int
             and saved_plan["schema_version"] == 2
             and saved_plan["kind"] == "p4-bootstrap-candidate-plan-v2"
-            and saved_plan["operation"] in {"maintenance-plan", "recovery-plan"}
-            and (
-                bundle["operation"] != "maintenance-apply"
-                or saved_plan["operation"] == "maintenance-plan"
-            )
+            and saved_plan["operation"]
+            == ("maintenance-plan" if bundle["operation"] == "maintenance-apply" else "recovery-plan")
             and all(
                 saved_plan[key] == bundle[key]
                 for key in (
