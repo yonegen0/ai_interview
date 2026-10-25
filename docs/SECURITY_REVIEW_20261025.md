@@ -191,7 +191,8 @@ Backend #40142968142, Frontend #40142968091, and P4 infrastructure/package
 #40142968102. This verifies CI, **not** AWS production behavior or release
 readiness.
 
-Follow-up branch `codex/session-quota-hardening-20261025` adds frontend
+Follow-up [PR #40](https://github.com/yonegen0/ai_interview/pull/40) on
+branch `codex/session-quota-hardening-20261025` adds frontend
 localized 429 handling and visible practice-start regression coverage,
 Backend HTTP status/message/isolation checks, deterministic SDK shape and
 existing-revision CAS tests, quota contention/re-read tests, lost-response
@@ -204,7 +205,7 @@ These follow-up assertions test *local contract and simulated effects*;
 `SnapshotClient` never evaluates DynamoDB's conditions, and a botocore
 `Stubber` only validates SDK request/response shape. They are not proof of
 live AWS concurrency correctness. At the time of this authored follow-up,
-new-branch tests, PR number, and independent review/CI are **pending
+new-branch tests and independent review/CI are **pending
 verification**; record their verified results in the PR and new audit
 addendum rather than treating this note as success evidence.
 
