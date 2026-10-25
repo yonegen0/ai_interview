@@ -18,6 +18,7 @@ from interview_backend.evaluation.provider import PROMPT_VERSION
 from interview_backend.models.internal import (
     BusinessError,
     ExecutionConfig,
+    IntegrityError,
     RetryExhausted,
     StorageFormatError,
     StorageUnavailable,
