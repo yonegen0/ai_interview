@@ -175,9 +175,7 @@ def test_session_creation_limit_http_contract_and_atomicity(runtime, monkeypatch
     conflict = runtime.handler(changed)
     assert conflict["statusCode"] == 409
     assert body(conflict)["code"] == "IDEMPOTENCY_CONFLICT"
-    other = runtime.handler(
-        demo_event("POST", "/sessions", CREATE, uid(202), "independent-owner")
-    )
+    other = runtime.handler(demo_event("POST", "/sessions", CREATE, uid(202), "independent-owner"))
     assert other["statusCode"] == 201
     final = runtime.repository.snapshot()
     assert len(final.sessions) == len(final.requests) == 2
