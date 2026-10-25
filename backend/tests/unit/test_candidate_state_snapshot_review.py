@@ -1,7 +1,7 @@
 """Strict synthetic-only raw State/Plan JSON candidate compatibility checks."""
 
-from copy import deepcopy
 import json
+from copy import deepcopy
 
 import pytest
 from test_candidate_state_json_contract import synthetic_plan
