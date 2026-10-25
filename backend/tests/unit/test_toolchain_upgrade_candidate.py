@@ -179,7 +179,5 @@ def test_test_closure_rejects_toolchain_before_sts(tmp_path, monkeypatch, wrong_
     with pytest.raises(ValueError, match=expected_error):
         m.main()
     assert calls == (
-        ["ready", "qualify"]
-        if wrong_toolchain
-        else ["ready", "qualify", "checked_session"]
+        ["ready", "qualify"] if wrong_toolchain else ["ready", "qualify", "checked_session"]
     )
