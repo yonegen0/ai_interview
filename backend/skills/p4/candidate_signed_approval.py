@@ -230,6 +230,7 @@ def validate_payload(payload: object, expected: object, *, now: datetime) -> Non
 @dataclass(frozen=True, slots=True)
 class TrustedKey:
     """Externally configured public-key pin. Constructor is NOT enrollment."""
+
     issuer: str
     public_key: bytes
     operations: frozenset[str]
