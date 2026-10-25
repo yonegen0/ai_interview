@@ -132,6 +132,7 @@ def assert_noop_plan_pair(before, after, candidate):
             or document.get("resource_drift")
             or document.get("deferred_changes")
             or document.get("action_invocations")
+            or ("proposed_unknown" in document and unknown(document["proposed_unknown"]))
             or any(check.get("status") != "pass" for check in document.get("checks", []))
         ):
             raise ValueError("MigrationIncompleteOrUnsupportedPlan")
