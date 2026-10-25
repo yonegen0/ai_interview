@@ -16,6 +16,15 @@ TRANSITIONS = {
     "FAILED": set(),
     "UNKNOWN": set(),
 }
+# The non-retrying acyclic graph fixes every reachable state's event ordinal.
+STATE_REVISIONS = {
+    "NEW": {0},
+    "RESERVED": {1},
+    "STARTED": {2},
+    "COMPLETED": {3},
+    "FAILED": {3},
+    "UNKNOWN": {2, 3},
+}
 FIELDS = {
     "schema_version",
     "kind",
@@ -65,6 +74,10 @@ def check_entry(entry: object, binding: object) -> datetime:
         )
         and (entry["plan_sha256"] is None or approval_contract.hex_digest(entry["plan_sha256"])),
         "CandidateJournalIdentityInvalid",
+    )
+    require(
+        entry["revision"] in STATE_REVISIONS[entry["state"]],
+        "CandidateJournalStateRevisionInvalid",
     )
     return approval_contract.instant(entry["updated_at"])
 
@@ -130,8 +143,14 @@ def check_unique_histories(histories: object) -> dict[str, object]:
     }
 
 
-def check_snapshot_rollback(previous_seen: object, observed: object, binding: object) -> None:
-    """Compare two supplied views only; cannot discover unseen rollback."""
+def check_snapshot_rollback(
+    previous_seen: object, observed: object, binding: object, *, history: object = None
+) -> None:
+    """Compare supplied views; gaps require complete, anchored claimed history.
+
+    Validation errors require UNKNOWN/HOLD, never a retry. Even a complete
+    caller-supplied history cannot authenticate storage or detect unseen rollback.
+    """
     check_entry(previous_seen, binding)
     check_entry(observed, binding)
     require(
@@ -139,6 +158,20 @@ def check_snapshot_rollback(previous_seen: object, observed: object, binding: ob
         and (observed["revision"] != previous_seen["revision"] or observed == previous_seen),
         "CandidateJournalRollbackOrRewrite",
     )
+    if history is not None:
+        check_history(history, binding)
+        require(
+            history[-1] == observed
+            and previous_seen["revision"] < len(history)
+            and history[previous_seen["revision"]] == previous_seen,
+            "CandidateJournalHistoryAnchorMismatch",
+        )
+    if observed["revision"] == previous_seen["revision"]:
+        return
+    if observed["revision"] == previous_seen["revision"] + 1:
+        transition(previous_seen, observed, binding)
+        return
+    require(history is not None, "CandidateJournalHistoryRequired")
 
 
 def crash_disposition(last_observed: object, binding: object) -> dict[str, object]:

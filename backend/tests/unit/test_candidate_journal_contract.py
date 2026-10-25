@@ -49,7 +49,9 @@ def test_terminal_state_cannot_be_retried(sample, state):
     m.check_history(
         [event("NEW", 0), event("RESERVED", 1), event("STARTED", 2), event(state, 3)], binding
     )
-    with pytest.raises(ValueError, match="CandidateJournalTransitionForbidden"):
+    with pytest.raises(
+        ValueError, match="CandidateJournal(TransitionForbidden|StateRevisionInvalid)"
+    ):
         m.transition(event(state, 3), event("STARTED", 4), binding)
 
 
@@ -133,7 +135,8 @@ def test_distinct_histories_do_not_prove_global_uniqueness(sample):
 @pytest.mark.parametrize("state", ["NEW", "RESERVED", "STARTED", "FAILED", "UNKNOWN"])
 def test_restart_always_freezes_without_retry(sample, state):
     m, binding, event = sample
-    result = m.crash_disposition(event(state, 0), binding)
+    revision = {"NEW": 0, "RESERVED": 1, "STARTED": 2, "FAILED": 3, "UNKNOWN": 2}[state]
+    result = m.crash_disposition(event(state, revision), binding)
     assert result["authorized"] is False
     assert result["retry_permitted"] is False
     if state in {"RESERVED", "STARTED"}:
@@ -148,7 +151,9 @@ def test_snapshot_rollback_or_equivocation_rejected(sample):
         m.check_snapshot_rollback(latest, old, binding)
     rewrite = deepcopy(latest)
     rewrite["state"] = "FAILED"
-    with pytest.raises(ValueError, match="CandidateJournalRollbackOrRewrite"):
+    with pytest.raises(
+        ValueError, match="CandidateJournal(RollbackOrRewrite|StateRevisionInvalid)"
+    ):
         m.check_snapshot_rollback(latest, rewrite, binding)
 
 
@@ -156,5 +161,101 @@ def test_absent_or_non_new_history_is_not_valid(sample):
     m, binding, event = sample
     with pytest.raises(ValueError, match="CandidateJournalMissing"):
         m.check_history([], binding)
-    with pytest.raises(ValueError, match="CandidateJournalInitialStateInvalid"):
+    with pytest.raises(ValueError, match="CandidateJournalStateRevisionInvalid"):
         m.check_history([event("STARTED", 0)], binding)
+
+
+@pytest.mark.parametrize("terminal", ["COMPLETED", "FAILED", "UNKNOWN"])
+@pytest.mark.parametrize("target", ["NEW", "RESERVED", "STARTED", "COMPLETED", "FAILED", "UNKNOWN"])
+def test_snapshot_forward_revision_cannot_leave_terminal_state(sample, terminal, target):
+    m, binding, event = sample
+    with pytest.raises(ValueError, match="CandidateJournalStateRevisionInvalid"):
+        m.check_snapshot_rollback(event(terminal, 3), event(target, 4), binding)
+
+
+def test_snapshot_forward_revision_cannot_reverse_started(sample):
+    m, binding, event = sample
+    with pytest.raises(ValueError, match="CandidateJournalStateRevisionInvalid"):
+        m.check_snapshot_rollback(event("STARTED", 2), event("RESERVED", 3), binding)
+
+
+def test_snapshot_gap_without_complete_history_stays_on_hold(sample):
+    m, binding, event = sample
+    with pytest.raises(ValueError, match="CandidateJournalHistoryRequired"):
+        m.check_snapshot_rollback(event("NEW", 0), event("COMPLETED", 3), binding)
+
+
+def test_snapshot_equal_revision_is_only_idempotent_for_identical_content(sample):
+    m, binding, event = sample
+    entry = event("RESERVED", 1)
+    m.check_snapshot_rollback(entry, deepcopy(entry), binding)
+    changed = deepcopy(entry)
+    changed["updated_at"] = event("RESERVED", 2)["updated_at"]
+    with pytest.raises(ValueError, match="CandidateJournalRollbackOrRewrite"):
+        m.check_snapshot_rollback(entry, changed, binding)
+
+
+def test_snapshot_forward_revision_requires_monotonic_time(sample):
+    m, binding, event = sample
+    previous, observed = event("NEW", 0), event("RESERVED", 1)
+    observed["updated_at"] = previous["updated_at"]
+    with pytest.raises(ValueError, match="CandidateJournalTransitionForbidden"):
+        m.check_snapshot_rollback(previous, observed, binding)
+
+
+def test_snapshot_gap_accepts_only_complete_anchored_claimed_history(sample):
+    m, binding, event = sample
+    history = [event("NEW", 0), event("RESERVED", 1), event("STARTED", 2), event("COMPLETED", 3)]
+    m.check_snapshot_rollback(history[1], history[-1], binding, history=history)
+    assert m.check_history(history, binding)["authorized"] is False
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ["partial", "missing", "duplicate", "reordered", "unanchored", "rewritten", "truncated"],
+)
+def test_snapshot_gap_rejects_corrupt_or_incomplete_history(sample, mutation):
+    m, binding, event = sample
+    history = [event("NEW", 0), event("RESERVED", 1), event("STARTED", 2), event("COMPLETED", 3)]
+    previous, observed = deepcopy(history[1]), deepcopy(history[-1])
+    if mutation == "partial":
+        del history[2]["updated_at"]
+    elif mutation == "missing":
+        del history[2]
+    elif mutation == "duplicate":
+        history.insert(2, deepcopy(history[1]))
+    elif mutation == "reordered":
+        history[1], history[2] = history[2], history[1]
+    elif mutation == "unanchored":
+        history = history[1:]
+    elif mutation == "rewritten":
+        history[1]["updated_at"] = "2026-10-25T10:00:00.500000+00:00"
+    elif mutation == "truncated":
+        history.pop()
+    with pytest.raises(ValueError):
+        m.check_snapshot_rollback(previous, observed, binding, history=history)
+
+
+def test_snapshot_supplied_history_cannot_hide_terminal_reset(sample):
+    m, binding, event = sample
+    history = [event("NEW", 0), event("RESERVED", 1), event("UNKNOWN", 2), event("NEW", 3)]
+    with pytest.raises(ValueError, match="CandidateJournalStateRevisionInvalid"):
+        m.check_snapshot_rollback(history[0], history[-1], binding, history=history)
+
+
+@pytest.mark.parametrize(
+    "state,revision,next_state,next_revision",
+    [
+        ("NEW", 3, "RESERVED", 4),
+        ("RESERVED", 100, "STARTED", 101),
+        ("STARTED", 100, "COMPLETED", 101),
+        ("NEW", 100, "NEW", 100),
+        ("COMPLETED", 100, "COMPLETED", 100),
+    ],
+)
+def test_snapshot_cannot_trust_unreachable_state_revision(
+    sample, state, revision, next_state, next_revision
+):
+    m, binding, event = sample
+    with pytest.raises(ValueError, match="CandidateJournalStateRevisionInvalid"):
+        m.check_snapshot_rollback(event(state, revision), event(next_state, next_revision), binding)

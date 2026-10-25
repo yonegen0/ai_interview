@@ -84,6 +84,7 @@ def validate_plan_binding(
         "CandidatePlanClaimVersionOrDigestInvalid",
     )
     approval_contract.preflight.state_identity(plan["state_identity"])
+    approval_contract.preflight.state_identity(expected["state_identity"])
     require(
         all(
             type(plan[key]) is type(expected[key]) and plan[key] == expected[key]

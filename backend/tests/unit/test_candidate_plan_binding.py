@@ -176,3 +176,11 @@ def test_no_aws_terraform_subprocess_or_network_calls(sample, monkeypatch):
     monkeypatch.setattr(subprocess, "run", forbidden)
     monkeypatch.setattr(socket, "create_connection", forbidden)
     assert run(sample)["authorized"] is False
+
+
+@pytest.mark.parametrize("serial", [True, 1.0])
+def test_expected_state_identity_rejects_numeric_type_confusion(sample, serial):
+    sample[1]["state_identity"]["serial"] = 1
+    sample[2]["state_identity"]["serial"] = serial
+    with pytest.raises(ValueError):
+        run(sample)

@@ -41,7 +41,8 @@ FIELDS = BINDING_FIELDS | {
     "signature_claim",
 }
 CLAIM_FIELDS = {"issuer", "key_id", "algorithm", "signature"}
-OPERATIONS = {"maintenance-plan", "maintenance-apply", "recovery-apply"}
+PLAN_OPERATIONS = {"maintenance-plan", "recovery-plan"}
+OPERATIONS = PLAN_OPERATIONS | {"maintenance-apply", "recovery-apply"}
 
 
 def require(condition: bool, reason: str) -> None:
@@ -91,7 +92,7 @@ def _binding(value: object) -> None:
         )
         and (
             value["plan_sha256"] is None
-            if value["operation"] == "maintenance-plan"
+            if value["operation"] in PLAN_OPERATIONS
             else hex_digest(value["plan_sha256"])
         ),
         "CandidateApprovalBindingInvalid",

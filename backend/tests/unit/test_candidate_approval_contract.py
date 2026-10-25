@@ -194,3 +194,33 @@ def test_caller_forges_both_sides_but_still_never_authenticates(sample):
     expected["source_sha"] = "9" * 40
     claim["source_sha"] = "9" * 40
     assert m.validate_approval(claim, expected, now=now)["signature_verified"] is False
+
+
+@pytest.mark.parametrize("operation", ["maintenance-plan", "recovery-plan"])
+def test_plan_creation_claim_has_no_future_plan_hash(sample, operation):
+    m, now, expected, claim = sample
+    expected["operation"] = claim["operation"] = operation
+    expected["plan_sha256"] = claim["plan_sha256"] = None
+    assert m.validate_approval(claim, expected, now=now)["authorized"] is False
+    expected["plan_sha256"] = claim["plan_sha256"] = "0" * 64
+    with pytest.raises(ValueError, match="CandidateApprovalBindingInvalid"):
+        m.validate_approval(claim, expected, now=now)
+
+
+@pytest.mark.parametrize("operation", ["maintenance-apply", "recovery-apply"])
+def test_apply_claim_requires_existing_plan_hash(sample, operation):
+    m, now, expected, claim = sample
+    expected["operation"] = claim["operation"] = operation
+    assert m.validate_approval(claim, expected, now=now)["authorized"] is False
+    expected["plan_sha256"] = claim["plan_sha256"] = None
+    with pytest.raises(ValueError, match="CandidateApprovalBindingInvalid"):
+        m.validate_approval(claim, expected, now=now)
+
+
+@pytest.mark.parametrize("operation", ["maintenance-plan", "recovery-plan", "recovery-apply"])
+def test_plan_apply_and_recovery_claims_cannot_cross_targets(sample, operation):
+    m, now, expected, claim = sample
+    claim["operation"] = operation
+    claim["plan_sha256"] = None if operation.endswith("-plan") else claim["plan_sha256"]
+    with pytest.raises(ValueError):
+        m.validate_approval(claim, expected, now=now)
