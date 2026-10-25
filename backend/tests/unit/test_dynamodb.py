@@ -844,9 +844,12 @@ def seed_session_budget(limit=59):
     memory = MemoryRepository(lambda: NOW)
     app = session_app(memory)
     for index in range(limit):
-        assert app.create(OWNER, uid(10000 + index), {
-            "category": "job_change", "difficulty": "standard"
-        }).status == 201
+        assert (
+            app.create(
+                OWNER, uid(10000 + index), {"category": "job_change", "difficulty": "standard"}
+            ).status
+            == 201
+        )
     return memory, app
 
 
@@ -860,9 +863,9 @@ def test_session_budget_existing_rev_cas_and_stubber(sdk):
     assert result.status == 201
     actions = client.writes[0]["TransactItems"]
     budget_puts = [
-        action["Put"] for action in actions
-        if "Put" in action and from_wire(action["Put"]["Item"])["kind"]
-        == "SessionCreationBudget"
+        action["Put"]
+        for action in actions
+        if "Put" in action and from_wire(action["Put"]["Item"])["kind"] == "SessionCreationBudget"
     ]
     assert len(budget_puts) == 1
     budget_put = budget_puts[0]
@@ -873,35 +876,39 @@ def test_session_budget_existing_rev_cas_and_stubber(sdk):
     )
     original = from_wire(items[(stored["PK"], stored["SK"])])
     assert from_wire(budget_put["ExpressionAttributeValues"]) == {
-        ":r": original["rev"], ":k": "SessionCreationBudget", ":v": 1
+        ":r": original["rev"],
+        ":k": "SessionCreationBudget",
+        ":v": 1,
     }
     assert stored["rev"] == original["rev"] + 1
     assert {from_wire(a["Put"]["Item"])["kind"] for a in actions if "Put" in a} == {
-        "SessionCreationBudget", "Session", "IdempotencyRecord"
+        "SessionCreationBudget",
+        "Session",
+        "IdempotencyRecord",
     }
     with Stubber(sdk) as stub:
         for method, parameters in client.reads:
             assert method == "get"
             k = from_wire(parameters["Key"])
-            response = (
-                {"Item": items[(k["PK"], k["SK"])]}
-                if (k["PK"], k["SK"]) in items else {}
-            )
+            response = {"Item": items[(k["PK"], k["SK"])]} if (k["PK"], k["SK"]) in items else {}
             if response and parameters.get("ProjectionExpression"):
                 names = parameters["ExpressionAttributeNames"]
-                response = {"Item": {
-                    names[n.strip()]: response["Item"][names[n.strip()]]
-                    for n in parameters["ProjectionExpression"].split(",")
-                }}
+                response = {
+                    "Item": {
+                        names[n.strip()]: response["Item"][names[n.strip()]]
+                        for n in parameters["ProjectionExpression"].split(",")
+                    }
+                }
             stub.add_response("get_item", response, parameters)
         stub.add_response(
-            "transact_write_items", {}, {
-                "TransactItems": actions, "ClientRequestToken": ANY
-            }
+            "transact_write_items", {}, {"TransactItems": actions, "ClientRequestToken": ANY}
         )
-        assert session_app(db(sdk), first=1000).create(
-            OWNER, uid(20000), {"category": "job_change", "difficulty": "standard"}
-        ).status == 201
+        assert (
+            session_app(db(sdk), first=1000)
+            .create(OWNER, uid(20000), {"category": "job_change", "difficulty": "standard"})
+            .status
+            == 201
+        )
         stub.assert_no_pending_responses()
 
 
@@ -916,9 +923,12 @@ def test_session_budget_59_race_reloads_and_rechecks_limit(monkeypatch):
     def race(_request):
         if first_write[0]:
             first_write[0] = False
-            assert competitor.create(
-                OWNER, uid(20001), {"category": "job_change", "difficulty": "standard"}
-            ).status == 201
+            assert (
+                competitor.create(
+                    OWNER, uid(20001), {"category": "job_change", "difficulty": "standard"}
+                ).status
+                == 201
+            )
             client.items = snapshot(memory)  # Deterministic competing commit.
             raise ClientError(
                 {
@@ -962,9 +972,7 @@ def test_session_budget_commit_response_loss_replays_without_duplicate():
     assert app.create(OWNER, key_value, payload) == expected
     assert len(client.writes) == 1
     with pytest.raises(BusinessError) as changed:
-        app.create(OWNER, key_value, {
-            "category": "motivation", "difficulty": "standard"
-        })
+        app.create(OWNER, key_value, {"category": "motivation", "difficulty": "standard"})
     assert (changed.value.status, changed.value.code) == (409, "IDEMPOTENCY_CONFLICT")
     state = memory.snapshot()
     assert len(state.sessions) == len(state.requests) == 2
@@ -979,9 +987,7 @@ def test_session_budget_unknown_commit_does_not_guess_success():
     )
     app = session_app(db(client), first=1000)
     with pytest.raises(StorageUnavailable):
-        app.create(OWNER, uid(20006), {
-            "category": "job_change", "difficulty": "standard"
-        })
+        app.create(OWNER, uid(20006), {"category": "job_change", "difficulty": "standard"})
     assert len(client.writes) == 3
     assert client.writes[0] == client.writes[1] == client.writes[2]
     assert len(memory.snapshot().sessions) == 1
