@@ -29,8 +29,12 @@ def fixture():
         )
         configurations[f"terraform/{scope}/.terraform.lock.hcl"] = locks
     source_hash, locks_hash = m.configuration_digest(configurations)
-    state = {"lineage": "synthetic-lineage", "serial": 1, "version_id": "synthetic-version",
-             "sha256": "d" * 64}
+    state = {
+        "lineage": "synthetic-lineage",
+        "serial": 1,
+        "version_id": "synthetic-version",
+        "sha256": "d" * 64,
+    }
     bundle = {
         "schema_version": 2,
         "kind": "p4-bootstrap-candidate-preflight",
@@ -47,11 +51,21 @@ def fixture():
         "approval_sha256": "",
     }
     approval = {
-        **{k: bundle[k] for k in (
-            "operation", "namespace", "source_sha", "terraform_version",
-            "provider_version", "platform", "state_identity", "terraform_sha256",
-            "configuration_sha256", "lock_sha256"
-        )},
+        **{
+            k: bundle[k]
+            for k in (
+                "operation",
+                "namespace",
+                "source_sha",
+                "terraform_version",
+                "provider_version",
+                "platform",
+                "state_identity",
+                "terraform_sha256",
+                "configuration_sha256",
+                "lock_sha256",
+            )
+        },
         "schema_version": 2,
         "kind": "p4-bootstrap-candidate-approval-v2",
         "approval_id": "c" * 40,
@@ -65,9 +79,15 @@ def fixture():
 def run(f, *, saved_plan=None, saved_plan_binary=None, saved_plan_approval=None):
     m, bundle, version, configurations, binary, approval, journal = f
     return m.verify(
-        bundle, version, configurations, binary=binary, approval=approval,
-        journal=journal, saved_plan=saved_plan, saved_plan_binary=saved_plan_binary,
-        saved_plan_approval=saved_plan_approval
+        bundle,
+        version,
+        configurations,
+        binary=binary,
+        approval=approval,
+        journal=journal,
+        saved_plan=saved_plan,
+        saved_plan_binary=saved_plan_binary,
+        saved_plan_approval=saved_plan_approval,
     )
 
 
@@ -78,14 +98,22 @@ def test_valid_candidate_preflight_never_authorizes_aws_or_apply(fixture):
     assert result["aws_operations"] == 0
 
 
-@pytest.mark.parametrize("field,value", [
-    ("schema_version", 1), ("schema_version", True),
-    ("kind", "p4-bootstrap-maintenance-plan"),
-    ("namespace", "p4-bootstrap-maintenance-legacy"),
-    ("terraform_version", "1.14.9"), ("terraform_version", "1.17.0"),
-    ("provider_version", "6.64.0"), ("platform", "windows_amd64"),
-    ("operation", "apply"), ("source_sha", "x"), ("lock_sha256", "x"),
-])
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("schema_version", 1),
+        ("schema_version", True),
+        ("kind", "p4-bootstrap-maintenance-plan"),
+        ("namespace", "p4-bootstrap-maintenance-legacy"),
+        ("terraform_version", "1.14.9"),
+        ("terraform_version", "1.17.0"),
+        ("provider_version", "6.64.0"),
+        ("platform", "windows_amd64"),
+        ("operation", "apply"),
+        ("source_sha", "x"),
+        ("lock_sha256", "x"),
+    ],
+)
 def test_cross_version_legacy_and_unknown_contracts_rejected(fixture, field, value):
     mutated = deepcopy(fixture)
     mutated[1][field] = value
@@ -93,20 +121,33 @@ def test_cross_version_legacy_and_unknown_contracts_rejected(fixture, field, val
         run(mutated)
 
 
-@pytest.mark.parametrize("field,value", [
-    ("terraform_version", "1.17.0"), ("platform", "windows_amd64"),
-    ("format_version", "2.0"),
-])
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("terraform_version", "1.17.0"),
+        ("platform", "windows_amd64"),
+        ("format_version", "2.0"),
+    ],
+)
 def test_version_json_mismatch_fails_closed(fixture, field, value):
     fixture[2][field] = value
     with pytest.raises(ValueError, match="CandidateCliPlatformMismatch"):
         run(fixture)
 
 
-@pytest.mark.parametrize("change", [
-    "hcl", "hcl-extra", "old-lock", "lock-mutated", "different-lock",
-    "missing-scope", "extra-scope", "non-bytes"
-])
+@pytest.mark.parametrize(
+    "change",
+    [
+        "hcl",
+        "hcl-extra",
+        "old-lock",
+        "lock-mutated",
+        "different-lock",
+        "missing-scope",
+        "extra-scope",
+        "non-bytes",
+    ],
+)
 def test_candidate_hcl_and_provider_locks_must_match(fixture, change):
     m, bundle, _, configurations, *_ = fixture
     hcl = "terraform/bootstrap/main.tf"
@@ -132,11 +173,22 @@ def test_candidate_hcl_and_provider_locks_must_match(fixture, change):
     assert bundle["terraform_version"] == m.CLI
 
 
-@pytest.mark.parametrize("change", [
-    "binary", "approval", "approval-old", "approval-unknown", "state",
-    "state-bool-serial", "state-missing", "journal-failed",
-    "journal-unknown", "journal-missing", "manifest-extra"
-])
+@pytest.mark.parametrize(
+    "change",
+    [
+        "binary",
+        "approval",
+        "approval-old",
+        "approval-unknown",
+        "state",
+        "state-bool-serial",
+        "state-missing",
+        "journal-failed",
+        "journal-unknown",
+        "journal-missing",
+        "manifest-extra",
+    ],
+)
 def test_untrusted_or_partial_evidence_rejected(fixture, change):
     m, bundle, version, configurations, binary, approval, journal = fixture
     if change == "binary":
@@ -175,10 +227,19 @@ def candidate_saved_plan(fixture, operation):
         "schema_version": 2,
         "kind": "p4-bootstrap-candidate-plan-v2",
         "operation": "maintenance-plan" if operation == "maintenance-apply" else "recovery-plan",
-        **{k: bundle[k] for k in (
-            "namespace", "source_sha", "terraform_version", "provider_version",
-            "platform", "terraform_sha256", "lock_sha256", "state_identity"
-        )},
+        **{
+            k: bundle[k]
+            for k in (
+                "namespace",
+                "source_sha",
+                "terraform_version",
+                "provider_version",
+                "platform",
+                "terraform_sha256",
+                "lock_sha256",
+                "state_identity",
+            )
+        },
         "plan_sha256": m.sha(plan_binary),
         "plan_approval_sha256": "",
     }
@@ -186,11 +247,20 @@ def candidate_saved_plan(fixture, operation):
         "schema_version": 2,
         "kind": "p4-bootstrap-candidate-plan-approval-v2",
         "approval_id": "e" * 40,
-        **{k: plan[k] for k in (
-            "namespace", "source_sha", "terraform_version", "provider_version",
-            "platform", "state_identity", "terraform_sha256", "lock_sha256",
-            "plan_sha256",
-        )},
+        **{
+            k: plan[k]
+            for k in (
+                "namespace",
+                "source_sha",
+                "terraform_version",
+                "provider_version",
+                "platform",
+                "state_identity",
+                "terraform_sha256",
+                "lock_sha256",
+                "plan_sha256",
+            )
+        },
     }
     plan["plan_approval_sha256"] = m.sha(m.canonical(plan_approval))
     return plan, plan_binary, plan_approval
@@ -199,8 +269,12 @@ def candidate_saved_plan(fixture, operation):
 @pytest.mark.parametrize("operation", ["maintenance-apply", "recovery-apply"])
 def test_separate_candidate_plan_binding_is_required(fixture, operation):
     plan, binary, approval = candidate_saved_plan(fixture, operation)
-    assert run(fixture, saved_plan=plan, saved_plan_binary=binary,
-               saved_plan_approval=approval)["authorized"] is False
+    assert (
+        run(fixture, saved_plan=plan, saved_plan_binary=binary, saved_plan_approval=approval)[
+            "authorized"
+        ]
+        is False
+    )
     for mutation in ("old-cli", "old-namespace", "old-state", "same-approval", "missing"):
         altered = deepcopy(plan)
         if mutation == "old-cli":
@@ -214,14 +288,21 @@ def test_separate_candidate_plan_binding_is_required(fixture, operation):
         elif mutation == "missing":
             del altered["plan_sha256"]
         with pytest.raises(ValueError):
-            run(fixture, saved_plan=altered, saved_plan_binary=binary,
-                saved_plan_approval=approval)
+            run(fixture, saved_plan=altered, saved_plan_binary=binary, saved_plan_approval=approval)
     with pytest.raises(ValueError, match="CandidateSavedPlanBinaryMismatch"):
-        run(fixture, saved_plan=plan, saved_plan_binary=b"legacy-binary",
-            saved_plan_approval=approval)
+        run(
+            fixture,
+            saved_plan=plan,
+            saved_plan_binary=b"legacy-binary",
+            saved_plan_approval=approval,
+        )
     with pytest.raises(ValueError, match="CandidateFreshPlanApprovalRequired"):
-        run(fixture, saved_plan=plan, saved_plan_binary=binary,
-            saved_plan_approval={**approval, "approval_id": "0" * 40})
+        run(
+            fixture,
+            saved_plan=plan,
+            saved_plan_binary=binary,
+            saved_plan_approval={**approval, "approval_id": "0" * 40},
+        )
     with pytest.raises(ValueError, match="CandidateSavedPlanBindingMissing"):
         run(fixture)
 
