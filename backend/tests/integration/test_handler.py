@@ -147,3 +147,36 @@ def test_allow_header_is_not_added_to_other_responses(runtime):
         {"rawPath": "/sessions", "requestContext": {"http": {"method": "DELETE"}}},
     ]:
         assert "Allow" not in runtime.handler(event)["headers"]
+
+
+def test_session_creation_limit_http_contract_and_atomicity(runtime, monkeypatch):
+    from interview_backend.repositories import domain
+
+    monkeypatch.setattr(domain, "SESSION_CREATION_MONTHLY_LIMIT", 1)
+    first_event = demo_event("POST", "/sessions", CREATE, uid(200))
+    first = runtime.handler(first_event)
+    assert first["statusCode"] == 201
+    assert runtime.handler(first_event) == first
+    different = demo_event("POST", "/sessions", CREATE, uid(201))
+    limited = runtime.handler(different)
+    assert limited["statusCode"] == 429
+    assert body(limited) == {
+        "code": "SESSION_CREATION_LIMIT",
+        "message": "Monthly session creation limit reached.",
+    }
+    assert "owner" not in limited["body"] and "count" not in limited["body"]
+    state = runtime.repository.snapshot()
+    assert len(state.sessions) == len(state.requests) == 1
+    assert next(iter(state.session_creation_budgets.values())).count == 1
+    assert runtime.handler(first_event) == first
+    changed = demo_event(
+        "POST", "/sessions", {"category": "motivation", "difficulty": "standard"}, uid(200)
+    )
+    conflict = runtime.handler(changed)
+    assert conflict["statusCode"] == 409
+    assert body(conflict)["code"] == "IDEMPOTENCY_CONFLICT"
+    other = runtime.handler(demo_event("POST", "/sessions", CREATE, uid(202), "independent-owner"))
+    assert other["statusCode"] == 201
+    final = runtime.repository.snapshot()
+    assert len(final.sessions) == len(final.requests) == 2
+    assert sorted(b.count for b in final.session_creation_budgets.values()) == [1, 1]

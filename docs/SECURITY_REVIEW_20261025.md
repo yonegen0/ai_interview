@@ -172,9 +172,61 @@ exercise IAM non-expansion negative tests and synthetic Plan JSON audit fixtures
 Keep update merge on hold until those checks pass. No Terraform init, formal
 Plan/Apply, State read/change, or AWS authentication/connection was executed here.
 
+
+## Follow-up: Session creation quota remediation (2026-10-25 JST)
+
+The preceding "one Medium finding" section is the original pre-PR #38 audit
+snapshot, **not** the current implementation status. PR
+[#38](https://github.com/yonegen0/ai_interview/pull/38) was merged normally to
+main commit `bb6ce8aef34b8893f57bd52701969a1cba661923`.
+Its UTC-month 60-new-Session per-owner budget atomically writes the
+SessionCreationBudget, Session, and IdempotencyRecord using DynamoDB
+conditional transactions; replay of the same key does not consume another
+slot, changed payload returns 409, and new keys above the budget return
+`429 SESSION_CREATION_LIMIT`. Historical Sessions are retained; no State,
+IAM, table-structure, or Terraform change was required.
+
+Authentic **post-merge main** runs on that exact commit completed successfully:
+Backend #40142968142, Frontend #40142968091, and P4 infrastructure/package
+#40142968102. This verifies CI, **not** AWS production behavior or release
+readiness.
+
+Follow-up [PR #40](https://github.com/yonegen0/ai_interview/pull/40) on
+branch `codex/session-quota-hardening-20261025` adds frontend
+localized 429 handling and visible practice-start regression coverage,
+Backend HTTP status/message/isolation checks, deterministic SDK shape and
+existing-revision CAS tests, quota contention/re-read tests, lost-response
+confirmation and unknown-result fail-closed tests, and corrupted budget
+record plus exact UTC-month boundary checks. The request-start UTC month
+remains fixed across CAS retries: this preserves the identity of the original
+idempotent operation, including when a retry crosses midnight.
+
+These follow-up assertions test *local contract and simulated effects*;
+`SnapshotClient` never evaluates DynamoDB's conditions, and a botocore
+`Stubber` only validates SDK request/response shape. They are not proof of
+live AWS concurrency correctness. Genuine GitHub Actions checks on tested
+PR #40 code HEAD `5ef01da7ec59547c28ce12410029c351cda06910` passed:
+Backend run #40145541563 (Ruff check/format, pytest 2,328 passed /
+2 skipped / 57 deselected, and 102 frontend-contract cases),
+Frontend run #40145541562 (both npm audits zero vulnerabilities,
+lint/typecheck, 669 Vitest cases, production/Storybook/mock builds,
+and 37 Playwright E2E cases), and P4 offline/package run
+#40145541571 (terraform, package_changes and package SUCCESS).
+This addendum is a documentation-only commit after the tested code
+HEAD; *the new final HEAD's required checks must pass separately* before
+merge. Independent human review and AWS runtime verification were not
+performed.
+
+Residual risks: actual DynamoDB conditional-write semantics and response
+loss have not been exercised in AWS; initial pre-quota Sessions are not
+retroactively counted; valid owners can continue to create up to 60 new
+Sessions per UTC month; cost and quota monitoring are not certified. The
+original unlimited-creation finding is **source-remediated** by PR #38,
+but AWS validation and overall security release decision remain **HOLD**.
+
 ## Release status
 
-**NOT READY for public release.** Outstanding: the Medium Session budget finding,
+**NOT READY for public release.** Outstanding: AWS validation of the source-remediated Session quota,
 toolchain compatibility/security update, final security review, separately approved
 Stage2 Plan/Apply, real Bedrock verification, STAR integration verification, live
 AWS E2E/security validation, and fresh performance measurement. No AWS success or

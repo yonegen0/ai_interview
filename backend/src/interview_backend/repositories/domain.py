@@ -162,7 +162,7 @@ class DomainRepository(StarRepositoryMixin, CoachingRepositoryMixin):
             budget = tx.get(budget_ref)
             if budget is None:
                 budget = SessionCreationBudget(owner, budget_id, month)
-            if budget.owner != owner or budget.month != month:
+            if budget.owner != owner or budget.month != month or budget.id != budget_id:
                 raise IntegrityError("session_budget_relation")
             if budget.count >= SESSION_CREATION_MONTHLY_LIMIT:
                 raise BusinessError(429, "SESSION_CREATION_LIMIT")

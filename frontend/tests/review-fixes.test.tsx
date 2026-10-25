@@ -199,6 +199,33 @@ it("reconfirms a 401 with the same key and captured body for the same login", as
     expect(call[1]?.headers).toMatchObject({ "Idempotency-Key": key });
 });
 
+it("displays quota exhaustion and clears the pending start without recovery or resend", async () => {
+  const send = vi.spyOn(globalThis, "fetch").mockImplementation((_url, init) =>
+    Promise.resolve(
+      init?.method === "POST"
+        ? json(
+            { code: "SESSION_CREATION_LIMIT", message: "private detail" },
+            429,
+          )
+        : json(options),
+    ),
+  );
+  const view = render(<PracticeStart />, { wrapper: environment().wrapper });
+  const start = await screen.findByRole("button", { name: "練習を始める" });
+  await waitFor(() => expect(start).toBeEnabled());
+  fireEvent.click(start);
+  expect(
+    await screen.findByText(
+      "今月の面接練習の新規作成上限に達しました。翌月から再び作成できます。",
+    ),
+  ).toBeInTheDocument();
+  expect(send.mock.calls.filter((call) => call[1]?.method === "POST")).toHaveLength(1);
+  expect(readSaved("pocket:create", operationSchema)).toBeNull();
+  expect(start).toBeEnabled();
+  expect(push).not.toHaveBeenCalled();
+  view.unmount();
+});
+
 it.each([false, true])(
   "retains a pending start after unmount (switch login: %s)",
   async (switchLogin) => {
