@@ -28,14 +28,33 @@ ROOTS = {
 }
 OPERATIONS = {"maintenance-plan", "maintenance-apply", "recovery-apply"}
 PLAN_FIELDS = {
-    "schema_version", "kind", "operation", "namespace", "source_sha",
-    "terraform_version", "provider_version", "platform", "terraform_sha256",
-    "lock_sha256", "state_identity", "plan_sha256", "plan_approval_sha256",
+    "schema_version",
+    "kind",
+    "operation",
+    "namespace",
+    "source_sha",
+    "terraform_version",
+    "provider_version",
+    "platform",
+    "terraform_sha256",
+    "lock_sha256",
+    "state_identity",
+    "plan_sha256",
+    "plan_approval_sha256",
 }
 BASE_FIELDS = {
-    "schema_version", "kind", "operation", "namespace", "source_sha",
-    "terraform_version", "provider_version", "platform", "terraform_sha256",
-    "configuration_sha256", "lock_sha256", "state_identity",
+    "schema_version",
+    "kind",
+    "operation",
+    "namespace",
+    "source_sha",
+    "terraform_version",
+    "provider_version",
+    "platform",
+    "terraform_sha256",
+    "configuration_sha256",
+    "lock_sha256",
+    "state_identity",
     "approval_sha256",
 }
 DIGEST = re.compile(r"[0-9a-f]{64}\Z")
@@ -85,8 +104,10 @@ def configuration_digest(configurations):
     selections = []
     for scope, filename in ROOTS.items():
         prefix = f"terraform/{scope}/"
-        hcl, lock = (configurations[prefix + filename],
-                     configurations[prefix + ".terraform.lock.hcl"])
+        hcl, lock = (
+            configurations[prefix + filename],
+            configurations[prefix + ".terraform.lock.hcl"],
+        )
         require(type(hcl) is bytes and type(lock) is bytes, "CandidateFileBytesRequired")
         text = hcl.decode("utf-8")
         require(
@@ -94,7 +115,8 @@ def configuration_digest(configurations):
             and re.findall(
                 r'aws\s*=\s*\{\s*source\s*=\s*"hashicorp/aws"\s*,\s*version\s*=\s*"([^"]+)"\s*\}',
                 text,
-            ) == [f"= {PROVIDER}"],
+            )
+            == [f"= {PROVIDER}"],
             "CandidateHclVersionMismatch",
         )
         selection = parse_lock(lock.decode("utf-8"))
@@ -111,14 +133,28 @@ def configuration_digest(configurations):
     require(all(x == selections[0] for x in selections), "CandidateLockDivergence")
     return (
         sha(canonical({name: sha(raw) for name, raw in sorted(configurations.items())})),
-        sha(canonical({scope: sha(configurations[f"terraform/{scope}/.terraform.lock.hcl"])
-                      for scope in sorted(ROOTS)})),
+        sha(
+            canonical(
+                {
+                    scope: sha(configurations[f"terraform/{scope}/.terraform.lock.hcl"])
+                    for scope in sorted(ROOTS)
+                }
+            )
+        ),
     )
 
 
 def verify(
-    bundle, version_json, configurations, *, binary, approval, journal,
-    saved_plan=None, saved_plan_binary=None, saved_plan_approval=None,
+    bundle,
+    version_json,
+    configurations,
+    *,
+    binary,
+    approval,
+    journal,
+    saved_plan=None,
+    saved_plan_binary=None,
+    saved_plan_approval=None,
 ):
     """Evaluate synthetic/local bytes only; SUCCESS means *offline preflight*, not permission.
 
@@ -127,7 +163,8 @@ def verify(
     """
     require(type(bundle) is dict and set(bundle) == BASE_FIELDS, "CandidateManifestFields")
     require(
-        type(bundle["schema_version"]) is int and bundle["schema_version"] == 2
+        type(bundle["schema_version"]) is int
+        and bundle["schema_version"] == 2
         and bundle["kind"] == "p4-bootstrap-candidate-preflight"
         and bundle["operation"] in OPERATIONS
         and bundle["namespace"] == NAMESPACE
@@ -141,8 +178,10 @@ def verify(
     for key in ("terraform_sha256", "configuration_sha256", "lock_sha256", "approval_sha256"):
         require(digest(bundle[key]), "CandidateManifestDigest")
     state_identity(bundle["state_identity"])
-    require(type(binary) is bytes and sha(binary) == bundle["terraform_sha256"],
-            "CandidateBinaryHashMismatch")
+    require(
+        type(binary) is bytes and sha(binary) == bundle["terraform_sha256"],
+        "CandidateBinaryHashMismatch",
+    )
     require(
         type(version_json) is dict
         and version_json.get("terraform_version") == CLI
@@ -152,27 +191,47 @@ def verify(
     )
     source_digest, locks_digest = configuration_digest(configurations)
     require(
-        source_digest == bundle["configuration_sha256"]
-        and locks_digest == bundle["lock_sha256"],
+        source_digest == bundle["configuration_sha256"] and locks_digest == bundle["lock_sha256"],
         "CandidateConfigurationBindingMismatch",
     )
     require(
         type(approval) is dict
-        and set(approval) == {
-            "schema_version", "kind", "operation", "namespace", "source_sha",
-            "terraform_version", "provider_version", "platform", "state_identity",
-            "terraform_sha256", "configuration_sha256", "lock_sha256", "approval_id",
+        and set(approval)
+        == {
+            "schema_version",
+            "kind",
+            "operation",
+            "namespace",
+            "source_sha",
+            "terraform_version",
+            "provider_version",
+            "platform",
+            "state_identity",
+            "terraform_sha256",
+            "configuration_sha256",
+            "lock_sha256",
+            "approval_id",
         }
         and type(approval["schema_version"]) is int
         and approval["schema_version"] == 2
         and approval["kind"] == "p4-bootstrap-candidate-approval-v2"
         and isinstance(approval["approval_id"], str)
         and REVISION.fullmatch(approval["approval_id"]) is not None
-        and all(approval[key] == bundle[key] for key in (
-            "operation", "namespace", "source_sha", "terraform_version",
-            "provider_version", "platform", "state_identity", "terraform_sha256",
-            "configuration_sha256", "lock_sha256",
-        ))
+        and all(
+            approval[key] == bundle[key]
+            for key in (
+                "operation",
+                "namespace",
+                "source_sha",
+                "terraform_version",
+                "provider_version",
+                "platform",
+                "state_identity",
+                "terraform_sha256",
+                "configuration_sha256",
+                "lock_sha256",
+            )
+        )
         and sha(canonical(approval)) == bundle["approval_sha256"],
         "CandidateFreshApprovalRequired",
     )
@@ -187,23 +246,36 @@ def verify(
     )
     if bundle["operation"] == "maintenance-plan":
         require(
-            saved_plan is None and saved_plan_binary is None
-            and saved_plan_approval is None, "CandidatePlanNotExpected"
+            saved_plan is None and saved_plan_binary is None and saved_plan_approval is None,
+            "CandidatePlanNotExpected",
         )
     else:
-        require(type(saved_plan) is dict and set(saved_plan) == PLAN_FIELDS,
-                "CandidateSavedPlanBindingMissing")
+        require(
+            type(saved_plan) is dict and set(saved_plan) == PLAN_FIELDS,
+            "CandidateSavedPlanBindingMissing",
+        )
         require(
             type(saved_plan["schema_version"]) is int
             and saved_plan["schema_version"] == 2
             and saved_plan["kind"] == "p4-bootstrap-candidate-plan-v2"
             and saved_plan["operation"] in {"maintenance-plan", "recovery-plan"}
-            and (bundle["operation"] != "maintenance-apply"
-                 or saved_plan["operation"] == "maintenance-plan")
-            and all(saved_plan[key] == bundle[key] for key in (
-                "namespace", "source_sha", "terraform_version", "provider_version",
-                "platform", "terraform_sha256", "lock_sha256", "state_identity",
-            ))
+            and (
+                bundle["operation"] != "maintenance-apply"
+                or saved_plan["operation"] == "maintenance-plan"
+            )
+            and all(
+                saved_plan[key] == bundle[key]
+                for key in (
+                    "namespace",
+                    "source_sha",
+                    "terraform_version",
+                    "provider_version",
+                    "platform",
+                    "terraform_sha256",
+                    "lock_sha256",
+                    "state_identity",
+                )
+            )
             and digest(saved_plan["plan_sha256"])
             and digest(saved_plan["plan_approval_sha256"])
             and saved_plan["plan_approval_sha256"] != bundle["approval_sha256"],
@@ -216,10 +288,18 @@ def verify(
             "CandidateSavedPlanBinaryMismatch",
         )
         expected_plan_approval_fields = {
-            "schema_version", "kind", "namespace", "source_sha",
-            "terraform_version", "provider_version", "platform",
-            "state_identity", "terraform_sha256", "lock_sha256",
-            "plan_sha256", "approval_id",
+            "schema_version",
+            "kind",
+            "namespace",
+            "source_sha",
+            "terraform_version",
+            "provider_version",
+            "platform",
+            "state_identity",
+            "terraform_sha256",
+            "lock_sha256",
+            "plan_sha256",
+            "approval_id",
         }
         require(
             type(saved_plan_approval) is dict
@@ -229,12 +309,17 @@ def verify(
             and saved_plan_approval["kind"] == "p4-bootstrap-candidate-plan-approval-v2"
             and isinstance(saved_plan_approval["approval_id"], str)
             and REVISION.fullmatch(saved_plan_approval["approval_id"]) is not None
-            and all(saved_plan_approval[key] == saved_plan[key]
-                    for key in expected_plan_approval_fields - {
-                        "schema_version", "kind", "approval_id"
-                    })
+            and all(
+                saved_plan_approval[key] == saved_plan[key]
+                for key in expected_plan_approval_fields - {"schema_version", "kind", "approval_id"}
+            )
             and sha(canonical(saved_plan_approval)) == saved_plan["plan_approval_sha256"],
             "CandidateFreshPlanApprovalRequired",
         )
-    return {"status": "OFFLINE_CANDIDATE_PREFLIGHT_ONLY", "authorized": False,
-            "aws_operations": 0, "operation": bundle["operation"], "namespace": NAMESPACE}
+    return {
+        "status": "OFFLINE_CANDIDATE_PREFLIGHT_ONLY",
+        "authorized": False,
+        "aws_operations": 0,
+        "operation": bundle["operation"],
+        "namespace": NAMESPACE,
+    }
