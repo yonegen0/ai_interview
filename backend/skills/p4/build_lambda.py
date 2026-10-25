@@ -81,9 +81,12 @@ def _build(source, dependencies, lock, output, code_sha):
             if not file.is_file():
                 continue
             relative = file.relative_to(root)
-            # The locked annotated-types wheel ships a test helper, not runtime code.
-            # Exclude this exact dependency path; never allow arbitrary test_* files.
-            if root == dependencies and relative.as_posix() == "annotated_types/test_cases.py":
+            # Locked wheels ship these exact non-runtime helpers/type stubs.
+            # Omit them from the ZIP; never allow arbitrary test_* paths or code.
+            if root == dependencies and relative.as_posix() in {
+                "annotated_types/test_cases.py",
+                "cryptography/hazmat/bindings/_rust/test_support.pyi",
+            }:
                 continue
             if (
                 any(p in {"__pycache__", "bin", "Scripts"} for p in relative.parts)

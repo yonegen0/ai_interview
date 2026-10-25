@@ -1,0 +1,2 @@
+# Keep Lambda source bytes identical in Windows checkouts, git archives and CI.
+backend/src/interview_backend/** text eol=lf
