@@ -30,7 +30,7 @@ jobs:
       - name: Checkout immutable pre-upgrade configuration for migration comparison
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: 7ec3595aa02c5315f6d7600282b428d294d3d771
+          ref: b276568908d7c96c41c083d5bcbcc64d955945f6
           path: migration-baseline
           persist-credentials: false
       - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2

@@ -31,7 +31,7 @@ def test_six_candidate_scopes_and_official_generated_locks_agree():
 def test_candidate_workflow_qualifies_explicit_legacy_source_without_aws_permission():
     root = Path(__file__).resolve().parents[3]
     text = (root / ".github/workflows/p4-toolchain-qualification.yml").read_text()
-    assert "ref: 7ec3595aa02c5315f6d7600282b428d294d3d771" in text
+    assert "ref: b276568908d7c96c41c083d5bcbcc64d955945f6" in text
     assert "--repository migration-baseline" in text
     assert "--candidate-repository ." in text
     expected = tool("cloud_toolchain").NEW_EXECUTION_TERRAFORM_VERSION

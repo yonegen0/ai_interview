@@ -242,10 +242,12 @@ def test_invalid_attempt_does_not_consume_approval(tmp_path, sample):
     assert not (root / m.preflight.NAMESPACE).exists()
 
 
-def test_legacy_terraform_contract_untouched(sample):
+def test_legacy_maintenance_and_held_candidate_pins_stay_independent(sample):
     assert sample[0].preflight.CLI == "1.16.7"
     assert tool("maintenance_contract").TF_VERSION == "1.14.9"
-    assert tool("cloud_toolchain").EXPECTED_TERRAFORM_VERSION == "1.14.9"
+    assert tool("bootstrap_maintenance").TF_VERSION == "1.14.9"
+    cloud = tool("cloud_toolchain")
+    assert cloud.EXPECTED_TERRAFORM_VERSION == cloud.NEW_EXECUTION_TERRAFORM_VERSION == "1.16.7"
 
 
 @pytest.fixture
