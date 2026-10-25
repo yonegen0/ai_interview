@@ -194,9 +194,7 @@ def protected_directory(path):
     require(path.is_absolute(), "CandidateLedgerAbsolutePathRequired")
     info = path.lstat()
     require(
-        stat.S_ISDIR(info.st_mode)
-        and info.st_uid == os.getuid()
-        and info.st_mode & 0o077 == 0,
+        stat.S_ISDIR(info.st_mode) and info.st_uid == os.getuid() and info.st_mode & 0o077 == 0,
         "CandidateLedgerDirectoryUnsafe",
     )
     return path
