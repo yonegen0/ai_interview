@@ -116,7 +116,10 @@ def configuration_digest(configurations):
     )
 
 
-def verify(bundle, version_json, configurations, *, binary, approval, journal, saved_plan=None):
+def verify(
+    bundle, version_json, configurations, *, binary, approval, journal,
+    saved_plan=None, saved_plan_binary=None, saved_plan_approval=None,
+):
     """Evaluate synthetic/local bytes only; SUCCESS means *offline preflight*, not permission.
 
     Callers MUST separately authenticate source, approval, immutable journal,
@@ -183,7 +186,10 @@ def verify(bundle, version_json, configurations, *, binary, approval, journal, s
         "CandidateAttemptNotNew",
     )
     if bundle["operation"] == "maintenance-plan":
-        require(saved_plan is None, "CandidatePlanNotExpected")
+        require(
+            saved_plan is None and saved_plan_binary is None
+            and saved_plan_approval is None, "CandidatePlanNotExpected"
+        )
     else:
         require(type(saved_plan) is dict and set(saved_plan) == PLAN_FIELDS,
                 "CandidateSavedPlanBindingMissing")
@@ -202,6 +208,33 @@ def verify(bundle, version_json, configurations, *, binary, approval, journal, s
             and digest(saved_plan["plan_approval_sha256"])
             and saved_plan["plan_approval_sha256"] != bundle["approval_sha256"],
             "CandidateHistoricalPlanOrApprovalRejected",
+        )
+        require(
+            type(saved_plan_binary) is bytes
+            and len(saved_plan_binary) > 0
+            and sha(saved_plan_binary) == saved_plan["plan_sha256"],
+            "CandidateSavedPlanBinaryMismatch",
+        )
+        expected_plan_approval_fields = {
+            "schema_version", "kind", "namespace", "source_sha",
+            "terraform_version", "provider_version", "platform",
+            "state_identity", "terraform_sha256", "lock_sha256",
+            "plan_sha256", "approval_id",
+        }
+        require(
+            type(saved_plan_approval) is dict
+            and set(saved_plan_approval) == expected_plan_approval_fields
+            and type(saved_plan_approval["schema_version"]) is int
+            and saved_plan_approval["schema_version"] == 2
+            and saved_plan_approval["kind"] == "p4-bootstrap-candidate-plan-approval-v2"
+            and isinstance(saved_plan_approval["approval_id"], str)
+            and REVISION.fullmatch(saved_plan_approval["approval_id"]) is not None
+            and all(saved_plan_approval[key] == saved_plan[key]
+                    for key in expected_plan_approval_fields - {
+                        "schema_version", "kind", "approval_id"
+                    })
+            and sha(canonical(saved_plan_approval)) == saved_plan["plan_approval_sha256"],
+            "CandidateFreshPlanApprovalRequired",
         )
     return {"status": "OFFLINE_CANDIDATE_PREFLIGHT_ONLY", "authorized": False,
             "aws_operations": 0, "operation": bundle["operation"], "namespace": NAMESPACE}
