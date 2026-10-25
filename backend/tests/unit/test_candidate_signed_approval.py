@@ -367,3 +367,26 @@ def test_recursive_expected_state_fails_closed(sample):
     expected["state_identity"]["lineage"] = expected["state_identity"]
     with pytest.raises(ValueError, match="CandidateStateIdentityInvalid"):
         m.verify_signed_approval(as_json(envelope), expected, trust_registry={}, now=now)
+
+
+def test_key_valid_now_but_not_at_issuance_is_rejected(sample):
+    """A key enrolled after issuance cannot retroactively validate the approval."""
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+    m, now, claim, expected, envelope = sample
+    private = Ed25519PrivateKey.generate()
+    envelope["signature"] = base64.b64encode(private.sign(m.signed_bytes(claim))).decode()
+    # The key is active now but was not active at claim["issued_at"] (09:50).
+    key = m.TrustedKey(
+        issuer=claim["issuer"],
+        public_key=private.public_key().public_bytes_raw(),
+        operations=frozenset({claim["operation"]}),
+        namespace=claim["namespace"],
+        trust_revision=claim["trust_revision"],
+        not_before=now - timedelta(minutes=5),
+        not_after=now + timedelta(minutes=5),
+    )
+    with pytest.raises(ValueError, match="CandidateSignedApprovalKeyPolicyHOLD"):
+        m.verify_signed_approval(
+            as_json(envelope), expected, trust_registry={claim["key_id"]: key}, now=now
+        )
