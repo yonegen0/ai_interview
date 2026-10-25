@@ -208,7 +208,9 @@ def test_saved_plan_binding_rejects_toolchain_or_digest_mixing(tmp_path, field):
         m.assert_binding(binding, expected, plan, hashed)
 
 
-@pytest.mark.parametrize("failure", [None, "command", "original", "version", "lock", "hcl"])
+@pytest.mark.parametrize(
+    "failure", [None, "command", "original", "version", "lock", "hcl", "binary"]
+)
 def test_qualification_is_isolated_and_never_invokes_formal_plan_apply(
     tmp_path, monkeypatch, failure
 ):
@@ -256,6 +258,8 @@ def test_qualification_is_isolated_and_never_invokes_formal_plan_apply(
             )
             if failure == "hcl":
                 (cwd / "main.tf").write_bytes(b'backend "s3" {}')
+            if failure == "binary":
+                executable.write_bytes(b"changed-during-qualification")
         if args[1] == "init":
             assert args[2:] == ["-backend=false", "-input=false", "-lockfile=readonly"]
         return subprocess.CompletedProcess(args, 0, stdout=b"synthetic mock success", stderr=b"")

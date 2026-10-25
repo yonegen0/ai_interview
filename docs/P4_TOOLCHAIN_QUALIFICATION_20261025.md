@@ -96,7 +96,7 @@ The official CLI regenerates six locks using
 `init -backend=false -input=false -lockfile=readonly`. All six scopes receive fmt
 and validate; the three existing module/bootstrap mock suites run. No formal
 plan/apply/show/state commands exist in this runner. Original source is rechecked
-on success/failure; success reports are written only after that final check.
+on success/failure, as is binary SHA256; success reports follow both final checks.
 Fresh work directories/logs are retained and no private evidence is overwritten.
 
 ```powershell
@@ -139,7 +139,7 @@ Windows 1.16.7 and 1.17.0 both completed six-scope lock generation, fmt, backend
 init/validate and mock tests: bootstrap **10**, service **57**, frontend **2** passed
 per candidate. Linux qualification and genuine CI are recorded in the PR;
 incomplete/missing reports never imply success. Local targeted Backend tests passed
-**277** cases (2 skipped), including **45** new migration/JSON/binding cases; Ruff check/format pass.
+**278** cases (2 skipped), including **46** new migration/JSON/binding cases; Ruff check/format pass.
 The first full Windows run reported 2313 passed, 40 failed, 9 errors, 4 skipped and
 57 deselected. Windows diagnostic ACL refusal was reproduced on unchanged main
 84f390c, and OpenSSL was absent from PATH; these are not a passing full-suite claim.

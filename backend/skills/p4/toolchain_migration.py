@@ -110,6 +110,7 @@ def qualify(repository, temp_parent, executable, candidate):
     if candidate not in CANDIDATE_CLIS:
         raise ValueError("UnreviewedMigrationCandidate")
     repository = Path(repository).resolve()
+    binary_sha256 = hashlib.sha256(executable.read_bytes()).hexdigest()
     snapshot = tracked_snapshot(repository)
     work = Path(tempfile.mkdtemp(prefix=f"p4-qualify-{candidate}-", dir=temp_parent)).resolve()
     copied = work / "checkout"
@@ -179,12 +180,14 @@ def qualify(repository, temp_parent, executable, candidate):
             "mock_tests": tests,
             "aws_operations": 0,
             "formal_plan_apply": False,
-            "binary_sha256": hashlib.sha256(executable.read_bytes()).hexdigest(),
+            "binary_sha256": binary_sha256,
             "source_configuration_sha256": snapshot,
         }
     finally:
         if tracked_snapshot(repository) != snapshot:
             raise ValueError("OriginalTerraformChanged")
+        if hashlib.sha256(executable.read_bytes()).hexdigest() != binary_sha256:
+            raise ValueError("MigrationTerraformBinaryChanged")
     (work / "report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
     return work
 
