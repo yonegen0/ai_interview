@@ -3,6 +3,7 @@
 import json
 import re
 import time
+from decimal import Decimal
 from pathlib import Path
 
 from botocore.exceptions import (
@@ -191,8 +192,11 @@ def verify_live_manifest(session, manifest, *, require_api_enabled=True, approve
                     test_monitoring_enabled=approved_inputs.get("test_monitoring_enabled", True),
                     test_closure_confirmed=approved_inputs.get("test_closure_confirmed", False),
                 )
-            expected["monthly_budget_usd"] = str(expected["monthly_budget_usd"])
-            if manifest["configuration"] != expected:
+            # Terraform number -> tostring omits insignificant trailing zeroes.
+            actual = dict(manifest["configuration"])
+            expected["monthly_budget_usd"] = Decimal(str(expected["monthly_budget_usd"]))
+            actual["monthly_budget_usd"] = Decimal(str(actual["monthly_budget_usd"]))
+            if not expected["monthly_budget_usd"].is_finite() or actual != expected:
                 raise ValueError
         api = session.client("apigatewayv2", config=config).get_api(ApiId=manifest["api_id"])
         if api["ApiEndpoint"] + "/dev" != manifest["api_endpoint"]:
