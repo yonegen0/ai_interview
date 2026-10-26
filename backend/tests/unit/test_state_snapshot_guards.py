@@ -10,6 +10,48 @@ from botocore.exceptions import ClientError
 from test_p4_tools import tool
 
 
+def test_state_snapshot_http_failure_is_sent_once_despite_inherited_retry_setting(monkeypatch):
+    """Use the real SDK retry pipeline with a synthetic transport; no AWS calls."""
+    from boto3 import Session
+    from botocore.awsrequest import AWSResponse
+
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[2] / "skills/p4"))
+    monkeypatch.setenv("AWS_MAX_ATTEMPTS", "8")
+    monkeypatch.setenv("AWS_RETRY_MODE", "standard")
+    monkeypatch.setattr("botocore.endpoint.time.sleep", lambda _: None)
+    session = Session(
+        aws_access_key_id="synthetic",
+        aws_secret_access_key="synthetic",
+        region_name="ap-northeast-1",
+    )
+    sent = []
+    create_client = session.client
+
+    def client(*args, **kwargs):
+        s3 = create_client(
+            *args, **kwargs, aws_access_key_id="synthetic", aws_secret_access_key="synthetic"
+        )
+
+        def send(request):
+            sent.append(request.method)
+            return AWSResponse(
+                request.url,
+                500,
+                {"content-length": "0"},
+                SimpleNamespace(stream=lambda **kw: iter([b""])),
+            )
+
+        monkeypatch.setattr(s3._endpoint.http_session, "send", send)
+        return s3
+
+    monkeypatch.setattr(session, "client", client)
+    with pytest.raises(ValueError, match="StateLockReadUnavailable"):
+        tool("deployment_guards").read_state_snapshot(
+            session, "123456789012", "ap-northeast-1", "dev/terraform.tfstate"
+        )
+    assert sent == ["HEAD"]
+
+
 @pytest.mark.parametrize(
     "bad",
     [

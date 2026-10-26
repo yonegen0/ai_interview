@@ -5,6 +5,7 @@ import json
 import os
 import re
 from datetime import UTC, datetime, timedelta
+from urllib.error import HTTPError
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
@@ -64,6 +65,27 @@ def standard_context(environment, *, now=None, reserve=0):
 class NoRedirect(HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         return None
+
+
+def oidc_http_diagnostic(error: HTTPError) -> dict[str, object]:
+    """Keep only status and strictly shaped correlation IDs, never URL/body/token."""
+    status = error.code
+    if type(status) is not int or not 100 <= status <= 599:
+        status = None
+    identifiers = {}
+    for header, pattern in (
+        ("x-github-request-id", r"[0-9A-F]{4}(?::[0-9A-F]{1,16}){4}"),
+        ("x-vss-e2eid", r"[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}"),
+        ("x-tfs-session", r"[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}"),
+    ):
+        value = error.headers.get(header) if error.headers is not None else None
+        if isinstance(value, str) and len(value) <= 72 and re.fullmatch(pattern, value):
+            identifiers[header] = value
+    return {
+        "http_status": status,
+        "request_ids": identifiers,
+        "raw_response_preserved": False,
+    }
 
 
 def validated_claims(token, expected_subject, environment):
@@ -153,11 +175,16 @@ def assume(role, account, region, *, expected_subject):
         )
 
         def request_token():
-            with build_opener(NoRedirect()).open(request, timeout=15) as response:
-                raw = response.read(65537)
-                if len(raw) > 65536:
-                    raise ValueError
-                return json.loads(raw)["value"]
+            try:
+                with build_opener(NoRedirect()).open(request, timeout=15) as response:
+                    raw = response.read(65537)
+                    if len(raw) > 65536:
+                        raise ValueError
+                    return json.loads(raw)["value"]
+            except HTTPError as error:
+                if guard:
+                    guard.record("oidc-http-error", role=role, **oidc_http_diagnostic(error))
+                raise
 
         token = guard.authenticate("oidc", role, request_token) if guard else request_token()
         validated_claims(token, expected_subject, os.environ)

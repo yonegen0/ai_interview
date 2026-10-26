@@ -427,7 +427,11 @@ def test_conflicting_credential_provider_refused_before_github_or_auth(tmp_path,
         module.Guard(env, tmp_path / "journal", github_get=lambda *a: pytest.fail("API called"))
 
 
-@pytest.mark.parametrize("fault", [None, "oidc-timeout", "sts-timeout", "wrong-role", "expired"])
+@pytest.mark.parametrize(
+    "fault",
+    [None, "oidc-timeout", "sts-timeout", "wrong-role", "expired"]
+    + [f"oidc-http-{status}" for status in (302, 401, 403, 404, 422, 429, 500, 503)],
+)
 def test_ci_identity_wires_real_guard_to_separate_requests_and_stops(tmp_path, monkeypatch, fault):
     import base64
     from io import BytesIO
@@ -468,6 +472,20 @@ def test_ci_identity_wires_real_guard_to_separate_requests_and_stops(tmp_path, m
         calls["oidc"] += 1
         if fault == "oidc-timeout":
             raise TimeoutError("SECRET token request failed")
+        if fault and fault.startswith("oidc-http-") and calls["oidc"] == 2:
+            from email.message import Message
+            from urllib.error import HTTPError
+
+            headers = Message()
+            headers["X-VSS-E2EID"] = "01234567-89ab-cdef-0123-456789abcdef"
+            headers["Authorization"] = "SECRET-response-token"
+            raise HTTPError(
+                "https://test.actions.githubusercontent.com/SECRET-url",
+                int(fault.rsplit("-", 1)[1]),
+                "SECRET-reason",
+                headers,
+                BytesIO(b"SECRET-response-body"),
+            )
         assert kwargs["timeout"] == 15
         return BytesIO(json.dumps({"value": token}).encode())
 
@@ -510,8 +528,9 @@ def test_ci_identity_wires_real_guard_to_separate_requests_and_stops(tmp_path, m
     monkeypatch.setattr(identity, "build_opener", lambda *a: SimpleNamespace(open=request_token))
     monkeypatch.setattr(boto3, "Session", lambda **kw: SimpleNamespace(client=client))
     monkeypatch.setattr(identity, "checked_session", checked)
-    for role in ("plan", "plan", "artifact", "plan", "artifact"):
-        if fault:
+    second_http = bool(fault and fault.startswith("oidc-http-"))
+    for index, role in enumerate(("plan", "plan", "artifact", "plan", "artifact")):
+        if fault and (not second_http or index > 0):
             with pytest.raises(ValueError):
                 identity.assume(role, "123456789012", "ap-northeast-1", expected_subject="subject")
         else:
@@ -519,7 +538,21 @@ def test_ci_identity_wires_real_guard_to_separate_requests_and_stops(tmp_path, m
                 identity.assume(role, "123456789012", "ap-northeast-1", expected_subject="subject")
                 == "checked-session"
             )
-    if fault:
+    if second_http:
+        assert calls == {"oidc": 2, "sts": 1, "identity": 1}
+        assert instance.counts == {
+            "oidc": {"plan": 2, "artifact": 0},
+            "sts": {"plan": 1, "artifact": 0},
+        }
+        records = [json.loads(p.read_text()) for p in sorted(instance.directory.iterdir())]
+        observed = [r for r in records if r["stage"] == "oidc-http-error"]
+        assert len(observed) == 1
+        assert observed[0]["http_status"] == int(fault.rsplit("-", 1)[1])
+        assert observed[0]["request_ids"] == {"x-vss-e2eid": "01234567-89ab-cdef-0123-456789abcdef"}
+        assert records[-1]["stage"] == "stopped-outcome-not-success"
+        assert records[-1]["exception_type"] == "HTTPError"
+        assert instance.stopped is True
+    elif fault:
         assert calls == {"oidc": 1, "sts": int(fault != "oidc-timeout"), "identity": 0}
     else:
         assert calls == {"oidc": 5, "sts": 5, "identity": 5}
