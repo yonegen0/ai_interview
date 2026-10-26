@@ -16,6 +16,10 @@ import {
   storyNow,
 } from "../stories/fixtures";
 
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn() }),
+}));
+
 vi.mock("@/lib/api/interview", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/api/interview")>()),
   getQuestion: vi.fn(),
