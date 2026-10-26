@@ -99,3 +99,17 @@ URL/リクエスト用tokenによるJWT取得と既存実装を照合した。00
 2回目のSTS拒否やTerraform failureとは区別する。
 [Python 3.14 urllib.error](https://docs.python.org/3.14/library/urllib.error.html)の
 HTTPError.code/headersだけを限定利用する。これらの仕様から003の未保存HTTP番号は推定しない。
+
+## PR統合前の004範囲レビューで検出した不整合
+
+State snapshot用S3 clientがSDK既定のretry設定を継承していたため、承認案のSDK retry0を
+全明示SDK経路で保証できなかった。`total_max_attempts=1`とconnect/read timeout 5/15秒を
+このclientに明示し、STS/artifact transportと同じ失敗停止方針に合わせた。IAM・OIDC認証方式・
+認証回数・State/lock判定・Terraform版・Provider・依存は変更しない。
+これは003の上流OIDC HTTPErrorを解消する修正ではない。
+
+[Boto3 retry仕様](https://docs.aws.amazon.com/boto3/latest/guide/retries.html)と
+[botocore Config](https://docs.aws.amazon.com/botocore/latest/reference/config.html)を照合。
+実SDKのretry経路と合成HTTP transportで、継承設定が8回でも500応答の送信1回で停止する
+回帰試験を追加した。実AWSは呼び出さない。上記162件の結果は追加修正前の履歴であり、
+追加修正後の重点試験・真正CI結果はPR #58と004正式資料に記録する。

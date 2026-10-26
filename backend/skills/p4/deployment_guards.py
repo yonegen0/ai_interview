@@ -6,6 +6,7 @@ import re
 from datetime import datetime
 from pathlib import Path
 
+from botocore.config import Config
 from botocore.exceptions import ClientError
 
 
@@ -66,7 +67,11 @@ def read_state_snapshot(session, account, region, state_key, *, allow_absent=Fal
         r"test/[a-z0-9-]{1,24}/terraform[.]tfstate", state_key
     ):
         raise ValueError("CanonicalStateKeyRequired")
-    s3 = session.client("s3", region_name=region)
+    s3 = session.client(
+        "s3",
+        region_name=region,
+        config=Config(retries={"total_max_attempts": 1}, connect_timeout=5, read_timeout=15),
+    )
     args = {
         "Bucket": f"ai-interview-state-{account}-{region}",
         "Key": state_key,
