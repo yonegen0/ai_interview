@@ -475,6 +475,39 @@ def test_complete_closed_deployment(deployment):
     )
 
 
+@pytest.mark.parametrize("amount", ["10.00", "10.0", "1E+1"])
+def test_approved_budget_compares_numeric_value_without_mutating_inputs(deployment, amount):
+    m, data, session = deployment
+    m["configuration"]["monthly_budget_usd"] = "10"
+    data["budgets", "describe_budget", ""]["Budget"]["BudgetLimit"]["Amount"] = "10.00"
+    approved = copy.deepcopy(m["configuration"]) | {"monthly_budget_usd": amount}
+    original = copy.deepcopy(m)
+    tool("manifest").verify_live_manifest(
+        session, m, require_api_enabled=False, approved_inputs=approved
+    )
+    assert m == original
+    assert approved["monthly_budget_usd"] == amount
+
+
+@pytest.mark.parametrize("amount", ["10.01", "NaN", "Infinity", "invalid"])
+def test_different_or_invalid_approved_budget_fails_before_resource_reads(deployment, amount):
+    m, _, _ = deployment
+    m["configuration"]["monthly_budget_usd"] = "10"
+    approved = copy.deepcopy(m["configuration"]) | {"monthly_budget_usd": amount}
+    calls = []
+
+    def client(service, **kwargs):
+        calls.append(service)
+        assert service == "sts"
+        return SimpleNamespace(get_caller_identity=lambda: {"Account": m["account_id"]})
+
+    with pytest.raises(ValueError, match="DeploymentReadbackFailed"):
+        tool("manifest").verify_live_manifest(
+            SimpleNamespace(client=client), m, require_api_enabled=False, approved_inputs=approved
+        )
+    assert calls == ["sts"]
+
+
 def test_budget_optional_percentage_type_omission_preserves_response(deployment):
     m, data, session = deployment
     notifications = data["budgets", "describe_notifications_for_budget", ""]["Notifications"]
