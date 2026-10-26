@@ -73,7 +73,7 @@ it("shows a safe error and retries follow-up question retrieval with the keyboar
     .mockRejectedValueOnce(new Error("internal service details"))
     .mockResolvedValueOnce(recoveredSession);
   const client = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
+    defaultOptions: { queries: { retryDelay: 0 } },
   });
   const user = userEvent.setup();
   const view = render(
