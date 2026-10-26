@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useOperationScope } from "@/hooks/useOperationScope";
 import { useAnswerOperation } from "@/hooks/useAnswerOperation";
 import { getQuestion } from "@/lib/api/interview";
+import { retryGet } from "@/lib/api/client";
 import type { FeedbackV2, Session } from "@/lib/api/schemas";
 import { countCodePoints } from "@/lib/textLimits";
 import { Text } from "@/components/atoms/Text";
@@ -76,6 +77,7 @@ export function CoachingResponse({ feedback }: { feedback: FeedbackV2 }) {
     },
     enabled: isActive(),
     refetchOnMount: "always",
+    retry: retryGet,
   });
   const progress = query.data?.activeCoaching;
   if (query.isPending)
