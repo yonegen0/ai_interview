@@ -749,6 +749,7 @@ class StarRepositoryMixin:
             )
             job.provider_id = provider_id  # Pin before durable started; never reselect after it.
             dispatch.status, dispatch.claim_due_at = "CLAIMED", None
+            dispatch.send_owner = dispatch.send_expires_at = None
             tx.window = CommitWindow(upper=min(job.deadline_at, draft.expires_at * 1000))
             tx.put(ref("StarGeneration", owner, identifier), job)
             tx.put(ref("Dispatch", owner, identifier), dispatch)

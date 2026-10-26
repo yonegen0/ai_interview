@@ -62,7 +62,7 @@ def poll(api, eid, *, clock=time.monotonic, sleep=time.sleep, timeout=180):
 
 def coaching_flow(a, b, run, *, expected_rounds=0, expected_failure=False, wait=poll):
     key = run.key("session")
-    payload = {"mode": "category", "category": "career", "difficulty": "standard"}
+    payload = {"mode": "full", "difficulty": "standard"}
     status, created, _ = a.call("POST", "/sessions", payload, key)
     run.expect(status == 201, "session-create")
     sid = created["sessionId"]
@@ -215,7 +215,7 @@ def star_flow(a, b, run, *, wait=poll_star, evaluate=poll):
 
     session = post(
         "/sessions",
-        {"mode": "category", "category": "career", "difficulty": "standard"},
+        {"mode": "full", "difficulty": "standard"},
         "session",
         201,
     )
