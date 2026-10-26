@@ -49,10 +49,29 @@ it("shows a safe error and retries follow-up question retrieval with the keyboar
     ...scoreValues(answer, 7, 7, 7),
     createdAt: storyNow,
   });
+  const followUpQuestion = "そのとき何をしましたか？";
+  const recoveredSession = createSessionFixture({
+    activeAttempt: {
+      attemptId: storyIds.currentAttempt,
+      evaluationId: storyIds.evaluation,
+      status: "completed",
+    },
+    activeCoaching: {
+      attemptId: storyIds.currentAttempt,
+      evaluationId: storyIds.evaluation,
+      stage: "awaiting_answer",
+      initialAnswer: answer,
+      latestAnswer: answer,
+      coachingHistory: [],
+      coachingCount: 0,
+      followUpQuestion,
+      lastSuccessfulEvaluationId: storyIds.evaluation,
+    },
+  });
   const fetchQuestion = vi.mocked(getQuestion);
   fetchQuestion
     .mockRejectedValueOnce(new Error("internal service details"))
-    .mockResolvedValueOnce(createSessionFixture());
+    .mockResolvedValueOnce(recoveredSession);
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -79,6 +98,12 @@ it("shows a safe error and retries follow-up question retrieval with the keyboar
   await waitFor(() =>
     expect(screen.queryByText("現在の質問を取得できませんでした。")).not.toBeInTheDocument(),
   );
+  expect(
+    await screen.findByRole("heading", { name: "深掘り質問 1 / 3" }),
+  ).toBeInTheDocument();
+  expect(screen.getByText(followUpQuestion)).toBeInTheDocument();
+  expect(screen.getByRole("textbox", { name: "あなたの回答" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "回答を送信" })).toBeDisabled();
   view.unmount();
   client.clear();
 });
