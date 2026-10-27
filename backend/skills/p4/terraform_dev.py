@@ -262,6 +262,25 @@ def execute(operation, input_path, directory, approved_hash=None, *, progress=No
     approval_hash = os.environ.get("P4_LOG_RETENTION_APPROVAL_SHA256")
     binding["state_identity"] = snapshot["identity"]
     binding["log_retention_approval_sha256"] = approval_hash
+    recovery = None
+    if operation == "plan" and guard and "stage_recovery" in guard.package:
+        from stage_recovery import from_approval
+
+        recovery = from_approval(guard.package, os.environ)
+    elif operation != "plan":
+        recovery = json.loads(manifest.read_bytes()).get("stage_recovery")
+        if recovery is not None:
+            from ci_identity import standard_context
+            from stage_recovery import validate
+
+            standard_context(os.environ, reserve=120)
+            recovery = validate(recovery, account, region)
+    if recovery:
+        from stage_recovery import check_live, check_state
+
+        check_state(snapshot, recovery)
+        check_live(session, snapshot, recovery, os.environ)
+        binding["stage_recovery"] = recovery
     if operation != "plan":
         saved = json.loads(manifest.read_text(encoding="utf-8"))
         if operation == "verify":
@@ -314,6 +333,10 @@ def execute(operation, input_path, directory, approved_hash=None, *, progress=No
         from plan_summary import summarize
 
         review = json.loads(run(["terraform", "show", "-json", str(plan)], cwd=root, env=env))
+        if recovery:
+            from stage_recovery import audit_plan
+
+            audit_plan(review, recovery, snapshot)
         audit_retention(
             review,
             snapshot["manifest"],
@@ -330,6 +353,8 @@ def execute(operation, input_path, directory, approved_hash=None, *, progress=No
             != snapshot
         ):
             raise DeploymentError("StateChangedDuringPlan")
+        if recovery:
+            check_live(session, snapshot, recovery, os.environ)
         (directory / "review.private.json").write_text(json.dumps(review), encoding="utf-8")
         summary = summarize(review)
         (directory / "summary.json").write_text(json.dumps(summary), encoding="utf-8")
@@ -340,6 +365,10 @@ def execute(operation, input_path, directory, approved_hash=None, *, progress=No
 
     if operation == "apply":
         review = json.loads(run(["terraform", "show", "-json", str(plan)], cwd=root, env=env))
+        if recovery:
+            from stage_recovery import audit_plan
+
+            audit_plan(review, recovery, snapshot)
         audit_retention(
             review,
             snapshot["manifest"],
@@ -357,11 +386,14 @@ def execute(operation, input_path, directory, approved_hash=None, *, progress=No
         write_record(directory / "apply-attempt.json", {"plan_sha256": approved_hash})
         if progress:
             progress("apply_started")
-        run(
-            ["terraform", "apply", "-input=false", "-lock-timeout=60s", str(plan)],
-            cwd=root,
-            env=env,
-        )
+        lock_timeout = "0s" if recovery else "60s"
+        command = ["terraform", "apply", "-input=false", f"-lock-timeout={lock_timeout}", str(plan)]
+        if recovery:
+            from stage_recovery import apply_process
+
+            apply_process(command, directory, cwd=root, env=env)
+        else:
+            run(command, cwd=root, env=env)
         write_record(directory / "apply-completed.json", {"plan_sha256": approved_hash})
         if progress:
             progress("apply_completed")
@@ -378,6 +410,19 @@ def execute(operation, input_path, directory, approved_hash=None, *, progress=No
         observed,
         approved_inputs=values,
     )
+    if recovery:
+        final = read_state_snapshot(session, account, region, binding["state_key"])
+        check_live(session, final, recovery, os.environ, applied=True)
+        from stage_recovery import state_resources
+
+        if (
+            final["identity"]["lineage"] != recovery["state_identity"]["lineage"]
+            or final["identity"]["serial"] <= recovery["state_identity"]["serial"]
+            or final["identity"]["version_id"] == recovery["state_identity"]["version_id"]
+            or final["manifest"] != snapshot["manifest"]
+            or state_resources(final) != state_resources(snapshot)
+        ):
+            raise DeploymentError("StageRecoveryFinalStateMismatch")
     return {"status": "applied_readback_verified", "versions": observed["versions"]}
 
 
