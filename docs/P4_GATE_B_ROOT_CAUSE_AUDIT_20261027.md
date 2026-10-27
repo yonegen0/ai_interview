@@ -3,7 +3,8 @@
 判定: **ROOT_CAUSE_UNKNOWN_EVIDENCE_REQUIRED / NOT_READY**。
 State互換性の異常は再現しなかった。Plan002はTerraform init/planより前の
 live/readiness照合区間で失敗した。直接の拒否条件は既存journalでは失われており、
-新しいPlan承認を最終化・実行しない。
+新しいPlan承認を最終化・実行しない。現在のjob tokenによるEnvironment変数APIの
+HTTP403はAWS不使用の真正CIで再現したが、当時の直接原因とは区別する。
 
 ## 証拠と判定
 
@@ -11,7 +12,7 @@ live/readiness照合区間で失敗した。直接の拒否条件は既存journa
 | --- | --- | --- |
 | Plan001 / Run40482570308 Attempt1 | PROBABLE: Secret搬送時の末尾CR/LF除去による承認hash不一致 | 固定descriptorにLFがあり、gh 2.102.0実装と同じ変換で`PlanApprovalHashMismatch`を再現。実Runの具体的な拒否コードは未保存。journal暗号化も失敗 |
 | Plan002 / Run40485301364 Attempt1 | CONFIRMED: pre-initのlive/readiness区間で停止。詳細根因UNKNOWN | 本人鍵で認証付きCMS復号exit0、projection exit0、生成平文cleanup成功。承認/run-bound、STS response/caller identity、State読取り、CLI version exit0を観測。最後のSDK開始記録はAPI Gateway v2、その後DeploymentError/ExternalOrScopeFailure。init/plan開始記録なし |
-| Plan002の具体的な候補 | PROBABLE: Environment変数読取りの権限不整合 | Stage照合後に両Environmentのvariables APIをjob tokenで読むコード。公式APIはEnvironments(read)を要求するが、workflowのtoken権限に当該選択肢がない。HTTP403を注入するとこの区間で同じ不透明な拒否になる。実RunのHTTP403やStage応答内容は記録されず、確定としない |
+| Plan002の具体的な候補 | PROBABLE: Environment変数読取りの権限不整合。当該権限不足の現在の再現はCONFIRMED | Stage照合後に両Environmentのvariables APIをjob tokenで読むコード。公式APIはEnvironments(read)を要求するが、workflowのtoken権限に当該選択肢がない。後述の真正CIでは両APIが403。実RunのHTTP403やStage応答内容は記録されず、当時の直接原因は確定としない |
 | Terraform State互換性 | CONFIRMED: 保全済み12/13の現行CLI/Providerによるschema照合・読込み成功 | 後述のオフライン検証。remote backendやProvider Configure/Refreshを検証した意味ではない |
 | Stage残差分 | 既存証拠で確認済み。発生原因UNKNOWN | State13は6ログ項目、既存AWS GetStage証拠は4項目。欠落はrequestTimeEpoch/responseLatency。保存応答のDestinationArn・FormatはPlan002承認のbeforeと一致。ただしPlan002実行時のStage応答は保存されていない |
 | 元Apply / Run40336463379 Attempt1 | Workflow FAILURE、Terraform正常終了・直接原因UNKNOWN | source92e0aa2、2026-10-26 23:05:57–23:09:15 JST。State更新や32対象一致からApply正常終了を推定しない |
@@ -63,7 +64,7 @@ Windowsのnetwork namespace隔離はしておらず、一般的なnetwork isolat
 | B Provider schema互換性 | 保存schemaは現行と一致し全State読込み成功。Plan002はinit前に停止 |
 | C Apply途中失敗 | 元Workflow失敗とState/AWS差分から可能性はあるが直接原因はUNKNOWN |
 | D Apply後drift | 可能性はあるがCと区別するwrite履歴・元Apply終了証拠が不足 |
-| E CI承認・認証・実行器 | Plan001の搬送不備は再現。Plan002はpre-init live/readiness区間。Environment API制約は候補 |
+| E CI承認・認証・実行器 | Plan001の搬送不備は再現。Plan002はpre-init live/readiness区間。Environment APIの現在の403は実測、当時の直接原因としてはPROBABLE |
 | F その他 | 今回のローカル復号launcherのPowerShell module探索不備は別のCONFIRMED不具合 |
 
 ## 実行フェーズ
@@ -100,6 +101,19 @@ Environments権限を持つ新資格の導入やreadiness照合の代替は運�
 Windows全suiteの再実行はせず、Linuxの真正Actionsによる全Backend/Frontend/P4 offlineを用いる。
 State異常系の実CLI検査3件、Operator helperの合成鍵・projection等8件もPASS。
 
+## AWSを使用しないGitHub権限実測
+
+[診断CI Run40490610980](https://github.com/yonegen0/ai_interview/actions/runs/40490610980)
+（source a9bc7bbae7fc0fec35a1074807c55004a90705ba、2026-10-27 19:43 JST）で、
+標準Planと同じcontents/actions/deployments readのjob tokenを用い、対象APIに各1 GETした。
+dev-plan、dev-applyともHTTP403。応答本文は読取り・保存せず、tokenも出力していない。
+OIDC権限、Environment指定、checkout、外部action、AWS資格情報は付与していない。
+標準Planとの差であるid-token権限はOIDC発行用で、Environment APIへの権限を付与しない。
+一時診断workflowは観測後に削除し、最終差分には残さない。既存運用workflowは変更していない。
+
+これにより「現在の同じjob tokenでreadiness照合APIを成功させられる」という前提は否定された。
+Stage照合が先に失敗する可能性は排除できず、Plan002の過去の最初の失敗条件はUNKNOWNを維持する。
+
 ## 復号helperの障害と修復
 
 最初のlauncherはPowerShell5.1へPowerShell7由来のPSModulePathを継承し、path-0の組込み
@@ -123,6 +137,16 @@ GitHub Environment読取り資格の承認済み設計・既存監査証拠で�
 新資格や既存運用workflow変更が必要な場合は、具体的な案を別途承認対象とする。
 診断PRのmerge、新Plan、State/lock/readback、saved Plan専用Applyはそれぞれ既存の承認境界に従う。
 AWS操作・Secret操作・readiness変更・dispatch・実AI・main mergeは本作業で0。
+
+運用境界の修正案（未実装・未承認）は、対象repositoryに限定したGitHub Appの短命installation
+tokenにEnvironments(read)を付与し、上記2つのvariables GETだけに別資格を渡す方式とする。
+既存GH_TOKENを全体で置き換えず、PAT・別tokenへの自動fallbackも設けない。
+取得前に有効期限・repository・権限・対象URLを固定し、AWS資格取得前にAPI capabilityを検査する。
+readiness値の照合、片側だけtrue、既存承認・回数・AWS費用上限は維持する。
+App credentialの保管と既存workflow変更は別の承認範囲であり、ここでは作成・読取り・設定しない。
+採用前に専用fixtureで200/403/404/期限切れ/対象違い/redirect/欠落flagを検証し、
+承認されたGitHub-only検証の後、新source SHAに対する1回限りのPlan承認を作る。
+本PRの診断修正だけでは、この403を解消したことにも次回Plan準備完了にもならない。
 
 ## 公式根拠
 
