@@ -64,6 +64,7 @@ def digest(path):
 
 
 def run(command, *, cwd, env, accepted=(0,)):
+    env = {key: value for key, value in env.items() if key != "P4_ENV_READ_TOKEN"}
     if os.environ.get("P4_STANDARD_ACTIVE") == "true":
         from ci_identity import standard_context
 

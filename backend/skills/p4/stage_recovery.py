@@ -256,7 +256,7 @@ def audit_plan(plan, value, snapshot):
 def check_live(session, snapshot, value, environment, *, applied=False):
     """Fresh safety reads; active CI readiness is true only in its own Environment."""
     from botocore.config import Config
-    from github_control import github_json
+    from github_control import verify_readiness
     from standard_diagnostics import checkpoint
 
     cfg = Config(retries={"total_max_attempts": 1}, connect_timeout=5, read_timeout=10)
@@ -284,19 +284,8 @@ def check_live(session, snapshot, value, environment, *, applied=False):
     expected = state_resources(snapshot)[ADDRESS]["access_log_settings"][0]
     require(actual.get("DestinationArn") == expected["destination_arn"])
     require(actual.get("Format") == value["stage"]["format_after" if applied else "format_before"])
-    operation = environment["P4_OPERATION"]
     checkpoint("readiness-readback")
-    for name in ("dev-plan", "dev-apply"):
-        response = github_json(f"environments/{name}/variables?per_page=100", environment)
-        require(type(response.get("total_count")) is int and response["total_count"] <= 100)
-        variables = {row["name"]: row["value"] for row in response["variables"]}
-        expected_flag = "true" if name == "dev-" + operation else "false"
-        require(
-            all(
-                variables.get(k) == expected_flag
-                for k in ("P4_STANDARD_READY", "P4_AWS_EXECUTION_READY")
-            )
-        )
+    verify_readiness(environment)
 
 
 def envelope_recovery(envelope, binding, environment):

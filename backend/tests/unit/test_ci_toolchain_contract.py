@@ -29,10 +29,20 @@ def test_all_setup_uv_workflows_pin_verified_action_and_uv_python():
     }
     for path in users:
         content = path.read_text(encoding="utf-8")
-        assert content.count(ACTION) == 1, path
-        assert len(re.findall(r"astral-sh/setup-uv@", content)) == 1, path
-        assert re.search(r"(?m)^\s+version: ['\"]?0\.13\.5['\"]?$", content), path
-        assert re.search(r"(?m)^\s+python-version: ['\"]?3\.14\.9['\"]?$", content), path
+        expected = 2 if path.name == "p4-standard-qualify.yml" else 1
+        assert content.count(ACTION) == expected, path
+        assert len(re.findall(r"astral-sh/setup-uv@", content)) == expected, path
+        # Check every setup block so a valid OIDC job cannot hide an unpinned
+        # GitHub-only job (or the reverse).
+        blocks = re.findall(
+            r"(?m)^([ ]*)- uses: astral-sh/setup-uv@[^\n]*\n"
+            r"((?:(?!\1- ).*\n)*)",
+            content,
+        )
+        assert len(blocks) == expected, path
+        for _, block in blocks:
+            assert re.search(r"(?m)^\s+version: ['\"]?0\.13\.5['\"]?$", block), path
+            assert re.search(r"(?m)^\s+python-version: ['\"]?3\.14\.9['\"]?$", block), path
         assert not re.search(r"--python 3\.14(?!\.9)(?!\d)", content), path
 
 

@@ -147,17 +147,20 @@ def test_unknown_stage_and_command_cannot_publish_arbitrary_values(diagnostic):
     "suffix,status,reason",
     [
         (
-            "environments/dev-plan/variables?per_page=100",
+            "environments/dev-plan/variables?per_page=30&page=1",
             403,
             "GitHubEnvironmentVariablesReadDenied",
         ),
         (
-            "environments/dev-apply/variables?per_page=100",
+            "environments/dev-apply/variables?per_page=30&page=2",
             403,
             "GitHubEnvironmentVariablesReadDenied",
         ),
-        ("environments/dev-plan/variables?per_page=100", 500, "GitHubControlPlaneUnavailable"),
-        ("environments/other/variables?per_page=100", 403, "GitHubControlPlaneUnavailable"),
+        (
+            "environments/dev-plan/variables?per_page=30&page=1",
+            500,
+            "GitHubEnvironmentServiceUnavailable",
+        ),
         ("git/ref/heads/main", 403, "GitHubControlPlaneUnavailable"),
     ],
 )
@@ -183,9 +186,19 @@ def test_environment_variable_http_refusal_remains_fail_closed(
         )
 
     monkeypatch.setattr(g, "build_opener", lambda *a: SimpleNamespace(open=open_request))
+    monkeypatch.setattr(g.time, "time", lambda: 1000)
     m.checkpoint("readiness-readback")
     with pytest.raises(DeploymentError, match="^GitHubControlPlaneUnavailable$") as failure:
-        g.github_json(suffix, {"GH_TOKEN": "private-token"})
+        g.github_json(
+            suffix,
+            {
+                "GH_TOKEN": "private-token",
+                "GITHUB_REPOSITORY": g.REPOSITORY,
+                "GITHUB_REPOSITORY_ID": "1361325921",
+                "P4_ENV_READ_TOKEN": "private_token",
+                "P4_ENV_TOKEN_STARTED_AT": "1000",
+            },
+        )
     assert len(requests) == 1  # No alternate token, endpoint or retry.
     assert failure.value.reason_code == reason
     instance.emit(failure.value)
