@@ -2,8 +2,9 @@
 
 import io
 import json
+import ssl
 from types import SimpleNamespace
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
 from urllib.request import build_opener
 
 import pytest
@@ -119,6 +120,7 @@ def test_malformed_or_incomplete_variables_fail_closed(api, response):
     with pytest.raises(DeploymentError) as failure:
         api.g.environment_variables("dev-plan", api.env)
     assert failure.value.reason_code == "GitHubEnvironmentResponseInvalid"
+    assert failure.value.failure_phase == "dev-plan-variables"
     assert len(api.calls) == 1
 
 
@@ -134,8 +136,9 @@ def test_partial_or_inconsistent_pagination_never_returns_partial_result(api, fa
             {"total_count": 32 if fault == "changed-count" else 31, "variables": second},
         ]
     )
-    with pytest.raises(DeploymentError):
+    with pytest.raises(DeploymentError) as failure:
         api.g.environment_variables("dev-plan", api.env)
+    assert failure.value.failure_phase == "dev-plan-variables"
     assert len(api.calls) == 2
 
 
@@ -143,7 +146,7 @@ def test_partial_or_inconsistent_pagination_never_returns_partial_result(api, fa
     "status,reason",
     [
         (401, "GitHubEnvironmentAuthenticationFailed"),
-        (403, "GitHubEnvironmentVariablesReadDenied"),
+        (403, "GitHubEnvironmentHttpRejected"),
         (404, "GitHubEnvironmentNotFound"),
         (429, "GitHubEnvironmentRateLimited"),
         (500, "GitHubEnvironmentServiceUnavailable"),
@@ -224,6 +227,7 @@ def test_token_expiry_between_pages_is_refused(api, monkeypatch):
     with pytest.raises(DeploymentError) as failure:
         api.g.environment_variables("dev-plan", api.env)
     assert failure.value.reason_code == "GitHubEnvironmentTokenExpired"
+    assert failure.value.failure_phase == "dev-plan-variables"
     assert len(api.calls) == 1
 
 
@@ -283,14 +287,16 @@ def test_readiness_partial_success_and_missing_flags_are_failures(api, fault):
 )
 def test_capability_rejects_wrong_or_excess_repositories(api, result):
     api.responses.append(result)
-    with pytest.raises(DeploymentError):
+    with pytest.raises(DeploymentError) as failure:
         api.g.verify_environment_access(api.env)
+    assert failure.value.failure_phase == "repository-scope"
     assert len(api.calls) == 1
 
 
 @pytest.mark.parametrize("operation", ["plan", "apply"])
+@pytest.mark.parametrize("fault", ["missing", "repository", "dev-plan", "dev-apply", "readiness"])
 def test_standard_capability_refusal_precedes_all_aws_or_terraform_work(
-    api, monkeypatch, operation
+    api, monkeypatch, operation, fault
 ):
     import ci_deploy as c
 
@@ -312,7 +318,22 @@ def test_standard_capability_refusal_precedes_all_aws_or_terraform_work(
     monkeypatch.setattr(c, "role_session", lambda *a: pytest.fail("AWS credentials reached"))
     monkeypatch.setattr(c, "plan_state_preflight", lambda *a: pytest.fail("State read reached"))
     monkeypatch.setattr(c, "execute", lambda *a: pytest.fail("Terraform reached"))
-    assert c.main() == 1  # Missing App credential: fail before any AWS path.
+    for key, value in api.env.items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.setenv("P4_OPERATION", operation)
+    first = {"total_count": 2, "variables": rows("true" if operation == "plan" else "false")}
+    denied = HTTPError("private", 403, "private", {}, None)
+    if fault == "missing":
+        monkeypatch.delenv("P4_ENV_READ_TOKEN", raising=False)
+    elif fault == "repository":
+        api.responses.append(denied)
+    elif fault == "dev-plan":
+        api.responses.extend([repository(), denied])
+    elif fault == "dev-apply":
+        api.responses.extend([repository(), first, denied])
+    else:
+        api.responses.extend([repository(), {"total_count": 0, "variables": []}])
+    assert c.main() == 1  # Every gate failure stops before AWS credentials/State/Terraform.
 
 
 def test_terraform_and_git_children_never_receive_app_token(api, monkeypatch, tmp_path):
@@ -327,3 +348,271 @@ def test_terraform_and_git_children_never_receive_app_token(api, monkeypatch, tm
     monkeypatch.setattr(t.subprocess, "run", run)
     assert t.run(["git", "status"], cwd=tmp_path, env=api.env) == b"ok"
     assert api.env["P4_ENV_READ_TOKEN"] == "app_token"
+
+
+PHASES = ("repository-scope", "dev-plan-variables", "dev-apply-variables")
+SENTINEL = "PRIVATE_SENTINEL https://private.invalid Authorization: Bearer ghp_private PEM"
+
+
+def queue_failure(api, phase, response):
+    before = {
+        "repository-scope": [],
+        "dev-plan-variables": [repository()],
+        "dev-apply-variables": [repository(), {"total_count": 2, "variables": rows()}],
+    }[phase]
+    api.responses.extend([*before, response])
+    return len(before) + 1
+
+
+def failure_result(api, capsys):
+    assert api.g.main(api.env) == 1
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    assert SENTINEL not in captured.out
+    assert "private.invalid" not in captured.out
+    assert "app_token" not in captured.out
+    assert "job_token" not in captured.out
+    assert len(captured.out.splitlines()) == 1
+    value = json.loads(captured.out)
+    assert set(value) == {
+        "schema_version",
+        "failure_phase",
+        "reason_code",
+        "http_status",
+        "capability_result",
+    }
+    assert value["schema_version"] == 1
+    assert value["capability_result"] == "FAIL"
+    return value
+
+
+@pytest.mark.parametrize("phase", PHASES)
+@pytest.mark.parametrize(
+    "status,kind",
+    [
+        (401, "AuthenticationFailed"),
+        (403, "HttpRejected"),
+        (404, "NotFound"),
+        (418, "HttpRejected"),
+        (429, "RateLimited"),
+        (500, "ServiceUnavailable"),
+        (503, "ServiceUnavailable"),
+        (301, "RedirectRejected"),
+        (302, "RedirectRejected"),
+        (307, "RedirectRejected"),
+        (308, "RedirectRejected"),
+    ],
+)
+def test_cli_http_matrix_retains_stage_without_retry_or_private_data(
+    api, capsys, phase, status, kind
+):
+    calls = queue_failure(
+        api, phase, HTTPError(SENTINEL, status, SENTINEL, {}, io.BytesIO(SENTINEL.encode()))
+    )
+    value = failure_result(api, capsys)
+    prefix = "GitHubRepository" if phase == "repository-scope" else "GitHubEnvironment"
+    assert value["failure_phase"] == phase
+    assert value["reason_code"] == prefix + kind
+    assert value["http_status"] == status
+    assert len(api.calls) == calls
+
+
+@pytest.mark.parametrize("phase", PHASES)
+@pytest.mark.parametrize(
+    "headers,kind",
+    [
+        ({"X-RateLimit-Remaining": "0"}, "RateLimited"),
+        ({"Retry-After": "60"}, "RateLimited"),
+        ({"X-RateLimit-Remaining": "1"}, "HttpRejected"),
+        ({"Retry-After": SENTINEL}, "HttpRejected"),
+        ({"Retry-After": "0"}, "HttpRejected"),
+        ({"Retry-After": "9" * 1000}, "HttpRejected"),
+        ({}, "HttpRejected"),
+    ],
+)
+def test_403_needs_numeric_rate_evidence_and_never_claims_permission_cause(
+    api, capsys, phase, headers, kind
+):
+    queue_failure(api, phase, HTTPError(SENTINEL, 403, SENTINEL, headers, None))
+    value = failure_result(api, capsys)
+    assert value["failure_phase"] == phase
+    assert value["reason_code"].endswith(kind)
+    assert value["http_status"] == 403
+
+
+@pytest.mark.parametrize("phase", PHASES)
+@pytest.mark.parametrize(
+    "fault,kind",
+    [
+        (TimeoutError(SENTINEL), "TransportFailed"),
+        (URLError(SENTINEL), "TransportFailed"),
+        (ssl.SSLError(SENTINEL), "TransportFailed"),
+        (ConnectionError(SENTINEL), "TransportFailed"),
+        (SENTINEL.encode(), "ResponseInvalid"),
+        (b'{"total_count":1,"total_count":0}', "ResponseInvalid"),
+        (b"\xff", "ResponseInvalid"),
+        ([], "ResponseInvalid"),
+        (pytest.param(b"x" * 1048577, "ResponseInvalid", id="oversized")),
+        (RuntimeError(SENTINEL), "UNKNOWN"),
+    ],
+)
+def test_cli_transport_schema_and_unknown_failures_are_distinct(api, capsys, phase, fault, kind):
+    calls = queue_failure(api, phase, fault)
+    value = failure_result(api, capsys)
+    assert value["failure_phase"] == phase
+    assert value["http_status"] is None
+    assert value["reason_code"].endswith(kind)
+    assert len(api.calls) == calls
+
+
+@pytest.mark.parametrize(
+    "change,reason",
+    [
+        ({"P4_ENV_READ_TOKEN": ""}, "GitHubEnvironmentAuthenticationFailed"),
+        ({"P4_ENV_READ_TOKEN": SENTINEL}, "GitHubEnvironmentAuthenticationFailed"),
+        ({"P4_ENV_TOKEN_STARTED_AT": "1000\\n"}, "GitHubEnvironmentAuthenticationFailed"),
+        ({"P4_ENV_TOKEN_STARTED_AT": "1001"}, "GitHubEnvironmentTokenExpired"),
+        ({"GITHUB_REPOSITORY": SENTINEL}, "GitHubEnvironmentScopeMismatch"),
+        ({"GITHUB_REPOSITORY_ID": "1"}, "GitHubEnvironmentScopeMismatch"),
+    ],
+)
+def test_cli_token_preflight_has_no_http_fallback(api, capsys, change, reason):
+    api.env.update(change)
+    value = failure_result(api, capsys)
+    assert value["failure_phase"] == "token-preflight"
+    assert value["reason_code"] == reason
+    assert value["http_status"] is None
+    assert api.calls == []
+
+
+@pytest.mark.parametrize("phase", ("dev-plan-variables", "dev-apply-variables"))
+def test_cli_expiry_between_api_requests_keeps_actual_phase(api, monkeypatch, capsys, phase):
+    calls = queue_failure(api, phase, {})
+    # One token check before repository GET, then one before each variables GET.
+    clock = iter([1000] * (calls - 1) + [4270])
+    monkeypatch.setattr(api.g.time, "time", lambda: next(clock))
+    value = failure_result(api, capsys)
+    assert value["failure_phase"] == phase
+    assert value["reason_code"] == "GitHubEnvironmentTokenExpired"
+    assert len(api.calls) == calls - 1
+
+
+@pytest.mark.parametrize("fault", ("missing", "false", "mixed", "both-true", "invalid"))
+def test_cli_readiness_failures_keep_readiness_phase(api, capsys, fault):
+    first, second = rows(), rows("false")
+    if fault == "missing":
+        first.pop()
+    elif fault == "false":
+        first = rows("false")
+    elif fault == "mixed":
+        first[0]["value"] = "false"
+    elif fault == "invalid":
+        first[0]["value"] = SENTINEL
+    else:
+        second = rows()
+    api.responses.extend(
+        [
+            repository(),
+            {"total_count": len(first), "variables": first},
+            {"total_count": len(second), "variables": second},
+        ]
+    )
+    value = failure_result(api, capsys)
+    assert value["failure_phase"] == "readiness"
+    assert value["reason_code"] == "GitHubEnvironmentReadinessMismatch"
+
+
+@pytest.mark.parametrize("status", [True, False, "403", -1, 0, 99, 600, None, SENTINEL])
+def test_projection_never_coerces_invalid_http_status_or_unsafe_fields(api, status):
+    failure = api.g.CapabilityFailure(SENTINEL, SENTINEL, status)
+    assert api.g.capability_projection(failure) == {
+        "schema_version": 1,
+        "failure_phase": "unknown",
+        "reason_code": "UNKNOWN",
+        "http_status": None,
+        "capability_result": "FAIL",
+    }
+
+
+def test_unknown_hostile_exception_and_broken_stdout_fail_without_stringification(
+    api, monkeypatch, capsys
+):
+    class Hostile(Exception):
+        @property
+        def reason_code(self):
+            pytest.fail("Unknown exception properties must not be accessed")
+
+        def __str__(self):
+            pytest.fail("Private exception must not be stringified")
+
+    def broken(*args):
+        raise Hostile(SENTINEL)
+
+    monkeypatch.setattr(api.g, "verify_environment_access", broken)
+    assert failure_result(api, capsys)["failure_phase"] == "unknown"
+    monkeypatch.setattr("builtins.print", lambda *a, **k: (_ for _ in ()).throw(OSError(SENTINEL)))
+    assert api.g.main(api.env) == 1
+
+
+@pytest.mark.parametrize("operation", ("plan", "apply"))
+def test_cli_success_has_only_fixed_marker_and_exact_three_reads(api, capsys, operation):
+    api.env["P4_OPERATION"] = operation
+    api.responses.extend(
+        [repository()]
+        + [
+            {"total_count": 2, "variables": rows("true" if name == operation else "false")}
+            for name in ("plan", "apply")
+        ]
+    )
+    assert api.g.main(api.env) == 0
+    captured = capsys.readouterr()
+    assert captured.out == "GitHubEnvironmentCapabilityPassed\n"
+    assert captured.err == ""
+    assert len(api.calls) == 3
+
+
+@pytest.mark.parametrize("phase", ("dev-plan-variables", "dev-apply-variables"))
+def test_unknown_errors_outside_transport_keep_environment_phase(api, monkeypatch, capsys, phase):
+    original = api.g.environment_variables
+
+    def injected(name, environment):
+        if name + "-variables" == phase:
+            raise RuntimeError(SENTINEL)
+        return original(name, environment)
+
+    api.responses.extend([repository(), {"total_count": 2, "variables": rows()}])
+    monkeypatch.setattr(api.g, "environment_variables", injected)
+    value = failure_result(api, capsys)
+    assert value["failure_phase"] == phase
+    assert value["reason_code"] == "UNKNOWN"
+
+
+def test_actual_cli_process_returns_nonzero_and_no_traceback(tmp_path):
+    import os
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    backend = Path(__file__).resolve().parents[2]
+    result = subprocess.run(
+        [sys.executable, str(backend / "skills/p4/github_control.py")],
+        cwd=tmp_path,
+        env={
+            "SYSTEMROOT": os.environ["SYSTEMROOT"] if os.name == "nt" else "/",
+            "PYTHONPATH": str(backend / "src"),
+            "GITHUB_REPOSITORY": "yonegen0/ai_interview",
+            "GITHUB_REPOSITORY_ID": "1361325921",
+            "GH_TOKEN": SENTINEL,
+            "P4_ENV_READ_TOKEN": SENTINEL,
+        },
+        capture_output=True,
+        text=True,
+        timeout=15,
+        check=False,
+    )
+    assert result.returncode == 1
+    assert result.stderr == ""
+    assert SENTINEL not in result.stdout
+    value = json.loads(result.stdout)
+    assert value["failure_phase"] == "token-preflight"
+    assert value["reason_code"] == "GitHubEnvironmentAuthenticationFailed"
