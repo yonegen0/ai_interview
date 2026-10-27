@@ -149,12 +149,12 @@ def test_unknown_stage_and_command_cannot_publish_arbitrary_values(diagnostic):
         (
             "environments/dev-plan/variables?per_page=30&page=1",
             403,
-            "GitHubEnvironmentVariablesReadDenied",
+            "GitHubEnvironmentHttpRejected",
         ),
         (
             "environments/dev-apply/variables?per_page=30&page=2",
             403,
-            "GitHubEnvironmentVariablesReadDenied",
+            "GitHubEnvironmentHttpRejected",
         ),
         (
             "environments/dev-plan/variables?per_page=30&page=1",
