@@ -99,3 +99,35 @@ State13等の既存資料は歴史証拠のまま扱い、fresh AWS/State/Stage/
 [Environment variables API](https://docs.github.com/en/rest/actions/variables#list-environment-variables)、
 [installation repositories API](https://docs.github.com/en/rest/apps/installations#list-repositories-accessible-to-the-app-installation)、
 [REST rate limits](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api#exceeding-the-rate-limit)。
+
+
+## 単回実証40522761747とopaque token形式互換性
+
+2026-10-27、固定source `ec5a39030afe43759b9262282658d2d1ba880bef` の
+[GitHub-only Run40522761747 / Attempt1](https://github.com/yonegen0/ai_interview/actions/runs/40522761747)
+はFAIL。安全な診断は `token-preflight / GitHubEnvironmentAuthenticationFailed / null`。
+Repository/両Environment APIへ到達する前のローカル拒否であり、HTTP401/403/404/429/5xx、
+transport、schema、実scope、App経由readinessの成否は未観測。mint/post成功、revoke markerと
+OIDC job SKIPPEDを確認し、dev-planへの計4PATCH後、両Environment全4flag=falseを読戻しVERIFIED。
+秘密値・生ログは保存せず、時刻は数値かつRun時間内というbooleanだけを投影した。
+
+CONFIRMED: 既存 `[A-Za-z0-9_]+` は公式stateless形式に含まれるドット・ハイフンを拒否する。
+合成tokenだけで同じphase/reason/statusを再現した。
+GitHubは2026-10-02に `ghs_APPID_JWT` への移行完了を公表し、tokenをopaqueとして扱うよう案内している。
+この互換性欠陥を最小修正し、許容文字を `[A-Za-z0-9_.-]+` とする。
+JWTのdecode/署名判定、固定長、token保存、代替資格、opt-out header、権限追加は導入しない。
+期限・repository ID/name/count・readiness・URL・要求数・redirect拒否・retry0を維持する。
+空文字、空白、改行、制御文字、非ASCII、その他のheader不適合文字は引き続き拒否する。
+
+PROBABLE: 今回のtoken-preflight拒否は新形式と旧正規表現の不整合。
+実tokenのbytesを調べていないため、形式・内容や修正後の真正API成功を実測済みとはしない。
+旧Run40506644089やPlan002の過去の直接原因はUNKNOWNを維持する。
+オフライン試験と通常CIは実App/AWS/IAM成功の証明ではない。
+
+当該単回承認は消費済み。修正sourceへ転用せず、新しいsource/main、Workflow blob、CI、
+readiness、回数・時間・cleanupを固定した別の明示承認後にだけ次のGitHub-only Attempt1へ進む。
+Plan003正式承認資料はINCOMPLETE、Plan003実行NOT_AUTHORIZED、Gate B/公開NOT_READY。
+
+公式根拠:
+[新形式の展開完了](https://github.blog/changelog/2026-10-02-stateless-github-app-installation-tokens-rolled-out/)、
+[opaque形式・許容文字の公式案内](https://github.blog/changelog/2026-05-15-github-app-installation-tokens-per-request-override-header/)。
