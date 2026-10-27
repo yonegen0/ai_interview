@@ -63,11 +63,13 @@ API versionは既存の無指定時defaultと同じ`2022-11-28`を明示し、�
 ## 検証
 
 - Python3.14.9 / uv0.13.5 / 既存uv.lock。依存更新0。
-- 重点回帰234件PASS。既存の承認hash/期限/再利用、State identity、subprocess起動失敗・
+- 重点回帰236件PASS（toolchain契約2件を含む）。既存の承認hash/期限/再利用、State identity、subprocess起動失敗・
   非正常終了・終了UNKNOWN、StageだけのPlan監査を再利用。
 - 新規試験はApp token分離、期限とページ間失効、scope、pagination、HTTP/redirect、
   malformed JSON、両readiness、AWS到達前拒否、子プロセスへのtoken非継承に限定。
 - Backend全Ruff check/format PASS。変更3workflowはactionlint1.7.12 PASS。
+- 初回CIは、既存toolchain契約がsetup-uvをworkflow内1個に限定していたため失敗。
+  GitHub-only/OIDCの2個を許可し、各setup blockの固定SHA・uv/Python版を個別照合する形に修正した。
 - 新HEADの真正CIはPRチェックを正本とし、実GitHub App検証は未実施。
 
 ## まとめて承認・設定する対象（未実行）
