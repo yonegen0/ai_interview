@@ -131,7 +131,7 @@ def load(environment):
             or not re.fullmatch(r"[0-9a-f]{64}", package["artifact_sha256"])
             or package["configuration_sha256"]
             != canonical_hash(json.loads(environment["P4_DEPLOY_INPUTS"]))
-            or package["s3_put_limit"] != 6
+            or package["s3_put_limit"] != (5 if "stage_recovery" in package else 6)
             or package["cleanup_seconds"] != CLEANUP_SECONDS
             or package["deadline_policy"] != "no-new-operations;cleanup-before-expiry"
             or package["session_policy_sha256"]
@@ -145,6 +145,12 @@ def load(environment):
             or not re.fullmatch(r"[0-9]+", environment.get("GITHUB_RUN_ID", ""))
         ):
             raise DeploymentError("PlanApprovalScopeMismatch")
+        if "stage_recovery" in package:
+            from stage_recovery import artifact_digest, from_approval
+
+            recovery = from_approval(package, environment)
+            if artifact_digest(recovery) != package["artifact_sha256"]:
+                raise DeploymentError("StageRecoveryArtifactDigestMismatch")
     except DeploymentError:
         raise
     except Exception:
@@ -376,7 +382,10 @@ class Guard:
         self.check("s3-put", BUDGETS["put"])
         account = self.package["account_id"]
         run = self.environment["GITHUB_RUN_ID"]
-        allowed = {f"lambda/{self.package['source_sha']}/{run}/1/app.zip"} | {
+        recovery = "stage_recovery" in self.package
+        allowed = (
+            set() if recovery else {f"lambda/{self.package['source_sha']}/{run}/1/app.zip"}
+        ) | {
             f"plans/{run}/1/{name}"
             for name in (
                 "dev.tfplan",
@@ -390,8 +399,8 @@ class Guard:
             bucket != f"ai-interview-artifacts-{account}-ap-northeast-1"
             or key not in allowed
             or key in self.puts
-            or len(self.puts) >= 6
-            or (key.endswith("/envelope.json") and len(self.puts) != 5)
+            or len(self.puts) >= (5 if recovery else 6)
+            or (key.endswith("/envelope.json") and len(self.puts) != (4 if recovery else 5))
         ):
             error = DeploymentError("PlanS3ScopeOrCountMismatch")
             self.fail(error)

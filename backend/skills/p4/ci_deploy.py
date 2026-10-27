@@ -395,6 +395,7 @@ def build_package(directory, sha):
 def main():
     guard = None
     diagnostic = None
+    meter = None
     try:
         if os.environ.get("P4_CLOUD_ACTIVE") == "true":
             import cloud_diagnostics as diagnostic
@@ -417,6 +418,10 @@ def main():
             guard = initialize(
                 os.environ, PROJECT / ".p4-artifacts" / f"plan-authorization-{run_id}-{attempt}"
             )
+            if "stage_recovery" in guard.package:
+                from stage_request_budget import install
+
+                meter = install(guard.record)
         if os.environ.get("P4_CLOUD_ACTIVE") == "true":
             from cloud_ci import before_plan
 
@@ -432,30 +437,37 @@ def main():
             if diagnostic:
                 diagnostic.checkpoint("state-preflight")
             state_before = plan_state_preflight(account, region)
-            if diagnostic:
-                diagnostic.checkpoint("artifact-build")
-            package, info = build_package(directory, sha)
-            if diagnostic:
-                diagnostic.checkpoint("artifact-binding")
-            raw_digest = hashlib.sha256(package.read_bytes()).digest()
-            if (
-                raw_digest.hex() != os.environ.get("P4_PACKAGE_SHA256")
-                or base64.b64encode(raw_digest).decode() != info["sha256_base64"]
-            ):
-                raise DeploymentError("ApprovedArtifactDigestMismatch")
-            if plan_state_preflight(account, region) != state_before:
-                raise DeploymentError("StateChangedBeforeArtifactUpload")
-            if diagnostic:
-                diagnostic.checkpoint("artifact-upload")
-            s3 = s3_client(role_session("artifact", account, region))
-            key = f"lambda/{sha}/{run_id}/{attempt}/app.zip"
-            version = put(s3, bucket, key, package.read_bytes())
-            package_info = {
-                "artifact_bucket": bucket,
-                "artifact_key": key,
-                "artifact_version": version,
-                "artifact_sha256_base64": info["sha256_base64"],
-            }
+            from stage_recovery import check_state, from_approval
+
+            recovery = from_approval(guard.package, os.environ)
+            if recovery:
+                check_state(state_before, recovery)
+                package_info = recovery["artifact"]
+            else:
+                if diagnostic:
+                    diagnostic.checkpoint("artifact-build")
+                package, info = build_package(directory, sha)
+                if diagnostic:
+                    diagnostic.checkpoint("artifact-binding")
+                raw_digest = hashlib.sha256(package.read_bytes()).digest()
+                if (
+                    raw_digest.hex() != os.environ.get("P4_PACKAGE_SHA256")
+                    or base64.b64encode(raw_digest).decode() != info["sha256_base64"]
+                ):
+                    raise DeploymentError("ApprovedArtifactDigestMismatch")
+                if plan_state_preflight(account, region) != state_before:
+                    raise DeploymentError("StateChangedBeforeArtifactUpload")
+                if diagnostic:
+                    diagnostic.checkpoint("artifact-upload")
+                s3 = s3_client(role_session("artifact", account, region))
+                key = f"lambda/{sha}/{run_id}/{attempt}/app.zip"
+                version = put(s3, bucket, key, package.read_bytes())
+                package_info = {
+                    "artifact_bucket": bucket,
+                    "artifact_key": key,
+                    "artifact_version": version,
+                    "artifact_sha256_base64": info["sha256_base64"],
+                }
             if any(key in configuration for key in package_info):
                 raise DeploymentError("ArtifactOverrideForbidden")
             configuration.update(package_info)
@@ -505,6 +517,8 @@ def main():
             }
             if os.environ.get("P4_STANDARD_ACTIVE") == "true":
                 envelope["package_base_sha"] = standard_package_base(os.environ)
+            if recovery:
+                envelope["stage_recovery"] = recovery
             put(s3, bucket, f"{plan_prefix}/envelope.json", json.dumps(envelope).encode())
             guard.check("plan-transport-completed", 0)
             guard.record("plan-transport-completed")
@@ -530,8 +544,11 @@ def main():
                 or envelope["plan_sha256"] != approved
                 or not isinstance(envelope["package"], dict)
                 or envelope["package"].keys() != PACKAGE_KEYS
-                or envelope["package"]["artifact_key"]
-                != f"lambda/{sha}/{source_run}/{source_attempt}/app.zip"
+                or (
+                    envelope.get("stage_recovery") is None
+                    and envelope["package"]["artifact_key"]
+                    != f"lambda/{sha}/{source_run}/{source_attempt}/app.zip"
+                )
             ):
                 raise DeploymentError("PlanEnvelopeMismatch")
             if any(key in configuration for key in envelope["package"]):
@@ -551,6 +568,9 @@ def main():
             (tf_dir / "plan.json").write_bytes(
                 get(s3, bucket, f"{plan_prefix}/plan.json", version=envelope["binding_version"])
             )
+            from stage_recovery import envelope_recovery
+
+            envelope_recovery(envelope, json.loads((tf_dir / "plan.json").read_bytes()), os.environ)
             result = apply_saved_plan(
                 account, region, bucket, plan_prefix, approved, input_path, tf_dir
             )
@@ -573,6 +593,8 @@ def main():
         print("P4CiDeploymentFailed", file=sys.stderr)
         return 1
     finally:
+        if meter is not None:
+            meter.close()
         for key in ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN"):
             os.environ.pop(key, None)
 

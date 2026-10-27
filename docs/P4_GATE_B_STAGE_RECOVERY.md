@@ -1,0 +1,57 @@
+# Gate B Stage形式だけの復旧
+
+2026-10-27 JST。診断003R2は33変更対象中32一致・1不一致。32一致には過去11件の再利用を含む。
+今回確認した不一致はStageアクセスログ形式の`requestTimeEpoch`と`responseLatency`欠落のみ。
+元RunのTerraform正常終了と失敗原因はUNKNOWNのまま、旧Planの再Applyは禁止する。
+
+## 実行経路
+
+標準`p4-standard-plan.yml`の新規承認descriptorに`stage_recovery`を明示する。
+通常経路のbuildと新Lambda uploadは実行せず、State13に記録された既存Artifactの
+bucket/key/VersionId/digestを固定再利用する。構成・依存・lock・runnerは新しいmainへ固定する。
+旧診断source・State・Plan・消費済み承認を変更しない。IAMやTerraform構成の変更はない。
+
+承認objectはState13のidentityとsnapshot canonical hash、既存Artifact、API/Stage、
+観測済み4項目のbefore literalと期待6項目のafter literalを持つ。別の形式や対象を許可しない。
+通常refresh付きPlanを1回生成し、全managed resourceのcoverage、actions、planned values、
+drift、unknown、import/move/deposed/replace、outputsを照合する。
+許可差分はStageの`access_log_settings[0].format`のみ、add0/change1/destroy0/replace0。
+逸脱時は新Plan成果物をuploadせず停止する。
+
+新Planは既存のprivate S3経路で5個の成果物を新規保存し、固定VersionIdとbytesを読む。
+envelopeは最後に保存する。公開Actions artifactは既存recipientへのCMS暗号文と固定summaryのみ。
+State本体を書き換える操作はPlan承認に含めず、通常のS3 lock取得・解放だけを含める。
+`-refresh=false`、`-refresh-only`、target指定、force-unlock、再Planでの回避を行わない。
+
+Applyはその新saved Plan hash/source/runに対する別の明示承認を要求する。
+既存標準Applyのmain/actor/Environment/期限/Plan検証を保持し、immutable envelopeと
+Plan bindingのrecovery object・既存Artifact・State identityも一致させる。
+以前のApply成功を推定したreceiptや承認は作成しない。
+
+## 安全確認と上限
+
+実行前後に固定State/lockとAWS4入口閉鎖、Stageのbefore/afterを読み戻す。
+標準Workflow実行中はそのEnvironmentだけreadiness2項目がtrueで、他方2項目はfalse。
+operatorは終端確認後に実行Environmentをfalseへ復帰し、両Environment全4項目のfalseを読む。
+readinessの一時変更・Secret更新・dispatch・復帰は、対象固定の新しい操作承認に含める。
+AWS4入口を有効化する承認ではない。
+
+Plan側のPython orchestrationはSDK512・物理HTTP512を別々に数え、SDK内の再送を拒否する。
+**Terraform Go backend/providerの通信はこのcounterの対象外**であり、全AWS HTTPのhard capとは呼ばない。
+Terraformは既存roleの権限・retry0・parallelism2・Plan20分・job55分・session期限で制限される。
+operatorのGitHub要求とcached SSO readbackには別の回数上限を承認パッケージで固定する。
+推定費用・操作上限はAWS請求の強制停止を保証しない。
+
+State/lock/Account/Region/source/入力/hashの不一致、想定外の入口有効化、readiness逸脱、
+未知・認証・権限・通信エラー、証跡保存失敗、期限超過は停止する。
+PlanやApplyの途中失敗・UNKNOWNは再実行・手動unlock・State修復・rollbackで回避しない。
+
+## 現在の位置付け
+
+このコード・Mock/CI検証はAWS実行承認や復旧成功を意味しない。
+正常Apply終了・Stage反映・State一致・入口閉鎖・readiness falseの実証拠が揃って初めて復旧成功とする。
+OTP、実Bedrock/OpenAI、性能試験、Enablement、hosting配備、外部公開は別承認。
+正式Terraform1.14.9/Provider6.65.0、PR43 Draft/HOLD・Issue50 OPENを維持する。
+
+公式仕様: [通常Plan](https://developer.hashicorp.com/terraform/cli/commands/plan)、
+[Terraform1.14 S3 lock](https://developer.hashicorp.com/terraform/language/v1.14.x/backend/s3)。
