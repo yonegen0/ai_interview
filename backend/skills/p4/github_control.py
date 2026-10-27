@@ -87,7 +87,9 @@ def environment_token(environment, phase="token-preflight"):
     started = environment.get("P4_ENV_TOKEN_STARTED_AT", "")
     if (
         not isinstance(token, str)
-        or not re.fullmatch(r"[A-Za-z0-9_]+", token)
+        # Installation tokens are opaque: GitHub's stateless format adds '.' and '-'.
+        # Keep whitespace/control characters out of the Authorization header.
+        or not re.fullmatch(r"[A-Za-z0-9_.-]+", token)
         or not isinstance(started, str)
         or not re.fullmatch(r"[0-9]{1,12}", started)
     ):

@@ -628,3 +628,71 @@ def test_actual_cli_process_returns_nonzero_and_no_traceback(tmp_path):
     value = json.loads(result.stdout)
     assert value["failure_phase"] == "token-preflight"
     assert value["reason_code"] == "GitHubEnvironmentAuthenticationFailed"
+
+
+# Synthetic shapes only: these are neither issued credentials nor verified JWTs.
+OPAQUE_INSTALLATION_TOKENS = [
+    pytest.param("ghs_" + "a" * 36, id="classic"),
+    pytest.param("ghs_123456_header.payload.fake-signature", id="stateless"),
+    pytest.param(
+        "ghs_123456_" + "a" * 180 + "." + "b" * 380 + ".fake-signature_", id="long-stateless"
+    ),
+]
+
+
+@pytest.mark.parametrize("token", OPAQUE_INSTALLATION_TOKENS)
+def test_opaque_installation_tokens_reach_all_three_checks(api, capsys, token):
+    api.env["P4_ENV_READ_TOKEN"] = token
+    api.responses.extend(
+        [
+            repository(),
+            {"total_count": 2, "variables": rows()},
+            {"total_count": 2, "variables": rows("false")},
+            {"object": {"sha": "a" * 40}},
+        ]
+    )
+    assert api.g.main(api.env) == 0
+    output = capsys.readouterr()
+    assert output.out == "GitHubEnvironmentCapabilityPassed\n"
+    assert output.err == ""
+    assert token not in output.out
+    api.g.github_json("git/ref/heads/main", api.env)
+    assert [r.get_header("Authorization") for r in api.calls] == ["Bearer " + token] * 3 + [
+        "Bearer job_token"
+    ]
+
+
+@pytest.mark.parametrize("suffix", ["\r", "\n", "\t", " ", "\0", "\x7f", ":", "/", "+", "=", "é"])
+def test_stateless_shape_still_rejects_header_unsafe_characters(api, capsys, suffix):
+    api.env["P4_ENV_READ_TOKEN"] = "ghs_123456_header.payload.fake-signature" + suffix
+    value = failure_result(api, capsys)
+    assert value["failure_phase"] == "token-preflight"
+    assert value["reason_code"] == "GitHubEnvironmentAuthenticationFailed"
+    assert value["http_status"] is None
+    assert api.calls == []
+
+
+@pytest.mark.parametrize("token", OPAQUE_INSTALLATION_TOKENS)
+def test_opaque_token_keeps_expiry_scope_and_no_fallback(api, capsys, monkeypatch, token):
+    api.env["P4_ENV_READ_TOKEN"] = token
+    monkeypatch.setattr(api.g.time, "time", lambda: 4270)
+    value = failure_result(api, capsys)
+    assert value["reason_code"] == "GitHubEnvironmentTokenExpired"
+    assert api.calls == []
+    monkeypatch.setattr(api.g.time, "time", lambda: 1000)
+    api.env["GITHUB_REPOSITORY_ID"] = "1"
+    value = failure_result(api, capsys)
+    assert value["reason_code"] == "GitHubEnvironmentScopeMismatch"
+    assert api.calls == []
+
+
+@pytest.mark.parametrize("token", OPAQUE_INSTALLATION_TOKENS)
+def test_opaque_token_repository_http_rejection_has_no_retry_or_job_token(api, capsys, token):
+    api.env["P4_ENV_READ_TOKEN"] = token
+    api.responses.append(HTTPError("https://synthetic.invalid", 403, "synthetic", {}, None))
+    value = failure_result(api, capsys)
+    assert value["failure_phase"] == "repository-scope"
+    assert value["reason_code"] == "GitHubRepositoryHttpRejected"
+    assert value["http_status"] == 403
+    assert len(api.calls) == 1
+    assert api.calls[0].get_header("Authorization") == "Bearer " + token
