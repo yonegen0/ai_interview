@@ -6,6 +6,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { setupServer } from "msw/node";
 import { createHandlers } from "@/mocks/handlers";
 import { createRepository } from "@/mocks/store";
+import { startStarJob, fakeStarResult, finishStarJob } from "@/mocks/star";
 import { createSession, getQuestion } from "@/lib/api/interview";
 import * as starApi from "@/lib/api/star";
 import { auth } from "@/lib/auth/session";
@@ -160,4 +161,69 @@ it("saves STAR edits typed before an empty draft response instead of marking the
   expect((await starApi.getDrafts(hook.contextId)).starDraft?.notes.A).toBe(
     "初回読込中に入力した未保存メモ",
   );
+});
+
+it("does not auto-adopt a generation when input changes during the preceding save", async () => {
+  const hook = await setup(false);
+  await act(async () => hook.resolve());
+  await waitFor(() => expect(hook.result.current.loading).toBe(false));
+  act(() => {
+    hook.result.current.form.setValue("targetCategory", "corporate_sales", {
+      shouldDirty: true,
+    });
+    hook.result.current.form.setValue("notes.A", "生成時の元の行動", {
+      shouldDirty: true,
+    });
+  });
+  let release!: () => void;
+  const blocked = new Promise<void>((done) => {
+    release = done;
+  });
+  let captured!: () => void;
+  const started = new Promise<void>((done) => {
+    captured = done;
+  });
+  const original = starApi.executeStarOperation;
+  const spy = vi.spyOn(starApi, "executeStarOperation").mockImplementation(
+    async (operation, schema) => {
+      if (operation.path.includes("/star-drafts") &&
+          operation.method === "POST") {
+        captured();
+        await blocked;
+      }
+      return original(operation, schema);
+    },
+  );
+  let generating!: Promise<void>;
+  act(() => {
+    generating = hook.result.current.generate();
+  });
+  await started;
+  act(() => {
+    hook.result.current.form.setValue("notes.A", "保存待ち中に書き換えた行動", {
+      shouldDirty: true,
+    });
+  });
+  await act(async () => {
+    release();
+    await generating;
+  });
+  spy.mockRestore();
+  await waitFor(() => expect(hook.result.current.generating).toBe(true));
+
+  const state = repository.read();
+  const ids = Object.keys(state.star.generations);
+  expect(ids).toHaveLength(1);
+  const lease = startStarJob(state, ids[0], Date.now());
+  expect(lease).not.toBeNull();
+  finishStarJob(state, lease!, fakeStarResult(lease!), Date.now());
+  repository.write(state);
+  await act(async () => {
+    await new Promise((done) => setTimeout(done, 1150));
+  });
+  await waitFor(() => expect(hook.result.current.resultWaiting).toBe(true));
+  expect(hook.result.current.form.getValues("notes.A")).toBe(
+    "保存待ち中に書き換えた行動",
+  );
+  expect(hook.result.current.form.getValues("candidates")).toHaveLength(0);
 });
