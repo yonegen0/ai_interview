@@ -257,29 +257,35 @@ def check_live(session, snapshot, value, environment, *, applied=False):
     """Fresh safety reads; active CI readiness is true only in its own Environment."""
     from botocore.config import Config
     from github_control import github_json
+    from standard_diagnostics import checkpoint
 
     cfg = Config(retries={"total_max_attempts": 1}, connect_timeout=5, read_timeout=10)
     m = snapshot["manifest"]
     api = session.client("apigatewayv2", config=cfg)
+    checkpoint("live-api")
     require(api.get_api(ApiId=m["api_id"]).get("DisableExecuteApiEndpoint") is True)
     for mapping in ("worker", "streams"):
+        checkpoint("live-" + mapping)
         require(
             session.client("lambda", config=cfg)
             .get_event_source_mapping(UUID=m["mappings"][mapping])
             .get("State")
             == "Disabled"
         )
+    checkpoint("live-scheduler")
     require(
         session.client("scheduler", config=cfg)
         .get_schedule(Name="recovery", GroupName="ai-interview-dev")
         .get("State")
         == "DISABLED"
     )
+    checkpoint("live-stage")
     actual = api.get_stage(ApiId=m["api_id"], StageName="dev").get("AccessLogSettings", {})
     expected = state_resources(snapshot)[ADDRESS]["access_log_settings"][0]
     require(actual.get("DestinationArn") == expected["destination_arn"])
     require(actual.get("Format") == value["stage"]["format_after" if applied else "format_before"])
     operation = environment["P4_OPERATION"]
+    checkpoint("readiness-readback")
     for name in ("dev-plan", "dev-apply"):
         response = github_json(f"environments/{name}/variables?per_page=100", environment)
         require(type(response.get("total_count")) is int and response["total_count"] <= 100)

@@ -1,0 +1,226 @@
+"""Public standard-Plan diagnostics with synthetic failures and forbidden sockets."""
+
+import json
+from types import SimpleNamespace
+
+import pytest
+
+from interview_backend.deployment import DeploymentError
+
+
+@pytest.fixture
+def diagnostic():
+    import standard_diagnostics as m
+
+    instance = m.Diagnostic()
+    token = m.CURRENT.set(instance)
+    try:
+        yield m, instance
+    finally:
+        m.CURRENT.reset(token)
+
+
+@pytest.mark.parametrize(
+    "error,reason",
+    [
+        (
+            DeploymentError("private-token", reason_code="StageRecoveryScopeMismatch"),
+            "StageRecoveryScopeMismatch",
+        ),
+        (ValueError("StateReadbackChanged"), "StateReadbackChanged"),
+        (RuntimeError("private-token"), "ExternalOrScopeFailure"),
+        (DeploymentError("private-token"), "ExternalOrScopeFailure"),
+    ],
+)
+def test_finite_projection_never_stringifies_exceptions(diagnostic, capsys, error, reason):
+    m, instance = diagnostic
+    m.checkpoint("state-preflight")
+    instance.emit(error)
+    output = capsys.readouterr().out
+    value = json.loads(output.removeprefix("P4_STANDARD_FAILURE "))
+    assert "private-token" not in output
+    assert value["reason_code"] == reason
+    assert value["failure_stage"] == "state-preflight"
+    assert value["process_started"] is value["process_exit_observed"] is False
+    assert value["terraform_command_kind"] == "unknown"
+
+
+def test_hostile_exception_property_and_broken_sink_do_not_leak(diagnostic, monkeypatch):
+    _, instance = diagnostic
+
+    class Hostile(Exception):
+        @property
+        def reason_code(self):
+            raise RuntimeError("private-token")
+
+        def __str__(self):
+            pytest.fail("private exception was stringified")
+
+    assert instance.projection(Hostile())["reason_code"] == "ExternalOrScopeFailure"
+    monkeypatch.setattr(
+        "builtins.print", lambda *a, **k: (_ for _ in ()).throw(OSError("private-token"))
+    )
+    instance.emit(Hostile())
+
+
+@pytest.mark.parametrize("kind", ["init", "plan", "show", "version"])
+@pytest.mark.parametrize("launch_failure,returncode", [(True, None), (False, 0), (False, 1)])
+def test_actual_guard_process_status_is_distinct_from_admission(
+    diagnostic, monkeypatch, tmp_path, kind, launch_failure, returncode
+):
+    import plan_authorization as p
+
+    m, instance = diagnostic
+    guard = p.Guard.__new__(p.Guard)
+    guard.environment = {}
+    guard.directory = tmp_path
+    guard.plan_started = False
+    guard.monotonic = lambda: 0
+    guard.remaining = lambda: 7200
+    guard.check = lambda *a: None
+    guard.record = lambda *a, **k: None
+    guard.fail = lambda *a: None
+    child = SimpleNamespace(
+        returncode=returncode,
+        poll=lambda: returncode,
+        communicate=lambda **k: (b"private-token", b"private-token"),
+    )
+
+    def launch(*a, **k):
+        if launch_failure:
+            raise OSError("private-token")
+        return child
+
+    monkeypatch.setattr(p.subprocess, "Popen", launch)
+    monkeypatch.setattr(p, "seal", lambda *a: {})
+    if launch_failure or returncode:
+        with pytest.raises((OSError, DeploymentError)):
+            guard.process(["terraform", kind], cwd=tmp_path, env={})
+    else:
+        assert guard.process(["terraform", kind], cwd=tmp_path, env={}) == b"private-token"
+    value = instance.projection(DeploymentError("PlanProcessFailed"))
+    assert value["failure_stage"] == "terraform-" + kind
+    assert value["terraform_command_kind"] == kind
+    assert value["process_started"] is (not launch_failure)
+    assert value["process_exit_observed"] is (not launch_failure)
+    # A later command refused before launch must not inherit earlier completion.
+    m.process_event("plan", "admission")
+    assert instance.started is instance.exited is False
+
+
+@pytest.mark.parametrize("standard", [False, True])
+def test_main_preflight_failure_is_observable_without_admission(monkeypatch, capsys, standard):
+    import ci_deploy as c
+    import standard_diagnostics as m
+
+    monkeypatch.setenv("P4_STANDARD_ACTIVE", str(standard).lower())
+    monkeypatch.setenv("P4_OPERATION", "plan")
+    monkeypatch.delenv("P4_CLOUD_ACTIVE", raising=False)
+    monkeypatch.setattr(
+        c,
+        "preflight",
+        lambda *a: (_ for _ in ()).throw(DeploymentError("PlanApprovalHashMismatch")),
+    )
+    monkeypatch.setattr(c, "initialize", lambda *a: pytest.fail("admission reached"))
+    assert c.main() == 1
+    output = capsys.readouterr()
+    assert output.err == "P4CiDeploymentFailed\n"
+    if standard:
+        value = json.loads(output.out.removeprefix("P4_STANDARD_FAILURE "))
+        assert value["failure_stage"] == "preflight"
+        assert value["reason_code"] == "PlanApprovalHashMismatch"
+    else:
+        assert output.out == ""
+    assert m.CURRENT.get() is None
+
+
+def test_unknown_stage_and_command_cannot_publish_arbitrary_values(diagnostic):
+    m, instance = diagnostic
+    m.checkpoint("private-token")
+    m.process_event("private-token", "admission")
+    value = instance.projection(ValueError("private-token"))
+    assert value["failure_stage"] == value["terraform_command_kind"] == "unknown"
+    assert "private-token" not in json.dumps(value)
+
+
+@pytest.mark.parametrize(
+    "suffix,status,reason",
+    [
+        (
+            "environments/dev-plan/variables?per_page=100",
+            403,
+            "GitHubEnvironmentVariablesReadDenied",
+        ),
+        (
+            "environments/dev-apply/variables?per_page=100",
+            403,
+            "GitHubEnvironmentVariablesReadDenied",
+        ),
+        ("environments/dev-plan/variables?per_page=100", 500, "GitHubControlPlaneUnavailable"),
+        ("environments/other/variables?per_page=100", 403, "GitHubControlPlaneUnavailable"),
+        ("git/ref/heads/main", 403, "GitHubControlPlaneUnavailable"),
+    ],
+)
+def test_environment_variable_http_refusal_remains_fail_closed(
+    diagnostic, monkeypatch, capsys, suffix, status, reason
+):
+    import io
+    from urllib.error import HTTPError
+
+    import github_control as g
+
+    m, instance = diagnostic
+    requests = []
+
+    def open_request(request, **kwargs):
+        requests.append(request)
+        raise HTTPError(
+            "https://private.invalid/private-token",
+            status,
+            "private-token",
+            {"private": "private-token"},
+            io.BytesIO(b"private-token"),
+        )
+
+    monkeypatch.setattr(g, "build_opener", lambda *a: SimpleNamespace(open=open_request))
+    m.checkpoint("readiness-readback")
+    with pytest.raises(DeploymentError, match="^GitHubControlPlaneUnavailable$") as failure:
+        g.github_json(suffix, {"GH_TOKEN": "private-token"})
+    assert len(requests) == 1  # No alternate token, endpoint or retry.
+    assert failure.value.reason_code == reason
+    instance.emit(failure.value)
+    output = capsys.readouterr().out
+    assert "private-token" not in output and suffix not in output
+    assert json.loads(output.removeprefix("P4_STANDARD_FAILURE "))["reason_code"] == reason
+
+
+def test_exit_observation_survives_private_journal_write_failure(diagnostic, monkeypatch, tmp_path):
+    import plan_authorization as p
+
+    _, instance = diagnostic
+    guard = p.Guard.__new__(p.Guard)
+    guard.environment = {}
+    guard.directory = tmp_path
+    guard.plan_started = False
+    guard.monotonic = lambda: 0
+    guard.remaining = lambda: 7200
+    guard.check = lambda *a: None
+    guard.fail = lambda *a: None
+
+    def record(stage, **kwargs):
+        if stage == "process-exit-observed":
+            raise OSError("private-journal-path")
+
+    guard.record = record
+    monkeypatch.setattr(
+        p.subprocess,
+        "Popen",
+        lambda *a, **k: SimpleNamespace(
+            returncode=0,
+            poll=lambda: 0,
+            communicate=lambda **k: (b"", b""),
+        ),
+    )
+    with pytest.raises(OSError):
+        guard.process(["terraform", "init"], cwd=tmp_path, env={})
+    assert instance.started is instance.exited is True

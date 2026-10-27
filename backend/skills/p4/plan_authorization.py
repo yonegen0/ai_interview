@@ -417,6 +417,9 @@ class Guard:
         """
         terraform = command[:1] == ["terraform"]
         kind = command[1] if terraform and len(command) > 1 else "build"
+        from standard_diagnostics import process_event
+
+        process_event(kind, "admission")
         if self.environment.get("P4_CLOUD_ACTIVE") == "true":
             import cloud_diagnostics
 
@@ -451,6 +454,7 @@ class Guard:
                 stderr=subprocess.PIPE,
                 start_new_session=True,
             )
+            process_event(kind, "launched")
             started = self.monotonic()
             phase = "wait"
             while True:
@@ -462,6 +466,7 @@ class Guard:
                 except subprocess.TimeoutExpired:
                     continue
             phase = "diagnostic"
+            process_event(kind, "exit-observed")
             self.record("process-exit-observed", operation=kind, returncode=process.returncode)
             if process.returncode not in accepted:
                 try:
@@ -535,6 +540,7 @@ class Guard:
                 process.send_signal(signal.SIGINT)
                 try:
                     stdout, stderr = process.communicate(timeout=CLEANUP_SECONDS)
+                    process_event(kind, "exit-observed")
                     try:
                         self.record(
                             "process-exit-observed", operation=kind, returncode=process.returncode

@@ -17,6 +17,7 @@ from pathlib import Path
 
 from cloud_toolchain import NEW_EXECUTION_TERRAFORM_VERSION as TF_VERSION
 from plan_authorization import active_guard, required_guard
+from standard_diagnostics import checkpoint
 
 from interview_backend.deployment import (
     DeploymentError,
@@ -246,6 +247,7 @@ def execute(operation, input_path, directory, approved_hash=None, *, progress=No
         raise DeploymentError("TerraformVersionMismatch")
     if guard:
         guard.check("terraform-identity", 25)
+    checkpoint("terraform-identity")
     if os.environ.get("P4_CLOUD_ACTIVE") == "true":
         from cloud_ci import session as cloud_session
 
@@ -255,6 +257,7 @@ def execute(operation, input_path, directory, approved_hash=None, *, progress=No
     env = credential_environment(session, env)
     from deployment_guards import audit_retention, read_state_snapshot
 
+    checkpoint("state-read")
     snapshot = read_state_snapshot(
         session, account, region, binding["state_key"], allow_absent=True
     )
@@ -279,6 +282,7 @@ def execute(operation, input_path, directory, approved_hash=None, *, progress=No
         from stage_recovery import check_live, check_state
 
         check_state(snapshot, recovery)
+        checkpoint("live-readback")
         check_live(session, snapshot, recovery, os.environ)
         binding["stage_recovery"] = recovery
     if operation != "plan":
@@ -333,6 +337,7 @@ def execute(operation, input_path, directory, approved_hash=None, *, progress=No
         from plan_summary import summarize
 
         review = json.loads(run(["terraform", "show", "-json", str(plan)], cwd=root, env=env))
+        checkpoint("plan-audit")
         if recovery:
             from stage_recovery import audit_plan
 
@@ -348,6 +353,7 @@ def execute(operation, input_path, directory, approved_hash=None, *, progress=No
         )
         if guard:
             guard.check("post-plan-state-read", 60)
+        checkpoint("post-plan-state-read")
         if (
             read_state_snapshot(session, account, region, binding["state_key"], allow_absent=True)
             != snapshot

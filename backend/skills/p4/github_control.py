@@ -1,6 +1,7 @@
 """Read-only GitHub control-plane checks before requesting AWS credentials."""
 
 import json
+from urllib.error import HTTPError
 from urllib.request import Request, build_opener
 
 from ci_identity import NoRedirect
@@ -24,6 +25,20 @@ def github_json(suffix, environment):
             if len(raw) > 1048576:
                 raise ValueError
             return json.loads(raw)
+    except HTTPError as error:
+        # The Actions job token has no selectable Environments permission.
+        # Preserve the refusal; never log its body, URL, token or headers.
+        reason = (
+            "GitHubEnvironmentVariablesReadDenied"
+            if error.code == 403
+            and suffix
+            in {
+                "environments/dev-plan/variables?per_page=100",
+                "environments/dev-apply/variables?per_page=100",
+            }
+            else "GitHubControlPlaneUnavailable"
+        )
+        raise DeploymentError("GitHubControlPlaneUnavailable", reason_code=reason) from None
     except Exception:
         raise DeploymentError("GitHubControlPlaneUnavailable") from None
 
