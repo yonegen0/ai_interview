@@ -328,13 +328,13 @@ def capability_projection(error: Exception) -> dict:
 def main(environment) -> int:
     try:
         verify_environment_access(environment)
+        print("GitHubEnvironmentCapabilityPassed")
     except Exception as error:
         try:
             print(json.dumps(capability_projection(error), sort_keys=True))
         except Exception:
             pass  # Broken output sinks still fail closed without exception text.
         return 1
-    print("GitHubEnvironmentCapabilityPassed")
     return 0
 
 

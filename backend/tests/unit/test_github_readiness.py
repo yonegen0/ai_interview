@@ -571,6 +571,18 @@ def test_cli_success_has_only_fixed_marker_and_exact_three_reads(api, capsys, op
     assert len(api.calls) == 3
 
 
+def test_success_marker_output_failure_also_exits_without_traceback(api, monkeypatch):
+    api.responses.extend(
+        [
+            repository(),
+            {"total_count": 2, "variables": rows()},
+            {"total_count": 2, "variables": rows("false")},
+        ]
+    )
+    monkeypatch.setattr("builtins.print", lambda *a, **k: (_ for _ in ()).throw(OSError(SENTINEL)))
+    assert api.g.main(api.env) == 1
+
+
 @pytest.mark.parametrize("phase", ("dev-plan-variables", "dev-apply-variables"))
 def test_unknown_errors_outside_transport_keep_environment_phase(api, monkeypatch, capsys, phase):
     original = api.g.environment_variables
