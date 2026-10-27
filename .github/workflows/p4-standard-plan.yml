@@ -96,8 +96,26 @@ jobs:
       - name: Install existing locked dependencies
         working-directory: backend
         run: uv sync --locked
+      - name: Start conservative Environment token clock
+        run: |
+          python3 - <<'PY'
+          import os, time
+          with open(os.environ['GITHUB_ENV'], 'a') as stream:
+              stream.write(f'P4_ENV_TOKEN_STARTED_AT={int(time.time())}\n')
+          PY
+      - name: Mint repository-only Environments read token
+        id: environment-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.P4_ENV_APP_CLIENT_ID }}
+          private-key: ${{ secrets.P4_ENV_APP_PRIVATE_KEY }}
+          owner: yonegen0
+          repositories: ai_interview
+          permission-environments: read
       - name: Execute plan only
         working-directory: backend
+        env:
+          P4_ENV_READ_TOKEN: ${{ steps.environment-token.outputs.token }}
         run: |
           umask 077
           uv run --locked python skills/p4/ci_deploy.py

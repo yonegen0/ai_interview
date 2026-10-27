@@ -463,6 +463,7 @@ def test_ci_recovery_skips_build_and_lambda_upload_and_binds_new_envelope(
     recovery, monkeypatch, tmp_path, bad_state
 ):
     import ci_deploy as m
+    import github_control
     import stage_request_budget
 
     h = recovery
@@ -487,6 +488,7 @@ def test_ci_recovery_skips_build_and_lambda_upload_and_binds_new_envelope(
     monkeypatch.setattr(m, "preflight", lambda env: ("123456789012", "ap-northeast-1", "plan", {}))
     monkeypatch.setattr(m, "initialize", lambda *a: guard)
     monkeypatch.setattr(m, "checked_git", lambda *a: "a" * 40)
+    monkeypatch.setattr(github_control, "verify_environment_access", lambda *a: None)
     monkeypatch.setattr(
         stage_request_budget,
         "install",

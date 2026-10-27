@@ -7,6 +7,7 @@ this module. Unknown values stay unknown. Import performs no IO.
 import json
 from contextvars import ContextVar
 
+from github_control import ENVIRONMENT_REASONS
 from plan_process_diagnostics import safe_exception_type
 
 CURRENT = ContextVar("standard_failure_diagnostic", default=None)
@@ -38,7 +39,7 @@ STAGES = frozenset(
         "plan-transport",
     }
 )
-REASONS = frozenset(
+REASONS = ENVIRONMENT_REASONS | frozenset(
     {
         "PlanApprovalHashMismatch",
         "PlanApprovalAlreadyConsumed",

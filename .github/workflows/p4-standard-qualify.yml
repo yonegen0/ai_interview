@@ -1,5 +1,5 @@
-name: P4 standard read-only OIDC qualification
-run-name: Standard OIDC read-only verification v2
+name: P4 standard GitHub or read-only OIDC qualification
+run-name: Standard ${{ inputs.mode }} verification
 on:
   workflow_dispatch:
     inputs:
@@ -7,14 +7,67 @@ on:
         description: Reviewed current main commit
         type: string
         required: true
+      mode:
+        description: GitHub-only uses no OIDC or AWS credentials; oidc needs separate AWS approval
+        type: choice
+        options: [github-only, oidc]
+        default: github-only
+        required: true
+      operation:
+        description: Readiness flags must match this operation in both Environments
+        type: choice
+        options: [plan, apply]
+        default: plan
+        required: true
 permissions:
   contents: read
 concurrency:
   group: p4-dev-deployment
   cancel-in-progress: false
 jobs:
+  github_only:
+    if: inputs.mode == 'github-only' && github.ref == 'refs/heads/main' && github.actor_id == '76547980' && github.triggering_actor == 'yonegen0' && github.run_attempt == 1 && inputs.source_sha == github.sha
+    environment: dev-${{ inputs.operation }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e
+        with:
+          version: '0.13.5'
+          python-version: '3.14.9'
+          enable-cache: false
+      - name: Install existing locked dependencies
+        working-directory: backend
+        run: uv sync --locked
+      - name: Start conservative Environment token clock
+        run: |
+          python3 - <<'PY'
+          import os, time
+          with open(os.environ['GITHUB_ENV'], 'a') as stream:
+              stream.write(f'P4_ENV_TOKEN_STARTED_AT={int(time.time())}\n')
+          PY
+      - name: Mint repository-only Environments read token
+        id: environment-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.P4_ENV_APP_CLIENT_ID }}
+          private-key: ${{ secrets.P4_ENV_APP_PRIVATE_KEY }}
+          owner: yonegen0
+          repositories: ai_interview
+          permission-environments: read
+      - name: Verify repository and both readiness responses without AWS
+        working-directory: backend
+        env:
+          P4_ENV_READ_TOKEN: ${{ steps.environment-token.outputs.token }}
+          P4_OPERATION: ${{ inputs.operation }}
+        run: uv run --locked python skills/p4/github_control.py
   qualify:
-    if: github.ref == 'refs/heads/main' && github.actor_id == '76547980' && github.triggering_actor == 'yonegen0' && github.run_attempt == 1 && inputs.source_sha == github.sha
+    if: inputs.mode == 'oidc' && github.ref == 'refs/heads/main' && github.actor_id == '76547980' && github.triggering_actor == 'yonegen0' && github.run_attempt == 1 && inputs.source_sha == github.sha
     strategy:
       max-parallel: 1
       fail-fast: true

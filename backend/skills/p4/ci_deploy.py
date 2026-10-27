@@ -439,6 +439,11 @@ def main():
             diagnostic.checkpoint("source-check")
         checkpoint("source-check")
         sha = checked_git(PROJECT, os.environ)
+        if os.environ.get("P4_STANDARD_ACTIVE") == "true":
+            from github_control import verify_environment_access
+
+            checkpoint("readiness-readback")
+            verify_environment_access(os.environ)
         directory = PROJECT / ".p4-artifacts" / f"ci-{run_id}-{attempt}"
         directory.mkdir(parents=True, exist_ok=False)
         bucket = f"ai-interview-artifacts-{account}-{region}"
