@@ -420,14 +420,14 @@ def execute(operation, input_path, directory, approved_hash=None, *, progress=No
     if recovery:
         final = read_state_snapshot(session, account, region, binding["state_key"])
         check_live(session, final, recovery, os.environ, applied=True)
-        from stage_recovery import state_resources
+        from stage_recovery import same_resource_states
 
         if (
             final["identity"]["lineage"] != recovery["state_identity"]["lineage"]
             or final["identity"]["serial"] <= recovery["state_identity"]["serial"]
             or final["identity"]["version_id"] == recovery["state_identity"]["version_id"]
             or final["manifest"] != snapshot["manifest"]
-            or state_resources(final) != state_resources(snapshot)
+            or not same_resource_states(final, snapshot)
         ):
             raise DeploymentError("StageRecoveryFinalStateMismatch")
     return {"status": "applied_readback_verified", "versions": observed["versions"]}

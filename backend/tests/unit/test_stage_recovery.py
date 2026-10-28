@@ -10,6 +10,144 @@ import pytest
 
 
 @pytest.fixture
+def cors_recovery(recovery):
+    h = recovery
+    original = {
+        "id": "synthetic-api",
+        "disable_execute_api_endpoint": True,
+        "cors_configuration": [
+            {
+                "allow_headers": ["Authorization", "Content-Type"],
+                "expose_headers": ["allow"],
+                "allow_methods": ["GET", "OPTIONS", "POST"],
+                "allow_origins": ["https://synthetic.invalid"],
+                "allow_credentials": False,
+                "max_age": 300,
+            }
+        ],
+    }
+    refreshed = copy.deepcopy(original)
+    refreshed["cors_configuration"][0]["allow_headers"] = ["content-type", "authorization"]
+    refreshed["cors_configuration"][0]["allow_methods"] = ["POST", "GET", "OPTIONS"]
+    address = "module.service.aws_apigatewayv2_api.main"
+    h.snapshot["state"]["resources"].append(
+        {
+            "module": "module.service",
+            "type": "aws_apigatewayv2_api",
+            "name": "main",
+            "instances": [{"attributes": original}],
+        }
+    )
+    h.plan["resource_changes"].append(
+        {
+            "address": address,
+            "type": "aws_apigatewayv2_api",
+            "mode": "managed",
+            "change": {"actions": ["no-op"], "before": refreshed, "after": refreshed},
+        }
+    )
+    h.plan["planned_values"]["root_module"]["resources"].append(
+        {
+            "address": address,
+            "mode": "managed",
+            "values": refreshed,
+        }
+    )
+    h.api_address, h.api_original, h.api_refreshed = address, original, refreshed
+    return h
+
+
+def test_plan_accepts_provider_cors_header_case_and_set_order_only(cors_recovery):
+    h = cors_recovery
+    original = copy.deepcopy((h.snapshot, h.plan))
+    assert h.m.audit_plan(h.plan, h.descriptor, h.snapshot)["change"] == 1
+    assert (h.snapshot, h.plan) == original
+
+
+@pytest.mark.parametrize(
+    "fault",
+    ["header", "method", "origin-case", "credentials", "max-age", "endpoint", "duplicate", "null"],
+)
+def test_cors_representation_comparison_rejects_substantive_changes(cors_recovery, fault):
+    h = cors_recovery
+    current = h.api_refreshed
+    cors = current["cors_configuration"][0]
+    if fault == "header":
+        cors["allow_headers"].append("x-unapproved")
+    elif fault == "method":
+        cors["allow_methods"].append("DELETE")
+    elif fault == "origin-case":
+        cors["allow_origins"] = ["https://SYNTHETIC.invalid"]
+    elif fault == "credentials":
+        cors["allow_credentials"] = True
+    elif fault == "max-age":
+        cors["max_age"] = 301
+    elif fault == "endpoint":
+        current["disable_execute_api_endpoint"] = False
+    elif fault == "duplicate":
+        cors["allow_headers"].append("authorization")
+    else:
+        current["optional"] = None
+    with pytest.raises(ValueError):
+        h.m.audit_plan(h.plan, h.descriptor, h.snapshot)
+
+
+def test_cors_representation_drift_and_final_state_use_identical_narrow_comparison(cors_recovery):
+    h = cors_recovery
+    h.plan["resource_drift"].append(
+        {
+            "address": h.api_address,
+            "change": {"actions": ["update"], "before": h.api_original, "after": h.api_refreshed},
+        }
+    )
+    assert h.m.audit_plan(h.plan, h.descriptor, h.snapshot)["change"] == 1
+    final = copy.deepcopy(h.snapshot)
+    final["state"]["resources"][-1]["instances"][0]["attributes"] = copy.deepcopy(h.api_refreshed)
+    assert h.m.same_resource_states(h.snapshot, final)
+    final["state"]["resources"][-1]["instances"][0]["attributes"]["id"] = "another-api"
+    assert not h.m.same_resource_states(h.snapshot, final)
+
+
+@pytest.mark.parametrize(
+    "fault", ["other-address", "header", "unknown", "replace", "before", "after"]
+)
+def test_api_representation_drift_does_not_allow_other_drift(cors_recovery, fault):
+    h = cors_recovery
+    row = {
+        "address": h.api_address,
+        "change": {
+            "actions": ["update"],
+            "before": copy.deepcopy(h.api_original),
+            "after": copy.deepcopy(h.api_refreshed),
+        },
+    }
+    if fault == "other-address":
+        row["address"] = "module.service.aws_apigatewayv2_api.other"
+    elif fault == "header":
+        row["change"]["after"]["cors_configuration"][0]["allow_headers"].append("unapproved")
+    elif fault == "unknown":
+        row["change"]["after_unknown"] = {"id": True}
+    elif fault == "replace":
+        row["change"]["replace_paths"] = [["id"]]
+    elif fault == "before":
+        row["change"]["before"]["id"] = "another-api"
+    else:
+        row["change"]["after"]["id"] = "another-api"
+    h.plan["resource_drift"].append(row)
+    with pytest.raises(ValueError):
+        h.m.audit_plan(h.plan, h.descriptor, h.snapshot)
+
+
+def test_header_case_equivalence_is_confined_to_fixed_api(cors_recovery):
+    h = cors_recovery
+    assert h.m.resource_state_equal(h.api_address, h.api_original, h.api_refreshed)
+    assert not h.m.resource_state_equal(
+        "module.service.aws_apigatewayv2_api.other", h.api_original, h.api_refreshed
+    )
+    assert not h.m.resource_state_equal(h.m.ADDRESS, h.api_original, h.api_refreshed)
+
+
+@pytest.fixture
 def recovery():
     import stage_recovery as m
 
