@@ -1096,7 +1096,9 @@ def test_terraform_recovery_checks_full_plan_and_live_closure_before_and_after(
     result = m.execute(operation, inputs, directory, approved if operation != "plan" else None)
     assert result["status"] == ("planned" if operation == "plan" else "applied_readback_verified")
     assert audits == ([] if operation == "verify" else [True])
-    assert observed_live == ([True, True] if operation == "verify" else [False, operation == "apply"])
+    assert observed_live == (
+        [True, True] if operation == "verify" else [False, operation == "apply"]
+    )
     assert historical_reads == (["state-version"] if operation == "verify" else [])
     if operation != "verify":
         actual = next(c for c in commands if c[1] == operation)
@@ -1128,5 +1130,8 @@ def test_terraform_run_does_not_inherit_github_tokens(monkeypatch, tmp_path):
     assert m.run(["terraform", "version"], cwd=tmp_path, env=parent) == b"ok"
     assert len(calls) == 1
     assert calls[0][0] == ["terraform", "version"]
-    assert calls[0][1] == {"AWS_SESSION_TOKEN": before["AWS_SESSION_TOKEN"], "PATH": "synthetic-path"}
+    assert calls[0][1] == {
+        "AWS_SESSION_TOKEN": before["AWS_SESSION_TOKEN"],
+        "PATH": "synthetic-path",
+    }
     assert parent == before
