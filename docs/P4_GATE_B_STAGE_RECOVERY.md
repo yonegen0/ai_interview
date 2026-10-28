@@ -27,6 +27,15 @@ TTL・API閉鎖・他属性は変化を許可せず、重複を除去して差�
 PlanのactionsはAPIで`no-op`、StageでFormatだけの`update`を維持する。
 仕様根拠は採用版の[API resource schema](https://github.com/hashicorp/terraform-provider-aws/blob/v6.65.0/internal/service/apigatewayv2/api.go)。
 
+同じProviderのRoute refreshは、AWS応答で未設定の`authorization_scopes`（optional TypeSet）と
+`request_models`（optional TypeMap）をnullから空集合/空mapへ変換する。
+固定service moduleのadmin/business/preflight Routeに限り、この2属性のnull/空表現を
+比較時だけ同一視する。AWSのJWT/Authorizer/接続先の一致を読取りで確認し、取得応答を返す
+localhost模擬APIと実Providerによるrefresh付きPlanで、no-opと2属性の変換を再現した。
+模擬API試験は実AWS refreshの成功とは区別する。非空scope/model、型違い、属性欠落、
+認証・接続先・他属性の変更、unknown/replace等は拒否する。Stateの元bytes/hashは変更しない。
+仕様根拠は採用版の[Route schema/flattenRoute](https://github.com/hashicorp/terraform-provider-aws/blob/v6.65.0/internal/service/apigatewayv2/route.go)。
+
 新Planは既存のprivate S3経路で5個の成果物を新規保存し、固定VersionIdとbytesを読む。
 envelopeは最後に保存する。公開Actions artifactは既存recipientへのCMS暗号文と固定summaryのみ。
 State本体を書き換える操作はPlan承認に含めず、通常のS3 lock取得・解放だけを含める。

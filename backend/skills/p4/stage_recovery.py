@@ -43,6 +43,7 @@ AUDIT_RULES = frozenset(
         "drift-no-replace",
         "drift-format-only",
         "drift-api-cors-representation",
+        "drift-route-empty-collections",
         "output-noop",
         "output-known",
     }
@@ -171,11 +172,38 @@ def state_resources(snapshot):
     return resources
 
 
+def fixed_route(address):
+    prefixes = tuple(
+        f"module.service.aws_apigatewayv2_route.{name}["
+        for name in ("admin", "business", "preflight")
+    )
+    if (
+        not isinstance(address, str)
+        or not address.startswith(prefixes)
+        or not address.endswith("]")
+    ):
+        return False
+    try:
+        return type(json.loads(address[address.index("[") + 1 : -1])) is str
+    except ValueError:
+        return False
+
+
 def resource_state_equal(address, before, after):
-    """Match raw State except the AWS 6.65 API CORS set/header representation."""
+    """Match State except fixed API CORS sets and route empty optional collections."""
 
     def comparable(attributes):
-        if address != API_ADDRESS or not isinstance(attributes, dict):
+        if not isinstance(attributes, dict):
+            return attributes
+        if fixed_route(address):
+            result = copy.deepcopy(attributes)
+            # SDKv2 refresh d.Set(nil) yields these empty optional TypeSet/TypeMap values.
+            # Preserve missing keys and every nonempty/wrong-type value exactly.
+            for key, empty in (("authorization_scopes", []), ("request_models", {})):
+                if key in result and result[key] is None:
+                    result[key] = empty
+            return result
+        if address != API_ADDRESS:
             return attributes
         result = copy.deepcopy(attributes)
         cors = result.get("cors_configuration")
@@ -323,7 +351,10 @@ def audit_plan(plan, value, snapshot):
             require(row["address"] not in drifts)
             drifts.add(row["address"])
             address = row["address"]
-            require(address in {ADDRESS, API_ADDRESS} and change["actions"] == ["update"])
+            require(
+                (address in {ADDRESS, API_ADDRESS} or fixed_route(address))
+                and change["actions"] == ["update"]
+            )
             require(
                 not row.get("previous_address")
                 and not row.get("deposed")
@@ -333,8 +364,12 @@ def audit_plan(plan, value, snapshot):
             require(
                 not has_unknown(change.get("after_unknown", {})) and not change.get("replace_paths")
             )
-            if address == API_ADDRESS:
-                rule = "drift-api-cors-representation"
+            if address != ADDRESS:
+                rule = (
+                    "drift-api-cors-representation"
+                    if address == API_ADDRESS
+                    else "drift-route-empty-collections"
+                )
                 require(change["before"] == original[address])
                 require(change["after"] == planned[address])
                 require(resource_state_equal(address, change["before"], change["after"]))
