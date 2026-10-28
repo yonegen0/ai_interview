@@ -15,6 +15,8 @@ MARKERS = (
     ("state-lock-marker", (b"Error acquiring the state lock",)),
     ("expired-credentials-marker", (b"ExpiredToken", b"ExpiredTokenException")),
     ("invalid-provider-configuration-marker", (b"Invalid provider configuration",)),
+    ("api-bad-request-marker", (b"BadRequestException",)),
+    ("list-log-deliveries-marker", (b"logs:ListLogDeliveries",)),
 )
 
 
