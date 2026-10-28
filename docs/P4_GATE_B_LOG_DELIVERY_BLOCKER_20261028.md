@@ -1,5 +1,16 @@
 # Gate B Stage更新の実効IAM不足
 
+## 2026-10-28 Bootstrap復旧の実測追記
+
+PR #73はmain `f5a1a39c5c87e3cfe57631543a8c694420330b67`へ通常merge済み。
+新規canonical-bootstrap saved Planは生成1回、実変更はstandard deploy policy更新1件
+（add0/change1/destroy0/replace0）。既存standard Role4件のcomputed inline-policy cacheは
+独立IAM readbackと一致するrefreshだけで、Roleの変更アクションはno-opだった。
+所有者の当該バイナリ限定承認後にApplyを1回実行し、正常終了を確認した。
+独立readbackでState serial4→5、全40資源、対象policy、lock不存在、readiness全4項目falseを確認。
+他Role・trust・Boundary・OIDC・SES・入口に変更はない。旧Applyの再実行はしていない。
+dev Stageの復旧は別工程であり、Gate Bは引き続きNOT_READY。以下のApply008失敗記録は履歴として保持する。
+
 2026-10-28 JST。実測sourceは `05f4f1be8bead2cede7d9b62810650b8af4bf1f0`。
 Gate Bは未完了。本資料・PRはIAM変更の実行承認やApply成功証拠ではない。
 
