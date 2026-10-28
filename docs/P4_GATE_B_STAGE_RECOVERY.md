@@ -18,6 +18,15 @@ drift、unknown、import/move/deposed/replace、outputsを照合する。
 許可差分はStageの`access_log_settings[0].format`のみ、add0/change1/destroy0/replace0。
 逸脱時は新Plan成果物をuploadせず停止する。
 
+Stateとの照合では固定API資源のCORS集合の順序、および`allow_headers`/
+`expose_headers`のASCII大小文字だけをProvider 6.65.0の集合定義に合わせて比較する。
+AWS readbackでヘッダー名の小文字化を確認し、その値を使ったオフラインPlanでも
+`no-op`とStateの表記不一致を再現した。許可集合・Originの大小文字・認証情報許可・
+TTL・API閉鎖・他属性は変化を許可せず、重複を除去して差を隠すこともない。
+この表記差だけのrefresh driftとApply後State読戻しにも同じ比較を適用する。
+PlanのactionsはAPIで`no-op`、StageでFormatだけの`update`を維持する。
+仕様根拠は採用版の[API resource schema](https://github.com/hashicorp/terraform-provider-aws/blob/v6.65.0/internal/service/apigatewayv2/api.go)。
+
 新Planは既存のprivate S3経路で5個の成果物を新規保存し、固定VersionIdとbytesを読む。
 envelopeは最後に保存する。公開Actions artifactは既存recipientへのCMS暗号文と固定summaryのみ。
 State本体を書き換える操作はPlan承認に含めず、通常のS3 lock取得・解放だけを含める。

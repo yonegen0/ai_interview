@@ -13,6 +13,7 @@ import time
 from interview_backend.deployment import DeploymentError
 
 ADDRESS = "module.service.aws_apigatewayv2_stage.dev"
+API_ADDRESS = "module.service.aws_apigatewayv2_api.main"
 PACKAGE_KEYS = {"artifact_bucket", "artifact_key", "artifact_version", "artifact_sha256_base64"}
 BEFORE = {
     "requestId": "$context.requestId",
@@ -41,6 +42,7 @@ AUDIT_RULES = frozenset(
         "drift-identity",
         "drift-no-replace",
         "drift-format-only",
+        "drift-api-cors-representation",
         "output-noop",
         "output-known",
     }
@@ -169,6 +171,37 @@ def state_resources(snapshot):
     return resources
 
 
+def resource_state_equal(address, before, after):
+    """Match raw State except the AWS 6.65 API CORS set/header representation."""
+
+    def comparable(attributes):
+        if address != API_ADDRESS or not isinstance(attributes, dict):
+            return attributes
+        result = copy.deepcopy(attributes)
+        cors = result.get("cors_configuration")
+        if not isinstance(cors, list) or len(cors) != 1 or not isinstance(cors[0], dict):
+            return result
+        for key in ("allow_headers", "expose_headers", "allow_methods", "allow_origins"):
+            values = cors[0].get(key)
+            if isinstance(values, list) and all(type(v) is str and v.isascii() for v in values):
+                # The provider uses StringCaseInsensitiveSetFunc only for header names.
+                # Sort lists, retaining duplicates so malformed sets cannot disappear.
+                cors[0][key] = sorted(
+                    v.lower() if key in {"allow_headers", "expose_headers"} else v for v in values
+                )
+        return result
+
+    return comparable(before) == comparable(after)
+
+
+def same_resource_states(before, after):
+    first, second = state_resources(before), state_resources(after)
+    return first.keys() == second.keys() and all(
+        resource_state_equal(address, attributes, second[address])
+        for address, attributes in first.items()
+    )
+
+
 def check_state(snapshot, value):
     require(snapshot["identity"] == value["state_identity"])
     require(canonical_hash(snapshot) == value["state_snapshot_sha256"])
@@ -279,7 +312,7 @@ def audit_plan(plan, value, snapshot):
                         "other-resource-state-match",
                         (change["after"], original[address]),
                     )
-                    require(change["after"] == original[address])
+                    require(resource_state_equal(address, change["after"], original[address]))
         rule, compared = "complete-coverage", None
         require(updates == 1)
         require(managed == set(state_resources(snapshot)) == set(planned))
@@ -289,7 +322,8 @@ def audit_plan(plan, value, snapshot):
             change = row["change"]
             require(row["address"] not in drifts)
             drifts.add(row["address"])
-            require(row["address"] == ADDRESS and change["actions"] == ["update"])
+            address = row["address"]
+            require(address in {ADDRESS, API_ADDRESS} and change["actions"] == ["update"])
             require(
                 not row.get("previous_address")
                 and not row.get("deposed")
@@ -299,8 +333,14 @@ def audit_plan(plan, value, snapshot):
             require(
                 not has_unknown(change.get("after_unknown", {})) and not change.get("replace_paths")
             )
-            rule = "drift-format-only"
-            stage_change(change["before"], change["after"], value, drift=True)
+            if address == API_ADDRESS:
+                rule = "drift-api-cors-representation"
+                require(change["before"] == original[address])
+                require(change["after"] == planned[address])
+                require(resource_state_equal(address, change["before"], change["after"]))
+            else:
+                rule = "drift-format-only"
+                stage_change(change["before"], change["after"], value, drift=True)
         for change in plan.get("output_changes", {}).values():
             rule = "output-noop"
             require(change["actions"] == ["no-op"] and change["before"] == change["after"])
