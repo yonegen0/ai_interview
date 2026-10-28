@@ -95,3 +95,48 @@ OTP、実Bedrock/OpenAI、性能試験、Enablement、hosting配備、外部公�
 
 公式仕様: [通常Plan](https://developer.hashicorp.com/terraform/cli/commands/plan)、
 [Terraform1.14 S3 lock](https://developer.hashicorp.com/terraform/language/v1.14.x/backend/s3)。
+
+## 全件オフライン診断（2026-10-28）
+
+`backend/skills/p4/stage_diagnostics.py`は正式受入と独立した読取り専用診断。
+既存のprivate State snapshot、recovery descriptor、`terraform show -json`の保存結果を使い、
+State / refreshed prior_state / resource_changes / planned_values / resource_driftの
+addressの和集合を最後まで調べる。AWS API、Terraformプロセス、State変更は実行しない。
+
+```text
+python backend/skills/p4/stage_diagnostics.py --plan <private-review.json> --snapshot <private-snapshot.json> --descriptor <private-recovery-descriptor.json> --output <existing-private-directory/report.private.json>
+```
+
+`--plan`はバイナリやbindingではなく、保存済みshow JSON。descriptorは承認パッケージ全体でなく
+`stage_recovery` object単体。入力とaddress単位レポートはprivateに保管する。
+出力先は既存の本人専用ディレクトリを指定し、既存ファイルは上書きしない。
+stdoutは件数のみ。レポートにも属性値・内部map key・例外本文を出さない。
+address自体に識別情報を含む可能性があるため、レポートを公開CI artifactへ追加しない。
+
+各addressに属性名、原因code、分類、対応要否を記録する。
+Aは既存の限定されたCORS/Route表現差、Bは明示pin済みキャッシュ、
+Cは構成差分（意図したStage更新も`allowed=true`で記録）、Dは未知値・証拠不足。
+資源別集計はD > C > B > A > MATCHの排他的分類で、個々の差分はfindingsに残す。
+coverage欠落、重複、refresh不整合、未知値、import/move/deposed/replace、
+未許可のIAM/API/Stage差分と全output変更を収集する。未検査をPASSにしない。
+`FINDINGS`は終了1、診断完了は終了0、入力/保存失敗は終了2。
+診断完了はApply成功や実AWSの現在状態を意味しない。
+
+正式`stage_recovery.audit_plan`は変更しない。診断結果を受入・承認・receiptの代用にせず、
+State identity、saved Plan bytes/hash、承認/source、実効IAM、Apply終了と独立readbackの
+既存Gateを維持する。新しい正規化・許容属性は追加していない。
+
+最新main `05f4f1b`のPlan008（[Run40666099393](https://github.com/yonegen0/ai_interview/actions/runs/40666099393)）の
+固定binary SHAとbindingをオフライン照合した上で全77件を診断した結果:
+MATCH58 / A17（CORS1、Route16）/ B1（API Role）/ C1（意図したStage形式）/ D0。
+Stageのdeployment cache差分Bも同じStageのfindingsに残る。
+正式Plan監査はadd0/change1/destroy0/replace0。未知・未許可差分は検出されなかった。
+失敗Apply後の保存済みState14も全77addressをState13と比較し、同一lineage、
+追加/削除なし、上記表現差・deployment/inline_policy cache以外の属性差なしを確認した。
+これは保存済み証拠の再利用であり、新たなAWS読取りではない。
+
+[Apply008](https://github.com/yonegen0/ai_interview/actions/runs/40667076073)はログ配信の
+`logs:CreateLogDelivery`不足で失敗し、Stage実形式は4項目のまま。
+既存の[Draft PR #73](https://github.com/yonegen0/ai_interview/pull/73)がIAM追加とState14 descriptorを提案している。
+IAM拡大の承認なしにmerge/Bootstrap Plan/Applyを実行せず、失敗Applyも再送しない。
+保存済み最終readbackでは4入口閉鎖、readiness全false、lockなし。Gate BはNOT_READY。
