@@ -12,6 +12,15 @@ variable "legacy_ci_retired" {
     error_message = "Create and qualify the standard roles before retiring legacy trust."
   }
 }
+variable "standard_ci_stage_log_delivery_enabled" {
+  type        = bool
+  default     = false
+  description = "Explicitly approved HTTP API access-log delivery permissions for the standard dev deploy role."
+  validation {
+    condition     = !var.standard_ci_stage_log_delivery_enabled || var.standard_ci_enabled
+    error_message = "Stage log delivery requires the standard CI roles."
+  }
+}
 locals {
   standard_ci_environments = {
     artifact-plan  = "dev-plan"
@@ -26,7 +35,14 @@ locals {
       jsondecode(aws_iam_role_policy.read[role].policy).Statement,
       jsondecode(aws_iam_role_policy.identity_read[role].policy).Statement,
       [for statement in jsondecode(aws_iam_role_policy.deploy["deploy"].policy).Statement : statement if role == "deploy"],
-      [for statement in jsondecode(aws_iam_role_policy.identity_deploy["deploy"].policy).Statement : statement if role == "deploy"]
+      [for statement in jsondecode(aws_iam_role_policy.identity_deploy["deploy"].policy).Statement : statement if role == "deploy"],
+      role == "deploy" && var.standard_ci_stage_log_delivery_enabled ? [{
+        Sid       = "DevStageLogDelivery"
+        Effect    = "Allow"
+        Action    = ["logs:CreateLogDelivery", "logs:PutResourcePolicy", "logs:DescribeResourcePolicies"]
+        Resource  = ["*"]
+        Condition = { StringEquals = { "aws:RequestedRegion" = var.region } }
+      }] : []
     )
     }, {
     artifact-plan = [

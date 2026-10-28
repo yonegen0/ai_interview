@@ -115,7 +115,7 @@ def validate(value, account, region):
         require(value["kind"] == "gate-b-stage-access-log" and region == "ap-northeast-1")
         identity = value["state_identity"]
         require(set(identity) == {"lineage", "serial", "version_id", "sha256"})
-        require(type(identity["serial"]) is int and identity["serial"] == 13)
+        require(type(identity["serial"]) is int and identity["serial"] in {13, 14})
         require(
             all(isinstance(identity[k], str) and identity[k] for k in ("lineage", "version_id"))
         )

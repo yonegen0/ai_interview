@@ -1,5 +1,10 @@
 # Gate B Stage形式だけの復旧
 
+2026-10-28追記: Plan008は成功、Apply008は実効log delivery権限不足で失敗し、
+現在のdev Stateはserial14。最新の実測・未適用の修正案・再開条件は
+[Stage log delivery blocker](P4_GATE_B_LOG_DELIVERY_BLOCKER_20261028.md)を優先する。
+下記のState13手順は履歴として保持し、新descriptorへの流用や旧Applyの再実行はしない。
+
 2026-10-27 JST。診断003R2は33変更対象中32一致・1不一致。32一致には過去11件の再利用を含む。
 今回確認した不一致はStageアクセスログ形式の`requestTimeEpoch`と`responseLatency`欠落のみ。
 元RunのTerraform正常終了と失敗原因はUNKNOWNのまま、旧Planの再Applyは禁止する。
