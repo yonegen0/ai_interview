@@ -470,27 +470,30 @@ def check_live(session, snapshot, value, environment, *, applied=False):
     from github_control import verify_readiness
     from standard_diagnostics import checkpoint
 
+    def mark(stage):
+        checkpoint("post-apply-verification" if applied else stage)
+
     cfg = Config(retries={"total_max_attempts": 1}, connect_timeout=5, read_timeout=10)
     m = snapshot["manifest"]
     api = session.client("apigatewayv2", config=cfg)
-    checkpoint("live-api")
+    mark("live-api")
     require(api.get_api(ApiId=m["api_id"]).get("DisableExecuteApiEndpoint") is True)
     for mapping in ("worker", "streams"):
-        checkpoint("live-" + mapping)
+        mark("live-" + mapping)
         require(
             session.client("lambda", config=cfg)
             .get_event_source_mapping(UUID=m["mappings"][mapping])
             .get("State")
             == "Disabled"
         )
-    checkpoint("live-scheduler")
+    mark("live-scheduler")
     require(
         session.client("scheduler", config=cfg)
         .get_schedule(Name="recovery", GroupName="ai-interview-dev")
         .get("State")
         == "DISABLED"
     )
-    checkpoint("live-stage")
+    mark("live-stage")
     live_stage = api.get_stage(ApiId=m["api_id"], StageName="dev")
     if "observed_deployment_id" in value["stage"]:
         require(live_stage.get("AutoDeploy") is True)
@@ -500,7 +503,7 @@ def check_live(session, snapshot, value, environment, *, applied=False):
     require(actual.get("DestinationArn") == expected["destination_arn"])
     require(actual.get("Format") == value["stage"]["format_after" if applied else "format_before"])
     if value.get("api_role_policy_cache_refresh") is True:
-        checkpoint("live-role-policy")
+        mark("live-role-policy")
         policy = state_resources(snapshot)[API_POLICY]
         actual_policy = session.client("iam", config=cfg).get_role_policy(
             RoleName=policy["role"], PolicyName=policy["name"]
@@ -508,7 +511,7 @@ def check_live(session, snapshot, value, environment, *, applied=False):
         require(actual_policy.get("RoleName") == policy["role"])
         require(actual_policy.get("PolicyName") == policy["name"])
         require(actual_policy.get("PolicyDocument") == parse_format(policy["policy"]))
-    checkpoint("readiness-readback")
+    mark("readiness-readback")
     verify_readiness(environment)
 
 
@@ -535,50 +538,74 @@ def envelope_recovery(envelope, binding, environment):
 def apply_process(command, directory, *, cwd, env):
     """Persist the actual Apply exit before receipts; never retry an uncertain child."""
     from ci_identity import standard_context
+    from standard_diagnostics import process_event
 
     def record(name, value):
-        with (directory / name).open("x", encoding="utf-8") as stream:
-            json.dump(value, stream, sort_keys=True)
-            stream.flush()
-            os.fsync(stream.fileno())
+        try:
+            with (directory / name).open("x", encoding="utf-8") as stream:
+                json.dump(value, stream, sort_keys=True)
+                stream.flush()
+                os.fsync(stream.fileno())
+        except OSError:
+            raise DeploymentError("StageRecoveryApplyJournalFailed") from None
 
+    process_event("apply", "admission")
     standard_context(env, reserve=1320)
     record("recovery-process-started.private.json", {"operation": "apply", "one_use": True})
     process = None
     try:
-        process = subprocess.Popen(
-            command,
-            cwd=cwd,
-            env={
-                key: value
-                for key, value in env.items()
-                if key not in {"P4_ENV_READ_TOKEN", "GH_TOKEN"}
-            },
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            start_new_session=True,
-        )
+        try:
+            process = subprocess.Popen(
+                command,
+                cwd=cwd,
+                env={
+                    key: value
+                    for key, value in env.items()
+                    if key not in {"P4_ENV_READ_TOKEN", "GH_TOKEN"}
+                },
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                start_new_session=True,
+            )
+        except OSError:
+            raise DeploymentError("StageRecoveryApplyLaunchFailed") from None
+        process_event("apply", "launched")
         started = time.monotonic()
         while True:
             standard_context(env, reserve=120)
-            require(time.monotonic() - started < 1200)
+            if time.monotonic() - started >= 1200:
+                raise DeploymentError("StageRecoveryApplyDeadlineStop")
             try:
-                stdout, _ = process.communicate(timeout=1)
+                stdout, stderr = process.communicate(timeout=1)
                 break
             except subprocess.TimeoutExpired:
                 continue
+            except Exception:
+                raise DeploymentError("StageRecoveryApplyObservationFailed") from None
+        process_event("apply", "exit-observed", returncode=process.returncode)
         record(
             "recovery-process-exit.private.json",
             {"operation": "apply", "returncode": process.returncode},
         )
-        require(process.returncode == 0)
+        if process.returncode != 0:
+            from plan_process_diagnostics import summarize_failure
+
+            summary = summarize_failure(process.returncode, stdout, stderr)
+            record("recovery-process-failure.private.json", summary)
+            error = DeploymentError("StageRecoveryApplyProcessFailed")
+            error.process_diagnostic = summary
+            raise error
         standard_context(env, reserve=120)
         return stdout
     except BaseException:
-        if process is not None and process.poll() is None:
+        observed = process.poll() if process is not None else None
+        if observed is not None:
+            process_event("apply", "exit-observed", returncode=observed)
+        elif process is not None:
             process.send_signal(signal.SIGINT)
             try:
                 process.communicate(timeout=120)
+                process_event("apply", "exit-observed", returncode=process.returncode)
                 record(
                     "recovery-process-interrupted.private.json",
                     {"returncode": process.returncode, "lock_verified": False},

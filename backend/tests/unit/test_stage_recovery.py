@@ -1212,10 +1212,20 @@ def test_ci_recovery_skips_build_and_lambda_upload_and_binds_new_envelope(
         assert envelope["package"] == h.descriptor["artifact"]
 
 
-@pytest.mark.parametrize("operation", ["plan", "apply", "verify"])
+@pytest.mark.parametrize(
+    "operation,post_apply_failure",
+    [
+        ("plan", None),
+        ("apply", None),
+        ("verify", None),
+        ("apply", "manifest"),
+        ("apply", "live-stage"),
+        ("apply", "final-state"),
+    ],
+)
 @pytest.mark.parametrize("scenario", ["recovery", "policy_cache_recovery", "state14_recovery"])
 def test_terraform_recovery_checks_full_plan_and_live_closure_before_and_after(
-    request, monkeypatch, tmp_path, operation, scenario
+    request, monkeypatch, tmp_path, operation, scenario, post_apply_failure
 ):
     import deployment_guards
     import manifest
@@ -1253,9 +1263,14 @@ def test_terraform_recovery_checks_full_plan_and_live_closure_before_and_after(
 
     monkeypatch.setattr(ci_identity, "standard_context", lambda *a, **k: None)
     observed_live, audits, commands = [], [], []
-    monkeypatch.setattr(
-        h.m, "check_live", lambda *a, **k: observed_live.append(k.get("applied", False))
-    )
+
+    def check_live(*a, **k):
+        observed_live.append(k.get("applied", False))
+        if k.get("applied") and post_apply_failure == "live-stage":
+            m.checkpoint("post-apply-verification")
+            raise ValueError("StageRecoveryScopeMismatch")
+
+    monkeypatch.setattr(h.m, "check_live", check_live)
     audit = h.m.audit_plan
 
     def checked_audit(*args):
@@ -1273,6 +1288,8 @@ def test_terraform_recovery_checks_full_plan_and_live_closure_before_and_after(
         "serial": h.snapshot["identity"]["serial"] + 1,
         "version_id": "new-version",
     }
+    if post_apply_failure == "final-state":
+        h.m.state_resources(final)[h.m.ADDRESS]["tags"]["Project"] = "unauthorized"
     snapshots = iter([h.snapshot, h.snapshot] + ([final] if operation == "apply" else []))
     historical_reads = []
 
@@ -1288,7 +1305,12 @@ def test_terraform_recovery_checks_full_plan_and_live_closure_before_and_after(
     monkeypatch.setattr(
         manifest, "read_manifest", lambda *a: h.snapshot["manifest"] | {"versions": {}}
     )
-    monkeypatch.setattr(manifest, "wait_for_manifest", lambda *a, **k: None)
+
+    def wait_for_manifest(*a, **k):
+        if post_apply_failure == "manifest":
+            raise ValueError("private verification failure")
+
+    monkeypatch.setattr(manifest, "wait_for_manifest", wait_for_manifest)
 
     def run(command, **kwargs):
         commands.append(command)
@@ -1303,7 +1325,16 @@ def test_terraform_recovery_checks_full_plan_and_live_closure_before_and_after(
         return b""
 
     monkeypatch.setattr(m, "run", run)
-    monkeypatch.setattr(h.m, "apply_process", lambda command, *a, **k: commands.append(command))
+
+    def apply_process(command, *a, **k):
+        from standard_diagnostics import process_event
+
+        commands.append(command)
+        process_event("apply", "admission")
+        process_event("apply", "launched")
+        process_event("apply", "exit-observed", returncode=0)
+
+    monkeypatch.setattr(h.m, "apply_process", apply_process)
     approved = hashlib.sha256(b"saved plan").hexdigest()
     if operation in {"apply", "verify"}:
         directory.mkdir()
@@ -1318,6 +1349,25 @@ def test_terraform_recovery_checks_full_plan_and_live_closure_before_and_after(
             plan_sha256=approved,
         )
         (directory / "plan.json").write_text(json.dumps(binding))
+    if post_apply_failure:
+        import standard_diagnostics as diagnostics
+
+        diagnostic = diagnostics.Diagnostic()
+        token = diagnostics.CURRENT.set(diagnostic)
+        try:
+            with pytest.raises(ValueError) as raised:
+                m.execute(operation, inputs, directory, approved)
+            value = diagnostic.projection(raised.value)
+        finally:
+            diagnostics.CURRENT.reset(token)
+        assert value["failure_stage"] == "post-apply-verification"
+        assert value["process_started"] is value["process_exit_observed"] is True
+        assert value["process_returncode"] == 0
+        assert value["terraform_command_kind"] == "apply"
+        assert (directory / "apply-completed.json").is_file()
+        assert sum(c[1] == "apply" for c in commands) == 1
+        assert "private verification failure" not in json.dumps(value)
+        return
     result = m.execute(operation, inputs, directory, approved if operation != "plan" else None)
     assert result["status"] == ("planned" if operation == "plan" else "applied_readback_verified")
     assert audits == ([] if operation == "verify" else [True])

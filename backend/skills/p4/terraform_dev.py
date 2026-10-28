@@ -413,11 +413,14 @@ def execute(operation, input_path, directory, approved_hash=None, *, progress=No
             apply_process(command, directory, cwd=root, env=env)
         else:
             run(command, cwd=root, env=env)
+        checkpoint("apply-completion-record")
         write_record(directory / "apply-completed.json", {"plan_sha256": approved_hash})
         if progress:
+            checkpoint("apply-receipt")
             progress("apply_completed")
     elif not (directory / "apply-completed.json").is_file():
         raise DeploymentError("ConfirmedApplyRequired")
+    checkpoint("post-apply-verification")
     checked_session(account, region, environment=env)
     deployed = run(["terraform", "output", "-json", "manifest"], cwd=root, env=env)
     (directory / "deployment.json").write_bytes(deployed)
@@ -432,6 +435,7 @@ def execute(operation, input_path, directory, approved_hash=None, *, progress=No
     if recovery:
         final = read_state_snapshot(session, account, region, binding["state_key"])
         check_live(session, final, recovery, os.environ, applied=True)
+        checkpoint("post-apply-verification")
         from stage_recovery import same_resource_states
 
         if (

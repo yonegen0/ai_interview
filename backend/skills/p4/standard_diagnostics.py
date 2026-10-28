@@ -8,7 +8,7 @@ import json
 from contextvars import ContextVar
 
 from github_control import ENVIRONMENT_REASONS
-from plan_process_diagnostics import safe_exception_type
+from plan_process_diagnostics import MARKERS, safe_exception_type
 from stage_recovery import AUDIT_RULES
 
 CURRENT = ContextVar("standard_failure_diagnostic", default=None)
@@ -36,6 +36,10 @@ STAGES = frozenset(
         "terraform-init",
         "terraform-plan",
         "terraform-show",
+        "terraform-apply",
+        "apply-completion-record",
+        "apply-receipt",
+        "post-apply-verification",
         "plan-audit",
         "post-plan-state-read",
         "plan-transport",
@@ -65,6 +69,12 @@ REASONS = ENVIRONMENT_REASONS | frozenset(
         "StateReadbackChanged",
         "StateChangedDuringPlan",
         "StageRecoveryScopeMismatch",
+        "StageRecoveryApplyProcessFailed",
+        "StageRecoveryApplyLaunchFailed",
+        "StageRecoveryApplyDeadlineStop",
+        "StageRecoveryApplyObservationFailed",
+        "StageRecoveryApplyJournalFailed",
+        "StageRecoveryFinalStateMismatch",
         "StageRecoveryPlanRejected",
         "StageRecoverySdkBudgetExceeded",
         "StageRecoveryHttpBudgetOrRetryRejected",
@@ -80,7 +90,7 @@ REASONS = ENVIRONMENT_REASONS | frozenset(
         "GitHubEnvironmentVariablesReadDenied",
     }
 )
-COMMANDS = frozenset({"version", "init", "plan", "show", "build"})
+COMMANDS = frozenset({"version", "init", "plan", "show", "build", "apply"})
 
 
 class Diagnostic:
@@ -89,6 +99,7 @@ class Diagnostic:
         self.command = "unknown"
         self.started = False
         self.exited = False
+        self.returncode = None
 
     def projection(self, error):
         reason = "ExternalOrScopeFailure"
@@ -110,8 +121,26 @@ class Diagnostic:
             "process_started": self.started if type(self.started) is bool else None,
             "process_exit_observed": self.exited if type(self.exited) is bool else None,
             "terraform_command_kind": self.command if self.command in COMMANDS else "unknown",
+            "process_returncode": (
+                self.returncode
+                if self.exited is True
+                and type(self.returncode) is int
+                and -(2**31) <= self.returncode < 2**32
+                else None
+            ),
         }
         try:
+            if reason == "StageRecoveryApplyProcessFailed":
+                summary = getattr(error, "process_diagnostic", None)
+                allowed = {label for label, _ in MARKERS} | {"unclassified"}
+                hints = summary.get("diagnostic_hints") if type(summary) is dict else None
+                if (
+                    type(hints) is list
+                    and 0 < len(hints) <= len(allowed)
+                    and all(type(hint) is str and hint in allowed for hint in hints)
+                ):
+                    result["diagnostic_hints"] = hints
+                    result["hints_are_root_cause_proof"] = False
             rule = getattr(error, "audit_rule", None)
             index = getattr(error, "audit_resource_index", None)
             if reason == "StageRecoveryPlanRejected" and rule in AUDIT_RULES:
@@ -142,16 +171,18 @@ def checkpoint(stage):
         current.stage = stage if stage in STAGES else "unknown"
 
 
-def process_event(kind, event):
+def process_event(kind, event, *, returncode=None):
     current = CURRENT.get()
     if current is None:
         return
     if event == "admission":
         current.command = kind if kind in COMMANDS else "unknown"
         current.started = current.exited = False
-        if kind in {"version", "init", "plan", "show"}:
+        current.returncode = None
+        if kind in {"version", "init", "plan", "show", "apply"}:
             checkpoint("terraform-" + kind)
     elif event == "launched":
         current.started = True
     elif event == "exit-observed":
         current.exited = True
+        current.returncode = returncode
