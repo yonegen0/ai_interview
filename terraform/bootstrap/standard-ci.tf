@@ -39,7 +39,7 @@ locals {
       role == "deploy" && var.standard_ci_stage_log_delivery_enabled ? [{
         Sid       = "DevStageLogDelivery"
         Effect    = "Allow"
-        Action    = ["logs:CreateLogDelivery", "logs:PutResourcePolicy", "logs:DescribeResourcePolicies"]
+        Action    = ["logs:CreateLogDelivery", "logs:PutResourcePolicy", "logs:DescribeResourcePolicies", "logs:ListLogDeliveries"]
         Resource  = ["*"]
         Condition = { StringEquals = { "aws:RequestedRegion" = var.region } }
       }] : []

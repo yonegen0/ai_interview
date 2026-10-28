@@ -16,7 +16,12 @@ ADDRESS = "module.service.aws_apigatewayv2_stage.dev"
 API_ADDRESS = "module.service.aws_apigatewayv2_api.main"
 API_ROLE = 'module.service.aws_iam_role.lambda["api"]'
 API_POLICY = 'module.service.aws_iam_role_policy.runtime["api"]'
-PACKAGE_KEYS = {"artifact_bucket", "artifact_key", "artifact_version", "artifact_sha256_base64"}
+PACKAGE_KEYS = {
+    "artifact_bucket",
+    "artifact_key",
+    "artifact_version",
+    "artifact_sha256_base64",
+}
 BEFORE = {
     "requestId": "$context.requestId",
     "routeKey": "$context.routeKey",
@@ -108,14 +113,21 @@ def validate(value, account, region):
             "artifact",
             "stage",
         }
-        require(set(value) in (keys, keys | {"api_role_policy_cache_refresh"}))
+        schema = value["schema_version"]
+        require(type(schema) is int and schema in {1, 2})
+        if schema == 1:
+            require(set(value) in (keys, keys | {"api_role_policy_cache_refresh"}))
+        else:
+            require(set(value) == keys | {"predecessor"})
         if "api_role_policy_cache_refresh" in value:
             require(value["api_role_policy_cache_refresh"] is True)
-        require(type(value["schema_version"]) is int and value["schema_version"] == 1)
+        if schema == 2:
+            validate_apply010_predecessor(value)
         require(value["kind"] == "gate-b-stage-access-log" and region == "ap-northeast-1")
         identity = value["state_identity"]
         require(set(identity) == {"lineage", "serial", "version_id", "sha256"})
-        require(type(identity["serial"]) is int and identity["serial"] in {13, 14})
+        allowed_serials = {13, 14} if schema == 1 else {15}
+        require(type(identity["serial"]) is int and identity["serial"] in allowed_serials)
         require(
             all(isinstance(identity[k], str) and identity[k] for k in ("lineage", "version_id"))
         )
@@ -140,6 +152,7 @@ def validate(value, account, region):
         stage = value["stage"]
         keys = {"address", "api_id", "stage_name", "format_before", "format_after"}
         pins = {"deployment_id_before", "observed_deployment_id"}
+        require(schema == 1 or set(stage) == keys)
         require(set(stage) in (keys, keys | pins))
         if pins <= set(stage):
             require(
@@ -155,6 +168,47 @@ def validate(value, account, region):
     except KeyError, TypeError, ValueError, AttributeError:
         raise DeploymentError("StageRecoveryScopeMismatch") from None
     return copy.deepcopy(value)
+
+
+def validate_apply010_predecessor(value):
+    """Separate State15 recovery: never admit serial15 through the old schema."""
+    p = value["predecessor"]
+    expected = {
+        "kind": "failed-apply010",
+        "source_sha": "c25181ca3880825a9dffd59115bc79cb450c80c0",
+        "apply_run_id": "40777680174",
+        "apply_attempt": 1,
+        "plan_run_id": "40776053053",
+        "plan_sha256": "db294c872fb1b2b00a304112416af8f6100087fe4c0017548ce11a0591f7f1f6",
+        "completed_receipt_absent": True,
+        "deployment_receipt_absent": True,
+        "approval_consumed": True,
+        "denied_action": "logs:ListLogDeliveries",
+    }
+    digests = {
+        "started_receipt_sha256",
+        "cloudtrail_correlation_sha256",
+        "resource_attributes_sha256",
+    }
+    require(set(p) == set(expected) | digests | {"state_before", "state_after"})
+    require(all(type(p[k]) is type(v) and p[k] == v for k, v in expected.items()))
+    require(
+        p["started_receipt_sha256"]
+        == "8e7a7a0b0572da1029d764d9fc405a21846ef8fb1a04d5ed590b4720fc6a7514"
+    )
+    require(all(type(p[k]) is str and re.fullmatch(r"[0-9a-f]{64}", p[k]) for k in digests))
+    before, after = p["state_before"], p["state_after"]
+    require(after == value["state_identity"])
+    require(set(before) == set(after) == {"lineage", "serial", "version_id", "sha256"})
+    require(type(before["serial"]) is int and before["serial"] == 14)
+    require(type(after["serial"]) is int and after["serial"] == 15)
+    require(before["lineage"] == after["lineage"])
+    require(
+        type(before["version_id"]) is str
+        and before["version_id"] not in {"", "null", after["version_id"]}
+    )
+    require(type(before["sha256"]) is str and re.fullmatch(r"[0-9a-f]{64}", before["sha256"]))
+    require(before["sha256"] != after["sha256"])
 
 
 def from_approval(package, environment):
@@ -221,7 +275,12 @@ def resource_state_equal(address, before, after):
         cors = result.get("cors_configuration")
         if not isinstance(cors, list) or len(cors) != 1 or not isinstance(cors[0], dict):
             return result
-        for key in ("allow_headers", "expose_headers", "allow_methods", "allow_origins"):
+        for key in (
+            "allow_headers",
+            "expose_headers",
+            "allow_methods",
+            "allow_origins",
+        ):
             values = cors[0].get(key)
             if isinstance(values, list) and all(type(v) is str and v.isascii() for v in values):
                 # The provider uses StringCaseInsensitiveSetFunc only for header names.
@@ -265,6 +324,13 @@ def same_resource_states(before, after, *, recovery=None):
 def check_state(snapshot, value):
     require(snapshot["identity"] == value["state_identity"])
     require(canonical_hash(snapshot) == value["state_snapshot_sha256"])
+    if value["schema_version"] == 2:
+        validate_apply010_predecessor(value)
+        require(len(state_resources(snapshot)) == 77)
+        require(
+            canonical_hash(state_resources(snapshot))
+            == value["predecessor"]["resource_attributes_sha256"]
+        )
     m, a = snapshot["manifest"], value["artifact"]
     require(
         m["artifact"]
@@ -282,7 +348,12 @@ def check_state(snapshot, value):
     require(
         all(
             m["configuration"].get(k) is False
-            for k in ("api_enabled", "worker_enabled", "streams_enabled", "scheduler_enabled")
+            for k in (
+                "api_enabled",
+                "worker_enabled",
+                "streams_enabled",
+                "scheduler_enabled",
+            )
         )
     )
 
@@ -373,7 +444,10 @@ def audit_plan(plan, value, snapshot):
                 require(change["actions"] == ["update"])
                 rule = "stage-format-only"
                 stage_change(change["before"], change["after"], value)
-                rule, compared = "stage-state-match", (change["after"], expected[ADDRESS])
+                rule, compared = (
+                    "stage-state-match",
+                    (change["after"], expected[ADDRESS]),
+                )
                 require(change["after"] == expected[ADDRESS])
                 updates += 1
             else:

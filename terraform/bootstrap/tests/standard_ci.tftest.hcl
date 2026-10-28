@@ -71,11 +71,11 @@ run "explicit_dev_stage_log_delivery" {
     condition = one([for statement in local.standard_ci_policies.deploy : statement if try(statement.Sid, "") == "DevStageLogDelivery"]) == {
       Sid       = "DevStageLogDelivery"
       Effect    = "Allow"
-      Action    = ["logs:CreateLogDelivery", "logs:PutResourcePolicy", "logs:DescribeResourcePolicies"]
+      Action    = ["logs:CreateLogDelivery", "logs:PutResourcePolicy", "logs:DescribeResourcePolicies", "logs:ListLogDeliveries"]
       Resource  = ["*"]
       Condition = { StringEquals = { "aws:RequestedRegion" = "ap-northeast-1" } }
     }
-    error_message = "Only the three access-log setup permissions in Tokyo are approved candidates."
+    error_message = "Only the four evidenced access-log setup permissions in Tokyo are approved candidates."
   }
   assert {
     condition     = alltrue([for role, statements in local.standard_ci_policies : !strcontains(jsonencode(statements), "DevStageLogDelivery") if role != "deploy"]) && !strcontains(jsonencode([for policy in values(aws_iam_role_policy.deploy) : policy.policy]), "DevStageLogDelivery")
