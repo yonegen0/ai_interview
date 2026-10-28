@@ -1128,8 +1128,11 @@ def test_recovery_guard_rejects_lambda_upload_and_envelope_before_four_plan_obje
 @pytest.mark.parametrize(
     "fault", [None, "binding-mode", "package", "plan", "source", "state", "nonstandard"]
 )
-def test_apply_requires_immutable_envelope_binding_and_new_exact_plan_consent(recovery, fault):
-    h = recovery
+@pytest.mark.parametrize("scenario", ["recovery", "state15_recovery"])
+def test_apply_requires_immutable_envelope_binding_and_new_exact_plan_consent(
+    request, scenario, fault
+):
+    h = request.getfixturevalue(scenario)
     d = h.descriptor
     e = {
         "stage_recovery": d,
@@ -1425,7 +1428,9 @@ def test_ci_recovery_skips_build_and_lambda_upload_and_binds_new_envelope(
         ("apply", "final-state"),
     ],
 )
-@pytest.mark.parametrize("scenario", ["recovery", "policy_cache_recovery", "state14_recovery"])
+@pytest.mark.parametrize(
+    "scenario", ["recovery", "policy_cache_recovery", "state14_recovery", "state15_recovery"]
+)
 def test_terraform_recovery_checks_full_plan_and_live_closure_before_and_after(
     request, monkeypatch, tmp_path, operation, scenario, post_apply_failure
 ):
