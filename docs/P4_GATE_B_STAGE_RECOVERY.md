@@ -1,5 +1,10 @@
 # Gate B Stage形式だけの復旧
 
+最新: [Stage009監査・実行前拒否と公開準備](P4_STAGE009_ADMISSION_FAILURE_20261028.md)。
+Plan009独立監査は成功したが、承認後dispatchは72時間窓の不一致でAWS準備前に拒否された。
+独立読戻しはState14不変・receipt不在・4入口閉鎖・readiness全false。Gate BはNOT_READY。
+消費済みPlan/承認の再送や新Planの自動生成はしていない。
+
 2026-10-28追記: Plan008は成功、Apply008は実効log delivery権限不足で失敗し、
 現在のdev Stateはserial14。最新の実測・未適用の修正案・再開条件は
 [Stage log delivery blocker](P4_GATE_B_LOG_DELIVERY_BLOCKER_20261028.md)を優先する。

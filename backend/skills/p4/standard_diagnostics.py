@@ -43,6 +43,13 @@ STAGES = frozenset(
 )
 REASONS = ENVIRONMENT_REASONS | frozenset(
     {
+        "StandardWorkflowIdentityMismatch",
+        "StandardApprovalExpiredOrNotIssued",
+        "AbsoluteUtcApprovalTimestampRequired",
+        "InvalidApprovalTimestamp",
+        "StandardCredentialSourceConflict",
+        "StandardPlanApprovalWindowMismatch",
+        "StandardPackageBaseRequired",
         "PlanApprovalHashMismatch",
         "PlanApprovalAlreadyConsumed",
         "PlanApprovalExpiredOrInsufficientTime",
@@ -100,8 +107,8 @@ class Diagnostic:
             "failure_stage": self.stage if self.stage in STAGES else "unknown",
             "failure_class": safe_exception_type(error),
             "reason_code": reason,
-            "process_started": self.started is True,
-            "process_exit_observed": self.exited is True,
+            "process_started": self.started if type(self.started) is bool else None,
+            "process_exit_observed": self.exited if type(self.exited) is bool else None,
             "terraform_command_kind": self.command if self.command in COMMANDS else "unknown",
         }
         try:
