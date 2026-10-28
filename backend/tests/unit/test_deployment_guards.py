@@ -454,12 +454,14 @@ def test_historical_state_read_pins_prior_version_and_unchanged_current_head():
     manifest = {"account_id": account, "region": region, "run_id": "synthetic"}
 
     def state(serial):
-        return json.dumps({
-            "lineage": "synthetic-lineage",
-            "serial": serial,
-            "outputs": {"manifest": {"value": manifest}},
-            "resources": [],
-        }).encode()
+        return json.dumps(
+            {
+                "lineage": "synthetic-lineage",
+                "serial": serial,
+                "outputs": {"manifest": {"value": manifest}},
+                "resources": [],
+            }
+        ).encode()
 
     class S3:
         def __init__(self):
