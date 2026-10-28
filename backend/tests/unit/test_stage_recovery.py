@@ -41,6 +41,208 @@ def test_other_serials_remain_outside_fixed_stage_recovery(recovery, serial):
 
 
 @pytest.fixture
+def state15_recovery(state14_recovery):
+    """Synthetic 77-resource successor; no private State or CloudTrail fixtures."""
+    h = state14_recovery
+    before = copy.deepcopy(h.snapshot["identity"])
+    h.snapshot["identity"].update(serial=15, version_id="pinned-state15", sha256="5" * 64)
+    for index in range(75):
+        kind = "aws_iam_role_policy" if index < 10 else "aws_cloudwatch_log_group"
+        name = f"synthetic_{index}"
+        address = f"module.service.{kind}.{name}"
+        attributes = {"name": name, "synthetic": True}
+        h.snapshot["state"]["resources"].append(
+            dict(
+                module="module.service",
+                type=kind,
+                name=name,
+                instances=[dict(attributes=attributes)],
+            )
+        )
+        h.plan["resource_changes"].append(
+            dict(
+                address=address,
+                type=kind,
+                mode="managed",
+                change=dict(actions=["no-op"], before=attributes, after=attributes),
+            )
+        )
+        h.plan["planned_values"]["root_module"]["resources"].append(
+            dict(address=address, mode="managed", values=attributes)
+        )
+    h.descriptor.update(
+        schema_version=2,
+        state_identity=copy.deepcopy(h.snapshot["identity"]),
+        state_snapshot_sha256=h.m.canonical_hash(h.snapshot),
+        predecessor={
+            "kind": "failed-apply010",
+            "source_sha": "c25181ca3880825a9dffd59115bc79cb450c80c0",
+            "apply_run_id": "40777680174",
+            "apply_attempt": 1,
+            "plan_run_id": "40776053053",
+            "plan_sha256": "db294c872fb1b2b00a304112416af8f6100087fe4c0017548ce11a0591f7f1f6",
+            "started_receipt_sha256": (
+                "8e7a7a0b0572da1029d764d9fc405a21846ef8fb1a04d5ed590b4720fc6a7514"
+            ),
+            "completed_receipt_absent": True,
+            "deployment_receipt_absent": True,
+            "approval_consumed": True,
+            "denied_action": "logs:ListLogDeliveries",
+            "cloudtrail_correlation_sha256": "a" * 64,
+            "state_before": before,
+            "state_after": copy.deepcopy(h.snapshot["identity"]),
+            "resource_attributes_sha256": h.m.canonical_hash(h.m.state_resources(h.snapshot)),
+        },
+    )
+    return h
+
+
+def test_state15_requires_separate_schema_provenance_and_complete_unchanged_resources(
+    state15_recovery,
+):
+    h = state15_recovery
+    original = copy.deepcopy((h.descriptor, h.snapshot, h.plan))
+    assert h.m.validate(h.descriptor, "123456789012", "ap-northeast-1") == h.descriptor
+    h.m.check_state(h.snapshot, h.descriptor)
+    assert len(h.m.state_resources(h.snapshot)) == 77
+    assert sum(row["type"].startswith("aws_iam_") for row in h.plan["resource_changes"]) == 10
+    assert h.m.audit_plan(h.plan, h.descriptor, h.snapshot)["change"] == 1
+    assert (h.descriptor, h.snapshot, h.plan) == original
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("kind", "other"),
+        ("source_sha", "0" * 40),
+        ("apply_run_id", "other"),
+        ("apply_attempt", 2),
+        ("apply_attempt", True),
+        ("plan_run_id", "other"),
+        ("plan_sha256", "0" * 64),
+        ("started_receipt_sha256", "0" * 64),
+        ("completed_receipt_absent", False),
+        ("completed_receipt_absent", 1),
+        ("deployment_receipt_absent", False),
+        ("approval_consumed", False),
+        ("denied_action", "logs:UpdateLogDelivery"),
+        ("cloudtrail_correlation_sha256", "not-a-hash"),
+        ("resource_attributes_sha256", None),
+    ],
+)
+def test_state15_rejects_wrong_predecessor_provenance(state15_recovery, field, value):
+    h = state15_recovery
+    h.descriptor["predecessor"][field] = value
+    with pytest.raises(ValueError, match="StageRecoveryScopeMismatch"):
+        h.m.validate(h.descriptor, "123456789012", "ap-northeast-1")
+
+
+@pytest.mark.parametrize(
+    "fault", ["missing", "extra", "missing-field", "old-schema", "cache", "pins"]
+)
+def test_state15_cannot_inherit_old_recovery_exceptions(state15_recovery, fault):
+    h = state15_recovery
+    if fault == "missing":
+        h.descriptor.pop("predecessor")
+    elif fault == "extra":
+        h.descriptor["predecessor"]["unknown"] = True
+    elif fault == "missing-field":
+        h.descriptor["predecessor"].pop("approval_consumed")
+    elif fault == "old-schema":
+        h.descriptor.pop("predecessor")
+        h.descriptor["schema_version"] = 1
+    elif fault == "cache":
+        h.descriptor["api_role_policy_cache_refresh"] = True
+    else:
+        h.descriptor["stage"].update(
+            deployment_id_before="cached1", observed_deployment_id="observed2"
+        )
+    with pytest.raises(ValueError, match="StageRecoveryScopeMismatch"):
+        h.m.validate(h.descriptor, "123456789012", "ap-northeast-1")
+
+
+@pytest.mark.parametrize("serial", [13, 14, 16, True, 15.0, "15"])
+def test_state15_schema_rejects_other_or_noninteger_serials(state15_recovery, serial):
+    h = state15_recovery
+    h.descriptor["state_identity"]["serial"] = serial
+    h.descriptor["predecessor"]["state_after"] = copy.deepcopy(h.descriptor["state_identity"])
+    with pytest.raises(ValueError, match="StageRecoveryScopeMismatch"):
+        h.m.validate(h.descriptor, "123456789012", "ap-northeast-1")
+
+
+@pytest.mark.parametrize(
+    "fault", ["serial", "lineage", "version", "same-version", "hash", "same-hash", "extra", "after"]
+)
+def test_state15_predecessor_requires_exact_identity_transition(state15_recovery, fault):
+    h = state15_recovery
+    p = h.descriptor["predecessor"]
+    before, after = p["state_before"], p["state_after"]
+    if fault == "serial":
+        before["serial"] = True
+    elif fault == "lineage":
+        before["lineage"] = "different"
+    elif fault == "version":
+        before["version_id"] = "null"
+    elif fault == "same-version":
+        before["version_id"] = after["version_id"]
+    elif fault == "hash":
+        before["sha256"] = "invalid"
+    elif fault == "same-hash":
+        before["sha256"] = after["sha256"]
+    elif fault == "extra":
+        before["extra"] = True
+    else:
+        after["version_id"] = "different"
+    with pytest.raises(ValueError, match="StageRecoveryScopeMismatch"):
+        h.m.validate(h.descriptor, "123456789012", "ap-northeast-1")
+
+
+@pytest.mark.parametrize("fault", ["resource", "count", "identity", "snapshot", "fingerprint"])
+def test_state15_binds_snapshot_identity_and_all_77_resources(state15_recovery, fault):
+    h = state15_recovery
+    if fault == "resource":
+        h.m.state_resources(h.snapshot)[h.m.ADDRESS]["tags"]["Project"] = "changed"
+        h.descriptor["state_snapshot_sha256"] = h.m.canonical_hash(h.snapshot)
+    elif fault == "count":
+        h.snapshot["state"]["resources"].pop()
+        h.descriptor["state_snapshot_sha256"] = h.m.canonical_hash(h.snapshot)
+        h.descriptor["predecessor"]["resource_attributes_sha256"] = h.m.canonical_hash(
+            h.m.state_resources(h.snapshot)
+        )
+    elif fault == "identity":
+        h.snapshot["identity"]["version_id"] = "changed"
+    elif fault == "snapshot":
+        h.descriptor["state_snapshot_sha256"] = "0" * 64
+    else:
+        h.descriptor["predecessor"]["resource_attributes_sha256"] = "0" * 64
+    with pytest.raises(ValueError, match="StageRecoveryScopeMismatch"):
+        h.m.check_state(h.snapshot, h.descriptor)
+
+
+@pytest.mark.parametrize(
+    "fault", ["iam-update", "destroy", "replace", "unknown", "missing", "extra-drift"]
+)
+def test_state15_still_audits_stage_only_change_and_iam_noop(state15_recovery, fault):
+    h = state15_recovery
+    row = h.plan["resource_changes"][2]
+    if fault == "iam-update":
+        row["change"]["actions"] = ["update"]
+    elif fault == "destroy":
+        row["change"]["actions"] = ["delete"]
+    elif fault == "replace":
+        row["change"]["replace_paths"] = [["name"]]
+    elif fault == "unknown":
+        row["change"]["after_unknown"] = {"name": True}
+    elif fault == "missing":
+        h.plan["resource_changes"].pop()
+    else:
+        h.plan["resource_drift"].append(copy.deepcopy(row))
+        h.plan["resource_drift"][-1]["change"]["after"] = {"name": "changed"}
+    with pytest.raises(ValueError, match="StageRecoveryPlanRejected"):
+        h.m.audit_plan(h.plan, h.descriptor, h.snapshot)
+
+
+@pytest.fixture
 def policy_cache_recovery(recovery):
     h = recovery
     cached = json.dumps(
