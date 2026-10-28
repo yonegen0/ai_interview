@@ -144,6 +144,23 @@ def test_unknown_stage_and_command_cannot_publish_arbitrary_values(diagnostic):
 
 
 @pytest.mark.parametrize(
+    "field,value", [("audit_rule", "private-token"), ("audit_resource_index", "private-token")]
+)
+def test_stage_audit_fields_cannot_publish_arbitrary_values(diagnostic, field, value):
+    _, instance = diagnostic
+    error = DeploymentError("StageRecoveryPlanRejected")
+    error.audit_rule = "plan-shape"
+    error.audit_resource_index = 1
+    setattr(error, field, value)
+    result = instance.projection(error)
+    assert "private-token" not in json.dumps(result)
+    if field == "audit_rule":
+        assert "stage_audit" not in result
+    else:
+        assert result["stage_audit"] == {"rule": "plan-shape"}
+
+
+@pytest.mark.parametrize(
     "suffix,status,reason",
     [
         (

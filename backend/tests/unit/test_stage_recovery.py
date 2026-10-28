@@ -234,6 +234,41 @@ def test_plan_rejects_every_unapproved_change_or_coverage_gap(recovery, fault):
         h.m.audit_plan(p, h.descriptor, h.snapshot)
 
 
+def test_null_shape_mismatch_is_still_rejected_with_value_free_diagnostic(recovery):
+    from standard_diagnostics import Diagnostic
+
+    h = recovery
+    p = copy.deepcopy(h.plan)
+    address = 'module.service.aws_lambda_function.main["api"]'
+    # JSON planned values may omit optional nulls; diagnostics must not accept this implicitly.
+    h.snapshot["state"]["resources"][1]["instances"][0]["attributes"]["optional"] = None
+    with pytest.raises(ValueError, match="PlanRejected") as failure:
+        h.m.audit_plan(p, h.descriptor, h.snapshot)
+    projected = Diagnostic().projection(failure.value)
+    assert projected["reason_code"] == "StageRecoveryPlanRejected"
+    assert projected["stage_audit"] == {
+        "rule": "other-resource-state-match",
+        "resource_index": 2,
+        "differing_attribute_count": 1,
+        "optional_nulls_only": True,
+    }
+    assert address not in json.dumps(projected)
+
+
+def test_actual_state_value_mismatch_is_distinct_from_null_shape(recovery):
+    from standard_diagnostics import Diagnostic
+
+    h = recovery
+    p = copy.deepcopy(h.plan)
+    h.snapshot["state"]["resources"][1]["instances"][0]["attributes"]["version"] = "private-value"
+    with pytest.raises(ValueError, match="PlanRejected") as failure:
+        h.m.audit_plan(p, h.descriptor, h.snapshot)
+    projected = Diagnostic().projection(failure.value)
+    assert projected["stage_audit"]["optional_nulls_only"] is False
+    assert projected["stage_audit"]["differing_attribute_count"] == 1
+    assert "private-value" not in json.dumps(projected)
+
+
 def test_recovery_guard_rejects_lambda_upload_and_envelope_before_four_plan_objects(
     recovery, monkeypatch, tmp_path
 ):

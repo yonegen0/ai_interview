@@ -24,6 +24,48 @@ AFTER = BEFORE | {
     "requestTimeEpoch": "$context.requestTimeEpoch",
     "responseLatency": "$context.responseLatency",
 }
+AUDIT_RULES = frozenset(
+    {
+        "plan-shape",
+        "duplicate-resource",
+        "planned-value-match",
+        "resource-identity",
+        "known-no-replace",
+        "stage-identity",
+        "stage-action",
+        "stage-format-only",
+        "stage-state-match",
+        "other-resource-noop",
+        "other-resource-state-match",
+        "complete-coverage",
+        "drift-identity",
+        "drift-no-replace",
+        "drift-format-only",
+        "output-noop",
+        "output-known",
+    }
+)
+
+
+def audit_difference(before, after):
+    """Diagnostic counts only; never normalize values used for acceptance."""
+    if not isinstance(before, dict) or not isinstance(after, dict):
+        return None
+
+    def without_nulls(value):
+        if isinstance(value, dict):
+            return {k: without_nulls(v) for k, v in value.items() if v is not None}
+        if isinstance(value, list):
+            return [without_nulls(v) for v in value]
+        return value
+
+    missing = object()
+    return {
+        "differing_attribute_count": sum(
+            before.get(k, missing) != after.get(k, missing) for k in before.keys() | after.keys()
+        ),
+        "optional_nulls_only": before != after and without_nulls(before) == without_nulls(after),
+    }
 
 
 def require(condition):
@@ -188,44 +230,62 @@ def planned_resources(root):
 
 def audit_plan(plan, value, snapshot):
     """Reject any mutation, drift, import, uncertainty or output beyond this Format."""
+    rule, resource_index, compared = "plan-shape", 0, None
     try:
         require(plan.get("terraform_version") == "1.14.9")
         require(not plan.get("errored") and plan.get("complete", True) is True)
         seen, managed, updates = set(), set(), 0
         original = state_resources(snapshot)
         planned = planned_resources(plan["planned_values"]["root_module"])
-        for row in plan["resource_changes"]:
+        for index, row in enumerate(plan["resource_changes"], 1):
+            resource_index = index
+            rule, compared = "duplicate-resource", None
             address, change = row["address"], row["change"]
             require(address not in seen)
             seen.add(address)
             if row.get("mode", "managed") == "managed":
                 managed.add(address)
+                rule = "planned-value-match"
+                compared = (planned.get(address), change["after"])
                 require(address in planned and planned[address] == change["after"])
+            rule, compared = "resource-identity", None
             require(
                 not row.get("previous_address")
                 and not row.get("deposed")
                 and not change.get("importing")
             )
+            rule = "known-no-replace"
             require(
                 not change.get("replace_paths") and not has_unknown(change.get("after_unknown", {}))
             )
             if address == ADDRESS:
+                rule = "stage-identity"
                 require(
                     row["type"] == "aws_apigatewayv2_stage"
                     and row.get("mode", "managed") == "managed"
                 )
+                rule = "stage-action"
                 require(change["actions"] == ["update"])
+                rule = "stage-format-only"
                 stage_change(change["before"], change["after"], value)
+                rule, compared = "stage-state-match", (change["after"], original[ADDRESS])
                 require(change["after"] == original[ADDRESS])
                 updates += 1
             else:
+                rule = "other-resource-noop"
                 require(change["actions"] == ["no-op"] and change["before"] == change["after"])
                 if row.get("mode", "managed") == "managed":
+                    rule, compared = (
+                        "other-resource-state-match",
+                        (change["after"], original[address]),
+                    )
                     require(change["after"] == original[address])
+        rule, compared = "complete-coverage", None
         require(updates == 1)
         require(managed == set(state_resources(snapshot)) == set(planned))
         drifts = set()
         for row in plan.get("resource_drift", []):
+            rule = "drift-identity"
             change = row["change"]
             require(row["address"] not in drifts)
             drifts.add(row["address"])
@@ -235,15 +295,23 @@ def audit_plan(plan, value, snapshot):
                 and not row.get("deposed")
                 and not change.get("importing")
             )
+            rule = "drift-no-replace"
             require(
                 not has_unknown(change.get("after_unknown", {})) and not change.get("replace_paths")
             )
+            rule = "drift-format-only"
             stage_change(change["before"], change["after"], value, drift=True)
         for change in plan.get("output_changes", {}).values():
+            rule = "output-noop"
             require(change["actions"] == ["no-op"] and change["before"] == change["after"])
+            rule = "output-known"
             require(not has_unknown(change.get("after_unknown", {})))
     except KeyError, TypeError, ValueError, AttributeError:
-        raise DeploymentError("StageRecoveryPlanRejected") from None
+        error = DeploymentError("StageRecoveryPlanRejected")
+        error.audit_rule = rule
+        error.audit_resource_index = resource_index
+        error.audit_difference = audit_difference(*compared) if compared is not None else None
+        raise error from None
     return {
         "add": 0,
         "change": 1,

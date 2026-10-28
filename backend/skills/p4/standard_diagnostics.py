@@ -9,6 +9,7 @@ from contextvars import ContextVar
 
 from github_control import ENVIRONMENT_REASONS
 from plan_process_diagnostics import safe_exception_type
+from stage_recovery import AUDIT_RULES
 
 CURRENT = ContextVar("standard_failure_diagnostic", default=None)
 STAGES = frozenset(
@@ -56,6 +57,7 @@ REASONS = ENVIRONMENT_REASONS | frozenset(
         "StateReadbackChanged",
         "StateChangedDuringPlan",
         "StageRecoveryScopeMismatch",
+        "StageRecoveryPlanRejected",
         "StageRecoverySdkBudgetExceeded",
         "StageRecoveryHttpBudgetOrRetryRejected",
         "PlanS3ScopeOrCountMismatch",
@@ -92,7 +94,7 @@ class Diagnostic:
                     reason = candidate
         except BaseException:  # noqa: BLE001 - hostile properties cannot leak exceptions
             pass
-        return {
+        result = {
             "schema_version": 1,
             "failure_stage": self.stage if self.stage in STAGES else "unknown",
             "failure_class": safe_exception_type(error),
@@ -101,6 +103,23 @@ class Diagnostic:
             "process_exit_observed": self.exited is True,
             "terraform_command_kind": self.command if self.command in COMMANDS else "unknown",
         }
+        try:
+            rule = getattr(error, "audit_rule", None)
+            index = getattr(error, "audit_resource_index", None)
+            if reason == "StageRecoveryPlanRejected" and rule in AUDIT_RULES:
+                details = {"rule": rule}
+                if type(index) is int and 0 <= index <= 10000:
+                    details["resource_index"] = index
+                difference = getattr(error, "audit_difference", None)
+                if isinstance(difference, dict):
+                    count = difference.get("differing_attribute_count")
+                    nulls = difference.get("optional_nulls_only")
+                    if type(count) is int and 0 <= count <= 10000 and type(nulls) is bool:
+                        details.update(differing_attribute_count=count, optional_nulls_only=nulls)
+                result["stage_audit"] = details
+        except BaseException:  # noqa: BLE001, S110 - diagnostics cannot expose hostile properties
+            pass
+        return result
 
     def emit(self, error):
         try:
