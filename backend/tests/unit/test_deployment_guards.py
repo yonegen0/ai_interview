@@ -442,3 +442,87 @@ def test_retention_input_customer_to_developer_is_guarded():
             "ap-northeast-1",
             previous_configuration={"log_usage": "customer"},
         )
+
+def test_historical_state_read_pins_prior_version_and_unchanged_current_head():
+    import io
+    from botocore.exceptions import ClientError
+
+    m = tool("deployment_guards")
+    account, region = "123456789012", "ap-northeast-1"
+    key = "test/synthetic/terraform.tfstate"
+    manifest = {"account_id": account, "region": region, "run_id": "synthetic"}
+
+    def state(serial):
+        return json.dumps({
+            "lineage": "synthetic-lineage",
+            "serial": serial,
+            "outputs": {"manifest": {"value": manifest}},
+            "resources": [],
+        }).encode()
+
+    class S3:
+        def __init__(self):
+            self.current_version = "updated-version"
+            self.requested_versions = []
+            self.change_mid_read = False
+
+        def head_object(self, **kwargs):
+            if kwargs["Key"].endswith(".tflock"):
+                raise ClientError({"Error": {"Code": "404", "Message": "not found"}}, "HeadObject")
+            return {"VersionId": self.current_version}
+
+        def get_object(self, **kwargs):
+            version = kwargs["VersionId"]
+            self.requested_versions.append(version)
+            if self.change_mid_read:
+                self.current_version = "unexpected-next-version"
+            return {
+                "VersionId": version,
+                "ServerSideEncryption": "AES256",
+                "Body": io.BytesIO(state(13 if version == "original-version" else 14)),
+            }
+
+    s3 = S3()
+    session = SimpleNamespace(client=lambda name, **kwargs: s3)
+    original = m.read_state_snapshot(
+        session, account, region, key, historical_version_id="original-version"
+    )
+    assert original["identity"]["serial"] == 13
+    assert original["identity"]["version_id"] == "original-version"
+    assert s3.requested_versions == ["original-version"]
+
+    current = m.read_state_snapshot(session, account, region, key)
+    assert current["identity"]["serial"] == 14
+    assert current["identity"]["version_id"] == "updated-version"
+    assert s3.requested_versions == ["original-version", "updated-version"]
+
+    s3.change_mid_read = True
+    with pytest.raises(ValueError, match="StateReadbackChanged"):
+        m.read_state_snapshot(session, account, region, key, historical_version_id="original-version")
+
+
+@pytest.mark.parametrize("bad_version", ["", "null", 123, []])
+def test_historical_state_reader_rejects_invalid_pins(bad_version):
+    from botocore.exceptions import ClientError
+
+    m = tool("deployment_guards")
+    account, region = "123456789012", "ap-northeast-1"
+
+    class S3:
+        def head_object(self, **kwargs):
+            if kwargs["Key"].endswith(".tflock"):
+                raise ClientError({"Error": {"Code": "404", "Message": "not found"}}, "HeadObject")
+            return {"VersionId": "updated-version"}
+
+        def get_object(self, **kwargs):
+            pytest.fail("invalid historical version must not reach GetObject")
+
+    session = SimpleNamespace(client=lambda name, **kwargs: S3())
+    with pytest.raises(ValueError, match="VersionedStateRequired"):
+        m.read_state_snapshot(
+            session,
+            account,
+            region,
+            "test/synthetic/terraform.tfstate",
+            historical_version_id=bad_version,
+        )
