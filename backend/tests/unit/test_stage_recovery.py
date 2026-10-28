@@ -10,6 +10,118 @@ import pytest
 
 
 @pytest.fixture
+def route_recovery(recovery):
+    h = recovery
+    address = 'module.service.aws_apigatewayv2_route.business["GET /synthetic"]'
+    original = dict(
+        id="route1",
+        api_id="api1",
+        route_key="GET /synthetic",
+        authorization_type="JWT",
+        authorizer_id="jwt1",
+        target="integrations/fixed",
+        authorization_scopes=None,
+        request_models=None,
+    )
+    refreshed = copy.deepcopy(original)
+    refreshed.update(authorization_scopes=[], request_models={})
+    h.snapshot["state"]["resources"].append(
+        dict(
+            module="module.service",
+            type="aws_apigatewayv2_route",
+            name="business",
+            instances=[dict(index_key="GET /synthetic", attributes=original)],
+        )
+    )
+    h.plan["resource_changes"].append(
+        dict(
+            address=address,
+            type="aws_apigatewayv2_route",
+            mode="managed",
+            change=dict(actions=["no-op"], before=refreshed, after=refreshed),
+        )
+    )
+    h.plan["planned_values"]["root_module"]["resources"].append(
+        dict(address=address, mode="managed", values=refreshed)
+    )
+    h.route_address, h.route_original, h.route_refreshed = address, original, refreshed
+    return h
+
+
+def test_plan_accepts_provider_route_absent_optional_collections_only(route_recovery):
+    h = route_recovery
+    original = copy.deepcopy((h.snapshot, h.plan))
+    assert h.m.audit_plan(h.plan, h.descriptor, h.snapshot)["change"] == 1
+    assert (h.snapshot, h.plan) == original
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "scope",
+        "model",
+        "auth",
+        "authorizer",
+        "target",
+        "scope-type",
+        "map-type",
+        "missing",
+        "unrelated-null",
+    ],
+)
+def test_route_empty_comparison_rejects_permissions_identity_type_or_missing_fields(
+    route_recovery, fault
+):
+    h = route_recovery
+    current = h.route_refreshed
+    if fault == "scope":
+        current["authorization_scopes"] = ["unapproved"]
+    elif fault == "model":
+        current["request_models"] = {"application/json": "unapproved"}
+    elif fault == "auth":
+        current["authorization_type"] = "NONE"
+    elif fault == "authorizer":
+        current["authorizer_id"] = "another"
+    elif fault == "target":
+        current["target"] = "integrations/another"
+    elif fault == "scope-type":
+        current["authorization_scopes"] = {}
+    elif fault == "map-type":
+        current["request_models"] = []
+    elif fault == "missing":
+        current.pop("request_models")
+    else:
+        current["unrelated"] = None
+    with pytest.raises(ValueError):
+        h.m.audit_plan(h.plan, h.descriptor, h.snapshot)
+
+
+def test_route_empty_drift_and_final_state_remain_identity_bound(route_recovery):
+    h = route_recovery
+    h.plan["resource_drift"].append(
+        dict(
+            address=h.route_address,
+            change=dict(actions=["update"], before=h.route_original, after=h.route_refreshed),
+        )
+    )
+    assert h.m.audit_plan(h.plan, h.descriptor, h.snapshot)["change"] == 1
+    final = copy.deepcopy(h.snapshot)
+    final["state"]["resources"][-1]["instances"][0]["attributes"] = copy.deepcopy(h.route_refreshed)
+    assert h.m.same_resource_states(h.snapshot, final)
+    final["state"]["resources"][-1]["instances"][0]["attributes"]["authorization_type"] = "NONE"
+    assert not h.m.same_resource_states(h.snapshot, final)
+
+
+def test_route_empty_rule_does_not_normalize_other_resource_types_or_names(route_recovery):
+    h = route_recovery
+    for address in [
+        "module.service.aws_lambda_function.main",
+        'module.service.aws_apigatewayv2_route.other["GET /synthetic"]',
+    ]:
+        assert not h.m.resource_state_equal(address, h.route_original, h.route_refreshed)
+
+
+@pytest.fixture
 def cors_recovery(recovery):
     h = recovery
     original = {
