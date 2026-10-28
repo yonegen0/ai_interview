@@ -1106,6 +1106,10 @@ def test_terraform_recovery_checks_full_plan_and_live_closure_before_and_after(
         assert not any(c in actual for c in ("-refresh=false", "-refresh-only", "-target"))
     else:
         assert not any(c[1] in {"apply", "plan"} for c in commands)
+        # A completed recovery must still reject unauthorized post-Apply State changes.
+        h.m.state_resources(final)[h.m.ADDRESS]["tags"]["Project"] = "unauthorized"
+        with pytest.raises(ValueError, match="StageRecoveryFinalStateMismatch"):
+            m.execute("verify", inputs, directory, approved)
 
 
 def test_terraform_run_does_not_inherit_github_tokens(monkeypatch, tmp_path):
