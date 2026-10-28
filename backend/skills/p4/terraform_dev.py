@@ -427,7 +427,7 @@ def execute(operation, input_path, directory, approved_hash=None, *, progress=No
             or final["identity"]["serial"] <= recovery["state_identity"]["serial"]
             or final["identity"]["version_id"] == recovery["state_identity"]["version_id"]
             or final["manifest"] != snapshot["manifest"]
-            or not same_resource_states(final, snapshot)
+            or not same_resource_states(snapshot, final, recovery=recovery)
         ):
             raise DeploymentError("StageRecoveryFinalStateMismatch")
     return {"status": "applied_readback_verified", "versions": observed["versions"]}
