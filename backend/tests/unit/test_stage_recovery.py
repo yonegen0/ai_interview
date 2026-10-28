@@ -420,6 +420,44 @@ def test_apply_process_records_real_return_code_before_receipt(
     assert "private stdout" not in recorded and "private stderr" not in recorded
 
 
+@pytest.mark.parametrize("returncode", [0, 1])
+def test_recovery_apply_child_drops_app_token_and_preserves_parent(
+    recovery, monkeypatch, tmp_path, returncode
+):
+    import ci_identity
+
+    monkeypatch.setattr(ci_identity, "standard_context", lambda *a, **k: None)
+    environment = {
+        "P4_ENV_READ_TOKEN": "synthetic-app-token",
+        "AWS_SESSION_TOKEN": "synthetic-session-token",
+        "PATH": "synthetic-path",
+    }
+    before = environment.copy()
+    calls = []
+
+    def launch(command, **kwargs):
+        calls.append(command)
+        assert "P4_ENV_READ_TOKEN" not in kwargs["env"]
+        assert kwargs["env"] == {k: v for k, v in before.items() if k != "P4_ENV_READ_TOKEN"}
+        assert kwargs["env"] is not environment
+        return SimpleNamespace(
+            returncode=returncode,
+            communicate=lambda **k: (b"", b""),
+            poll=lambda: returncode,
+        )
+
+    monkeypatch.setattr(recovery.m.subprocess, "Popen", launch)
+    if returncode:
+        with pytest.raises(ValueError):
+            recovery.m.apply_process(
+                ["terraform", "apply"], tmp_path, cwd=tmp_path, env=environment
+            )
+    else:
+        recovery.m.apply_process(["terraform", "apply"], tmp_path, cwd=tmp_path, env=environment)
+    assert environment == before
+    assert calls == [["terraform", "apply"]]
+
+
 @pytest.mark.parametrize("unknown", [False, True])
 def test_apply_deadline_interrupts_once_and_never_relaunches(
     recovery, monkeypatch, tmp_path, unknown
