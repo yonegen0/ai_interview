@@ -10,6 +10,37 @@ import pytest
 
 
 @pytest.fixture
+def state14_recovery(recovery):
+    h = recovery
+    h.snapshot["identity"]["serial"] = 14
+    h.snapshot["identity"]["version_id"] = "pinned-state14"
+    h.snapshot["identity"]["sha256"] = "4" * 64
+    h.descriptor["state_identity"] = copy.deepcopy(h.snapshot["identity"])
+    h.descriptor["state_snapshot_sha256"] = h.m.canonical_hash(h.snapshot)
+    return h
+
+
+def test_fresh_state14_requires_exact_new_identity_and_snapshot(state14_recovery):
+    h = state14_recovery
+    h.m.validate(h.descriptor, "123456789012", "ap-northeast-1")
+    h.m.check_state(h.snapshot, h.descriptor)
+    assert h.m.audit_plan(h.plan, h.descriptor, h.snapshot)["change"] == 1
+    for field, value in [("version_id", "old-state13"), ("sha256", "0" * 64)]:
+        changed = copy.deepcopy(h.snapshot)
+        changed["identity"][field] = value
+        with pytest.raises(ValueError):
+            h.m.check_state(changed, h.descriptor)
+
+
+@pytest.mark.parametrize("serial", [12, 15, True, "14"])
+def test_other_serials_remain_outside_fixed_stage_recovery(recovery, serial):
+    h = recovery
+    h.descriptor["state_identity"]["serial"] = serial
+    with pytest.raises(ValueError):
+        h.m.validate(h.descriptor, "123456789012", "ap-northeast-1")
+
+
+@pytest.fixture
 def policy_cache_recovery(recovery):
     h = recovery
     cached = json.dumps(
@@ -1182,7 +1213,7 @@ def test_ci_recovery_skips_build_and_lambda_upload_and_binds_new_envelope(
 
 
 @pytest.mark.parametrize("operation", ["plan", "apply", "verify"])
-@pytest.mark.parametrize("scenario", ["recovery", "policy_cache_recovery"])
+@pytest.mark.parametrize("scenario", ["recovery", "policy_cache_recovery", "state14_recovery"])
 def test_terraform_recovery_checks_full_plan_and_live_closure_before_and_after(
     request, monkeypatch, tmp_path, operation, scenario
 ):
@@ -1238,7 +1269,10 @@ def test_terraform_recovery_checks_full_plan_and_live_closure_before_and_after(
         h.m.state_resources(final)[h.m.API_ROLE]["inline_policy"] = copy.deepcopy(
             h.refreshed_role["inline_policy"]
         )
-    final["identity"] = final["identity"] | {"serial": 14, "version_id": "new-version"}
+    final["identity"] = final["identity"] | {
+        "serial": h.snapshot["identity"]["serial"] + 1,
+        "version_id": "new-version",
+    }
     snapshots = iter([h.snapshot, h.snapshot] + ([final] if operation == "apply" else []))
     historical_reads = []
 
@@ -1290,7 +1324,9 @@ def test_terraform_recovery_checks_full_plan_and_live_closure_before_and_after(
     assert observed_live == (
         [True, True] if operation == "verify" else [False, operation == "apply"]
     )
-    assert historical_reads == (["state-version"] if operation == "verify" else [])
+    assert historical_reads == (
+        [h.descriptor["state_identity"]["version_id"]] if operation == "verify" else []
+    )
     if operation != "verify":
         actual = next(c for c in commands if c[1] == operation)
         assert "-lock-timeout=0s" in actual

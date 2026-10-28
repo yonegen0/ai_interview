@@ -21,6 +21,12 @@ run "retirement_without_replacement_refused" {
   expect_failures = [var.legacy_ci_retired]
 }
 
+run "log_delivery_without_standard_roles_refused" {
+  command = plan
+  variables { standard_ci_stage_log_delivery_enabled = true }
+  expect_failures = [var.standard_ci_stage_log_delivery_enabled]
+}
+
 run "additive_standard_roles" {
   command = apply
   variables { standard_ci_enabled = true }
@@ -40,6 +46,10 @@ run "additive_standard_roles" {
     error_message = "Standard inline policies must fit the IAM role quota."
   }
   assert {
+    condition     = !strcontains(jsonencode(local.standard_ci_policies), "logs:CreateLogDelivery") && !strcontains(jsonencode(local.standard_ci_policies), "logs:PutResourcePolicy")
+    error_message = "Existing callers must not gain log delivery permissions by default."
+  }
+  assert {
     condition = !anytrue(flatten([for statement in local.standard_ci_policies.plan :
       [for action in statement.Action : contains(["iam:PassRole", "iam:CreateRole", "lambda:UpdateFunctionCode"], action)]
     ]))
@@ -48,6 +58,32 @@ run "additive_standard_roles" {
   assert {
     condition     = !strcontains(jsonencode(local.standard_ci_policies.artifact-plan), "apply-started.json") && !strcontains(jsonencode(local.standard_ci_policies.artifact-apply), "app.zip")
     error_message = "Plan artifact writes and Apply journal writes must be separate."
+  }
+}
+
+run "explicit_dev_stage_log_delivery" {
+  command = apply
+  variables {
+    standard_ci_enabled                    = true
+    standard_ci_stage_log_delivery_enabled = true
+  }
+  assert {
+    condition = one([for statement in local.standard_ci_policies.deploy : statement if try(statement.Sid, "") == "DevStageLogDelivery"]) == {
+      Sid       = "DevStageLogDelivery"
+      Effect    = "Allow"
+      Action    = ["logs:CreateLogDelivery", "logs:PutResourcePolicy", "logs:DescribeResourcePolicies"]
+      Resource  = ["*"]
+      Condition = { StringEquals = { "aws:RequestedRegion" = "ap-northeast-1" } }
+    }
+    error_message = "Only the three access-log setup permissions in Tokyo are approved candidates."
+  }
+  assert {
+    condition     = alltrue([for role, statements in local.standard_ci_policies : !strcontains(jsonencode(statements), "DevStageLogDelivery") if role != "deploy"]) && !strcontains(jsonencode([for policy in values(aws_iam_role_policy.deploy) : policy.policy]), "DevStageLogDelivery")
+    error_message = "Plan, artifact, test and legacy deploy roles must not inherit the opt-in."
+  }
+  assert {
+    condition     = alltrue([for p in values(aws_iam_role_policy.standard_ci) : length(p.policy) <= 10240]) && length(aws_iam_role.standard_ci) == 4
+    error_message = "Keep the existing roles and inline policy size limits."
   }
 }
 
