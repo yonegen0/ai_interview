@@ -64,7 +64,7 @@ def digest(path):
 
 
 def run(command, *, cwd, env, accepted=(0,)):
-    env = {key: value for key, value in env.items() if key != "P4_ENV_READ_TOKEN"}
+    env = {key: value for key, value in env.items() if key not in {"P4_ENV_READ_TOKEN", "GH_TOKEN"}}
     if os.environ.get("P4_STANDARD_ACTIVE") == "true":
         from ci_identity import standard_context
 
@@ -279,16 +279,28 @@ def execute(operation, input_path, directory, approved_hash=None, *, progress=No
 
             standard_context(os.environ, reserve=120)
             recovery = validate(recovery, account, region)
+    baseline = snapshot
     if recovery:
         from stage_recovery import check_live, check_state
 
-        check_state(snapshot, recovery)
+        if operation == "verify":
+            # A completed Apply has already advanced State beyond the pinned baseline.
+            # Read the exact approved prior S3 version, not a live-state approximation.
+            baseline = read_state_snapshot(
+                session,
+                account,
+                region,
+                binding["state_key"],
+                historical_version_id=recovery["state_identity"]["version_id"],
+            )
+            binding["state_identity"] = recovery["state_identity"]
+        check_state(baseline, recovery)
         checkpoint("live-readback")
-        check_live(session, snapshot, recovery, os.environ)
+        check_live(session, snapshot, recovery, os.environ, applied=operation == "verify")
         binding["stage_recovery"] = recovery
     if operation != "plan":
         saved = json.loads(manifest.read_text(encoding="utf-8"))
-        if operation == "verify":
+        if operation == "verify" and not recovery:
             binding["state_identity"] = saved["state_identity"]
         assert_binding(saved, binding, plan, approved_hash)
     validate_inputs(
@@ -426,8 +438,9 @@ def execute(operation, input_path, directory, approved_hash=None, *, progress=No
             final["identity"]["lineage"] != recovery["state_identity"]["lineage"]
             or final["identity"]["serial"] <= recovery["state_identity"]["serial"]
             or final["identity"]["version_id"] == recovery["state_identity"]["version_id"]
-            or final["manifest"] != snapshot["manifest"]
-            or not same_resource_states(snapshot, final, recovery=recovery)
+            or final["manifest"] != baseline["manifest"]
+            or (operation == "verify" and final["identity"] != snapshot["identity"])
+            or not same_resource_states(baseline, final, recovery=recovery)
         ):
             raise DeploymentError("StageRecoveryFinalStateMismatch")
     return {"status": "applied_readback_verified", "versions": observed["versions"]}

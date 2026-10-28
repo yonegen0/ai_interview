@@ -59,8 +59,10 @@ def exact_key_absent(s3, args):
         request["ContinuationToken"] = token
 
 
-def read_state_snapshot(session, account, region, state_key, *, allow_absent=False):
-    """Read a fixed S3 VersionId, and reject a lock or a concurrently changed State."""
+def read_state_snapshot(
+    session, account, region, state_key, *, allow_absent=False, historical_version_id=None
+):
+    """Read a fixed S3 VersionId; historical reads still enforce an unchanged live head/lock."""
     if not re.fullmatch(r"[0-9]{12}", account) or region != "ap-northeast-1":
         raise ValueError("StateAccountRegionMismatch")
     if state_key != "dev/terraform.tfstate" and not re.fullmatch(
@@ -98,16 +100,23 @@ def read_state_snapshot(session, account, region, state_key, *, allow_absent=Fal
         if allow_absent and exc.response["Error"]["Code"] in {"404", "NoSuchKey", "NotFound"}:
             return {"identity": None, "state": {"resources": []}, "manifest": None}
         raise ValueError("AuthoritativeStateUnavailable") from None
-    version = head.get("VersionId")
-    if not version or version == "null":
+    current_version = head.get("VersionId")
+    if not current_version or current_version == "null":
         raise ValueError("VersionedStateRequired")
+    if historical_version_id is not None and (
+        not isinstance(historical_version_id, str)
+        or not historical_version_id
+        or historical_version_id == "null"
+    ):
+        raise ValueError("VersionedStateRequired")
+    version = historical_version_id if historical_version_id is not None else current_version
     obj = s3.get_object(**args, VersionId=version)
     with obj["Body"] as body:
         raw = body.read()
     if (
         obj.get("VersionId") != version
         or obj.get("ServerSideEncryption") != "AES256"
-        or s3.head_object(**args).get("VersionId") != version
+        or s3.head_object(**args).get("VersionId") != current_version
     ):
         raise ValueError("StateReadbackChanged")
     state = json.loads(raw)

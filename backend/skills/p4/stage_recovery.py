@@ -517,7 +517,11 @@ def apply_process(command, directory, *, cwd, env):
         process = subprocess.Popen(
             command,
             cwd=cwd,
-            env={key: value for key, value in env.items() if key != "P4_ENV_READ_TOKEN"},
+            env={
+                key: value
+                for key, value in env.items()
+                if key not in {"P4_ENV_READ_TOKEN", "GH_TOKEN"}
+            },
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             start_new_session=True,
