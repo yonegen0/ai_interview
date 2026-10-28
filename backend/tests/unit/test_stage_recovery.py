@@ -853,6 +853,7 @@ def test_recovery_apply_child_drops_app_token_and_preserves_parent(
     monkeypatch.setattr(ci_identity, "standard_context", lambda *a, **k: None)
     environment = {
         "P4_ENV_READ_TOKEN": "synthetic-app-token",
+        "GH_TOKEN": "synthetic-github-token",
         "AWS_SESSION_TOKEN": "synthetic-session-token",
         "PATH": "synthetic-path",
     }
@@ -862,7 +863,10 @@ def test_recovery_apply_child_drops_app_token_and_preserves_parent(
     def launch(command, **kwargs):
         calls.append(command)
         assert "P4_ENV_READ_TOKEN" not in kwargs["env"]
-        assert kwargs["env"] == {k: v for k, v in before.items() if k != "P4_ENV_READ_TOKEN"}
+        assert "GH_TOKEN" not in kwargs["env"]
+        assert kwargs["env"] == {
+            k: v for k, v in before.items() if k not in {"P4_ENV_READ_TOKEN", "GH_TOKEN"}
+        }
         assert kwargs["env"] is not environment
         return SimpleNamespace(
             returncode=returncode,
@@ -991,7 +995,7 @@ def test_ci_recovery_skips_build_and_lambda_upload_and_binds_new_envelope(
         assert envelope["package"] == h.descriptor["artifact"]
 
 
-@pytest.mark.parametrize("operation", ["plan", "apply"])
+@pytest.mark.parametrize("operation", ["plan", "apply", "verify"])
 def test_terraform_recovery_checks_full_plan_and_live_closure_before_and_after(
     recovery, monkeypatch, tmp_path, operation
 ):
@@ -1045,7 +1049,17 @@ def test_terraform_recovery_checks_full_plan_and_live_closure_before_and_after(
     final = copy.deepcopy(h.snapshot)
     final["identity"] = final["identity"] | {"serial": 14, "version_id": "new-version"}
     snapshots = iter([h.snapshot, h.snapshot] + ([final] if operation == "apply" else []))
-    monkeypatch.setattr(deployment_guards, "read_state_snapshot", lambda *a, **k: next(snapshots))
+    historical_reads = []
+
+    def read_snapshot(*args, **kwargs):
+        if operation == "verify":
+            if "historical_version_id" in kwargs:
+                historical_reads.append(kwargs["historical_version_id"])
+                return h.snapshot
+            return final
+        return next(snapshots)
+
+    monkeypatch.setattr(deployment_guards, "read_state_snapshot", read_snapshot)
     monkeypatch.setattr(
         manifest, "read_manifest", lambda *a: h.snapshot["manifest"] | {"versions": {}}
     )
@@ -1066,9 +1080,11 @@ def test_terraform_recovery_checks_full_plan_and_live_closure_before_and_after(
     monkeypatch.setattr(m, "run", run)
     monkeypatch.setattr(h.m, "apply_process", lambda command, *a, **k: commands.append(command))
     approved = hashlib.sha256(b"saved plan").hexdigest()
-    if operation == "apply":
+    if operation in {"apply", "verify"}:
         directory.mkdir()
         (directory / "dev.tfplan").write_bytes(b"saved plan")
+        if operation == "verify":
+            (directory / "apply-completed.json").write_text(json.dumps({"plan_sha256": approved}))
         binding = m.bind_plan(root, account, region, code_sha, inputs)
         binding.update(
             state_identity=h.snapshot["identity"],
@@ -1077,10 +1093,40 @@ def test_terraform_recovery_checks_full_plan_and_live_closure_before_and_after(
             plan_sha256=approved,
         )
         (directory / "plan.json").write_text(json.dumps(binding))
-    result = m.execute(operation, inputs, directory, approved if operation == "apply" else None)
+    result = m.execute(operation, inputs, directory, approved if operation != "plan" else None)
     assert result["status"] == ("planned" if operation == "plan" else "applied_readback_verified")
-    assert audits == [True]
-    assert observed_live == [False, operation == "apply"]
-    actual = next(c for c in commands if c[1] == operation)
-    assert "-lock-timeout=0s" in actual
-    assert not any(c in actual for c in ("-refresh=false", "-refresh-only", "-target"))
+    assert audits == ([] if operation == "verify" else [True])
+    assert observed_live == ([True, True] if operation == "verify" else [False, operation == "apply"])
+    assert historical_reads == (["state-version"] if operation == "verify" else [])
+    if operation != "verify":
+        actual = next(c for c in commands if c[1] == operation)
+        assert "-lock-timeout=0s" in actual
+        assert not any(c in actual for c in ("-refresh=false", "-refresh-only", "-target"))
+    else:
+        assert not any(c[1] in {"apply", "plan"} for c in commands)
+
+
+def test_terraform_run_does_not_inherit_github_tokens(monkeypatch, tmp_path):
+    import terraform_dev as m
+
+    monkeypatch.delenv("P4_STANDARD_ACTIVE", raising=False)
+    monkeypatch.setattr(m, "active_guard", lambda: None)
+    parent = {
+        "GH_TOKEN": "synthetic-github-token",
+        "P4_ENV_READ_TOKEN": "synthetic-environment-token",
+        "AWS_SESSION_TOKEN": "synthetic-aws-session-token",
+        "PATH": "synthetic-path",
+    }
+    before = dict(parent)
+    calls = []
+
+    def fake_run(command, **kwargs):
+        calls.append((command, kwargs["env"]))
+        return SimpleNamespace(returncode=0, stdout=b"ok")
+
+    monkeypatch.setattr(m.subprocess, "run", fake_run)
+    assert m.run(["terraform", "version"], cwd=tmp_path, env=parent) == b"ok"
+    assert len(calls) == 1
+    assert calls[0][0] == ["terraform", "version"]
+    assert calls[0][1] == {"AWS_SESSION_TOKEN": before["AWS_SESSION_TOKEN"], "PATH": "synthetic-path"}
+    assert parent == before
