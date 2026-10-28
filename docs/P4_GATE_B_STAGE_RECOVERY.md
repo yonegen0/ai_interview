@@ -36,6 +36,16 @@ localhost模擬APIと実Providerによるrefresh付きPlanで、no-opと2属性�
 認証・接続先・他属性の変更、unknown/replace等は拒否する。Stateの元bytes/hashは変更しない。
 仕様根拠は採用版の[Route schema/flattenRoute](https://github.com/hashicorp/terraform-provider-aws/blob/v6.65.0/internal/service/apigatewayv2/route.go)。
 
+Stageの`deployment_id`はOptional+Computedで、auto-deployによる既存Deploymentをrefreshで取得する。
+閉鎖APIの読取りでState13のキャッシュ値との差、既存DeploymentのAutoDeployed/DEPLOYED、
+全28 Routeのidentity・JWT・Authorizer・接続先一致を確認した。これだけでは元Applyの正常終了は推定しない。
+新descriptorでは必要時に`deployment_id_before`と`observed_deployment_id`を組で固定する。
+元StateのID、auto_deploy=true、refresh driftの旧/観測ID、通常Planのbefore/afterが両方観測ID、
+実行前後のGetStageと最終Stateが観測IDであることを照合する。他IDやDeployment変更操作は許可しない。
+Stateの元bytes/hashは保持し、ApplyはFormat更新のみ。固定IDへのキャッシュ追従は別記して監査する。
+旧descriptorは従来の完全一致を保持する。
+仕様根拠は採用版の[Stage schema/read/update](https://github.com/hashicorp/terraform-provider-aws/blob/v6.65.0/internal/service/apigatewayv2/stage.go)。
+
 新Planは既存のprivate S3経路で5個の成果物を新規保存し、固定VersionIdとbytesを読む。
 envelopeは最後に保存する。公開Actions artifactは既存recipientへのCMS暗号文と固定summaryのみ。
 State本体を書き換える操作はPlan承認に含めず、通常のS3 lock取得・解放だけを含める。

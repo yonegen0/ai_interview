@@ -10,6 +10,145 @@ import pytest
 
 
 @pytest.fixture
+def deployment_recovery(recovery):
+    h = recovery
+    h.snapshot = copy.deepcopy(h.snapshot)
+    h.plan = copy.deepcopy(h.plan)
+    old = h.m.state_resources(h.snapshot)[h.m.ADDRESS]
+    old["deployment_id"] = "cached1"
+    h.descriptor["stage"].update(deployment_id_before="cached1", observed_deployment_id="observed2")
+    h.descriptor["state_snapshot_sha256"] = h.m.canonical_hash(h.snapshot)
+    change = h.plan["resource_changes"][0]["change"]
+    change["before"]["deployment_id"] = "observed2"
+    change["after"]["deployment_id"] = "observed2"
+    h.plan["planned_values"]["root_module"]["resources"][0]["values"] = copy.deepcopy(
+        change["after"]
+    )
+    h.plan["resource_drift"][0]["change"].update(
+        before=copy.deepcopy(old), after=copy.deepcopy(change["before"])
+    )
+    return h
+
+
+def test_exact_observed_auto_deployment_pin_allows_cached_state_refresh_only(deployment_recovery):
+    h = deployment_recovery
+    original = copy.deepcopy((h.snapshot, h.plan, h.descriptor))
+    h.m.validate(h.descriptor, "123456789012", "ap-northeast-1")
+    h.m.check_state(h.snapshot, h.descriptor)
+    assert h.m.audit_plan(h.plan, h.descriptor, h.snapshot)["change"] == 1
+    final = copy.deepcopy(h.snapshot)
+    h.m.state_resources(final)[h.m.ADDRESS]["deployment_id"] = "observed2"
+    assert h.m.same_resource_states(h.snapshot, final, recovery=h.descriptor)
+    assert not h.m.same_resource_states(h.snapshot, final)
+    h.m.state_resources(final)[h.m.ADDRESS]["deployment_id"] = "third3"
+    assert not h.m.same_resource_states(h.snapshot, final, recovery=h.descriptor)
+    assert (h.snapshot, h.plan, h.descriptor) == original
+
+
+@pytest.mark.parametrize("fault", ["missing", "same", "invalid", "unpaired", "old-state", "manual"])
+def test_deployment_descriptor_or_snapshot_rejects_unbound_pointer(deployment_recovery, fault):
+    h = deployment_recovery
+    stage = h.descriptor["stage"]
+    if fault == "missing":
+        stage["observed_deployment_id"] = ""
+    elif fault == "same":
+        stage["observed_deployment_id"] = "cached1"
+    elif fault == "invalid":
+        stage["observed_deployment_id"] = "other/id"
+    elif fault == "unpaired":
+        stage.pop("deployment_id_before")
+    elif fault == "old-state":
+        stage["deployment_id_before"] = "another3"
+    else:
+        h.m.state_resources(h.snapshot)[h.m.ADDRESS]["auto_deploy"] = False
+        h.descriptor["state_snapshot_sha256"] = h.m.canonical_hash(h.snapshot)
+    with pytest.raises(ValueError):
+        h.m.validate(h.descriptor, "123456789012", "ap-northeast-1")
+        h.m.check_state(h.snapshot, h.descriptor)
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "unapproved",
+        "service-write",
+        "manual",
+        "unknown",
+        "replace",
+        "drift-before",
+        "drift-after",
+        "destination",
+    ],
+)
+def test_plan_rejects_deployment_changes_outside_exact_observed_pin(deployment_recovery, fault):
+    h = deployment_recovery
+    change = h.plan["resource_changes"][0]["change"]
+    drift = h.plan["resource_drift"][0]["change"]
+    if fault == "unapproved":
+        change["before"]["deployment_id"] = change["after"]["deployment_id"] = "third3"
+    elif fault == "service-write":
+        change["before"]["deployment_id"] = "cached1"
+    elif fault == "manual":
+        change["before"]["auto_deploy"] = change["after"]["auto_deploy"] = False
+    elif fault == "unknown":
+        change["after_unknown"] = {"deployment_id": True}
+    elif fault == "replace":
+        change["replace_paths"] = [["deployment_id"]]
+    elif fault == "drift-before":
+        drift["before"]["deployment_id"] = "third3"
+    elif fault == "drift-after":
+        drift["after"]["deployment_id"] = "third3"
+    else:
+        drift["after"]["access_log_settings"][0]["destination_arn"] = "arn:other"
+    h.plan["planned_values"]["root_module"]["resources"][0]["values"] = copy.deepcopy(
+        change["after"]
+    )
+    with pytest.raises(ValueError):
+        h.m.audit_plan(h.plan, h.descriptor, h.snapshot)
+
+
+@pytest.mark.parametrize("fault", [None, "deployment", "manual"])
+def test_live_stage_must_still_match_observed_deployment_pin(
+    deployment_recovery, monkeypatch, fault
+):
+    import github_control
+
+    h = deployment_recovery
+    monkeypatch.setattr(github_control, "verify_readiness", lambda *a: None)
+    stage = dict(
+        DeploymentId="third3" if fault == "deployment" else "observed2",
+        AutoDeploy=fault != "manual",
+        AccessLogSettings=dict(
+            DestinationArn="arn:synthetic:logs", Format=h.descriptor["stage"]["format_before"]
+        ),
+    )
+    client = SimpleNamespace(
+        get_api=lambda **k: {"DisableExecuteApiEndpoint": True},
+        get_event_source_mapping=lambda **k: {"State": "Disabled"},
+        get_schedule=lambda **k: {"State": "DISABLED"},
+        get_stage=lambda **k: stage,
+    )
+    args = (SimpleNamespace(client=lambda *a, **k: client), h.snapshot, h.descriptor, {})
+    if fault:
+        with pytest.raises(ValueError):
+            h.m.check_live(*args)
+    else:
+        h.m.check_live(*args)
+
+
+@pytest.mark.parametrize("fault", ["missing-drift", "missing-pin"])
+def test_deployment_refresh_requires_both_explicit_pin_and_plan_drift(deployment_recovery, fault):
+    h = deployment_recovery
+    if fault == "missing-drift":
+        h.plan["resource_drift"] = []
+    else:
+        h.descriptor["stage"].pop("deployment_id_before")
+        h.descriptor["stage"].pop("observed_deployment_id")
+    with pytest.raises(ValueError):
+        h.m.audit_plan(h.plan, h.descriptor, h.snapshot)
+
+
+@pytest.fixture
 def route_recovery(recovery):
     h = recovery
     address = 'module.service.aws_apigatewayv2_route.business["GET /synthetic"]'

@@ -135,7 +135,16 @@ def validate(value, account, region):
             and re.fullmatch(r"[A-Za-z0-9+/]{43}=", artifact["artifact_sha256_base64"])
         )
         stage = value["stage"]
-        require(set(stage) == {"address", "api_id", "stage_name", "format_before", "format_after"})
+        keys = {"address", "api_id", "stage_name", "format_before", "format_after"}
+        pins = {"deployment_id_before", "observed_deployment_id"}
+        require(set(stage) in (keys, keys | pins))
+        if pins <= set(stage):
+            require(
+                all(
+                    isinstance(stage[k], str) and re.fullmatch(r"[a-z0-9]+", stage[k]) for k in pins
+                )
+                and stage["deployment_id_before"] != stage["observed_deployment_id"]
+            )
         require(stage["address"] == ADDRESS and stage["stage_name"] == "dev")
         require(isinstance(stage["api_id"], str) and re.fullmatch(r"[a-z0-9]+", stage["api_id"]))
         require(parse_format(stage["format_before"]) == BEFORE)
@@ -222,8 +231,20 @@ def resource_state_equal(address, before, after):
     return comparable(before) == comparable(after)
 
 
-def same_resource_states(before, after):
-    first, second = state_resources(before), state_resources(after)
+def expected_state_resources(snapshot, recovery):
+    """Project only an explicitly pinned, already observed auto-deployment pointer."""
+    result = copy.deepcopy(state_resources(snapshot))
+    stage = recovery["stage"]
+    if "observed_deployment_id" in stage:
+        require(result[ADDRESS]["deployment_id"] == stage["deployment_id_before"])
+        require(result[ADDRESS]["auto_deploy"] is True)
+        result[ADDRESS]["deployment_id"] = stage["observed_deployment_id"]
+    return result
+
+
+def same_resource_states(before, after, *, recovery=None):
+    first = expected_state_resources(before, recovery) if recovery else state_resources(before)
+    second = state_resources(after)
     return first.keys() == second.keys() and all(
         resource_state_equal(address, attributes, second[address])
         for address, attributes in first.items()
@@ -246,6 +267,7 @@ def check_state(snapshot, value):
     stage = state_resources(snapshot)[ADDRESS]
     require(stage["api_id"] == value["stage"]["api_id"] and stage["name"] == "dev")
     require(stage["access_log_settings"][0]["format"] == value["stage"]["format_after"])
+    expected_state_resources(snapshot, value)
     require(
         all(
             m["configuration"].get(k) is False
@@ -273,6 +295,16 @@ def stage_change(before, after, value, *, drift=False):
     require(after["access_log_settings"][0]["format"] == expected_after)
     changed = copy.deepcopy(before)
     changed["access_log_settings"][0]["format"] = expected_after
+    stage = value["stage"]
+    if "observed_deployment_id" in stage:
+        require(before["auto_deploy"] is True and after["auto_deploy"] is True)
+        require(
+            before["deployment_id"]
+            == stage["deployment_id_before" if drift else "observed_deployment_id"]
+            and after["deployment_id"] == stage["observed_deployment_id"]
+        )
+        if drift:
+            changed["deployment_id"] = stage["observed_deployment_id"]
     require(changed == after)
 
 
@@ -297,6 +329,7 @@ def audit_plan(plan, value, snapshot):
         require(not plan.get("errored") and plan.get("complete", True) is True)
         seen, managed, updates = set(), set(), 0
         original = state_resources(snapshot)
+        expected = expected_state_resources(snapshot, value)
         planned = planned_resources(plan["planned_values"]["root_module"])
         for index, row in enumerate(plan["resource_changes"], 1):
             resource_index = index
@@ -329,8 +362,8 @@ def audit_plan(plan, value, snapshot):
                 require(change["actions"] == ["update"])
                 rule = "stage-format-only"
                 stage_change(change["before"], change["after"], value)
-                rule, compared = "stage-state-match", (change["after"], original[ADDRESS])
-                require(change["after"] == original[ADDRESS])
+                rule, compared = "stage-state-match", (change["after"], expected[ADDRESS])
+                require(change["after"] == expected[ADDRESS])
                 updates += 1
             else:
                 rule = "other-resource-noop"
@@ -375,7 +408,19 @@ def audit_plan(plan, value, snapshot):
                 require(resource_state_equal(address, change["before"], change["after"]))
             else:
                 rule = "drift-format-only"
+                require(change["before"] == original[ADDRESS])
+                require(
+                    change["after"]
+                    == next(
+                        r["change"]["before"]
+                        for r in plan["resource_changes"]
+                        if r["address"] == ADDRESS
+                    )
+                )
                 stage_change(change["before"], change["after"], value, drift=True)
+        if "observed_deployment_id" in value["stage"]:
+            rule = "drift-identity"
+            require(ADDRESS in drifts)
         for change in plan.get("output_changes", {}).values():
             rule = "output-noop"
             require(change["actions"] == ["no-op"] and change["before"] == change["after"])
@@ -423,7 +468,11 @@ def check_live(session, snapshot, value, environment, *, applied=False):
         == "DISABLED"
     )
     checkpoint("live-stage")
-    actual = api.get_stage(ApiId=m["api_id"], StageName="dev").get("AccessLogSettings", {})
+    live_stage = api.get_stage(ApiId=m["api_id"], StageName="dev")
+    if "observed_deployment_id" in value["stage"]:
+        require(live_stage.get("AutoDeploy") is True)
+        require(live_stage.get("DeploymentId") == value["stage"]["observed_deployment_id"])
+    actual = live_stage.get("AccessLogSettings", {})
     expected = state_resources(snapshot)[ADDRESS]["access_log_settings"][0]
     require(actual.get("DestinationArn") == expected["destination_arn"])
     require(actual.get("Format") == value["stage"]["format_after" if applied else "format_before"])
