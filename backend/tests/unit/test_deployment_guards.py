@@ -445,6 +445,7 @@ def test_retention_input_customer_to_developer_is_guarded():
 
 def test_historical_state_read_pins_prior_version_and_unchanged_current_head():
     import io
+
     from botocore.exceptions import ClientError
 
     m = tool("deployment_guards")
@@ -498,7 +499,9 @@ def test_historical_state_read_pins_prior_version_and_unchanged_current_head():
 
     s3.change_mid_read = True
     with pytest.raises(ValueError, match="StateReadbackChanged"):
-        m.read_state_snapshot(session, account, region, key, historical_version_id="original-version")
+        m.read_state_snapshot(
+            session, account, region, key, historical_version_id="original-version"
+        )
 
 
 @pytest.mark.parametrize("bad_version", ["", "null", 123, []])
