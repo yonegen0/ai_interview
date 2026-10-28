@@ -46,6 +46,18 @@ Stateの元bytes/hashは保持し、ApplyはFormat更新のみ。固定IDへの�
 旧descriptorは従来の完全一致を保持する。
 仕様根拠は採用版の[Stage schema/read/update](https://github.com/hashicorp/terraform-provider-aws/blob/v6.65.0/internal/service/apigatewayv2/stage.go)。
 
+API用Roleのcomputed `inline_policy`キャッシュにも、同じState内の別管理
+`aws_iam_role_policy.runtime["api"]`より古いdocumentが残っていた。限定読取りで実AWSは
+別管理policyと一致し、Role identity・信頼・Boundary・tags・inline/attached inventoryも一致した。
+新descriptorの`api_role_policy_cache_refresh=true`を明示した場合だけ、固定API Roleの
+単一同名policyキャッシュを、固定State内の別管理policyの正確なbytesへ追従させる。
+Roleとpolicy resourceのactionsは両方no-op、refresh driftは元Stateと期待キャッシュへ完全一致、
+他属性は完全一致を要求する。実行前後もGetRolePolicyで同じpolicyを照合する。
+IAMのサービス変更・別policy・追加policy・信頼/Boundary/attachment変更を許可しない。
+元State/hashは保持し、最終State比較にだけ同じ固定キャッシュ投影を使う。
+仕様根拠は採用版の[Role read](https://github.com/hashicorp/terraform-provider-aws/blob/v6.65.0/internal/service/iam/role.go)と
+[Role policy schema](https://github.com/hashicorp/terraform-provider-aws/blob/v6.65.0/internal/service/iam/role_policy.go)。
+
 新Planは既存のprivate S3経路で5個の成果物を新規保存し、固定VersionIdとbytesを読む。
 envelopeは最後に保存する。公開Actions artifactは既存recipientへのCMS暗号文と固定summaryのみ。
 State本体を書き換える操作はPlan承認に含めず、通常のS3 lock取得・解放だけを含める。

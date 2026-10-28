@@ -31,6 +31,7 @@ STAGES = frozenset(
         "live-streams",
         "live-scheduler",
         "live-stage",
+        "live-role-policy",
         "readiness-readback",
         "terraform-init",
         "terraform-plan",
