@@ -397,12 +397,7 @@ def main():
     guard = None
     diagnostic = None
     meter = None
-    standard = (
-        Diagnostic()
-        if os.environ.get("P4_STANDARD_ACTIVE") == "true"
-        and os.environ.get("P4_OPERATION") == "plan"
-        else None
-    )
+    standard = Diagnostic() if os.environ.get("P4_STANDARD_ACTIVE") == "true" else None
     diagnostic_token = CURRENT.set(standard)
     try:
         if os.environ.get("P4_CLOUD_ACTIVE") == "true":
@@ -414,6 +409,10 @@ def main():
             from github_control import github_json
             from plan_authorization import verify_run_history
 
+            # Apply has no Guard process observer. After preflight, absence of
+            # an observation cannot establish that Terraform was never started.
+            standard.started = standard.exited = None
+            checkpoint("authorization")
             verify_run_history(os.environ["P4_PLAN_HASH"], os.environ, github_json)
         run_id, attempt = os.environ["GITHUB_RUN_ID"], os.environ["GITHUB_RUN_ATTEMPT"]
         if not all(re.fullmatch(r"[0-9]+", value) for value in (run_id, attempt)):

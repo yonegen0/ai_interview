@@ -1,4 +1,4 @@
-"""Public standard-Plan diagnostics with synthetic failures and forbidden sockets."""
+"""Public standard-CI diagnostics with synthetic failures and forbidden sockets."""
 
 import json
 from types import SimpleNamespace
@@ -109,12 +109,15 @@ def test_actual_guard_process_status_is_distinct_from_admission(
 
 
 @pytest.mark.parametrize("standard", [False, True])
-def test_main_preflight_failure_is_observable_without_admission(monkeypatch, capsys, standard):
+@pytest.mark.parametrize("operation", ["plan", "apply"])
+def test_main_preflight_failure_is_observable_without_admission(
+    monkeypatch, capsys, standard, operation
+):
     import ci_deploy as c
     import standard_diagnostics as m
 
     monkeypatch.setenv("P4_STANDARD_ACTIVE", str(standard).lower())
-    monkeypatch.setenv("P4_OPERATION", "plan")
+    monkeypatch.setenv("P4_OPERATION", operation)
     monkeypatch.delenv("P4_CLOUD_ACTIVE", raising=False)
     monkeypatch.setattr(
         c,
@@ -131,6 +134,103 @@ def test_main_preflight_failure_is_observable_without_admission(monkeypatch, cap
         assert value["reason_code"] == "PlanApprovalHashMismatch"
     else:
         assert output.out == ""
+    assert m.CURRENT.get() is None
+
+
+@pytest.mark.parametrize("operation", ["plan", "apply"])
+@pytest.mark.parametrize(
+    "issued,expiry,reason",
+    [
+        (
+            "2026-10-21T00:00:00Z",
+            "2026-10-23T23:07:30Z",
+            "StandardApprovalExpiredOrNotIssued",
+        ),
+        (
+            "2026-10-17T00:00:00Z",
+            "2026-10-20T00:00:00Z",
+            "StandardApprovalExpiredOrNotIssued",
+        ),
+        (
+            "2026-10-22T00:00:00Z",
+            "2026-10-25T00:00:00Z",
+            "StandardApprovalExpiredOrNotIssued",
+        ),
+        ("private-token", "2026-10-24T00:00:00Z", "AbsoluteUtcApprovalTimestampRequired"),
+        ("2026-13-21T00:00:00Z", "2026-10-24T00:00:00Z", "InvalidApprovalTimestamp"),
+    ],
+)
+def test_real_standard_preflight_refusal_is_finite_and_never_reaches_execution(
+    monkeypatch, capsys, operation, issued, expiry, reason
+):
+    from datetime import UTC, datetime
+
+    import ci_deploy as c
+    import ci_identity
+    import plan_authorization
+    import standard_diagnostics as m
+    from test_standard_ci import context
+
+    for key, value in context(operation).items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.delenv("P4_CLOUD_ACTIVE", raising=False)
+    monkeypatch.setenv("P4_APPROVED_AT_UTC", issued)
+    monkeypatch.setenv("P4_APPROVAL_EXPIRES_AT", expiry)
+    monkeypatch.setenv("ACTIONS_ID_TOKEN_REQUEST_TOKEN", "private-token")
+    monkeypatch.setenv("P4_DEPLOY_INPUTS", "private-email@example.invalid")
+    monkeypatch.setattr(
+        ci_identity,
+        "datetime",
+        SimpleNamespace(now=lambda tz: datetime(2026, 10, 21, 1, tzinfo=UTC)),
+    )
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("Rejected preflight reached execution or remote history")
+
+    monkeypatch.setattr(c, "initialize", forbidden)
+    monkeypatch.setattr(c, "checked_git", forbidden)
+    monkeypatch.setattr(c, "role_session", forbidden)
+    monkeypatch.setattr(c, "execute", forbidden)
+    monkeypatch.setattr(plan_authorization, "verify_run_history", forbidden)
+    assert c.main() == 1
+    output = capsys.readouterr()
+    assert output.err == "P4CiDeploymentFailed\n"
+    value = json.loads(output.out.removeprefix("P4_STANDARD_FAILURE "))
+    assert value["reason_code"] == reason
+    assert value["failure_stage"] == "preflight"
+    assert value["process_started"] is value["process_exit_observed"] is False
+    assert value["terraform_command_kind"] == "unknown"
+    assert all(
+        private not in output.out + output.err
+        for private in (issued, expiry, "private-token", "private-email@example.invalid", "a" * 40)
+    )
+    assert m.CURRENT.get() is None
+
+
+def test_apply_after_preflight_does_not_claim_unobserved_process_state(monkeypatch, capsys):
+    import ci_deploy as c
+    import plan_authorization
+    import standard_diagnostics as m
+
+    monkeypatch.setenv("P4_STANDARD_ACTIVE", "true")
+    monkeypatch.setenv("P4_OPERATION", "apply")
+    monkeypatch.setenv("P4_PLAN_HASH", "private-plan-hash")
+    monkeypatch.delenv("P4_CLOUD_ACTIVE", raising=False)
+    monkeypatch.setattr(c, "preflight", lambda *a: ("123456789012", "ap-northeast-1", "apply", {}))
+    monkeypatch.setattr(
+        plan_authorization,
+        "verify_run_history",
+        lambda *a: (_ for _ in ()).throw(
+            DeploymentError("private-token", reason_code="PlanApprovalAlreadyConsumed")
+        ),
+    )
+    assert c.main() == 1
+    output = capsys.readouterr()
+    value = json.loads(output.out.removeprefix("P4_STANDARD_FAILURE "))
+    assert value["reason_code"] == "PlanApprovalAlreadyConsumed"
+    assert value["failure_stage"] == "authorization"
+    assert value["process_started"] is value["process_exit_observed"] is None
+    assert "private" not in output.out + output.err
     assert m.CURRENT.get() is None
 
 
