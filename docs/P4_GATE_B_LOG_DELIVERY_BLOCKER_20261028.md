@@ -64,11 +64,13 @@ State identity全4値・snapshot hash・全資源coverage・Stage形式・入口
 ## 承認後の再開順序
 
 1. このPRの固定HEAD・CIと上記IAM差分を承認し、通常mergeする。
-2. Bootstrapの現State/lock/実policyと固定inputsを照合し、正規の既存Bootstrap経路で新Planを監査。
+2. Bootstrapの現State/lock/実policyと固定inputsを照合し、
+   [Stage2で定義したnative canonical-bootstrap経路](P4_STANDARD_STAGE2_MIGRATION.md)で新Planを監査。
    対象は上記standard deploy inline policyの更新1件だけ。追加・削除・replaceや別IAM差分は拒否する。
    Bootstrap Stateには今回接続しておらず、saved Plan/hashを架空に確定しない。
 3. 新saved Bootstrap Planを1回Applyし、policy/readinessを読戻す。
-   候補codeと正式Bootstrap実行経路の条件が合わなければ実行しない。
+   歴史的32資源/S3版読取り修復専用の`bootstrap_maintenance.py`へ本flagを渡したり、
+   そのwhitelistを広げたりしない。候補codeと正式実行経路の条件が合わなければ実行しない。
 4. 現dev State14の新VersionId/hashとsnapshotを固定した新descriptorを作り、
    新sourceでStage形式のみの新Planを1回監査し、その新バイナリだけを1回Applyする。
    Plan008・失敗Apply008・消費済み承認は再利用しない。
