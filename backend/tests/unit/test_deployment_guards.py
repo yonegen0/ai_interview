@@ -443,6 +443,7 @@ def test_retention_input_customer_to_developer_is_guarded():
             previous_configuration={"log_usage": "customer"},
         )
 
+
 def test_historical_state_read_pins_prior_version_and_unchanged_current_head():
     import io
 
