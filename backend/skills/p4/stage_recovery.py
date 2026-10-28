@@ -14,6 +14,8 @@ from interview_backend.deployment import DeploymentError
 
 ADDRESS = "module.service.aws_apigatewayv2_stage.dev"
 API_ADDRESS = "module.service.aws_apigatewayv2_api.main"
+API_ROLE = 'module.service.aws_iam_role.lambda["api"]'
+API_POLICY = 'module.service.aws_iam_role_policy.runtime["api"]'
 PACKAGE_KEYS = {"artifact_bucket", "artifact_key", "artifact_version", "artifact_sha256_base64"}
 BEFORE = {
     "requestId": "$context.requestId",
@@ -44,6 +46,7 @@ AUDIT_RULES = frozenset(
         "drift-format-only",
         "drift-api-cors-representation",
         "drift-route-empty-collections",
+        "drift-api-role-policy-cache",
         "output-noop",
         "output-known",
     }
@@ -97,17 +100,17 @@ def parse_format(raw):
 def validate(value, account, region):
     """Only this fixed defect and an existing versioned artifact can be approved."""
     try:
-        require(
-            set(value)
-            == {
-                "schema_version",
-                "kind",
-                "state_identity",
-                "state_snapshot_sha256",
-                "artifact",
-                "stage",
-            }
-        )
+        keys = {
+            "schema_version",
+            "kind",
+            "state_identity",
+            "state_snapshot_sha256",
+            "artifact",
+            "stage",
+        }
+        require(set(value) in (keys, keys | {"api_role_policy_cache_refresh"}))
+        if "api_role_policy_cache_refresh" in value:
+            require(value["api_role_policy_cache_refresh"] is True)
         require(type(value["schema_version"]) is int and value["schema_version"] == 1)
         require(value["kind"] == "gate-b-stage-access-log" and region == "ap-northeast-1")
         identity = value["state_identity"]
@@ -232,13 +235,21 @@ def resource_state_equal(address, before, after):
 
 
 def expected_state_resources(snapshot, recovery):
-    """Project only an explicitly pinned, already observed auto-deployment pointer."""
+    """Project only explicitly admitted caches from the immutable State snapshot."""
     result = copy.deepcopy(state_resources(snapshot))
     stage = recovery["stage"]
     if "observed_deployment_id" in stage:
         require(result[ADDRESS]["deployment_id"] == stage["deployment_id_before"])
         require(result[ADDRESS]["auto_deploy"] is True)
         result[ADDRESS]["deployment_id"] = stage["observed_deployment_id"]
+    if recovery.get("api_role_policy_cache_refresh") is True:
+        role, policy = result[API_ROLE], result[API_POLICY]
+        require(role["name"] == policy["role"])
+        require(len(role["inline_policy"]) == 1)
+        cached = role["inline_policy"][0]
+        require(set(cached) == {"name", "policy"} and cached["name"] == policy["name"])
+        require(parse_format(cached["policy"]) != parse_format(policy["policy"]))
+        role["inline_policy"] = [{"name": policy["name"], "policy": policy["policy"]}]
     return result
 
 
@@ -371,9 +382,9 @@ def audit_plan(plan, value, snapshot):
                 if row.get("mode", "managed") == "managed":
                     rule, compared = (
                         "other-resource-state-match",
-                        (change["after"], original[address]),
+                        (change["after"], expected[address]),
                     )
-                    require(resource_state_equal(address, change["after"], original[address]))
+                    require(resource_state_equal(address, change["after"], expected[address]))
         rule, compared = "complete-coverage", None
         require(updates == 1)
         require(managed == set(state_resources(snapshot)) == set(planned))
@@ -385,7 +396,12 @@ def audit_plan(plan, value, snapshot):
             drifts.add(row["address"])
             address = row["address"]
             require(
-                (address in {ADDRESS, API_ADDRESS} or fixed_route(address))
+                (
+                    address in {ADDRESS, API_ADDRESS}
+                    or fixed_route(address)
+                    or address == API_ROLE
+                    and value.get("api_role_policy_cache_refresh") is True
+                )
                 and change["actions"] == ["update"]
             )
             require(
@@ -397,7 +413,11 @@ def audit_plan(plan, value, snapshot):
             require(
                 not has_unknown(change.get("after_unknown", {})) and not change.get("replace_paths")
             )
-            if address != ADDRESS:
+            if address == API_ROLE:
+                rule = "drift-api-role-policy-cache"
+                require(change["before"] == original[API_ROLE])
+                require(change["after"] == planned[API_ROLE] == expected[API_ROLE])
+            elif address != ADDRESS:
                 rule = (
                     "drift-api-cors-representation"
                     if address == API_ADDRESS
@@ -421,6 +441,9 @@ def audit_plan(plan, value, snapshot):
         if "observed_deployment_id" in value["stage"]:
             rule = "drift-identity"
             require(ADDRESS in drifts)
+        if value.get("api_role_policy_cache_refresh") is True:
+            rule = "drift-api-role-policy-cache"
+            require(API_ROLE in drifts)
         for change in plan.get("output_changes", {}).values():
             rule = "output-noop"
             require(change["actions"] == ["no-op"] and change["before"] == change["after"])
@@ -476,6 +499,15 @@ def check_live(session, snapshot, value, environment, *, applied=False):
     expected = state_resources(snapshot)[ADDRESS]["access_log_settings"][0]
     require(actual.get("DestinationArn") == expected["destination_arn"])
     require(actual.get("Format") == value["stage"]["format_after" if applied else "format_before"])
+    if value.get("api_role_policy_cache_refresh") is True:
+        checkpoint("live-role-policy")
+        policy = state_resources(snapshot)[API_POLICY]
+        actual_policy = session.client("iam", config=cfg).get_role_policy(
+            RoleName=policy["role"], PolicyName=policy["name"]
+        )
+        require(actual_policy.get("RoleName") == policy["role"])
+        require(actual_policy.get("PolicyName") == policy["name"])
+        require(actual_policy.get("PolicyDocument") == parse_format(policy["policy"]))
     checkpoint("readiness-readback")
     verify_readiness(environment)
 

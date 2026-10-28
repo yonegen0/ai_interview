@@ -10,6 +10,192 @@ import pytest
 
 
 @pytest.fixture
+def policy_cache_recovery(recovery):
+    h = recovery
+    cached = json.dumps(
+        {
+            "Version": "2012-10-17",
+            "Statement": [{"Effect": "Allow", "Action": "synthetic:Read", "Resource": "fixed"}],
+        }
+    )
+    current = json.dumps(
+        {
+            "Version": "2012-10-17",
+            "Statement": [
+                {"Effect": "Allow", "Action": "synthetic:Read", "Resource": "fixed"},
+                {"Effect": "Deny", "Action": "synthetic:Write", "Resource": "fixed"},
+            ],
+        }
+    )
+    original = dict(
+        name="fixed-api",
+        inline_policy=[dict(name="runtime", policy=cached)],
+        permissions_boundary="fixed-boundary",
+        managed_policy_arns=[],
+        assume_role_policy="fixed-trust",
+    )
+    refreshed = copy.deepcopy(original)
+    refreshed["inline_policy"][0]["policy"] = current
+    policy = dict(role="fixed-api", name="runtime", policy=current)
+    for kind, name, attributes, before, after, address in [
+        ("aws_iam_role", "lambda", original, refreshed, refreshed, h.m.API_ROLE),
+        ("aws_iam_role_policy", "runtime", policy, policy, policy, h.m.API_POLICY),
+    ]:
+        h.snapshot["state"]["resources"].append(
+            dict(
+                module="module.service",
+                type=kind,
+                name=name,
+                instances=[dict(index_key="api", attributes=attributes)],
+            )
+        )
+        h.plan["resource_changes"].append(
+            dict(
+                address=address,
+                type=kind,
+                mode="managed",
+                change=dict(actions=["no-op"], before=before, after=after),
+            )
+        )
+        h.plan["planned_values"]["root_module"]["resources"].append(
+            dict(address=address, mode="managed", values=after)
+        )
+    h.plan["resource_drift"].append(
+        dict(
+            address=h.m.API_ROLE, change=dict(actions=["update"], before=original, after=refreshed)
+        )
+    )
+    h.descriptor["api_role_policy_cache_refresh"] = True
+    h.descriptor["state_snapshot_sha256"] = h.m.canonical_hash(h.snapshot)
+    h.cached_role, h.refreshed_role, h.managed_policy = original, refreshed, policy
+    return h
+
+
+def test_only_exact_fixed_role_cache_can_follow_separately_managed_state_policy(
+    policy_cache_recovery,
+):
+    h = policy_cache_recovery
+    original = copy.deepcopy((h.snapshot, h.plan, h.descriptor))
+    h.m.validate(h.descriptor, "123456789012", "ap-northeast-1")
+    h.m.check_state(h.snapshot, h.descriptor)
+    assert h.m.audit_plan(h.plan, h.descriptor, h.snapshot)["change"] == 1
+    final = copy.deepcopy(h.snapshot)
+    h.m.state_resources(final)[h.m.API_ROLE]["inline_policy"] = copy.deepcopy(
+        h.refreshed_role["inline_policy"]
+    )
+    assert h.m.same_resource_states(h.snapshot, final, recovery=h.descriptor)
+    assert not h.m.same_resource_states(h.snapshot, final)
+    assert (h.snapshot, h.plan, h.descriptor) == original
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "flag",
+        "unapproved",
+        "extra-policy",
+        "policy",
+        "boundary",
+        "trust",
+        "attached",
+        "role-name",
+        "unknown",
+        "replace",
+        "action",
+        "drift-before",
+        "drift-after",
+        "no-drift",
+        "policy-resource",
+    ],
+)
+def test_cached_policy_rule_cannot_admit_iam_changes_or_unbound_refresh(
+    policy_cache_recovery, fault
+):
+    h = policy_cache_recovery
+    change = h.plan["resource_changes"][-2]["change"]
+    drift = h.plan["resource_drift"][-1]["change"]
+    if fault == "flag":
+        h.descriptor["api_role_policy_cache_refresh"] = False
+    elif fault == "unapproved":
+        h.descriptor.pop("api_role_policy_cache_refresh")
+    elif fault == "extra-policy":
+        h.refreshed_role["inline_policy"].append(dict(name="unapproved", policy="{}"))
+    elif fault == "policy":
+        h.refreshed_role["inline_policy"][0]["policy"] = "{}"
+    elif fault == "boundary":
+        h.refreshed_role["permissions_boundary"] = "other"
+    elif fault == "trust":
+        h.refreshed_role["assume_role_policy"] = "other"
+    elif fault == "attached":
+        h.refreshed_role["managed_policy_arns"] = ["unapproved"]
+    elif fault == "role-name":
+        h.refreshed_role["name"] = "other"
+    elif fault == "unknown":
+        change["after_unknown"] = {"inline_policy": True}
+    elif fault == "replace":
+        change["replace_paths"] = [["inline_policy"]]
+    elif fault == "action":
+        change["actions"] = ["update"]
+    elif fault == "drift-before":
+        drift["before"] = dict(h.cached_role, permissions_boundary="other")
+    elif fault == "drift-after":
+        drift["after"] = dict(h.refreshed_role, permissions_boundary="other")
+    elif fault == "no-drift":
+        h.plan["resource_drift"].pop()
+    else:
+        h.plan["resource_changes"][-1]["change"] = dict(
+            actions=["update"], before=h.managed_policy, after=dict(h.managed_policy, policy="{}")
+        )
+    with pytest.raises(ValueError):
+        h.m.validate(h.descriptor, "123456789012", "ap-northeast-1")
+        h.m.audit_plan(h.plan, h.descriptor, h.snapshot)
+
+
+@pytest.mark.parametrize("fault", [None, "document", "role", "name"])
+def test_live_policy_read_must_match_immutable_managed_policy(
+    policy_cache_recovery, monkeypatch, fault
+):
+    import github_control
+
+    h = policy_cache_recovery
+    monkeypatch.setattr(github_control, "verify_readiness", lambda *a: None)
+    response = dict(
+        RoleName=h.managed_policy["role"],
+        PolicyName=h.managed_policy["name"],
+        PolicyDocument=json.loads(h.managed_policy["policy"]),
+    )
+    if fault:
+        response[
+            {"document": "PolicyDocument", "role": "RoleName", "name": "PolicyName"}[fault]
+        ] = {} if fault == "document" else "other"
+    calls = []
+
+    def read_policy(**kwargs):
+        calls.append(kwargs)
+        return response
+
+    client = SimpleNamespace(
+        get_api=lambda **k: {"DisableExecuteApiEndpoint": True},
+        get_event_source_mapping=lambda **k: {"State": "Disabled"},
+        get_schedule=lambda **k: {"State": "DISABLED"},
+        get_stage=lambda **k: {
+            "AccessLogSettings": {
+                "DestinationArn": "arn:synthetic:logs",
+                "Format": h.descriptor["stage"]["format_before"],
+            }
+        },
+        get_role_policy=read_policy,
+    )
+    args = (SimpleNamespace(client=lambda *a, **k: client), h.snapshot, h.descriptor, {})
+    if fault:
+        with pytest.raises(ValueError):
+            h.m.check_live(*args)
+    else:
+        h.m.check_live(*args)
+    assert calls == [dict(RoleName="fixed-api", PolicyName="runtime")]
+
+
+@pytest.fixture
 def deployment_recovery(recovery):
     h = recovery
     h.snapshot = copy.deepcopy(h.snapshot)
@@ -996,14 +1182,15 @@ def test_ci_recovery_skips_build_and_lambda_upload_and_binds_new_envelope(
 
 
 @pytest.mark.parametrize("operation", ["plan", "apply", "verify"])
+@pytest.mark.parametrize("scenario", ["recovery", "policy_cache_recovery"])
 def test_terraform_recovery_checks_full_plan_and_live_closure_before_and_after(
-    recovery, monkeypatch, tmp_path, operation
+    request, monkeypatch, tmp_path, operation, scenario
 ):
     import deployment_guards
     import manifest
     import terraform_dev as m
 
-    h = recovery
+    h = request.getfixturevalue(scenario)
     source = tmp_path / "source"
     root = source / "terraform/environments/dev"
     root.mkdir(parents=True)
@@ -1047,6 +1234,10 @@ def test_terraform_recovery_checks_full_plan_and_live_closure_before_and_after(
     monkeypatch.setattr(h.m, "audit_plan", checked_audit)
     monkeypatch.setattr(deployment_guards, "audit_retention", lambda *a, **k: None)
     final = copy.deepcopy(h.snapshot)
+    if scenario == "policy_cache_recovery":
+        h.m.state_resources(final)[h.m.API_ROLE]["inline_policy"] = copy.deepcopy(
+            h.refreshed_role["inline_policy"]
+        )
     final["identity"] = final["identity"] | {"serial": 14, "version_id": "new-version"}
     snapshots = iter([h.snapshot, h.snapshot] + ([final] if operation == "apply" else []))
     historical_reads = []
