@@ -1,5 +1,7 @@
 # AI面接練習Webアプリ MVP
 
+> **2026-10-29 補足:** 以下の「現在の実装状況（2026-10-06）」以降は当時のスナップショットです。最新の公開受入項目は [MVP公開受入マトリクス](docs/MVP_LIVE_ACCEPTANCE_MATRIX_20261029.md)、実AWS Stage復旧状況は [Apply010診断](docs/P4_APPLY010_FAILURE_ANALYSIS_20261029.md) と [State15復旧ソース](docs/P4_APPLY010_STATE15_SOURCE_RECOVERY.md) を参照してください。Frontend用の非公開S3＋CloudFrontは [web Terraform root](terraform/environments/web/README.md) としてコードが存在しますが、コードの存在は実AWS配備や公開成功を証明しません。実環境の成否は最新の証拠で確認します。
+
 ## 現在の実装状況（2026-10-06）
 
 デフォルト15問を通し・カテゴリ別に練習し、一巡で終了できる実装です。
