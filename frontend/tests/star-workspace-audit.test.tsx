@@ -112,6 +112,8 @@ async function setup(saved: boolean) {
   );
   return {
     ...hook,
+    session,
+    origin,
     contextId: context.contextId,
     resolve: () => {
       get.mockRestore();
@@ -226,4 +228,53 @@ it("does not auto-adopt a generation when input changes during the preceding sav
     "保存待ち中に書き換えた行動",
   );
   expect(hook.result.current.form.getValues("candidates")).toHaveLength(0);
+});
+
+
+it("resumes an accepted STAR generation after reload without starting a second paid request", async () => {
+  const hook = await setup(false);
+  await act(async () => hook.resolve());
+  await waitFor(() => expect(hook.result.current.loading).toBe(false));
+  act(() => {
+    hook.result.current.form.setValue("targetCategory", "corporate_sales", {
+      shouldDirty: true,
+    });
+    hook.result.current.form.setValue("notes.A", "生成を依頼した本人の行動", {
+      shouldDirty: true,
+    });
+  });
+  await act(async () => hook.result.current.generate());
+  const generationId = Object.keys(repository.read().star.generations)[0];
+  expect(generationId).toBeDefined();
+  hook.unmount();
+
+  // A new QueryClient emulates a hard reload; only owner-scoped sessionStorage survives.
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  clients.push(client);
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
+  const resumed = renderHook(
+    () => useStarWorkspace(hook.session, hook.origin, "", false, true, null, vi.fn()),
+    { wrapper },
+  );
+  await waitFor(() => expect(resumed.result.current.generating).toBe(true));
+
+  const state = repository.read();
+  const lease = startStarJob(state, generationId, Date.now());
+  expect(lease).not.toBeNull();
+  finishStarJob(state, lease!, fakeStarResult(lease!), Date.now());
+  repository.write(state);
+  await waitFor(() => expect(resumed.result.current.resultWaiting).toBe(true), {
+    timeout: 4000,
+  });
+  // A restored result is never applied to unsaved input without an explicit click.
+  expect(resumed.result.current.form.getValues("candidates")).toHaveLength(0);
+  act(() => resumed.result.current.adopt());
+  await waitFor(() =>
+    expect(resumed.result.current.form.getValues("candidates")).toHaveLength(3),
+  );
+  expect(Object.keys(repository.read().star.generations)).toHaveLength(1);
 });
