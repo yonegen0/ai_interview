@@ -152,6 +152,65 @@ def test_unaccepted_full_variables_cannot_silently_override_transport(key, value
         tool("terraform_dev").validate_inputs(values, "123456789012", "ap-northeast-1")
 
 
+def test_explicit_bedrock_settings_survive_standard_plan_and_apply_input_mapping(monkeypatch):
+    module = tool("ci_deploy")
+    values = valid_inputs()
+    provider = {
+        "INTERVIEW_AI_PROVIDER": "bedrock",
+        "INTERVIEW_BEDROCK_ENABLED": "true",
+        "INTERVIEW_BEDROCK_PROFILE_ID": "jp.anthropic.claude-haiku-5-5",
+        "INTERVIEW_BEDROCK_EFFORT": "low",
+        "INTERVIEW_BEDROCK_MAX_TOKENS": "2048",
+    }
+    values["worker_ai_environment"] = provider
+    assert (
+        tool("terraform_dev").validate_inputs(values, "123456789012", "ap-northeast-1")[
+            "worker_ai_environment"
+        ]
+        == provider
+    )
+    configuration = {k: v for k, v in values.items() if k not in module.PACKAGE_KEYS}
+    monkeypatch.setattr(module, "account_settings", lambda *a: ("123456789012", "ap-northeast-1"))
+    monkeypatch.setattr(module, "terraform_environment", lambda *a: {})
+    for operation in ("plan", "apply"):
+        environment, _ = approval_environment(configuration)
+        environment.update(
+            P4_AWS_EXECUTION_READY="true",
+            P4_OPERATION=operation,
+            P4_DEPLOY_INPUTS=json.dumps(configuration),
+            P4_PLAN_RUN_ID="123",
+            P4_PLAN_HASH="a" * 64,
+        )
+        assert module.preflight(environment)[3]["worker_ai_environment"] == provider
+
+
+@pytest.mark.parametrize(
+    "provider",
+    [
+        {"INTERVIEW_AI_PROVIDER": "fake"},
+        {"INTERVIEW_AI_PROVIDER": "openai", "INTERVIEW_OPENAI_ENABLED": "true"},
+        {"INTERVIEW_AI_PROVIDER": "bedrock", "INTERVIEW_BEDROCK_ENABLED": "false"},
+        {
+            "INTERVIEW_AI_PROVIDER": "bedrock",
+            "INTERVIEW_BEDROCK_ENABLED": "true",
+            "INTERVIEW_BEDROCK_PROFILE_ID": "global.anthropic.claude-haiku-5-5",
+        },
+        {
+            "INTERVIEW_AI_PROVIDER": "bedrock",
+            "INTERVIEW_BEDROCK_ENABLED": "true",
+            "INTERVIEW_OPENAI_ENABLED": "true",
+        },
+        {"INTERVIEW_AI_PROVIDER": "bedrock", "INTERVIEW_BEDROCK_ENABLED": True},
+        "bedrock",
+    ],
+)
+def test_standard_provider_input_rejects_implicit_mixed_or_unapproved_selection(provider):
+    with pytest.raises(ValueError):
+        tool("terraform_dev").validate_inputs(
+            valid_inputs() | {"worker_ai_environment": provider}, "123456789012", "ap-northeast-1"
+        )
+
+
 @pytest.mark.parametrize(
     "fault",
     [None, "state-denied", "state-changed", "get-mismatch", "put-timeout", "artifact-mismatch"],
