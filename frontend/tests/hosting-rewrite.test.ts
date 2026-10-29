@@ -1,10 +1,11 @@
 /** @file hosting-rewrite.test.ts @description CloudFront Functionの静的ページ変換を実コードで回帰検証。 */
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { runInNewContext } from "node:vm";
 import { expect, it } from "vitest";
 
 const rewriteSource = readFileSync(
-  new URL("../../terraform/modules/frontend/rewrite.js", import.meta.url),
+  resolve(process.cwd(), "../terraform/modules/frontend/rewrite.js"),
   "utf8",
 );
 
