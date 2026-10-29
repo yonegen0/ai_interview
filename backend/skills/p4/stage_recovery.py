@@ -126,7 +126,7 @@ def validate(value, account, region):
         require(value["kind"] == "gate-b-stage-access-log" and region == "ap-northeast-1")
         identity = value["state_identity"]
         require(set(identity) == {"lineage", "serial", "version_id", "sha256"})
-        allowed_serials = {1: {13, 14}, 2: {15}, 3: {16}}[schema]
+        allowed_serials = {1: {13, 14}, 2: {15}, 3: {16, 17}}[schema]
         require(type(identity["serial"]) is int and identity["serial"] in allowed_serials)
         require(
             all(isinstance(identity[k], str) and identity[k] for k in ("lineage", "version_id"))
@@ -198,6 +198,17 @@ def validate_failed_apply_predecessor(value):
         )
         started_receipt = "cb8c1d0fceba7a42c6de54877816aea56076160baef7c2fab9d7426be5c88bb3"
         serial_before, serial_after = 15, 16
+        if value["state_identity"]["serial"] == 17:
+            expected.update(
+                kind="failed-stage16-apply",
+                source_sha="3cee5b06fc733909b652f3223f8b79842bebb7d6",
+                apply_run_id="40875185933",
+                plan_run_id="40873516077",
+                plan_sha256="0bf431492ba1aa43ddc5ea3756db8bd77552e8328a73a8008d0a3f5ed0314dce",
+                denied_action="logs:UpdateLogDelivery",
+            )
+            started_receipt = "453331f4a11f730ebca93d545bddc4efd3d568a82f6a97db6d9b2244c98dff7d"
+            serial_before, serial_after = 16, 17
     digests = {
         "started_receipt_sha256",
         "cloudtrail_correlation_sha256",
