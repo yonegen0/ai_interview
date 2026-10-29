@@ -46,6 +46,11 @@ const responseSchema = (op: StarOperation): z.ZodType<unknown> =>
           ? applyReceiptSchema
           : starReceiptSchema;
 
+const generationRecoverySchema = z.object({
+  version: z.literal(1),
+  generationId: z.uuid(),
+}).strict();
+
 export function useStarWorkspace(
   session: Session,
   origin: StarContextInput,
@@ -58,6 +63,7 @@ export function useStarWorkspace(
   const { scope, isActive, assertActive, storage } = useOperationScope();
   const contextBody = JSON.stringify(origin);
   const operationKey = `pocket:star:operation:${session.sessionId}:${contextBody}`;
+  const generationKey = `pocket:star:generation:${session.sessionId}:${contextBody}`;
   const [contextRequestKey] = useState(() => crypto.randomUUID());
   const [pending, setPending] = useState<StarOperation | null>(() =>
     storage.readSaved(operationKey, starOperationRecoverySchema),
@@ -72,7 +78,13 @@ export function useStarWorkspace(
     id: string;
     expiresAt: number;
   } | null>(null);
-  const [generationId, setGenerationId] = useState<string | null>(null);
+  const [generationId, setGenerationId] = useState<string | null>(
+    () => storage.readSaved(generationKey, generationRecoverySchema)?.generationId ?? null,
+  );
+  const rememberGeneration = (id: string) => {
+    storage.save(generationKey, { version: 1, generationId: id });
+    setGenerationId(id);
+  };
   const [resultWaiting, setResultWaiting] = useState(false);
   const [generationCategory, setGenerationCategory] =
     useState<StarInput["targetCategory"]>(null);
@@ -364,6 +376,8 @@ export function useStarWorkspace(
     );
     starMeta.current = result;
     starBaseline.current = JSON.stringify(snapshot);
+    if (snapshot.generationId === generationId && snapshot.candidates.length === 3)
+      storage.removeSaved(generationKey);
     return result;
   };
   useEffect(() => {
@@ -454,7 +468,7 @@ export function useStarWorkspace(
         { starDraftId: row.id, expectedVersion: row.version },
         generationReceiptSchema,
       );
-      setGenerationId(result.generationId);
+      rememberGeneration(result.generationId);
       void quota.refetch();
     } catch {
       /* run preserves input and exposes its error. */
@@ -570,7 +584,7 @@ export function useStarWorkspace(
       setPending(null);
       if (pending.path === "/star-assist/generations") {
         const accepted = generationReceiptSchema.parse(value);
-        setGenerationId(accepted.generationId);
+        rememberGeneration(accepted.generationId);
         generatedFrom.current = null;
       }
       if (contextId) {
