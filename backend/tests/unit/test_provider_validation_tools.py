@@ -77,6 +77,7 @@ def test_live_flow_preparation_all_rounds_offline(rounds):
     live.coaching_flow(a, b, run, expected_rounds=rounds, wait=wait)
     assert all(r["status"] == "passed" for r in run.rows)
     assert any(r["check"] == "other-owner-feedback" for r in run.rows)
+    assert any(r["check"] == "other-owner-answer-denied" for r in run.rows)
     assert any(r["check"] == "retry-attempt-feedback" for r in run.rows)
     assert all(e.status == "completed" for e in runtime.repository.snapshot().evaluations.values())
 
@@ -267,6 +268,7 @@ def test_star_business_flow_preserves_assist_and_no_early_evaluation():
     assert runtime.worker.star_worker.provider.calls == 1
     assert a.call("GET", "/star-assist/quota")[1]["user"]["consumed"] == 1
     assert all(r["status"] == "passed" for r in run.rows)
+    assert any(r["check"] == "star-other-owner-update-denied" for r in run.rows)
     # Only safe identifiers/statuses are journaled, never generated content or notes.
     assert "検証用編集" not in json.dumps(run.rows, ensure_ascii=False)
 

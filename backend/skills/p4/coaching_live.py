@@ -75,6 +75,10 @@ def coaching_flow(a, b, run, *, expected_rounds=0, expected_failure=False, wait=
     path = f"/sessions/{sid}/answers"
     body = {"kind": "initial_answer", "questionId": qid, "answer": "検証用の本人回答です。"}
     key = run.key("answer-initial")
+    run.expect(
+        b.call("POST", path, body, run.key("other-owner-answer"))[0] == 404,
+        "other-owner-answer-denied",
+    )
     status, accepted, _ = a.call("POST", path, body, key)
     run.expect(status == 202, "initial-accept")
     first = dict(accepted)
@@ -236,6 +240,16 @@ def star_flow(a, b, run, *, wait=poll_star, evaluate=poll):
     value = star_corpus()["cases"][0]["input"]
     draft = post(path + "/star-drafts", value, "draft", 201)
     run.record("star-draft", draft_id=draft["id"])
+    run.expect(
+        b.call(
+            "PUT",
+            f"/star-drafts/{draft['id']}",
+            {**value, "expectedVersion": draft["version"]},
+            run.key("other-owner-star-update"),
+        )[0]
+        == 404,
+        "star-other-owner-update-denied",
+    )
     run.expect(b.call("GET", path + "/drafts")[0] == 404, "star-other-owner-drafts")
     accepted = post(
         "/star-assist/generations",
