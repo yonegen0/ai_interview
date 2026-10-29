@@ -441,13 +441,14 @@ export function useStarWorkspace(
   }, [generation.data, generationId, adopt, isActive, quota]);
 
   const generate = async () => {
+    const sourceInput = JSON.stringify(latest.current.input);
     try {
       const row =
         starMeta.current &&
         JSON.stringify(latest.current.input) === starBaseline.current
           ? starMeta.current
           : await saveStar();
-      generatedFrom.current = JSON.stringify(latest.current.input);
+      generatedFrom.current = sourceInput;
       const result = await run(
         "/star-assist/generations",
         { starDraftId: row.id, expectedVersion: row.version },
