@@ -246,7 +246,8 @@ def star_flow(a, b, run, *, wait=poll_star, evaluate=poll):
             f"/star-drafts/{draft['id']}",
             {**value, "expectedVersion": draft["version"]},
             run.key("other-owner-star-update"),
-        )[0] == 404,
+        )[0]
+        == 404,
         "star-other-owner-update-denied",
     )
     run.expect(b.call("GET", path + "/drafts")[0] == 404, "star-other-owner-drafts")
