@@ -1,5 +1,15 @@
 # Gate B Stage形式だけの復旧
 
+最新: [Stage009監査・実行前拒否と公開準備](P4_STAGE009_ADMISSION_FAILURE_20261028.md)。
+Plan009独立監査は成功したが、承認後dispatchは72時間窓の不一致でAWS準備前に拒否された。
+独立読戻しはState14不変・receipt不在・4入口閉鎖・readiness全false。Gate BはNOT_READY。
+消費済みPlan/承認の再送や新Planの自動生成はしていない。
+
+2026-10-28追記: Plan008は成功、Apply008は実効log delivery権限不足で失敗し、
+現在のdev Stateはserial14。最新の実測・未適用の修正案・再開条件は
+[Stage log delivery blocker](P4_GATE_B_LOG_DELIVERY_BLOCKER_20261028.md)を優先する。
+下記のState13手順は履歴として保持し、新descriptorへの流用や旧Applyの再実行はしない。
+
 2026-10-27 JST。診断003R2は33変更対象中32一致・1不一致。32一致には過去11件の再利用を含む。
 今回確認した不一致はStageアクセスログ形式の`requestTimeEpoch`と`responseLatency`欠落のみ。
 元RunのTerraform正常終了と失敗原因はUNKNOWNのまま、旧Planの再Applyは禁止する。
@@ -17,6 +27,46 @@ bucket/key/VersionId/digestを固定再利用する。構成・依存・lock・r
 drift、unknown、import/move/deposed/replace、outputsを照合する。
 許可差分はStageの`access_log_settings[0].format`のみ、add0/change1/destroy0/replace0。
 逸脱時は新Plan成果物をuploadせず停止する。
+
+Stateとの照合では固定API資源のCORS集合の順序、および`allow_headers`/
+`expose_headers`のASCII大小文字だけをProvider 6.65.0の集合定義に合わせて比較する。
+AWS readbackでヘッダー名の小文字化を確認し、その値を使ったオフラインPlanでも
+`no-op`とStateの表記不一致を再現した。許可集合・Originの大小文字・認証情報許可・
+TTL・API閉鎖・他属性は変化を許可せず、重複を除去して差を隠すこともない。
+この表記差だけのrefresh driftとApply後State読戻しにも同じ比較を適用する。
+PlanのactionsはAPIで`no-op`、StageでFormatだけの`update`を維持する。
+仕様根拠は採用版の[API resource schema](https://github.com/hashicorp/terraform-provider-aws/blob/v6.65.0/internal/service/apigatewayv2/api.go)。
+
+同じProviderのRoute refreshは、AWS応答で未設定の`authorization_scopes`（optional TypeSet）と
+`request_models`（optional TypeMap）をnullから空集合/空mapへ変換する。
+固定service moduleのadmin/business/preflight Routeに限り、この2属性のnull/空表現を
+比較時だけ同一視する。AWSのJWT/Authorizer/接続先の一致を読取りで確認し、取得応答を返す
+localhost模擬APIと実Providerによるrefresh付きPlanで、no-opと2属性の変換を再現した。
+模擬API試験は実AWS refreshの成功とは区別する。非空scope/model、型違い、属性欠落、
+認証・接続先・他属性の変更、unknown/replace等は拒否する。Stateの元bytes/hashは変更しない。
+仕様根拠は採用版の[Route schema/flattenRoute](https://github.com/hashicorp/terraform-provider-aws/blob/v6.65.0/internal/service/apigatewayv2/route.go)。
+
+Stageの`deployment_id`はOptional+Computedで、auto-deployによる既存Deploymentをrefreshで取得する。
+閉鎖APIの読取りでState13のキャッシュ値との差、既存DeploymentのAutoDeployed/DEPLOYED、
+全28 Routeのidentity・JWT・Authorizer・接続先一致を確認した。これだけでは元Applyの正常終了は推定しない。
+新descriptorでは必要時に`deployment_id_before`と`observed_deployment_id`を組で固定する。
+元StateのID、auto_deploy=true、refresh driftの旧/観測ID、通常Planのbefore/afterが両方観測ID、
+実行前後のGetStageと最終Stateが観測IDであることを照合する。他IDやDeployment変更操作は許可しない。
+Stateの元bytes/hashは保持し、ApplyはFormat更新のみ。固定IDへのキャッシュ追従は別記して監査する。
+旧descriptorは従来の完全一致を保持する。
+仕様根拠は採用版の[Stage schema/read/update](https://github.com/hashicorp/terraform-provider-aws/blob/v6.65.0/internal/service/apigatewayv2/stage.go)。
+
+API用Roleのcomputed `inline_policy`キャッシュにも、同じState内の別管理
+`aws_iam_role_policy.runtime["api"]`より古いdocumentが残っていた。限定読取りで実AWSは
+別管理policyと一致し、Role identity・信頼・Boundary・tags・inline/attached inventoryも一致した。
+新descriptorの`api_role_policy_cache_refresh=true`を明示した場合だけ、固定API Roleの
+単一同名policyキャッシュを、固定State内の別管理policyの正確なbytesへ追従させる。
+Roleとpolicy resourceのactionsは両方no-op、refresh driftは元Stateと期待キャッシュへ完全一致、
+他属性は完全一致を要求する。実行前後もGetRolePolicyで同じpolicyを照合する。
+IAMのサービス変更・別policy・追加policy・信頼/Boundary/attachment変更を許可しない。
+元State/hashは保持し、最終State比較にだけ同じ固定キャッシュ投影を使う。
+仕様根拠は採用版の[Role read](https://github.com/hashicorp/terraform-provider-aws/blob/v6.65.0/internal/service/iam/role.go)と
+[Role policy schema](https://github.com/hashicorp/terraform-provider-aws/blob/v6.65.0/internal/service/iam/role_policy.go)。
 
 新Planは既存のprivate S3経路で5個の成果物を新規保存し、固定VersionIdとbytesを読む。
 envelopeは最後に保存する。公開Actions artifactは既存recipientへのCMS暗号文と固定summaryのみ。
@@ -55,3 +105,48 @@ OTP、実Bedrock/OpenAI、性能試験、Enablement、hosting配備、外部公�
 
 公式仕様: [通常Plan](https://developer.hashicorp.com/terraform/cli/commands/plan)、
 [Terraform1.14 S3 lock](https://developer.hashicorp.com/terraform/language/v1.14.x/backend/s3)。
+
+## 全件オフライン診断（2026-10-28）
+
+`backend/skills/p4/stage_diagnostics.py`は正式受入と独立した読取り専用診断。
+既存のprivate State snapshot、recovery descriptor、`terraform show -json`の保存結果を使い、
+State / refreshed prior_state / resource_changes / planned_values / resource_driftの
+addressの和集合を最後まで調べる。AWS API、Terraformプロセス、State変更は実行しない。
+
+```text
+python backend/skills/p4/stage_diagnostics.py --plan <private-review.json> --snapshot <private-snapshot.json> --descriptor <private-recovery-descriptor.json> --output <existing-private-directory/report.private.json>
+```
+
+`--plan`はバイナリやbindingではなく、保存済みshow JSON。descriptorは承認パッケージ全体でなく
+`stage_recovery` object単体。入力とaddress単位レポートはprivateに保管する。
+出力先は既存の本人専用ディレクトリを指定し、既存ファイルは上書きしない。
+stdoutは件数のみ。レポートにも属性値・内部map key・例外本文を出さない。
+address自体に識別情報を含む可能性があるため、レポートを公開CI artifactへ追加しない。
+
+各addressに属性名、原因code、分類、対応要否を記録する。
+Aは既存の限定されたCORS/Route表現差、Bは明示pin済みキャッシュ、
+Cは構成差分（意図したStage更新も`allowed=true`で記録）、Dは未知値・証拠不足。
+資源別集計はD > C > B > A > MATCHの排他的分類で、個々の差分はfindingsに残す。
+coverage欠落、重複、refresh不整合、未知値、import/move/deposed/replace、
+未許可のIAM/API/Stage差分と全output変更を収集する。未検査をPASSにしない。
+`FINDINGS`は終了1、診断完了は終了0、入力/保存失敗は終了2。
+診断完了はApply成功や実AWSの現在状態を意味しない。
+
+正式`stage_recovery.audit_plan`は変更しない。診断結果を受入・承認・receiptの代用にせず、
+State identity、saved Plan bytes/hash、承認/source、実効IAM、Apply終了と独立readbackの
+既存Gateを維持する。新しい正規化・許容属性は追加していない。
+
+最新main `05f4f1b`のPlan008（[Run40666099393](https://github.com/yonegen0/ai_interview/actions/runs/40666099393)）の
+固定binary SHAとbindingをオフライン照合した上で全77件を診断した結果:
+MATCH58 / A17（CORS1、Route16）/ B1（API Role）/ C1（意図したStage形式）/ D0。
+Stageのdeployment cache差分Bも同じStageのfindingsに残る。
+正式Plan監査はadd0/change1/destroy0/replace0。未知・未許可差分は検出されなかった。
+失敗Apply後の保存済みState14も全77addressをState13と比較し、同一lineage、
+追加/削除なし、上記表現差・deployment/inline_policy cache以外の属性差なしを確認した。
+これは保存済み証拠の再利用であり、新たなAWS読取りではない。
+
+[Apply008](https://github.com/yonegen0/ai_interview/actions/runs/40667076073)はログ配信の
+`logs:CreateLogDelivery`不足で失敗し、Stage実形式は4項目のまま。
+既存の[Draft PR #73](https://github.com/yonegen0/ai_interview/pull/73)がIAM追加とState14 descriptorを提案している。
+IAM拡大の承認なしにmerge/Bootstrap Plan/Applyを実行せず、失敗Applyも再送しない。
+保存済み最終readbackでは4入口閉鎖、readiness全false、lockなし。Gate BはNOT_READY。

@@ -13,7 +13,15 @@ import time
 from interview_backend.deployment import DeploymentError
 
 ADDRESS = "module.service.aws_apigatewayv2_stage.dev"
-PACKAGE_KEYS = {"artifact_bucket", "artifact_key", "artifact_version", "artifact_sha256_base64"}
+API_ADDRESS = "module.service.aws_apigatewayv2_api.main"
+API_ROLE = 'module.service.aws_iam_role.lambda["api"]'
+API_POLICY = 'module.service.aws_iam_role_policy.runtime["api"]'
+PACKAGE_KEYS = {
+    "artifact_bucket",
+    "artifact_key",
+    "artifact_version",
+    "artifact_sha256_base64",
+}
 BEFORE = {
     "requestId": "$context.requestId",
     "routeKey": "$context.routeKey",
@@ -24,6 +32,51 @@ AFTER = BEFORE | {
     "requestTimeEpoch": "$context.requestTimeEpoch",
     "responseLatency": "$context.responseLatency",
 }
+AUDIT_RULES = frozenset(
+    {
+        "plan-shape",
+        "duplicate-resource",
+        "planned-value-match",
+        "resource-identity",
+        "known-no-replace",
+        "stage-identity",
+        "stage-action",
+        "stage-format-only",
+        "stage-state-match",
+        "other-resource-noop",
+        "other-resource-state-match",
+        "complete-coverage",
+        "drift-identity",
+        "drift-no-replace",
+        "drift-format-only",
+        "drift-api-cors-representation",
+        "drift-route-empty-collections",
+        "drift-api-role-policy-cache",
+        "output-noop",
+        "output-known",
+    }
+)
+
+
+def audit_difference(before, after):
+    """Diagnostic counts only; never normalize values used for acceptance."""
+    if not isinstance(before, dict) or not isinstance(after, dict):
+        return None
+
+    def without_nulls(value):
+        if isinstance(value, dict):
+            return {k: without_nulls(v) for k, v in value.items() if v is not None}
+        if isinstance(value, list):
+            return [without_nulls(v) for v in value]
+        return value
+
+    missing = object()
+    return {
+        "differing_attribute_count": sum(
+            before.get(k, missing) != after.get(k, missing) for k in before.keys() | after.keys()
+        ),
+        "optional_nulls_only": before != after and without_nulls(before) == without_nulls(after),
+    }
 
 
 def require(condition):
@@ -52,22 +105,29 @@ def parse_format(raw):
 def validate(value, account, region):
     """Only this fixed defect and an existing versioned artifact can be approved."""
     try:
-        require(
-            set(value)
-            == {
-                "schema_version",
-                "kind",
-                "state_identity",
-                "state_snapshot_sha256",
-                "artifact",
-                "stage",
-            }
-        )
-        require(type(value["schema_version"]) is int and value["schema_version"] == 1)
+        keys = {
+            "schema_version",
+            "kind",
+            "state_identity",
+            "state_snapshot_sha256",
+            "artifact",
+            "stage",
+        }
+        schema = value["schema_version"]
+        require(type(schema) is int and schema in {1, 2})
+        if schema == 1:
+            require(set(value) in (keys, keys | {"api_role_policy_cache_refresh"}))
+        else:
+            require(set(value) == keys | {"predecessor"})
+        if "api_role_policy_cache_refresh" in value:
+            require(value["api_role_policy_cache_refresh"] is True)
+        if schema == 2:
+            validate_apply010_predecessor(value)
         require(value["kind"] == "gate-b-stage-access-log" and region == "ap-northeast-1")
         identity = value["state_identity"]
         require(set(identity) == {"lineage", "serial", "version_id", "sha256"})
-        require(type(identity["serial"]) is int and identity["serial"] == 13)
+        allowed_serials = {13, 14} if schema == 1 else {15}
+        require(type(identity["serial"]) is int and identity["serial"] in allowed_serials)
         require(
             all(isinstance(identity[k], str) and identity[k] for k in ("lineage", "version_id"))
         )
@@ -90,7 +150,17 @@ def validate(value, account, region):
             and re.fullmatch(r"[A-Za-z0-9+/]{43}=", artifact["artifact_sha256_base64"])
         )
         stage = value["stage"]
-        require(set(stage) == {"address", "api_id", "stage_name", "format_before", "format_after"})
+        keys = {"address", "api_id", "stage_name", "format_before", "format_after"}
+        pins = {"deployment_id_before", "observed_deployment_id"}
+        require(schema == 1 or set(stage) == keys)
+        require(set(stage) in (keys, keys | pins))
+        if pins <= set(stage):
+            require(
+                all(
+                    isinstance(stage[k], str) and re.fullmatch(r"[a-z0-9]+", stage[k]) for k in pins
+                )
+                and stage["deployment_id_before"] != stage["observed_deployment_id"]
+            )
         require(stage["address"] == ADDRESS and stage["stage_name"] == "dev")
         require(isinstance(stage["api_id"], str) and re.fullmatch(r"[a-z0-9]+", stage["api_id"]))
         require(parse_format(stage["format_before"]) == BEFORE)
@@ -98,6 +168,47 @@ def validate(value, account, region):
     except KeyError, TypeError, ValueError, AttributeError:
         raise DeploymentError("StageRecoveryScopeMismatch") from None
     return copy.deepcopy(value)
+
+
+def validate_apply010_predecessor(value):
+    """Separate State15 recovery: never admit serial15 through the old schema."""
+    p = value["predecessor"]
+    expected = {
+        "kind": "failed-apply010",
+        "source_sha": "c25181ca3880825a9dffd59115bc79cb450c80c0",
+        "apply_run_id": "40777680174",
+        "apply_attempt": 1,
+        "plan_run_id": "40776053053",
+        "plan_sha256": "db294c872fb1b2b00a304112416af8f6100087fe4c0017548ce11a0591f7f1f6",
+        "completed_receipt_absent": True,
+        "deployment_receipt_absent": True,
+        "approval_consumed": True,
+        "denied_action": "logs:ListLogDeliveries",
+    }
+    digests = {
+        "started_receipt_sha256",
+        "cloudtrail_correlation_sha256",
+        "resource_attributes_sha256",
+    }
+    require(set(p) == set(expected) | digests | {"state_before", "state_after"})
+    require(all(type(p[k]) is type(v) and p[k] == v for k, v in expected.items()))
+    require(
+        p["started_receipt_sha256"]
+        == "8e7a7a0b0572da1029d764d9fc405a21846ef8fb1a04d5ed590b4720fc6a7514"
+    )
+    require(all(type(p[k]) is str and re.fullmatch(r"[0-9a-f]{64}", p[k]) for k in digests))
+    before, after = p["state_before"], p["state_after"]
+    require(after == value["state_identity"])
+    require(set(before) == set(after) == {"lineage", "serial", "version_id", "sha256"})
+    require(type(before["serial"]) is int and before["serial"] == 14)
+    require(type(after["serial"]) is int and after["serial"] == 15)
+    require(before["lineage"] == after["lineage"])
+    require(
+        type(before["version_id"]) is str
+        and before["version_id"] not in {"", "null", after["version_id"]}
+    )
+    require(type(before["sha256"]) is str and re.fullmatch(r"[0-9a-f]{64}", before["sha256"]))
+    require(before["sha256"] != after["sha256"])
 
 
 def from_approval(package, environment):
@@ -127,9 +238,99 @@ def state_resources(snapshot):
     return resources
 
 
+def fixed_route(address):
+    prefixes = tuple(
+        f"module.service.aws_apigatewayv2_route.{name}["
+        for name in ("admin", "business", "preflight")
+    )
+    if (
+        not isinstance(address, str)
+        or not address.startswith(prefixes)
+        or not address.endswith("]")
+    ):
+        return False
+    try:
+        return type(json.loads(address[address.index("[") + 1 : -1])) is str
+    except ValueError:
+        return False
+
+
+def resource_state_equal(address, before, after):
+    """Match State except fixed API CORS sets and route empty optional collections."""
+
+    def comparable(attributes):
+        if not isinstance(attributes, dict):
+            return attributes
+        if fixed_route(address):
+            result = copy.deepcopy(attributes)
+            # SDKv2 refresh d.Set(nil) yields these empty optional TypeSet/TypeMap values.
+            # Preserve missing keys and every nonempty/wrong-type value exactly.
+            for key, empty in (("authorization_scopes", []), ("request_models", {})):
+                if key in result and result[key] is None:
+                    result[key] = empty
+            return result
+        if address != API_ADDRESS:
+            return attributes
+        result = copy.deepcopy(attributes)
+        cors = result.get("cors_configuration")
+        if not isinstance(cors, list) or len(cors) != 1 or not isinstance(cors[0], dict):
+            return result
+        for key in (
+            "allow_headers",
+            "expose_headers",
+            "allow_methods",
+            "allow_origins",
+        ):
+            values = cors[0].get(key)
+            if isinstance(values, list) and all(type(v) is str and v.isascii() for v in values):
+                # The provider uses StringCaseInsensitiveSetFunc only for header names.
+                # Sort lists, retaining duplicates so malformed sets cannot disappear.
+                cors[0][key] = sorted(
+                    v.lower() if key in {"allow_headers", "expose_headers"} else v for v in values
+                )
+        return result
+
+    return comparable(before) == comparable(after)
+
+
+def expected_state_resources(snapshot, recovery):
+    """Project only explicitly admitted caches from the immutable State snapshot."""
+    result = copy.deepcopy(state_resources(snapshot))
+    stage = recovery["stage"]
+    if "observed_deployment_id" in stage:
+        require(result[ADDRESS]["deployment_id"] == stage["deployment_id_before"])
+        require(result[ADDRESS]["auto_deploy"] is True)
+        result[ADDRESS]["deployment_id"] = stage["observed_deployment_id"]
+    if recovery.get("api_role_policy_cache_refresh") is True:
+        role, policy = result[API_ROLE], result[API_POLICY]
+        require(role["name"] == policy["role"])
+        require(len(role["inline_policy"]) == 1)
+        cached = role["inline_policy"][0]
+        require(set(cached) == {"name", "policy"} and cached["name"] == policy["name"])
+        require(parse_format(cached["policy"]) != parse_format(policy["policy"]))
+        role["inline_policy"] = [{"name": policy["name"], "policy": policy["policy"]}]
+    return result
+
+
+def same_resource_states(before, after, *, recovery=None):
+    first = expected_state_resources(before, recovery) if recovery else state_resources(before)
+    second = state_resources(after)
+    return first.keys() == second.keys() and all(
+        resource_state_equal(address, attributes, second[address])
+        for address, attributes in first.items()
+    )
+
+
 def check_state(snapshot, value):
     require(snapshot["identity"] == value["state_identity"])
     require(canonical_hash(snapshot) == value["state_snapshot_sha256"])
+    if value["schema_version"] == 2:
+        validate_apply010_predecessor(value)
+        require(len(state_resources(snapshot)) == 77)
+        require(
+            canonical_hash(state_resources(snapshot))
+            == value["predecessor"]["resource_attributes_sha256"]
+        )
     m, a = snapshot["manifest"], value["artifact"]
     require(
         m["artifact"]
@@ -143,10 +344,16 @@ def check_state(snapshot, value):
     stage = state_resources(snapshot)[ADDRESS]
     require(stage["api_id"] == value["stage"]["api_id"] and stage["name"] == "dev")
     require(stage["access_log_settings"][0]["format"] == value["stage"]["format_after"])
+    expected_state_resources(snapshot, value)
     require(
         all(
             m["configuration"].get(k) is False
-            for k in ("api_enabled", "worker_enabled", "streams_enabled", "scheduler_enabled")
+            for k in (
+                "api_enabled",
+                "worker_enabled",
+                "streams_enabled",
+                "scheduler_enabled",
+            )
         )
     )
 
@@ -170,6 +377,16 @@ def stage_change(before, after, value, *, drift=False):
     require(after["access_log_settings"][0]["format"] == expected_after)
     changed = copy.deepcopy(before)
     changed["access_log_settings"][0]["format"] = expected_after
+    stage = value["stage"]
+    if "observed_deployment_id" in stage:
+        require(before["auto_deploy"] is True and after["auto_deploy"] is True)
+        require(
+            before["deployment_id"]
+            == stage["deployment_id_before" if drift else "observed_deployment_id"]
+            and after["deployment_id"] == stage["observed_deployment_id"]
+        )
+        if drift:
+            changed["deployment_id"] = stage["observed_deployment_id"]
     require(changed == after)
 
 
@@ -188,62 +405,130 @@ def planned_resources(root):
 
 def audit_plan(plan, value, snapshot):
     """Reject any mutation, drift, import, uncertainty or output beyond this Format."""
+    rule, resource_index, compared = "plan-shape", 0, None
     try:
         require(plan.get("terraform_version") == "1.14.9")
         require(not plan.get("errored") and plan.get("complete", True) is True)
         seen, managed, updates = set(), set(), 0
         original = state_resources(snapshot)
+        expected = expected_state_resources(snapshot, value)
         planned = planned_resources(plan["planned_values"]["root_module"])
-        for row in plan["resource_changes"]:
+        for index, row in enumerate(plan["resource_changes"], 1):
+            resource_index = index
+            rule, compared = "duplicate-resource", None
             address, change = row["address"], row["change"]
             require(address not in seen)
             seen.add(address)
             if row.get("mode", "managed") == "managed":
                 managed.add(address)
+                rule = "planned-value-match"
+                compared = (planned.get(address), change["after"])
                 require(address in planned and planned[address] == change["after"])
+            rule, compared = "resource-identity", None
             require(
                 not row.get("previous_address")
                 and not row.get("deposed")
                 and not change.get("importing")
             )
+            rule = "known-no-replace"
             require(
                 not change.get("replace_paths") and not has_unknown(change.get("after_unknown", {}))
             )
             if address == ADDRESS:
+                rule = "stage-identity"
                 require(
                     row["type"] == "aws_apigatewayv2_stage"
                     and row.get("mode", "managed") == "managed"
                 )
+                rule = "stage-action"
                 require(change["actions"] == ["update"])
+                rule = "stage-format-only"
                 stage_change(change["before"], change["after"], value)
-                require(change["after"] == original[ADDRESS])
+                rule, compared = (
+                    "stage-state-match",
+                    (change["after"], expected[ADDRESS]),
+                )
+                require(change["after"] == expected[ADDRESS])
                 updates += 1
             else:
+                rule = "other-resource-noop"
                 require(change["actions"] == ["no-op"] and change["before"] == change["after"])
                 if row.get("mode", "managed") == "managed":
-                    require(change["after"] == original[address])
+                    rule, compared = (
+                        "other-resource-state-match",
+                        (change["after"], expected[address]),
+                    )
+                    require(resource_state_equal(address, change["after"], expected[address]))
+        rule, compared = "complete-coverage", None
         require(updates == 1)
         require(managed == set(state_resources(snapshot)) == set(planned))
         drifts = set()
         for row in plan.get("resource_drift", []):
+            rule = "drift-identity"
             change = row["change"]
             require(row["address"] not in drifts)
             drifts.add(row["address"])
-            require(row["address"] == ADDRESS and change["actions"] == ["update"])
+            address = row["address"]
+            require(
+                (
+                    address in {ADDRESS, API_ADDRESS}
+                    or fixed_route(address)
+                    or address == API_ROLE
+                    and value.get("api_role_policy_cache_refresh") is True
+                )
+                and change["actions"] == ["update"]
+            )
             require(
                 not row.get("previous_address")
                 and not row.get("deposed")
                 and not change.get("importing")
             )
+            rule = "drift-no-replace"
             require(
                 not has_unknown(change.get("after_unknown", {})) and not change.get("replace_paths")
             )
-            stage_change(change["before"], change["after"], value, drift=True)
+            if address == API_ROLE:
+                rule = "drift-api-role-policy-cache"
+                require(change["before"] == original[API_ROLE])
+                require(change["after"] == planned[API_ROLE] == expected[API_ROLE])
+            elif address != ADDRESS:
+                rule = (
+                    "drift-api-cors-representation"
+                    if address == API_ADDRESS
+                    else "drift-route-empty-collections"
+                )
+                require(change["before"] == original[address])
+                require(change["after"] == planned[address])
+                require(resource_state_equal(address, change["before"], change["after"]))
+            else:
+                rule = "drift-format-only"
+                require(change["before"] == original[ADDRESS])
+                require(
+                    change["after"]
+                    == next(
+                        r["change"]["before"]
+                        for r in plan["resource_changes"]
+                        if r["address"] == ADDRESS
+                    )
+                )
+                stage_change(change["before"], change["after"], value, drift=True)
+        if "observed_deployment_id" in value["stage"]:
+            rule = "drift-identity"
+            require(ADDRESS in drifts)
+        if value.get("api_role_policy_cache_refresh") is True:
+            rule = "drift-api-role-policy-cache"
+            require(API_ROLE in drifts)
         for change in plan.get("output_changes", {}).values():
+            rule = "output-noop"
             require(change["actions"] == ["no-op"] and change["before"] == change["after"])
+            rule = "output-known"
             require(not has_unknown(change.get("after_unknown", {})))
     except KeyError, TypeError, ValueError, AttributeError:
-        raise DeploymentError("StageRecoveryPlanRejected") from None
+        error = DeploymentError("StageRecoveryPlanRejected")
+        error.audit_rule = rule
+        error.audit_resource_index = resource_index
+        error.audit_difference = audit_difference(*compared) if compared is not None else None
+        raise error from None
     return {
         "add": 0,
         "change": 1,
@@ -256,41 +541,52 @@ def audit_plan(plan, value, snapshot):
 def check_live(session, snapshot, value, environment, *, applied=False):
     """Fresh safety reads; active CI readiness is true only in its own Environment."""
     from botocore.config import Config
-    from github_control import github_json
+    from github_control import verify_readiness
+    from standard_diagnostics import checkpoint
+
+    def mark(stage):
+        checkpoint("post-apply-verification" if applied else stage)
 
     cfg = Config(retries={"total_max_attempts": 1}, connect_timeout=5, read_timeout=10)
     m = snapshot["manifest"]
     api = session.client("apigatewayv2", config=cfg)
+    mark("live-api")
     require(api.get_api(ApiId=m["api_id"]).get("DisableExecuteApiEndpoint") is True)
     for mapping in ("worker", "streams"):
+        mark("live-" + mapping)
         require(
             session.client("lambda", config=cfg)
             .get_event_source_mapping(UUID=m["mappings"][mapping])
             .get("State")
             == "Disabled"
         )
+    mark("live-scheduler")
     require(
         session.client("scheduler", config=cfg)
         .get_schedule(Name="recovery", GroupName="ai-interview-dev")
         .get("State")
         == "DISABLED"
     )
-    actual = api.get_stage(ApiId=m["api_id"], StageName="dev").get("AccessLogSettings", {})
+    mark("live-stage")
+    live_stage = api.get_stage(ApiId=m["api_id"], StageName="dev")
+    if "observed_deployment_id" in value["stage"]:
+        require(live_stage.get("AutoDeploy") is True)
+        require(live_stage.get("DeploymentId") == value["stage"]["observed_deployment_id"])
+    actual = live_stage.get("AccessLogSettings", {})
     expected = state_resources(snapshot)[ADDRESS]["access_log_settings"][0]
     require(actual.get("DestinationArn") == expected["destination_arn"])
     require(actual.get("Format") == value["stage"]["format_after" if applied else "format_before"])
-    operation = environment["P4_OPERATION"]
-    for name in ("dev-plan", "dev-apply"):
-        response = github_json(f"environments/{name}/variables?per_page=100", environment)
-        require(type(response.get("total_count")) is int and response["total_count"] <= 100)
-        variables = {row["name"]: row["value"] for row in response["variables"]}
-        expected_flag = "true" if name == "dev-" + operation else "false"
-        require(
-            all(
-                variables.get(k) == expected_flag
-                for k in ("P4_STANDARD_READY", "P4_AWS_EXECUTION_READY")
-            )
+    if value.get("api_role_policy_cache_refresh") is True:
+        mark("live-role-policy")
+        policy = state_resources(snapshot)[API_POLICY]
+        actual_policy = session.client("iam", config=cfg).get_role_policy(
+            RoleName=policy["role"], PolicyName=policy["name"]
         )
+        require(actual_policy.get("RoleName") == policy["role"])
+        require(actual_policy.get("PolicyName") == policy["name"])
+        require(actual_policy.get("PolicyDocument") == parse_format(policy["policy"]))
+    mark("readiness-readback")
+    verify_readiness(environment)
 
 
 def envelope_recovery(envelope, binding, environment):
@@ -316,46 +612,74 @@ def envelope_recovery(envelope, binding, environment):
 def apply_process(command, directory, *, cwd, env):
     """Persist the actual Apply exit before receipts; never retry an uncertain child."""
     from ci_identity import standard_context
+    from standard_diagnostics import process_event
 
     def record(name, value):
-        with (directory / name).open("x", encoding="utf-8") as stream:
-            json.dump(value, stream, sort_keys=True)
-            stream.flush()
-            os.fsync(stream.fileno())
+        try:
+            with (directory / name).open("x", encoding="utf-8") as stream:
+                json.dump(value, stream, sort_keys=True)
+                stream.flush()
+                os.fsync(stream.fileno())
+        except OSError:
+            raise DeploymentError("StageRecoveryApplyJournalFailed") from None
 
+    process_event("apply", "admission")
     standard_context(env, reserve=1320)
     record("recovery-process-started.private.json", {"operation": "apply", "one_use": True})
     process = None
     try:
-        process = subprocess.Popen(
-            command,
-            cwd=cwd,
-            env=env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            start_new_session=True,
-        )
+        try:
+            process = subprocess.Popen(
+                command,
+                cwd=cwd,
+                env={
+                    key: value
+                    for key, value in env.items()
+                    if key not in {"P4_ENV_READ_TOKEN", "GH_TOKEN"}
+                },
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                start_new_session=True,
+            )
+        except OSError:
+            raise DeploymentError("StageRecoveryApplyLaunchFailed") from None
+        process_event("apply", "launched")
         started = time.monotonic()
         while True:
             standard_context(env, reserve=120)
-            require(time.monotonic() - started < 1200)
+            if time.monotonic() - started >= 1200:
+                raise DeploymentError("StageRecoveryApplyDeadlineStop")
             try:
-                stdout, _ = process.communicate(timeout=1)
+                stdout, stderr = process.communicate(timeout=1)
                 break
             except subprocess.TimeoutExpired:
                 continue
+            except Exception:
+                raise DeploymentError("StageRecoveryApplyObservationFailed") from None
+        process_event("apply", "exit-observed", returncode=process.returncode)
         record(
             "recovery-process-exit.private.json",
             {"operation": "apply", "returncode": process.returncode},
         )
-        require(process.returncode == 0)
+        if process.returncode != 0:
+            from plan_process_diagnostics import summarize_failure
+
+            summary = summarize_failure(process.returncode, stdout, stderr)
+            record("recovery-process-failure.private.json", summary)
+            error = DeploymentError("StageRecoveryApplyProcessFailed")
+            error.process_diagnostic = summary
+            raise error
         standard_context(env, reserve=120)
         return stdout
     except BaseException:
-        if process is not None and process.poll() is None:
+        observed = process.poll() if process is not None else None
+        if observed is not None:
+            process_event("apply", "exit-observed", returncode=observed)
+        elif process is not None:
             process.send_signal(signal.SIGINT)
             try:
                 process.communicate(timeout=120)
+                process_event("apply", "exit-observed", returncode=process.returncode)
                 record(
                     "recovery-process-interrupted.private.json",
                     {"returncode": process.returncode, "lock_verified": False},

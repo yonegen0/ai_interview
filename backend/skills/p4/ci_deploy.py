@@ -11,6 +11,7 @@ from urllib.request import Request
 from botocore.config import Config
 from ci_identity import NoRedirect, assume
 from plan_authorization import active_guard, initialize, load
+from standard_diagnostics import CURRENT, Diagnostic, checkpoint
 from terraform_dev import (
     PROJECT,
     REPOSITORY,
@@ -396,6 +397,8 @@ def main():
     guard = None
     diagnostic = None
     meter = None
+    standard = Diagnostic() if os.environ.get("P4_STANDARD_ACTIVE") == "true" else None
+    diagnostic_token = CURRENT.set(standard)
     try:
         if os.environ.get("P4_CLOUD_ACTIVE") == "true":
             import cloud_diagnostics as diagnostic
@@ -406,6 +409,10 @@ def main():
             from github_control import github_json
             from plan_authorization import verify_run_history
 
+            # Apply has no Guard process observer. After preflight, absence of
+            # an observation cannot establish that Terraform was never started.
+            standard.started = standard.exited = None
+            checkpoint("authorization")
             verify_run_history(os.environ["P4_PLAN_HASH"], os.environ, github_json)
         run_id, attempt = os.environ["GITHUB_RUN_ID"], os.environ["GITHUB_RUN_ATTEMPT"]
         if not all(re.fullmatch(r"[0-9]+", value) for value in (run_id, attempt)):
@@ -413,6 +420,7 @@ def main():
         if operation == "plan" and attempt != "1":
             raise DeploymentError("PlanFirstAttemptRequired")
         if operation == "plan":
+            checkpoint("authorization")
             if diagnostic:
                 diagnostic.checkpoint("authorization")
             guard = initialize(
@@ -428,12 +436,19 @@ def main():
             before_plan(guard)
         if diagnostic:
             diagnostic.checkpoint("source-check")
+        checkpoint("source-check")
         sha = checked_git(PROJECT, os.environ)
+        if os.environ.get("P4_STANDARD_ACTIVE") == "true":
+            from github_control import verify_environment_access
+
+            checkpoint("readiness-readback")
+            verify_environment_access(os.environ)
         directory = PROJECT / ".p4-artifacts" / f"ci-{run_id}-{attempt}"
         directory.mkdir(parents=True, exist_ok=False)
         bucket = f"ai-interview-artifacts-{account}-{region}"
         plan_prefix = f"plans/{run_id}/{attempt}"
         if operation == "plan":
+            checkpoint("state-preflight")
             if diagnostic:
                 diagnostic.checkpoint("state-preflight")
             state_before = plan_state_preflight(account, region)
@@ -441,9 +456,11 @@ def main():
 
             recovery = from_approval(guard.package, os.environ)
             if recovery:
+                checkpoint("artifact-binding")
                 check_state(state_before, recovery)
                 package_info = recovery["artifact"]
             else:
+                checkpoint("artifact-build")
                 if diagnostic:
                     diagnostic.checkpoint("artifact-build")
                 package, info = build_package(directory, sha)
@@ -460,6 +477,7 @@ def main():
                 if diagnostic:
                     diagnostic.checkpoint("artifact-upload")
                 s3 = s3_client(role_session("artifact", account, region))
+                checkpoint("artifact-upload")
                 key = f"lambda/{sha}/{run_id}/{attempt}/app.zip"
                 version = put(s3, bucket, key, package.read_bytes())
                 package_info = {
@@ -476,9 +494,11 @@ def main():
             role_session("plan", account, region)
             if diagnostic:
                 diagnostic.checkpoint("terraform-plan")
+            checkpoint("terraform-execution")
             result = execute("plan", input_path, directory / "terraform")
             if diagnostic:
                 diagnostic.checkpoint("plan-transport")
+            checkpoint("plan-transport")
             s3 = s3_client(role_session("artifact", account, region))
             plan_version = put(
                 s3,
@@ -584,6 +604,8 @@ def main():
             print(json.dumps(result))
         return 0
     except BaseException as error:
+        if standard:
+            standard.emit(error)
         if diagnostic:
             diagnostic.emit(error)
         elif not isinstance(error, Exception):
@@ -593,6 +615,7 @@ def main():
         print("P4CiDeploymentFailed", file=sys.stderr)
         return 1
     finally:
+        CURRENT.reset(diagnostic_token)
         if meter is not None:
             meter.close()
         for key in ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN"):

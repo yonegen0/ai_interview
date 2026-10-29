@@ -17,6 +17,7 @@ from pathlib import Path
 
 from cloud_toolchain import NEW_EXECUTION_TERRAFORM_VERSION as TF_VERSION
 from plan_authorization import active_guard, required_guard
+from standard_diagnostics import checkpoint
 
 from interview_backend.deployment import (
     DeploymentError,
@@ -63,6 +64,7 @@ def digest(path):
 
 
 def run(command, *, cwd, env, accepted=(0,)):
+    env = {key: value for key, value in env.items() if key not in {"P4_ENV_READ_TOKEN", "GH_TOKEN"}}
     if os.environ.get("P4_STANDARD_ACTIVE") == "true":
         from ci_identity import standard_context
 
@@ -246,6 +248,7 @@ def execute(operation, input_path, directory, approved_hash=None, *, progress=No
         raise DeploymentError("TerraformVersionMismatch")
     if guard:
         guard.check("terraform-identity", 25)
+    checkpoint("terraform-identity")
     if os.environ.get("P4_CLOUD_ACTIVE") == "true":
         from cloud_ci import session as cloud_session
 
@@ -255,6 +258,7 @@ def execute(operation, input_path, directory, approved_hash=None, *, progress=No
     env = credential_environment(session, env)
     from deployment_guards import audit_retention, read_state_snapshot
 
+    checkpoint("state-read")
     snapshot = read_state_snapshot(
         session, account, region, binding["state_key"], allow_absent=True
     )
@@ -275,15 +279,28 @@ def execute(operation, input_path, directory, approved_hash=None, *, progress=No
 
             standard_context(os.environ, reserve=120)
             recovery = validate(recovery, account, region)
+    baseline = snapshot
     if recovery:
         from stage_recovery import check_live, check_state
 
-        check_state(snapshot, recovery)
-        check_live(session, snapshot, recovery, os.environ)
+        if operation == "verify":
+            # A completed Apply has already advanced State beyond the pinned baseline.
+            # Read the exact approved prior S3 version, not a live-state approximation.
+            baseline = read_state_snapshot(
+                session,
+                account,
+                region,
+                binding["state_key"],
+                historical_version_id=recovery["state_identity"]["version_id"],
+            )
+            binding["state_identity"] = recovery["state_identity"]
+        check_state(baseline, recovery)
+        checkpoint("live-readback")
+        check_live(session, snapshot, recovery, os.environ, applied=operation == "verify")
         binding["stage_recovery"] = recovery
     if operation != "plan":
         saved = json.loads(manifest.read_text(encoding="utf-8"))
-        if operation == "verify":
+        if operation == "verify" and not recovery:
             binding["state_identity"] = saved["state_identity"]
         assert_binding(saved, binding, plan, approved_hash)
     validate_inputs(
@@ -333,6 +350,7 @@ def execute(operation, input_path, directory, approved_hash=None, *, progress=No
         from plan_summary import summarize
 
         review = json.loads(run(["terraform", "show", "-json", str(plan)], cwd=root, env=env))
+        checkpoint("plan-audit")
         if recovery:
             from stage_recovery import audit_plan
 
@@ -348,6 +366,7 @@ def execute(operation, input_path, directory, approved_hash=None, *, progress=No
         )
         if guard:
             guard.check("post-plan-state-read", 60)
+        checkpoint("post-plan-state-read")
         if (
             read_state_snapshot(session, account, region, binding["state_key"], allow_absent=True)
             != snapshot
@@ -394,11 +413,14 @@ def execute(operation, input_path, directory, approved_hash=None, *, progress=No
             apply_process(command, directory, cwd=root, env=env)
         else:
             run(command, cwd=root, env=env)
+        checkpoint("apply-completion-record")
         write_record(directory / "apply-completed.json", {"plan_sha256": approved_hash})
         if progress:
+            checkpoint("apply-receipt")
             progress("apply_completed")
     elif not (directory / "apply-completed.json").is_file():
         raise DeploymentError("ConfirmedApplyRequired")
+    checkpoint("post-apply-verification")
     checked_session(account, region, environment=env)
     deployed = run(["terraform", "output", "-json", "manifest"], cwd=root, env=env)
     (directory / "deployment.json").write_bytes(deployed)
@@ -413,14 +435,16 @@ def execute(operation, input_path, directory, approved_hash=None, *, progress=No
     if recovery:
         final = read_state_snapshot(session, account, region, binding["state_key"])
         check_live(session, final, recovery, os.environ, applied=True)
-        from stage_recovery import state_resources
+        checkpoint("post-apply-verification")
+        from stage_recovery import same_resource_states
 
         if (
             final["identity"]["lineage"] != recovery["state_identity"]["lineage"]
             or final["identity"]["serial"] <= recovery["state_identity"]["serial"]
             or final["identity"]["version_id"] == recovery["state_identity"]["version_id"]
-            or final["manifest"] != snapshot["manifest"]
-            or state_resources(final) != state_resources(snapshot)
+            or final["manifest"] != baseline["manifest"]
+            or (operation == "verify" and final["identity"] != snapshot["identity"])
+            or not same_resource_states(baseline, final, recovery=recovery)
         ):
             raise DeploymentError("StageRecoveryFinalStateMismatch")
     return {"status": "applied_readback_verified", "versions": observed["versions"]}
