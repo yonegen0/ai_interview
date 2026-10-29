@@ -46,6 +46,31 @@ CIのfixtureは合成した77資源であり、private State・実識別子・ra
 
 ## 新Plan前の条件
 
+### Stage15 Apply失敗後のState16（2026-10-29 UTC）
+
+Run `40865048330` / Attempt 1のUpdateStage（`11:26:48Z`）は
+`BadRequestException`で失敗した。承認済みの限定CloudTrail診断は対象Stage・実行セッションを
+照合し、`logs:GetLogDelivery`のidentity-based Allow不足という応答を確認した。
+診断は1ページ・3 SDK/3 HTTP要求、再試行/書込み0。rawイベントと相関証拠はprivate保存する。
+[AWS公式のHTTP APIログ設定](https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-logging.html)
+にも同権限がある。ログ変数は変更せず、既存deploy限定・既定false・東京条件のopt-inへ
+この読取りアクションだけを追加する。sourceのmergeだけでは実IAMは変わらない。
+
+保存済みの事後読戻しでは同lineageのState15→16、全77資源の属性不変、IAM10資源不変、
+実Stage4項目/State6項目、開始receiptあり・完了/deployment receiptなしを確認した。
+schema3だけがこの失敗Run、source、Plan Run/hash、開始receipt hash、拒否アクションと
+State15→16の別version/hashを受け付ける。schema1/2のserial条件は保持する。
+CloudTrail相関hash・全77資源fingerprint・snapshot identityを新descriptorに結び付け、
+旧cache/pin例外、Stage以外の変更、旧Plan/承認の継承は引き続き拒否する。
+
+以下の手順の「State15」は今回の復旧では「State16/schema3」と読み替える。
+新source固定後、canonical bootstrapの新Planはstandard deploy inline policyへの
+`logs:GetLogDelivery`追加1更新だけを監査し、その正確なPlan hashへ別Apply承認を得る。
+反映後の独立監査で実policy・State・lock・閉鎖/readinessを確認してから、
+最新State16を再照合し、devの新Plan（Stage4→6のみ、残る76資源/IAM10資源no-op）を作る。
+その新しいPlan hashへのApply承認と独立事後監査までが必要であり、旧Saved Planは再利用しない。
+実AWS上の試行錯誤、State巻戻し、serial条件の単純な差替えは行わない。
+
 1. 通常PR・必須CI・merge後CIを確認し、新しい正確なmain SHAを固定する。
 2. 新しい限定読取り承認で、canonical bootstrapの最新State/lock/40資源/IAMと、dev State15/
    lock/Artifact/Stage/closure/readinessを照合する。消費済みCloudTrail承認は転用しない。

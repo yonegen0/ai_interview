@@ -114,19 +114,19 @@ def validate(value, account, region):
             "stage",
         }
         schema = value["schema_version"]
-        require(type(schema) is int and schema in {1, 2})
+        require(type(schema) is int and schema in {1, 2, 3})
         if schema == 1:
             require(set(value) in (keys, keys | {"api_role_policy_cache_refresh"}))
         else:
             require(set(value) == keys | {"predecessor"})
         if "api_role_policy_cache_refresh" in value:
             require(value["api_role_policy_cache_refresh"] is True)
-        if schema == 2:
-            validate_apply010_predecessor(value)
+        if schema in {2, 3}:
+            validate_failed_apply_predecessor(value)
         require(value["kind"] == "gate-b-stage-access-log" and region == "ap-northeast-1")
         identity = value["state_identity"]
         require(set(identity) == {"lineage", "serial", "version_id", "sha256"})
-        allowed_serials = {13, 14} if schema == 1 else {15}
+        allowed_serials = {1: {13, 14}, 2: {15}, 3: {16}}[schema]
         require(type(identity["serial"]) is int and identity["serial"] in allowed_serials)
         require(
             all(isinstance(identity[k], str) and identity[k] for k in ("lineage", "version_id"))
@@ -170,8 +170,8 @@ def validate(value, account, region):
     return copy.deepcopy(value)
 
 
-def validate_apply010_predecessor(value):
-    """Separate State15 recovery: never admit serial15 through the old schema."""
+def validate_failed_apply_predecessor(value):
+    """Bind each successor to its fixed failed run, without widening old schemas."""
     p = value["predecessor"]
     expected = {
         "kind": "failed-apply010",
@@ -185,6 +185,19 @@ def validate_apply010_predecessor(value):
         "approval_consumed": True,
         "denied_action": "logs:ListLogDeliveries",
     }
+    started_receipt = "8e7a7a0b0572da1029d764d9fc405a21846ef8fb1a04d5ed590b4720fc6a7514"
+    serial_before, serial_after = 14, 15
+    if value["schema_version"] == 3:
+        expected.update(
+            kind="failed-stage15-apply",
+            source_sha="04ceae2d75a3ba2c36764012295085af86846cda",
+            apply_run_id="40865048330",
+            plan_run_id="40858452172",
+            plan_sha256="c1efebbf04945233c96acc9454ca5d880ae305ffe5e26dc1dc5d53d6e1ae4a9c",
+            denied_action="logs:GetLogDelivery",
+        )
+        started_receipt = "cb8c1d0fceba7a42c6de54877816aea56076160baef7c2fab9d7426be5c88bb3"
+        serial_before, serial_after = 15, 16
     digests = {
         "started_receipt_sha256",
         "cloudtrail_correlation_sha256",
@@ -192,16 +205,13 @@ def validate_apply010_predecessor(value):
     }
     require(set(p) == set(expected) | digests | {"state_before", "state_after"})
     require(all(type(p[k]) is type(v) and p[k] == v for k, v in expected.items()))
-    require(
-        p["started_receipt_sha256"]
-        == "8e7a7a0b0572da1029d764d9fc405a21846ef8fb1a04d5ed590b4720fc6a7514"
-    )
+    require(p["started_receipt_sha256"] == started_receipt)
     require(all(type(p[k]) is str and re.fullmatch(r"[0-9a-f]{64}", p[k]) for k in digests))
     before, after = p["state_before"], p["state_after"]
     require(after == value["state_identity"])
     require(set(before) == set(after) == {"lineage", "serial", "version_id", "sha256"})
-    require(type(before["serial"]) is int and before["serial"] == 14)
-    require(type(after["serial"]) is int and after["serial"] == 15)
+    require(type(before["serial"]) is int and before["serial"] == serial_before)
+    require(type(after["serial"]) is int and after["serial"] == serial_after)
     require(before["lineage"] == after["lineage"])
     require(
         type(before["version_id"]) is str
@@ -324,8 +334,8 @@ def same_resource_states(before, after, *, recovery=None):
 def check_state(snapshot, value):
     require(snapshot["identity"] == value["state_identity"])
     require(canonical_hash(snapshot) == value["state_snapshot_sha256"])
-    if value["schema_version"] == 2:
-        validate_apply010_predecessor(value)
+    if value["schema_version"] in {2, 3}:
+        validate_failed_apply_predecessor(value)
         require(len(state_resources(snapshot)) == 77)
         require(
             canonical_hash(state_resources(snapshot))
