@@ -56,7 +56,11 @@ USD_INPUT_KEYS = (INPUT_KEYS - {"jpy_per_usd", "budget_rate_date"}) | {"monthly_
 def valid_input_keys(keys, *, without_artifact=False):
     package = {"artifact_bucket", "artifact_key", "artifact_version", "artifact_sha256_base64"}
     omitted = package if without_artifact else set()
-    return set(keys) in (INPUT_KEYS - omitted, USD_INPUT_KEYS - omitted)
+    return any(
+        set(keys) == required - omitted | optional
+        for required in (INPUT_KEYS, USD_INPUT_KEYS)
+        for optional in (set(), {"worker_ai_environment"})
+    )
 
 
 def digest(path):
@@ -135,6 +139,13 @@ def validate_inputs(
     ):
         raise DeploymentError("ApprovedRetentionShorteningRequired")
     result = dict(values)
+    if "worker_ai_environment" in result:
+        from interview_backend.evaluation.selection import checked_provider_environment
+
+        provider = result["worker_ai_environment"]
+        if not isinstance(provider, dict) or provider.get("INTERVIEW_AI_PROVIDER") != "bedrock":
+            raise DeploymentError("ExplicitBedrockConfigurationRequired")
+        result["worker_ai_environment"] = checked_provider_environment(provider, account, region)
     if "monthly_budget_usd" in result:
         amount = result["monthly_budget_usd"]
         if (

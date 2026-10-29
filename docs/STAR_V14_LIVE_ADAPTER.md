@@ -183,6 +183,12 @@ missing-action/contradiction/401は追加質問を期待する。
 
 ### 承認時に固定する実行量・費用・終了条件
 
+標準dev Plan/Applyは既存の`worker_ai_environment`を任意入力として搬送できる。
+指定時は既存Provider検証でBedrock JP Geo・明示enable・low/2048・上限を確認し、
+Fake/OpenAI/WIFとの混在や暗黙選択を拒否する。省略時の既存入力と4入口閉鎖条件は維持する。
+この入力対応だけでは配備されない。Worker用Bootstrap境界のopt-in、Worker IAMと環境変数の
+新Saved Plan監査・個別承認・配備後読戻しは引き続き必要である。
+
 最初のdev smoke/品質batchは、STAR最大12送信と通常評価最大6送信、計18送信を提案する。
 STAR通常ケース1件を`star_flow`に兼用し、その正式評価1件、別sessionでCoaching最大3深掘り
 （初回+3回）と明示retry_attempt1件で通常評価最大6件。自動再試行/追加品質再測定0。
