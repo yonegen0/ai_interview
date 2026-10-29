@@ -20,4 +20,10 @@ if (result.status !== 0) process.exit(result.status ?? 1);
 if (mode === "production") {
   const worker = resolve("out/mockServiceWorker.js");
   if (existsSync(worker)) unlinkSync(worker);
+  const verification = spawnSync(
+    process.execPath,
+    [resolve("scripts/verify-production-export.mjs")],
+    { env, stdio: "inherit" },
+  );
+  if (verification.status !== 0) process.exit(verification.status ?? 1);
 }
