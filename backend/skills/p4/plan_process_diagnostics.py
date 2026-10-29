@@ -17,6 +17,7 @@ MARKERS = (
     ("invalid-provider-configuration-marker", (b"Invalid provider configuration",)),
     ("api-bad-request-marker", (b"BadRequestException",)),
     ("list-log-deliveries-marker", (b"logs:ListLogDeliveries",)),
+    ("update-log-delivery-marker", (b"logs:UpdateLogDelivery",)),
 )
 
 

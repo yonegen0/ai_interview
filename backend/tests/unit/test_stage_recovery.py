@@ -121,7 +121,30 @@ def state16_recovery(state15_recovery):
     return h
 
 
-@pytest.fixture(params=["state15_recovery", "state16_recovery"])
+@pytest.fixture
+def state17_recovery(state16_recovery):
+    h = state16_recovery
+    before = copy.deepcopy(h.snapshot["identity"])
+    h.snapshot["identity"].update(serial=17, version_id="pinned-state17", sha256="7" * 64)
+    h.descriptor.update(
+        state_identity=copy.deepcopy(h.snapshot["identity"]),
+        state_snapshot_sha256=h.m.canonical_hash(h.snapshot),
+    )
+    h.descriptor["predecessor"].update(
+        kind="failed-stage16-apply",
+        source_sha="3cee5b06fc733909b652f3223f8b79842bebb7d6",
+        apply_run_id="40875185933",
+        plan_run_id="40873516077",
+        plan_sha256="0bf431492ba1aa43ddc5ea3756db8bd77552e8328a73a8008d0a3f5ed0314dce",
+        started_receipt_sha256="453331f4a11f730ebca93d545bddc4efd3d568a82f6a97db6d9b2244c98dff7d",
+        denied_action="logs:UpdateLogDelivery",
+        state_before=before,
+        state_after=copy.deepcopy(h.snapshot["identity"]),
+    )
+    return h
+
+
+@pytest.fixture(params=["state15_recovery", "state16_recovery", "state17_recovery"])
 def successor_recovery(request):
     return request.getfixturevalue(request.param)
 
@@ -154,7 +177,7 @@ def test_successor_requires_separate_schema_provenance_and_complete_unchanged_re
         ("completed_receipt_absent", 1),
         ("deployment_receipt_absent", False),
         ("approval_consumed", False),
-        ("denied_action", "logs:UpdateLogDelivery"),
+        ("denied_action", "logs:DeleteLogDelivery"),
         ("cloudtrail_correlation_sha256", "not-a-hash"),
         ("resource_attributes_sha256", None),
     ],
@@ -202,6 +225,15 @@ def test_state15_schema_rejects_other_or_noninteger_serials(state15_recovery, se
 @pytest.mark.parametrize("serial", [13, 14, 15, 17, True, 16.0, "16"])
 def test_state16_schema_rejects_other_or_noninteger_serials(state16_recovery, serial):
     h = state16_recovery
+    h.descriptor["state_identity"]["serial"] = serial
+    h.descriptor["predecessor"]["state_after"] = copy.deepcopy(h.descriptor["state_identity"])
+    with pytest.raises(ValueError, match="StageRecoveryScopeMismatch"):
+        h.m.validate(h.descriptor, "123456789012", "ap-northeast-1")
+
+
+@pytest.mark.parametrize("serial", [13, 14, 15, 16, 18, True, 17.0, "17"])
+def test_state17_requires_its_own_exact_failed_predecessor(state17_recovery, serial):
+    h = state17_recovery
     h.descriptor["state_identity"]["serial"] = serial
     h.descriptor["predecessor"]["state_after"] = copy.deepcopy(h.descriptor["state_identity"])
     with pytest.raises(ValueError, match="StageRecoveryScopeMismatch"):

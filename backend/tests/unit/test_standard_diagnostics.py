@@ -354,3 +354,17 @@ def test_exit_observation_survives_private_journal_write_failure(diagnostic, mon
     with pytest.raises(OSError):
         guard.process(["terraform", "init"], cwd=tmp_path, env={})
     assert instance.started is instance.exited is True
+
+
+def test_stage_update_denial_has_specific_hint_without_private_output(diagnostic):
+    from plan_process_diagnostics import summarize_failure
+
+    _, instance = diagnostic
+    error = DeploymentError("StageRecoveryApplyProcessFailed")
+    error.process_diagnostic = summarize_failure(
+        1, b"private stdout", b"BadRequestException private arn logs:UpdateLogDelivery"
+    )
+    result = instance.projection(error)
+    assert result["diagnostic_hints"] == ["api-bad-request-marker", "update-log-delivery-marker"]
+    assert result["hints_are_root_cause_proof"] is False
+    assert "private" not in json.dumps(result)
