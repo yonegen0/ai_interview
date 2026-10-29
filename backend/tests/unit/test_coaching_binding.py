@@ -159,3 +159,40 @@ def test_cleanup_reads_only_journal_keys_and_retains_usage():
     assert all(k["PK"] == "USER#a" and "PROVIDER_USAGE" not in k["SK"] for k in seen)
     with pytest.raises(ValueError, match="CleanupExactKeyMismatch"):
         binding.cleanup_candidates(rows, "a", lambda key: key | {"PK": "USER#other"})
+
+
+@pytest.mark.parametrize("paid_authorized", [False, True])
+def test_bedrock_binding_requires_explicit_paid_approval(tmp_path, paid_authorized):
+    binding = tool("coaching_binding")
+    approval, raw_manifest, callbacks = inputs(tmp_path)
+    manifest = json.loads(raw_manifest)
+    manifest["worker_ai_environment"] = {
+        "INTERVIEW_AI_PROVIDER": "bedrock",
+        "INTERVIEW_BEDROCK_ENABLED": "true",
+        "INTERVIEW_BEDROCK_PROFILE_ID": "jp.anthropic.claude-haiku-5-5",
+    }
+    raw_manifest = json.dumps(manifest).encode()
+    approval.update(
+        provider="bedrock",
+        scenario="bedrock",
+        paid_calls_authorized=paid_authorized,
+        manifest_sha256=hashlib.sha256(raw_manifest).hexdigest(),
+    )
+    raw = json.dumps(approval).encode()
+    kwargs = dict(run_id=approval["run_id"], account=approval["account_id"], callbacks=callbacks)
+    if paid_authorized:
+        assert binding.approval_binding(
+            raw, hashlib.sha256(raw).hexdigest(), raw_manifest, **kwargs
+        ) == (approval, manifest)
+    else:
+        with pytest.raises(ValueError, match="PaidCallsNotApproved"):
+            binding.approval_binding(raw, hashlib.sha256(raw).hexdigest(), raw_manifest, **kwargs)
+
+
+def test_bedrock_cannot_use_a_fake_scenario():
+    suite = tool("suite_binding")
+    with pytest.raises(ValueError, match="ScenarioManifestMismatch"):
+        suite.validate_scenario(
+            {"provider": "bedrock", "scenario": "fake_normal", "expected_rounds": 0},
+            {"INTERVIEW_AI_PROVIDER": "bedrock"},
+        )
