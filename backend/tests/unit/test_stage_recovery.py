@@ -97,10 +97,39 @@ def state15_recovery(state14_recovery):
     return h
 
 
-def test_state15_requires_separate_schema_provenance_and_complete_unchanged_resources(
-    state15_recovery,
-):
+@pytest.fixture
+def state16_recovery(state15_recovery):
     h = state15_recovery
+    before = copy.deepcopy(h.snapshot["identity"])
+    h.snapshot["identity"].update(serial=16, version_id="pinned-state16", sha256="6" * 64)
+    h.descriptor.update(
+        schema_version=3,
+        state_identity=copy.deepcopy(h.snapshot["identity"]),
+        state_snapshot_sha256=h.m.canonical_hash(h.snapshot),
+    )
+    h.descriptor["predecessor"].update(
+        kind="failed-stage15-apply",
+        source_sha="04ceae2d75a3ba2c36764012295085af86846cda",
+        apply_run_id="40865048330",
+        plan_run_id="40858452172",
+        plan_sha256="c1efebbf04945233c96acc9454ca5d880ae305ffe5e26dc1dc5d53d6e1ae4a9c",
+        started_receipt_sha256="cb8c1d0fceba7a42c6de54877816aea56076160baef7c2fab9d7426be5c88bb3",
+        denied_action="logs:GetLogDelivery",
+        state_before=before,
+        state_after=copy.deepcopy(h.snapshot["identity"]),
+    )
+    return h
+
+
+@pytest.fixture(params=["state15_recovery", "state16_recovery"])
+def successor_recovery(request):
+    return request.getfixturevalue(request.param)
+
+
+def test_successor_requires_separate_schema_provenance_and_complete_unchanged_resources(
+    successor_recovery,
+):
+    h = successor_recovery
     original = copy.deepcopy((h.descriptor, h.snapshot, h.plan))
     assert h.m.validate(h.descriptor, "123456789012", "ap-northeast-1") == h.descriptor
     h.m.check_state(h.snapshot, h.descriptor)
@@ -130,8 +159,8 @@ def test_state15_requires_separate_schema_provenance_and_complete_unchanged_reso
         ("resource_attributes_sha256", None),
     ],
 )
-def test_state15_rejects_wrong_predecessor_provenance(state15_recovery, field, value):
-    h = state15_recovery
+def test_successor_rejects_wrong_predecessor_provenance(successor_recovery, field, value):
+    h = successor_recovery
     h.descriptor["predecessor"][field] = value
     with pytest.raises(ValueError, match="StageRecoveryScopeMismatch"):
         h.m.validate(h.descriptor, "123456789012", "ap-northeast-1")
@@ -140,8 +169,8 @@ def test_state15_rejects_wrong_predecessor_provenance(state15_recovery, field, v
 @pytest.mark.parametrize(
     "fault", ["missing", "extra", "missing-field", "old-schema", "cache", "pins"]
 )
-def test_state15_cannot_inherit_old_recovery_exceptions(state15_recovery, fault):
-    h = state15_recovery
+def test_successor_cannot_inherit_old_recovery_exceptions(successor_recovery, fault):
+    h = successor_recovery
     if fault == "missing":
         h.descriptor.pop("predecessor")
     elif fault == "extra":
@@ -170,11 +199,20 @@ def test_state15_schema_rejects_other_or_noninteger_serials(state15_recovery, se
         h.m.validate(h.descriptor, "123456789012", "ap-northeast-1")
 
 
+@pytest.mark.parametrize("serial", [13, 14, 15, 17, True, 16.0, "16"])
+def test_state16_schema_rejects_other_or_noninteger_serials(state16_recovery, serial):
+    h = state16_recovery
+    h.descriptor["state_identity"]["serial"] = serial
+    h.descriptor["predecessor"]["state_after"] = copy.deepcopy(h.descriptor["state_identity"])
+    with pytest.raises(ValueError, match="StageRecoveryScopeMismatch"):
+        h.m.validate(h.descriptor, "123456789012", "ap-northeast-1")
+
+
 @pytest.mark.parametrize(
     "fault", ["serial", "lineage", "version", "same-version", "hash", "same-hash", "extra", "after"]
 )
-def test_state15_predecessor_requires_exact_identity_transition(state15_recovery, fault):
-    h = state15_recovery
+def test_successor_predecessor_requires_exact_identity_transition(successor_recovery, fault):
+    h = successor_recovery
     p = h.descriptor["predecessor"]
     before, after = p["state_before"], p["state_after"]
     if fault == "serial":
@@ -198,8 +236,8 @@ def test_state15_predecessor_requires_exact_identity_transition(state15_recovery
 
 
 @pytest.mark.parametrize("fault", ["resource", "count", "identity", "snapshot", "fingerprint"])
-def test_state15_binds_snapshot_identity_and_all_77_resources(state15_recovery, fault):
-    h = state15_recovery
+def test_successor_binds_snapshot_identity_and_all_77_resources(successor_recovery, fault):
+    h = successor_recovery
     if fault == "resource":
         h.m.state_resources(h.snapshot)[h.m.ADDRESS]["tags"]["Project"] = "changed"
         h.descriptor["state_snapshot_sha256"] = h.m.canonical_hash(h.snapshot)
@@ -222,8 +260,8 @@ def test_state15_binds_snapshot_identity_and_all_77_resources(state15_recovery, 
 @pytest.mark.parametrize(
     "fault", ["iam-update", "destroy", "replace", "unknown", "missing", "extra-drift"]
 )
-def test_state15_still_audits_stage_only_change_and_iam_noop(state15_recovery, fault):
-    h = state15_recovery
+def test_successor_still_audits_stage_only_change_and_iam_noop(successor_recovery, fault):
+    h = successor_recovery
     row = h.plan["resource_changes"][2]
     if fault == "iam-update":
         row["change"]["actions"] = ["update"]
