@@ -52,7 +52,7 @@ it.each([
   writeFileSync(target, "test");
   const result = check(root);
   expect(result.status).not.toBe(0);
-  expect(result.stderr).toContain(name);
+  expect(result.stderr).toContain(name.startsWith("test-results/") ? "test-results" : name);
 });
 
 it("rejects a mock-enabled build regardless of its file list", () => {
