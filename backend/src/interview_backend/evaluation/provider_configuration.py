@@ -80,7 +80,12 @@ def provider_values(environment):
     if any(type(v) is not str for v in values.values()):
         raise ProviderFailure("CONFIGURATION")
     provider = values.get("INTERVIEW_AI_PROVIDER", "fake")
-    allowed = {"bedrock": BEDROCK_KEYS, "openai": OPENAI_KEYS, "anthropic": ANTHROPIC_KEYS, "fake": FAKE_KEYS}.get(provider)
+    allowed = {
+        "bedrock": BEDROCK_KEYS,
+        "openai": OPENAI_KEYS,
+        "anthropic": ANTHROPIC_KEYS,
+        "fake": FAKE_KEYS,
+    }.get(provider)
     if allowed is None or set(values) - allowed:
         raise ProviderFailure("CONFIGURATION")
     return values
