@@ -72,7 +72,9 @@ def log_event(event, *, sink=None, **fields):
         elif key == "failureReason":
             valid = isinstance(value, str) and value in REASONS
         elif key == "provider":
-            valid = isinstance(value, str) and value in {"fake", "openai", "bedrock", "anthropic", "unknown"}
+            valid = isinstance(value, str) and value in {
+                "fake", "openai", "bedrock", "anthropic", "unknown"
+            }
         elif key == "workload":
             valid = isinstance(value, str) and value in {"evaluation", "star"}
         elif key in {
