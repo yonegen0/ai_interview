@@ -215,8 +215,11 @@ class Worker:
                 reason = "PROVIDER_FAILED"
         if entered and config.provider_id.startswith(("openai", "bedrock", "anthropic")):
             log_provider_usage(
-                "bedrock" if config.provider_id.startswith("bedrock")
-                else "anthropic" if config.provider_id.startswith("anthropic") else "openai",
+                "bedrock"
+                if config.provider_id.startswith("bedrock")
+                else "anthropic"
+                if config.provider_id.startswith("anthropic")
+                else "openai",
                 getattr(self.provider, "last_observation", None),
             )
         result = self.repository.finish(lease, feedback, reason)
