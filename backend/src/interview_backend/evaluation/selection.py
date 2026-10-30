@@ -114,7 +114,9 @@ def checked_provider_environment(values, account, region):
                 effort=values.get("INTERVIEW_ANTHROPIC_EFFORT", "medium"),
                 max_output_tokens=int(values.get("INTERVIEW_ANTHROPIC_MAX_OUTPUT_TOKENS", "4096")),
                 monthly_user_limit=int(values.get("INTERVIEW_ANTHROPIC_MONTHLY_USER_LIMIT", "100")),
-                monthly_global_limit=int(values.get("INTERVIEW_ANTHROPIC_MONTHLY_GLOBAL_LIMIT", "3000")),
+                monthly_global_limit=int(
+                    values.get("INTERVIEW_ANTHROPIC_MONTHLY_GLOBAL_LIMIT", "3000")
+                ),
                 workspace_id=values.get("INTERVIEW_ANTHROPIC_WORKSPACE_ID"),
             )
         except (ValueError, TypeError, ProviderFailure):
@@ -191,7 +193,9 @@ def select_provider(environment):
                 effort=values.get("INTERVIEW_ANTHROPIC_EFFORT", "medium"),
                 max_output_tokens=int(values.get("INTERVIEW_ANTHROPIC_MAX_OUTPUT_TOKENS", "4096")),
                 monthly_user_limit=int(values.get("INTERVIEW_ANTHROPIC_MONTHLY_USER_LIMIT", "100")),
-                monthly_global_limit=int(values.get("INTERVIEW_ANTHROPIC_MONTHLY_GLOBAL_LIMIT", "3000")),
+                monthly_global_limit=int(
+                    values.get("INTERVIEW_ANTHROPIC_MONTHLY_GLOBAL_LIMIT", "3000")
+                ),
                 workspace_id=values.get("INTERVIEW_ANTHROPIC_WORKSPACE_ID"),
             )
         except (ValueError, TypeError, ProviderFailure):
@@ -204,7 +208,6 @@ def select_provider(environment):
     from interview_backend.evaluation.openai_provider import (
         OpenAIProvider,
         OpenAISettings,
-        ProviderFailure,
     )
 
     if selection != "openai" or environment.get("INTERVIEW_OPENAI_ENABLED") != "true":
