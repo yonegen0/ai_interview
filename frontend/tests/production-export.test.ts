@@ -41,6 +41,11 @@ it("accepts a clean static export", () => {
 it.each([
   "mockServiceWorker.js",
   ".env.production",
+  ".npmrc",
+  "private/.netrc",
+  "private/.pypirc",
+  "private/id_ed25519",
+  "private/id_rsa",
   "_next/static/app.js.map",
   "build/private.pem",
   "terraform.tfstate",

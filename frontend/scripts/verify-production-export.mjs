@@ -15,7 +15,7 @@ const forbiddenNames = new Set([
   "test-results",
   "__tests__",
 ]);
-const forbiddenFile = /(?:^\.env(?:\.|$)|^\.ds_store$|\.(?:map|pem|key|tfstate)(?:\.|$)|^terraform\.tfvars(?:\.json)?$)/i;
+const forbiddenFile = /(?:^\.env(?:\.|$)|^\.ds_store$|^\.(?:npmrc|netrc|pypirc)$|^id_(?:rsa|ed25519)$|\.(?:map|pem|key|tfstate)(?:\.|$)|^terraform\.tfvars(?:\.json)?$)/i;
 
 if (process.env.NEXT_PUBLIC_MSW_ENABLED === "true" || process.env.POCKET_MOCK_BUILD === "true") {
   throw new Error("Refusing to verify a mock-enabled production export");
