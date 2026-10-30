@@ -119,7 +119,7 @@ def checked_provider_environment(values, account, region):
                 ),
                 workspace_id=values.get("INTERVIEW_ANTHROPIC_WORKSPACE_ID"),
             )
-        except (ValueError, TypeError, ProviderFailure):
+        except ValueError, TypeError, ProviderFailure:
             raise ValueError("InvalidProviderEnvironment") from None
     if provider == "openai":
         if values.get("INTERVIEW_OPENAI_ENABLED") != "true":
@@ -198,7 +198,7 @@ def select_provider(environment):
                 ),
                 workspace_id=values.get("INTERVIEW_ANTHROPIC_WORKSPACE_ID"),
             )
-        except (ValueError, TypeError, ProviderFailure):
+        except ValueError, TypeError, ProviderFailure:
             raise ProviderFailure("CONFIGURATION") from None
         return AnthropicProvider(
             SecretAuthentication(region, values["INTERVIEW_ANTHROPIC_SECRET_ARN"]),
