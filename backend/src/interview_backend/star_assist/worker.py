@@ -86,7 +86,9 @@ class StarWorker:
             result, status = None, "FAILED_AFTER_START"
         if self.provider.provider_id.startswith("star:"):
             log_provider_usage(
-                "bedrock" if self.provider.provider_id.startswith("star:bedrock:") else "openai",
+                "bedrock" if self.provider.provider_id.startswith("star:bedrock:")
+                else "anthropic" if self.provider.provider_id.startswith("star:anthropic:")
+                else "openai",
                 getattr(self.provider, "last_observation", None),
                 generation_id=identifier,
             )
