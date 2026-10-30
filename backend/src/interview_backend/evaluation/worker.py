@@ -111,7 +111,7 @@ class Worker:
                 "applied",
                 "already_terminal",
             }
-        if config.provider_id.startswith(("openai", "bedrock")):
+        if config.provider_id.startswith(("openai", "bedrock", "anthropic")):
             quota = self.repository.reserve_provider_call(
                 lease,
                 self.provider.settings.monthly_user_limit,
@@ -138,7 +138,7 @@ class Worker:
                 raise RuntimeError("already_called")
             entered = True
             called_at = self.monotonic()
-            if config.provider_id.startswith(("openai", "bedrock")):
+            if config.provider_id.startswith(("openai", "bedrock", "anthropic")):
                 from interview_backend.evaluation.openai_provider import Deadline
 
                 budget = min(
@@ -213,9 +213,10 @@ class Worker:
                 )
             else:
                 reason = "PROVIDER_FAILED"
-        if entered and config.provider_id.startswith(("openai", "bedrock")):
+        if entered and config.provider_id.startswith(("openai", "bedrock", "anthropic")):
             log_provider_usage(
-                "bedrock" if config.provider_id.startswith("bedrock") else "openai",
+                "bedrock" if config.provider_id.startswith("bedrock")
+                else "anthropic" if config.provider_id.startswith("anthropic") else "openai",
                 getattr(self.provider, "last_observation", None),
             )
         result = self.repository.finish(lease, feedback, reason)
