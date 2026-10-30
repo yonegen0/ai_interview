@@ -75,6 +75,7 @@ def anthropic_schema(original):
     Unsupported validation limits are included in descriptions, never silently
     waived; unsupported schema structures are rejected before any API call.
     """
+
     def convert(node):
         if not isinstance(node, dict) or set(node) - _ALLOWED_SCHEMA_KEYS:
             raise ProviderFailure("CONFIGURATION")
