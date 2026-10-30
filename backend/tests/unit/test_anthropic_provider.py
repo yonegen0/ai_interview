@@ -125,7 +125,10 @@ def test_prompt_v1_nullable_answer_contract():
     transport = Transport(response(data))
     provider = AnthropicProvider(Authentication(), transport=transport)
     assert provider.evaluate(prompt) == {k: v for k, v in data.items() if k != "exampleAnswer"}
-    assert json.loads(transport.requests[0][2]["messages"][0]["content"])["user_answer"] == "本人回答"
+    assert (
+        json.loads(transport.requests[0][2]["messages"][0]["content"])["user_answer"]
+        == "本人回答"
+    )
 
 
 @pytest.mark.parametrize(
