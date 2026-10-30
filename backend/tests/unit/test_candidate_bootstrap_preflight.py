@@ -322,9 +322,12 @@ def test_separate_candidate_plan_binding_is_required(fixture, operation):
         run(fixture)
 
 
-def test_old_execution_contract_remains_unchanged(fixture):
+def test_legacy_maintenance_pin_is_independent_of_held_execution_proposal(fixture):
+    assert tool("maintenance_contract").TF_VERSION == tool("bootstrap_maintenance").TF_VERSION
     assert tool("maintenance_contract").TF_VERSION == "1.14.9"
-    assert tool("cloud_toolchain").EXPECTED_TERRAFORM_VERSION == "1.14.9"
+    cloud = tool("cloud_toolchain")
+    assert cloud.EXPECTED_TERRAFORM_VERSION == cloud.NEW_EXECUTION_TERRAFORM_VERSION == "1.16.7"
+    assert fixture[0].CLI == "1.16.7"
     assert fixture[0].NAMESPACE != "p4-bootstrap-maintenance-legacy"
 
 

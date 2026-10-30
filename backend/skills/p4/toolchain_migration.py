@@ -99,6 +99,27 @@ def configuration_bytes(copied):
     }
 
 
+def verify_candidate_checkout(baseline, candidate_repository, candidate):
+    """Bind PR B's actual tracked Terraform bytes to the immutable old source.
+
+    Compare inventories before reading candidate contents, so added State/Plan files
+    cannot enter this version-only migration path. Neither checkout is modified.
+    """
+    roots = [Path(value).resolve() for value in (baseline, candidate_repository)]
+    snapshots = [tracked_snapshot(root) for root in roots]
+    if snapshots[0].keys() != snapshots[1].keys():
+        raise ValueError("MigrationFileInventoryChanged")
+    configurations = [
+        {name: (root / name).read_bytes() for name in snapshot}
+        for root, snapshot in zip(roots, snapshots, strict=True)
+    ]
+    assert_migration(*configurations, candidate)
+    if any(
+        tracked_snapshot(root) != snapshot for root, snapshot in zip(roots, snapshots, strict=True)
+    ):
+        raise ValueError("OriginalTerraformChanged")
+
+
 def export_candidate_bundle(repository, qualification, destination):
     """Export twelve reviewed candidate files, without editing the active checkout.
 
@@ -319,7 +340,13 @@ def main():
     parser.add_argument("--candidate", required=True, choices=CANDIDATE_CLIS)
     parser.add_argument("--compare-provider-schemas", action="store_true")
     parser.add_argument("--export-directory")
+    parser.add_argument("--candidate-repository")
+    parser.add_argument("--checkout-candidate", choices=CANDIDATE_CLIS)
     args = parser.parse_args()
+    if args.candidate_repository:
+        verify_candidate_checkout(
+            args.repository, args.candidate_repository, args.checkout_candidate or args.candidate
+        )
     work = qualify(
         args.repository,
         args.temp_parent,

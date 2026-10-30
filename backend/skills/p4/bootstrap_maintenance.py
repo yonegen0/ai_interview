@@ -9,9 +9,12 @@ import csv
 import io
 import json
 import os
+import platform
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -47,6 +50,54 @@ from interview_backend.deployment import (
 
 PROJECT = Path(__file__).resolve().parents[3]
 REPOSITORY = "yonegen0/ai_interview"
+
+
+def qualify_legacy_terraform(executable=None, *, environment=None):
+    """Check the legacy runtime without credentials, configuration or attempt writes."""
+    parent = os.environ if environment is None else environment
+    executable = executable or shutil.which("terraform", path=parent.get("PATH", os.defpath))
+    require(executable and Path(executable).is_absolute(), "MaintenanceTerraformUnavailable")
+    expected = {"Windows": "windows_amd64", "Linux": "linux_amd64"}.get(platform.system())
+    require(
+        expected and platform.machine().lower() in {"amd64", "x86_64"},
+        "MaintenanceTerraformPlatform",
+    )
+    env = {
+        k: v
+        for k, v in parent.items()
+        if not k.upper().startswith(
+            ("AWS_", "ACTIONS_", "GH_", "GITHUB_", "P4_", "TF_", "TERRAFORM_")
+        )
+    }
+    env["CHECKPOINT_DISABLE"] = "1"
+    try:
+        with tempfile.TemporaryDirectory(prefix="p4-legacy-version-") as directory:
+            config = Path(directory) / "terraform.rc"
+            config.write_text("provider_installation { direct {} }\n", encoding="utf-8")
+            env.update(
+                TF_CLI_CONFIG_FILE=str(config),
+                AWS_CONFIG_FILE=os.devnull,
+                AWS_SHARED_CREDENTIALS_FILE=os.devnull,
+                AWS_EC2_METADATA_DISABLED="true",
+            )
+            result = subprocess.run(
+                [str(executable), "version", "-json"],
+                cwd=directory,
+                env=env,
+                capture_output=True,
+                timeout=15,
+            )
+        require(result.returncode == 0, "MaintenanceTerraformQualificationFailed")
+        value = json.loads(result.stdout)
+    except OSError, subprocess.TimeoutExpired, UnicodeError, json.JSONDecodeError:
+        raise ValueError("MaintenanceTerraformQualificationFailed") from None
+    require(
+        isinstance(value, dict)
+        and value.get("terraform_version") == TF_VERSION
+        and value.get("platform") == expected
+        and value.get("format_version", "1.0") == "1.0",
+        "MaintenanceTerraformVersion",
+    )
 
 
 def git(root, *args):
@@ -168,6 +219,11 @@ def configuration_files(root, sha, provider_lock_sha256):
         and lock["registry.terraform.io/hashicorp/aws"]["version"] == "6.64.0",
         "MaintenanceProviderSelection",
     )
+    requirements = re.findall(
+        rb'\brequired_version\s*=\s*"([^"]+)"',
+        b"\n".join(raw for name, raw in files.items() if name.endswith(".tf")),
+    )
+    require(requirements == [f"= {TF_VERSION}".encode()], "MaintenanceTerraformRequirement")
     return files
 
 
@@ -415,6 +471,8 @@ def execute(
     files = source_files(root, approval, require_main=operation != "inspect")
     run = private_path(directory, private)
     require(run.parent.is_dir(), "MaintenanceRunParentRequired")
+    if operation != "inspect":
+        qualify_legacy_terraform(environment=parent)
     session = checked_session(
         account,
         region,

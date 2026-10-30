@@ -15,6 +15,7 @@ import time
 from decimal import Decimal
 from pathlib import Path
 
+from cloud_toolchain import NEW_EXECUTION_TERRAFORM_PLATFORM, assert_execution_version
 from cloud_toolchain import NEW_EXECUTION_TERRAFORM_VERSION as TF_VERSION
 from plan_authorization import active_guard, required_guard
 from standard_diagnostics import checkpoint
@@ -200,6 +201,7 @@ def bind_plan(root, account, region, sha, input_path):
         "account_id": account,
         "region": region,
         "terraform_version": TF_VERSION,
+        "terraform_platform": NEW_EXECUTION_TERRAFORM_PLATFORM,
         "lock_sha256": digest(root / ".terraform.lock.hcl"),
         "inputs_sha256": digest(input_path),
         "state_bucket": f"ai-interview-state-{account}-{region}",
@@ -255,8 +257,7 @@ def execute(operation, input_path, directory, approved_hash=None, *, progress=No
     env["TF_DATA_DIR"] = str(directory / ".terraform")
     env["TF_WORKSPACE"] = "default"
     version = json.loads(run(["terraform", "version", "-json"], cwd=root, env=env))
-    if version["terraform_version"] != TF_VERSION:
-        raise DeploymentError("TerraformVersionMismatch")
+    assert_execution_version(version)
     if guard:
         guard.check("terraform-identity", 25)
     checkpoint("terraform-identity")

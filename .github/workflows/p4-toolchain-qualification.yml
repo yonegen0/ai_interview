@@ -6,17 +6,16 @@ on:
       - 'backend/skills/p4/**'
       - 'backend/tests/unit/test_toolchain_*.py'
       - '.github/workflows/p4-toolchain-qualification.yml'
-  push:
-    branches: [main]
-    paths:
-      - 'terraform/**'
-      - 'backend/skills/p4/**'
-      - 'backend/tests/unit/test_toolchain_*.py'
-      - '.github/workflows/p4-toolchain-qualification.yml'
 permissions:
   contents: read
 jobs:
   qualify:
+    # This immutable comparison belongs only to the held migration PR.
+    # Normal Terraform changes use the existing required terraform check.
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.ref == 'codex/issue39-upgrade-b-hold-20261025' &&
+      github.event.pull_request.head.repo.full_name == github.repository
     name: Offline Terraform ${{ matrix.terraform }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -27,6 +26,12 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
+          persist-credentials: false
+      - name: Checkout immutable pre-upgrade configuration for migration comparison
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: b276568908d7c96c41c083d5bcbcc64d955945f6
+          path: migration-baseline
           persist-credentials: false
       - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
         with:
@@ -39,6 +44,9 @@ jobs:
         run: |
           set -euo pipefail
           python3 backend/skills/p4/toolchain_migration.py \
+            --repository migration-baseline \
+            --candidate-repository . \
+            --checkout-candidate 1.16.7 \
             --temp-parent "$RUNNER_TEMP" \
             --terraform "$(command -v terraform)" \
             --candidate "$CANDIDATE_TERRAFORM" \

@@ -25,6 +25,78 @@ def unknown(value):
     return value is not False
 
 
+def assert_proposed_known(value):
+    """Validate the values-representation containers separately from boolean masks.
+
+    Resource/module metadata is not an unknown mask. Unsupported structures need
+    review rather than being accepted because an empty list contains no true leaf.
+    """
+    error = "MigrationIncompleteOrUnsupportedPlan"
+    if not isinstance(value, dict) or value.keys() - {"root_module", "outputs"}:
+        raise ValueError(error)
+
+    def sensitivity(item):
+        if isinstance(item, dict):
+            return all(sensitivity(child) for child in item.values())
+        if isinstance(item, list):
+            return all(sensitivity(child) for child in item)
+        return type(item) is bool
+
+    def module(item):
+        if not isinstance(item, dict) or item.keys() - {"address", "resources", "child_modules"}:
+            raise ValueError(error)
+        if "address" in item and not isinstance(item["address"], str):
+            raise ValueError(error)
+        for key in ("resources", "child_modules"):
+            if not isinstance(item.get(key, []), list):
+                raise ValueError(error)
+        for row in item.get("resources", []):
+            if not isinstance(row, dict) or not isinstance(row.get("values"), dict):
+                raise ValueError(error)
+            metadata = {
+                "address",
+                "mode",
+                "type",
+                "name",
+                "index",
+                "provider_name",
+                "schema_version",
+            }
+            if (
+                row.keys() - metadata - {"values", "sensitive_values"}
+                or unknown(row["values"])
+                or ("sensitive_values" in row and not sensitivity(row["sensitive_values"]))
+            ):
+                raise ValueError(error)
+            for key in row.keys() & metadata:
+                field = row[key]
+                if key == "schema_version":
+                    valid = type(field) is int and field >= 0
+                elif key == "index":
+                    valid = isinstance(field, str) or type(field) is int
+                else:
+                    valid = isinstance(field, str)
+                if not valid:
+                    raise ValueError(error)
+        for child in item.get("child_modules", []):
+            module(child)
+
+    if "root_module" in value:
+        module(value["root_module"])
+    outputs = value.get("outputs", {})
+    if not isinstance(outputs, dict):
+        raise ValueError(error)
+    for row in outputs.values():
+        if (
+            not isinstance(row, dict)
+            or row.keys() - {"value", "type", "sensitive"}
+            or "value" not in row
+            or unknown(row["value"])
+            or ("sensitive" in row and type(row["sensitive"]) is not bool)
+        ):
+            raise ValueError(error)
+
+
 def resource_types(configuration):
     """Inventory the copied HCL, including all local modules; never inspect State."""
     kinds = set()
@@ -135,6 +207,8 @@ def assert_noop_plan_pair(before, after, candidate):
             or any(check.get("status") != "pass" for check in document.get("checks", []))
         ):
             raise ValueError("MigrationIncompleteOrUnsupportedPlan")
+        if "proposed_unknown" in document:
+            assert_proposed_known(document["proposed_unknown"])
         prior = document["prior_state"]["values"]
         planned = document["planned_values"]
         old = plan_resources(prior["root_module"])

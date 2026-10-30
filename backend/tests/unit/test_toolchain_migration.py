@@ -133,7 +133,7 @@ def test_version_json_shapes(version, platform):
 def test_execution_pin_and_historical_evidence_remain_separate():
     repository = Path(__file__).resolve().parents[3]
     m = tool("cloud_toolchain")
-    assert m.NEW_EXECUTION_TERRAFORM_VERSION == m.EXPECTED_TERRAFORM_VERSION == "1.14.9"
+    assert m.NEW_EXECUTION_TERRAFORM_VERSION == m.EXPECTED_TERRAFORM_VERSION == "1.16.7"
     for name in ("bootstrap_state", "maintenance_contract"):
         assert tool(name).TF_VERSION == "1.14.9"
     for name in ("terraform_dev", "cloud_controller_core", "test_closure_apply"):
@@ -146,17 +146,17 @@ def test_execution_pin_and_historical_evidence_remain_separate():
 @pytest.mark.parametrize("candidate", ["1.16.7", "1.17.0"])
 def test_future_execution_contract_does_not_reinterpret_historical_versions(monkeypatch, candidate):
     # Pure import test only; no candidate is enabled in the real execution configuration.
-    monkeypatch.setitem(
-        sys.modules, "cloud_toolchain", SimpleNamespace(NEW_EXECUTION_TERRAFORM_VERSION=candidate)
-    )
+    execution = tool("cloud_toolchain")
+    execution.NEW_EXECUTION_TERRAFORM_VERSION = candidate
+    monkeypatch.setitem(sys.modules, "cloud_toolchain", execution)
     for name in ("terraform_dev", "cloud_controller_core", "test_closure_apply"):
         assert tool(name).TF_VERSION == candidate
     for name in ("bootstrap_state", "maintenance_contract"):
         assert tool(name).TF_VERSION == "1.14.9"
 
 
-@pytest.mark.parametrize("candidate", ["1.16.7", "1.17.0"])
-def test_candidate_binary_is_rejected_for_cloud_execution(monkeypatch, candidate):
+@pytest.mark.parametrize("candidate", ["1.14.9", "1.17.0"])
+def test_non_execution_binary_is_rejected_for_cloud_execution(monkeypatch, candidate):
     m = tool("cloud_toolchain")
     monkeypatch.setattr(m.shutil, "which", lambda name: name)
     calls = []
