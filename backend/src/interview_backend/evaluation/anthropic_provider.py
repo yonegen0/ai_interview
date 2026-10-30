@@ -27,17 +27,44 @@ _ALLOWED_FORMATS = frozenset(
 )
 _ALLOWED_SCHEMA_KEYS = frozenset(
     {
-        "type", "properties", "items", "required", "additionalProperties",
-        "$ref", "$defs", "definitions", "anyOf", "allOf", "enum", "const",
-        "description", "title", "default", "format", "pattern", "minItems",
-        "minimum", "maximum", "multipleOf", "exclusiveMinimum", "exclusiveMaximum",
-        "minLength", "maxLength", "maxItems",
+        "type",
+        "properties",
+        "items",
+        "required",
+        "additionalProperties",
+        "$ref",
+        "$defs",
+        "definitions",
+        "anyOf",
+        "allOf",
+        "enum",
+        "const",
+        "description",
+        "title",
+        "default",
+        "format",
+        "pattern",
+        "minItems",
+        "minimum",
+        "maximum",
+        "multipleOf",
+        "exclusiveMinimum",
+        "exclusiveMaximum",
+        "minLength",
+        "maxLength",
+        "maxItems",
     }
 )
 _DESCRIBED_CONSTRAINTS = frozenset(
     {
-        "minimum", "maximum", "multipleOf", "exclusiveMinimum",
-        "exclusiveMaximum", "minLength", "maxLength", "maxItems",
+        "minimum",
+        "maximum",
+        "multipleOf",
+        "exclusiveMinimum",
+        "exclusiveMaximum",
+        "minLength",
+        "maxLength",
+        "maxItems",
     }
 )
 
@@ -91,7 +118,8 @@ def anthropic_schema(original):
         if annotations:
             result["description"] = (
                 (result.get("description", "") + " " if result.get("description") else "")
-                + "Constraints: " + ", ".join(annotations)
+                + "Constraints: "
+                + ", ".join(annotations)
             )
         if result.get("type") == "object" or "properties" in result:
             result["additionalProperties"] = False
@@ -220,7 +248,8 @@ class AnthropicProvider:
             "model": self.settings.model,
             "thinking": {"type": "adaptive"},
             "max_tokens": (
-                prompt.max_tokens if isinstance(prompt, StructuredPrompt)
+                prompt.max_tokens
+                if isinstance(prompt, StructuredPrompt)
                 else self.settings.max_output_tokens
             ),
             "system": instructions,
@@ -305,7 +334,9 @@ def _usage(usage):
     if not isinstance(usage, dict):
         return None
     keys = (
-        "input_tokens", "output_tokens", "cache_read_input_tokens",
+        "input_tokens",
+        "output_tokens",
+        "cache_read_input_tokens",
         "cache_creation_input_tokens",
     )
     safe = {name: usage[name] for name in keys if type(usage.get(name)) is int and usage[name] >= 0}
