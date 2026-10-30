@@ -13,7 +13,7 @@
 - 最大30人向けのAI面接練習Webアプリ。FrontendはNext.js/React/TypeScript、BackendはPython/Lambda、InfrastructureはTerraform/AWS。
 - 完全サーバーレス、AWS無料枠優先・低固定費、最小権限、本人別データ分離、冪等性・Recoveryを重視する。
 - Coaching V2、STARアシスト、V1互換、認証、質問管理、非同期評価と既存API契約を保持する。
-- AIの採用方針はBedrock Claude Haiku 5.5（JP Geo）を標準、OpenAIを手動切替の予備とし、自動フォールバックしない。採用方針と配備状態を区別する。
+- AIの採用方針は直接Anthropic Claude Haiku 5.5 APIを本番標準、Bedrock・OpenAIを明示手動切替の予備とし、自動フォールバックしない。採用方針とAWS配備状態を区別する。
 - 許可範囲の調査→最小修正→検証→セルフレビューは自律的に進め、高リスク境界でのみ停止する。
 - 実装・ローカルMock/Fake・CI・実AWS/実AI検証の事実を明確に区別する。
 - 依存・実装の採用バージョンを先に確認し、外部仕様に関わる変更では対応する最新の公式資料を優先する。無根拠の依存更新はしない。
