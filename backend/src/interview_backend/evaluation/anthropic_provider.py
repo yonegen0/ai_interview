@@ -218,6 +218,7 @@ class AnthropicProvider:
 
         payload = {
             "model": self.settings.model,
+            "thinking": {"type": "adaptive"},
             "max_tokens": (
                 prompt.max_tokens if isinstance(prompt, StructuredPrompt)
                 else self.settings.max_output_tokens
