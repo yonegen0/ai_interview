@@ -55,9 +55,10 @@ def response(value=None, **updates):
         "role": "assistant",
         "model": MODEL,
         "stop_reason": "end_turn",
-        "content": [{"type": "thinking", "thinking": ""}, {
-            "type": "text", "text": json.dumps(value if value is not None else coaching_result())
-        }],
+        "content": [
+            {"type": "thinking", "thinking": ""},
+            {"type": "text", "text": json.dumps(value if value is not None else coaching_result())},
+        ],
         "usage": {
             "input_tokens": 600,
             "output_tokens": 120,
@@ -119,23 +120,31 @@ def test_messages_payload_auth_schema_and_usage():
 def test_prompt_v1_nullable_answer_contract():
     prompt = build_prompt(load_questions()[0], "本人回答")
     data = {
-        "score": 78, "summary": "回答", "strengths": ["結論"],
-        "improvements": ["具体性"], "exampleAnswer": None,
+        "score": 78,
+        "summary": "回答",
+        "strengths": ["結論"],
+        "improvements": ["具体性"],
+        "exampleAnswer": None,
     }
     transport = Transport(response(data))
     provider = AnthropicProvider(Authentication(), transport=transport)
     assert provider.evaluate(prompt) == {k: v for k, v in data.items() if k != "exampleAnswer"}
     assert (
-        json.loads(transport.requests[0][2]["messages"][0]["content"])["user_answer"]
-        == "本人回答"
+        json.loads(transport.requests[0][2]["messages"][0]["content"])["user_answer"] == "本人回答"
     )
 
 
 @pytest.mark.parametrize(
     "status,kind",
-    [(401, "AUTHENTICATION"), (403, "AUTHENTICATION"), (402, "BILLING"),
-     (429, "RATE_LIMIT"), (400, "HTTP_ERROR"), (500, "SERVER_ERROR"),
-     (529, "SERVER_ERROR")],
+    [
+        (401, "AUTHENTICATION"),
+        (403, "AUTHENTICATION"),
+        (402, "BILLING"),
+        (429, "RATE_LIMIT"),
+        (400, "HTTP_ERROR"),
+        (500, "SERVER_ERROR"),
+        (529, "SERVER_ERROR"),
+    ],
 )
 def test_http_classification_and_single_attempt(status, kind):
     transport = Transport({"type": "error", "error": {"message": "sensitive"}}, status=status)
@@ -173,8 +182,8 @@ def test_invalid_message_fails_closed(change, kind):
     "raw,kind",
     [
         (b'{"type":"message","type":"error"}', "INVALID_JSON"),
-        (b'NaN', "INVALID_JSON"),
-        (b'{', "INVALID_JSON"),
+        (b"NaN", "INVALID_JSON"),
+        (b"{", "INVALID_JSON"),
     ],
 )
 def test_invalid_envelope_json(raw, kind):
@@ -183,7 +192,8 @@ def test_invalid_envelope_json(raw, kind):
 
 
 @pytest.mark.parametrize(
-    "data", [
+    "data",
+    [
         '{"status":"completed","status":"coaching"}',
         "NaN",
         "{",
@@ -219,11 +229,15 @@ def test_schema_removes_unsupported_constraints_but_does_not_modify_original():
         "type": "object",
         "properties": {
             "count": {"type": "integer", "minimum": 0, "maximum": 10},
-            "items": {"type": "array", "maxItems": 4, "items": {
-                "type": "object", "properties": {
-                    "name": {"type": "string", "minLength": 1, "maxLength": 50}
-                }, "required": ["name"]
-            }},
+            "items": {
+                "type": "array",
+                "maxItems": 4,
+                "items": {
+                    "type": "object",
+                    "properties": {"name": {"type": "string", "minLength": 1, "maxLength": 50}},
+                    "required": ["name"],
+                },
+            },
         },
         "required": ["count", "items"],
     }
@@ -249,19 +263,27 @@ def test_unsupported_schema_rejected_without_guesswork(schema):
 
 
 def test_star_live_generation_uses_existing_validation():
-    transport = Transport(response({
-        "status": "needs_information",
-        "candidates": [],
-        "missingInformation": ["本人の行動を詳しく教えてください。"],
-    }))
+    transport = Transport(
+        response(
+            {
+                "status": "needs_information",
+                "candidates": [],
+                "missingInformation": ["本人の行動を詳しく教えてください。"],
+            }
+        )
+    )
     provider = AnthropicProvider(Authentication(), transport=transport)
     live = select_star_provider(provider)
     assert isinstance(live, LiveStarProvider)
     assert live.provider_id.startswith("star:anthropic:claude-haiku-5-5:")
     value = StarInput(
         notes=Notes(S="", T="", A="確認しました。", R=""),
-        targetCategory=None, industry="", company="",
-        candidates=[], selectedCandidateId=None, generationId=None,
+        targetCategory=None,
+        industry="",
+        company="",
+        candidates=[],
+        selectedCandidateId=None,
+        generationId=None,
     )
     result = live.generate_with_deadline("工夫を教えて", value, Deadline(1000, lambda: 0))
     assert result.status == "needs_information"
@@ -320,12 +342,15 @@ def test_paid_worker_quota_and_duplicate_delivery(runtime):
     def submit(number):
         owner = "owner"
         session = app.create(
-            owner, uid(100 + number),
+            owner,
+            uid(100 + number),
             {"mode": "category", "category": "career", "difficulty": "standard"},
         ).body["sessionId"]
         question = app.question(owner, session).body["question"]["id"]
         return app.submit(
-            owner, uid(200 + number), session,
+            owner,
+            uid(200 + number),
+            session,
             {"kind": "initial_answer", "questionId": question, "answer": "提案しました。"},
         ).body["evaluationId"]
 
