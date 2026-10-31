@@ -11,9 +11,7 @@ class InvalidCoachingResult(ValueError):
 
 
 def question_signature(value: str) -> str:
-    normalized = "".join(
-        c for c in unicodedata.normalize("NFKC", value) if c not in JS_WHITESPACE
-    )
+    normalized = "".join(c for c in unicodedata.normalize("NFKC", value) if c not in JS_WHITESPACE)
     return normalized.rstrip("。.!?")
 
 
