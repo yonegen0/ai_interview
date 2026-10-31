@@ -134,7 +134,6 @@ def test_openai_worker_emits_usage_once_even_when_output_is_rejected(runtime, ca
     assert runtime.repository.snapshot().evaluations[identifier].status == "failed"
 
 
-
 @pytest.mark.parametrize(
     ("provider_id", "expected"),
     [
@@ -144,9 +143,7 @@ def test_openai_worker_emits_usage_once_even_when_output_is_rejected(runtime, ca
         ("fake", "fake"),
     ],
 )
-def test_evaluation_terminal_event_attributes_selected_provider(
-    provider_id, expected, capsys
-):
+def test_evaluation_terminal_event_attributes_selected_provider(provider_id, expected, capsys):
     evaluation = SimpleNamespace(
         id=uid(900),
         attempt_id=uid(901),
@@ -166,7 +163,6 @@ def test_evaluation_terminal_event_attributes_selected_provider(
     assert len(records) == 1
     assert records[0]["event"] == "evaluation_terminal"
     assert records[0]["provider"] == expected
-
 
 
 def test_logging_sink_failure_and_warm_context_isolation(capsys):
