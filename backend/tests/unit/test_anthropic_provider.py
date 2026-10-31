@@ -17,6 +17,7 @@ from interview_backend.evaluation.provider import build_coaching_prompt, build_p
 from interview_backend.evaluation.selection import select_provider
 from interview_backend.evaluation.worker import Worker
 from interview_backend.models.public import CoachingInput
+from interview_backend.star_assist.grounding import source_realizations
 from interview_backend.star_assist.live_provider import LiveStarProvider, select_star_provider
 from interview_backend.star_assist.models import Notes, StarInput
 
@@ -157,6 +158,67 @@ def test_http_classification_and_single_attempt(status, kind):
 
 
 @pytest.mark.parametrize(
+    "status,api_error,kind",
+    [
+        (
+            429,
+            {
+                "type": "rate_limit_error",
+                "message": "Do not print sensitive billing details",
+                "details": {"error_code": "enforced_spend_limit_reached"},
+            },
+            "BILLING",
+        ),
+        (
+            429,
+            {
+                "type": "rate_limit_error",
+                "message": "ordinary throughput limit",
+                "details": {"error_code": "requests_per_minute"},
+            },
+            "RATE_LIMIT",
+        ),
+        (
+            400,
+            {
+                "type": "invalid_request_error",
+                "message": "You have reached your specified API usage limits for this month.",
+            },
+            "BILLING",
+        ),
+        (
+            400,
+            {
+                "type": "invalid_request_error",
+                "message": (
+                    "You have reached your specified workspace API usage limits for this month."
+                ),
+            },
+            "BILLING",
+        ),
+        (
+            400,
+            {"type": "invalid_request_error", "message": "Invalid output_config.format"},
+            "HTTP_ERROR",
+        ),
+        (
+            429,
+            {"type": "rate_limit_error", "details": {"error_code": "unfamiliar_value"}},
+            "RATE_LIMIT",
+        ),
+    ],
+)
+def test_spend_cap_vs_rate_limit_without_retry_or_secret_logging(status, api_error, kind):
+    transport = Transport({"type": "error", "error": api_error}, status=status)
+    with pytest.raises(ProviderFailure) as exc:
+        AnthropicProvider(Authentication(), transport=transport).evaluate(coaching_prompt())
+    assert exc.value.kind == kind
+    assert not exc.value.uncertain
+    assert len(transport.requests) == 1
+    assert "sensitive" not in str(exc.value)
+
+
+@pytest.mark.parametrize(
     "change,kind",
     [
         ({"stop_reason": "max_tokens"}, "INCOMPLETE"),
@@ -262,6 +324,48 @@ def test_unsupported_schema_rejected_without_guesswork(schema):
         anthropic_schema(schema)
 
 
+@pytest.mark.parametrize(
+    "schema",
+    [
+        {
+            "type": "object",
+            "properties": {"value": {"$ref": "#/definitions/Item"}},
+            "required": ["value"],
+            "$defs": {"Item": {"type": "string"}},
+        },
+        {
+            "type": "object",
+            "properties": {"value": {"$ref": "#/$defs/Item"}},
+            "required": ["value"],
+            "definitions": {"Item": {"type": "string"}},
+        },
+        {
+            "type": "object",
+            "properties": {"value": {"$ref": "#/$defs/Item/missing"}},
+            "required": ["value"],
+            "$defs": {"Item": {"type": "string"}, "missing": {"type": "string"}},
+        },
+    ],
+)
+def test_schema_does_not_accept_wrong_ref_namespace_or_nested_pointer(schema):
+    with pytest.raises(ProviderFailure, match="CONFIGURATION"):
+        anthropic_schema(schema)
+
+
+def test_schema_accepts_distinct_definition_namespaces():
+    schema = {
+        "type": "object",
+        "properties": {
+            "first": {"$ref": "#/$defs/Item"},
+            "second": {"$ref": "#/definitions/Item"},
+        },
+        "required": ["first", "second"],
+        "$defs": {"Item": {"type": "string"}},
+        "definitions": {"Item": {"type": "integer"}},
+    }
+    assert anthropic_schema(schema)["properties"] == schema["properties"]
+
+
 def test_refusal_stop_details_never_saves_valid_looking_output():
     # A malformed upstream combination must not silently pass domain validation.
     transport = Transport(
@@ -316,6 +420,66 @@ def test_star_live_generation_uses_existing_validation():
     assert live.last_observation["output_tokens"] == 120
 
 
+@pytest.mark.parametrize("tamper", [None, "invented_result", "reversed_negation"])
+def test_anthropic_star_natural_result_is_grounded_before_return(tamper):
+    value = StarInput(
+        notes=Notes(
+            S="顧客から相談がありました。",
+            T="状況の整理を担当しました。",
+            A="顧客に状況を共有しました。",
+            R="成果は確認できませんでした。",
+        ),
+        targetCategory="corporate_sales",
+        industry="製造",
+        company="応募先",
+        candidates=[],
+        selectedCandidateId=None,
+        generationId=None,
+    )
+    realizations = source_realizations(value.notes.model_dump())
+    orders = {
+        "A": ["R", "S", "T", "A"],
+        "B": ["A", "S", "T", "R"],
+        "C": ["S", "T", "A", "R"],
+    }
+    candidates = [
+        {
+            "id": identifier,
+            "style": style,
+            "passages": [
+                {"source": field, "text": realizations[field][identifier]}
+                for field in orders[identifier]
+            ],
+        }
+        for identifier, style in (
+            ("A", "conclusion"),
+            ("B", "action"),
+            ("C", "conversational"),
+        )
+    ]
+    if tamper == "invented_result":
+        candidates[1]["passages"][0]["text"] = "売上を200%改善しました。"
+    elif tamper == "reversed_negation":
+        candidates[0]["passages"][0]["text"] = "成果を確認できました。"
+    transport = Transport(
+        response({"status": "ready", "candidates": candidates, "missingInformation": []})
+    )
+    live = LiveStarProvider(AnthropicProvider(Authentication(), transport=transport))
+    result = live.generate_with_deadline("具体的な経験は？", value, Deadline(1000, lambda: 0))
+    assert len(transport.requests) == 1
+    assert transport.requests[0][2]["max_tokens"] == 2048
+    assert live.last_observation["output_tokens"] == 120
+    if tamper is None:
+        assert result.status == "ready"
+        assert [candidate.id for candidate in result.candidates] == ["A", "B", "C"]
+        assert all(
+            realizations["R"][candidate.id] in candidate.text for candidate in result.candidates
+        )
+    else:
+        assert result.status == "needs_information"
+        assert not result.candidates
+
+
 def test_selection_requires_explicit_secret_and_no_fallback():
     arn = "arn:aws:secretsmanager:ap-northeast-1:123456789012:secret:anthropic-prod"
     environment = {
@@ -350,6 +514,16 @@ def test_transport_failure_never_retries():
         AnthropicProvider(Authentication(), transport=transport).evaluate(coaching_prompt())
     assert error.value.uncertain
     assert len(transport.requests) == 1
+
+
+def test_paid_worker_without_star_adapter_does_not_fall_back_to_fake(runtime):
+    provider = AnthropicProvider(Authentication(), transport=Transport())
+    worker = Worker(runtime.repository, provider, runtime.worker.clock)
+
+    assert isinstance(worker.star_worker.provider, LiveStarProvider)
+    assert worker.star_worker.provider.transport is provider
+    assert worker.star_worker.provider.provider_id.startswith("star:anthropic:claude-haiku-5-5:")
+    assert not provider.transport.requests
 
 
 def test_paid_worker_quota_and_duplicate_delivery(runtime):

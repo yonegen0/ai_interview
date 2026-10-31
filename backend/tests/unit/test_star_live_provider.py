@@ -174,6 +174,26 @@ def test_model_needs_information_and_full_input_size_cap():
     assert client.calls == 1
 
 
+@pytest.mark.parametrize(
+    "question",
+    [
+        "売上を200%改善した理由は何ですか？",
+        "入力していない成果を達成した理由を説明してください。",
+    ],
+)
+def test_source_mode_needs_information_never_uses_untrusted_model_question(question):
+    client = Client(
+        {"status": "needs_information", "candidates": [], "missingInformation": [question]}
+    )
+    result = adapter(client).generate("経験は？", value())
+    assert result.status == "needs_information"
+    assert not result.candidates
+    assert result.missingInformation == [
+        "入力根拠を保った表現を確認できませんでした。行動と結果を具体的にしてください。"
+    ]
+    assert client.calls == 1
+
+
 @pytest.mark.parametrize("stop", ["end_turn", "max_tokens"])
 def test_usage_survives_response_rejection_but_not_local_clarification(stop):
     client = Client(stop=stop)

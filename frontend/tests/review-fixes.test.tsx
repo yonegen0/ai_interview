@@ -173,7 +173,7 @@ it("rejects a successful body that finishes parsing after the login changes", as
   body.resolve({ ok: true });
   await rejected;
 });
-it("reconfirms a 401 with the same key and captured body for the same login", async () => {
+it("requires explicit reconfirmation after a mutation 401 and preserves the captured request", async () => {
   const first = deferred<Response>();
   const send = vi
     .spyOn(globalThis, "fetch")
@@ -183,16 +183,35 @@ it("reconfirms a 401 with the same key and captured body for the same login", as
     expectedVersion: 0,
     questions: structuredClone(updatedBank.questions),
   };
+  const capturedBody = structuredClone(body);
   const key = crypto.randomUUID();
   const pending = request(
     "/admin/question-bank",
     z.object({ ok: z.boolean() }),
     { method: "POST", key, body },
   );
+  const rejected = expect(pending).rejects.toMatchObject({
+    code: "UNAUTHORIZED",
+    status: 401,
+  });
   await waitFor(() => expect(send).toHaveBeenCalledTimes(1));
   body.questions[0].question = "後から変更された本文";
   first.resolve(json({}, 401));
-  await expect(pending).resolves.toEqual({ ok: true });
+  await rejected;
+  expect(send).toHaveBeenCalledTimes(1);
+  expect(auth.snapshot().phase).toBe("anonymous");
+  expect(send.mock.calls[0][1]?.body).toBe(JSON.stringify(capturedBody));
+  expect(send.mock.calls[0][1]?.headers).toMatchObject({ "Idempotency-Key": key });
+
+  // A new login and an explicit caller action may reconfirm the captured operation.
+  auth.setMockActor("review-a", ["ADMIN"]);
+  await expect(
+    request("/admin/question-bank", z.object({ ok: z.boolean() }), {
+      method: "POST",
+      key,
+      body: capturedBody,
+    }),
+  ).resolves.toEqual({ ok: true });
   expect(send).toHaveBeenCalledTimes(2);
   expect(send.mock.calls[1][1]?.body).toBe(send.mock.calls[0][1]?.body);
   for (const call of send.mock.calls)
