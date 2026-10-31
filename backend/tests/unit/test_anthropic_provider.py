@@ -370,7 +370,10 @@ def test_anthropic_star_natural_result_is_grounded_before_return(tamper):
     if tamper is None:
         assert result.status == "ready"
         assert [candidate.id for candidate in result.candidates] == ["A", "B", "C"]
-        assert all(realizations["R"][candidate.id] in candidate.text for candidate in result.candidates)
+        assert all(
+            realizations["R"][candidate.id] in candidate.text
+            for candidate in result.candidates
+        )
     else:
         assert result.status == "needs_information"
         assert not result.candidates
