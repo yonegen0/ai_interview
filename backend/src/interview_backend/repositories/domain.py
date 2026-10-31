@@ -645,7 +645,30 @@ class DomainRepository(StarRepositoryMixin, CoachingRepositoryMixin):
             and now < min(e.lock_expires_at, e.deadline_at)
         )
 
-    def reserve_provider_call(self, lease, monthly_limit, global_limit=3000):
+    def _reserve_paid_usage(self, tx, owner, at, monthly_limit, global_limit, upper):
+        """Reserve the same UTC budget for evaluation, Coaching and paid STAR atomically."""
+        validate_limits(monthly_limit, global_limit)
+        month = datetime.fromtimestamp(at / 1000, UTC).strftime("%Y-%m")
+        year, month_number = map(int, month.split("-"))
+        next_month = datetime(year + (month_number == 12), month_number % 12 + 1, 1, tzinfo=UTC)
+        identifier = str(uuid5(NAMESPACE_URL, "interview-provider-usage:" + month))
+        records = []
+        for subject, limit in ((owner, monthly_limit), ("@ai-global-budget", global_limit)):
+            usage = tx.get(ref("ProviderUsage", subject, identifier))
+            if usage is None:
+                usage = ProviderUsage(subject, identifier, month)
+            if usage.month != month:
+                raise IntegrityError("provider_usage_month")
+            if usage.calls >= limit:
+                return None
+            records.append(usage)
+        for usage in records:
+            usage.calls += 1
+        tx.window = CommitWindow(upper=min(upper, int(next_month.timestamp() * 1000)))
+        self._save(tx, *records)
+        return month
+
+    def reserve_provider_call(self, lease, monthly_limit, global_limit=600):
         """Atomic per-owner UTC-month cap; retries of the same Evaluation consume once."""
         validate_limits(monthly_limit, global_limit)
 
@@ -657,31 +680,18 @@ class DomainRepository(StarRepositoryMixin, CoachingRepositoryMixin):
             e = related[0]
             if e.provider_usage_month is not None:
                 return MutationResult("already_reserved")
-            month = datetime.fromtimestamp(at / 1000, UTC).strftime("%Y-%m")
-            year, month_number = map(int, month.split("-"))
-            next_month = datetime(year + (month_number == 12), month_number % 12 + 1, 1, tzinfo=UTC)
-            month_upper = int(next_month.timestamp() * 1000)
-            identifier = str(uuid5(NAMESPACE_URL, "interview-provider-usage:" + month))
-            usage = tx.get(ref("ProviderUsage", lease.owner, identifier))
-            if usage is None:
-                usage = ProviderUsage(lease.owner, identifier, month)
-            if usage.month != month:
-                raise IntegrityError("provider_usage_month")
-            if usage.calls >= monthly_limit:
+            month = self._reserve_paid_usage(
+                tx,
+                lease.owner,
+                at,
+                monthly_limit,
+                global_limit,
+                min(e.lock_expires_at, e.deadline_at),
+            )
+            if month is None:
                 return MutationResult("limited")
-            global_owner = "@ai-global-budget"
-            global_usage = tx.get(ref("ProviderUsage", global_owner, identifier))
-            if global_usage is None:
-                global_usage = ProviderUsage(global_owner, identifier, month)
-            if global_usage.month != month:
-                raise IntegrityError("provider_usage_month")
-            if global_usage.calls >= global_limit:
-                return MutationResult("limited")
-            usage.calls += 1
-            global_usage.calls += 1
             e.provider_usage_month = month
-            tx.window = CommitWindow(upper=min(e.lock_expires_at, e.deadline_at, month_upper))
-            self._save(tx, e, usage, global_usage)
+            self._save(tx, e)
             return MutationResult("reserved")
 
         return self._atomic(run, temporal=True)
