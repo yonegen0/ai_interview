@@ -11,7 +11,7 @@ import pytest
 from conftest import uid
 from pydantic import ValidationError
 
-from interview_backend.evaluation.coaching import validate_coaching_result
+from interview_backend.evaluation.coaching import InvalidCoachingResult, validate_coaching_result
 from interview_backend.evaluation.provider import build_coaching_prompt
 from interview_backend.models.internal import BusinessError, IntegrityError
 from interview_backend.models.public import (
