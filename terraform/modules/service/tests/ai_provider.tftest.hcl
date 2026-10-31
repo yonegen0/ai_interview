@@ -43,3 +43,60 @@ run "openai_configuration_worker_only" {
     error_message = "Provider settings affect Worker only and do not enable the environment."
   }
 }
+
+run "anthropic_secret_scoped_to_worker" {
+  command = plan
+  variables {
+    worker_ai_environment = {
+      INTERVIEW_AI_PROVIDER                    = "anthropic"
+      INTERVIEW_ANTHROPIC_ENABLED              = "true"
+      INTERVIEW_ANTHROPIC_AUTH                 = "secret"
+      INTERVIEW_ANTHROPIC_SECRET_ARN           = "arn:aws:secretsmanager:ap-northeast-1:123456789012:secret:anthropic-offline-Aa1234"
+      INTERVIEW_ANTHROPIC_MODEL                = "claude-haiku-5-5"
+      INTERVIEW_ANTHROPIC_API_VERSION          = "2026-10-21"
+      INTERVIEW_ANTHROPIC_EFFORT               = "medium"
+      INTERVIEW_ANTHROPIC_MAX_OUTPUT_TOKENS    = "4096"
+      INTERVIEW_ANTHROPIC_MONTHLY_USER_LIMIT   = "100"
+      INTERVIEW_ANTHROPIC_MONTHLY_GLOBAL_LIMIT = "3000"
+    }
+  }
+  assert {
+    condition     = aws_lambda_function.main["worker"].environment[0].variables["INTERVIEW_AI_PROVIDER"] == "anthropic" && !contains(keys(aws_lambda_function.main["api"].environment[0].variables), "INTERVIEW_ANTHROPIC_SECRET_ARN") && !aws_lambda_event_source_mapping.worker.enabled
+    error_message = "Claude settings must be Worker-only and cannot enable the queue."
+  }
+  assert {
+    condition     = length(local.anthropic_worker_statements) == 1 && local.anthropic_worker_statements[0].Resource[0] == var.worker_ai_environment["INTERVIEW_ANTHROPIC_SECRET_ARN"]
+    error_message = "Worker may read only the selected secret ARN."
+  }
+}
+
+run "anthropic_invalid_secret_account_rejected" {
+  command = plan
+  variables {
+    worker_ai_environment = {
+      INTERVIEW_AI_PROVIDER            = "anthropic"
+      INTERVIEW_ANTHROPIC_ENABLED      = "true"
+      INTERVIEW_ANTHROPIC_AUTH         = "secret"
+      INTERVIEW_ANTHROPIC_SECRET_ARN   = "arn:aws:secretsmanager:ap-northeast-1:000000000000:secret:wrong"
+      INTERVIEW_ANTHROPIC_MODEL        = "claude-haiku-5-5"
+      INTERVIEW_ANTHROPIC_API_VERSION  = "2026-10-21"
+    }
+  }
+  expect_failures = [var.worker_ai_environment]
+}
+
+run "anthropic_mixed_provider_rejected" {
+  command = plan
+  variables {
+    worker_ai_environment = {
+      INTERVIEW_AI_PROVIDER           = "anthropic"
+      INTERVIEW_ANTHROPIC_ENABLED     = "true"
+      INTERVIEW_ANTHROPIC_AUTH        = "secret"
+      INTERVIEW_ANTHROPIC_SECRET_ARN  = "arn:aws:secretsmanager:ap-northeast-1:123456789012:secret:offline"
+      INTERVIEW_ANTHROPIC_MODEL       = "claude-haiku-5-5"
+      INTERVIEW_ANTHROPIC_API_VERSION = "2026-10-21"
+      INTERVIEW_OPENAI_ENABLED        = "false"
+    }
+  }
+  expect_failures = [var.worker_ai_environment]
+}
