@@ -157,6 +157,67 @@ def test_http_classification_and_single_attempt(status, kind):
 
 
 @pytest.mark.parametrize(
+    "status,api_error,kind",
+    [
+        (
+            429,
+            {
+                "type": "rate_limit_error",
+                "message": "Do not print sensitive billing details",
+                "details": {"error_code": "enforced_spend_limit_reached"},
+            },
+            "BILLING",
+        ),
+        (
+            429,
+            {
+                "type": "rate_limit_error",
+                "message": "ordinary throughput limit",
+                "details": {"error_code": "requests_per_minute"},
+            },
+            "RATE_LIMIT",
+        ),
+        (
+            400,
+            {
+                "type": "invalid_request_error",
+                "message": "You have reached your specified API usage limits for this month.",
+            },
+            "BILLING",
+        ),
+        (
+            400,
+            {
+                "type": "invalid_request_error",
+                "message": (
+                    "You have reached your specified workspace API usage limits for this month."
+                ),
+            },
+            "BILLING",
+        ),
+        (
+            400,
+            {"type": "invalid_request_error", "message": "Invalid output_config.format"},
+            "HTTP_ERROR",
+        ),
+        (
+            429,
+            {"type": "rate_limit_error", "details": {"error_code": "unfamiliar_value"}},
+            "RATE_LIMIT",
+        ),
+    ],
+)
+def test_spend_cap_vs_rate_limit_without_retry_or_secret_logging(status, api_error, kind):
+    transport = Transport({"type": "error", "error": api_error}, status=status)
+    with pytest.raises(ProviderFailure) as exc:
+        AnthropicProvider(Authentication(), transport=transport).evaluate(coaching_prompt())
+    assert exc.value.kind == kind
+    assert not exc.value.uncertain
+    assert len(transport.requests) == 1
+    assert "sensitive" not in str(exc.value)
+
+
+@pytest.mark.parametrize(
     "change,kind",
     [
         ({"stop_reason": "max_tokens"}, "INCOMPLETE"),
