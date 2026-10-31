@@ -233,6 +233,12 @@ def test_question_guards_and_prompt_trust(runtime):
         validate_coaching_result(
             CoachingResult(**result(question="1. 何をしましたか？\n2. 結果は何ですか？")), context
         )
+    # A model-generated two-question follow-up must not be stored as one round.
+    with pytest.raises(InvalidCoachingResult, match="MultipleQuestions"):
+        validate_coaching_result(
+            CoachingResult(**result(question="あなた自身は何をしましたか？その結果は何ですか？")),
+            context,
+        )
     assert context.coaching_history[0].answer == "はい"
     from interview_backend.evaluation.provider import build_coaching_prompt
 
