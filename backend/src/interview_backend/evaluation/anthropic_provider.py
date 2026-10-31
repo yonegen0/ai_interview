@@ -151,6 +151,9 @@ def anthropic_schema(original):
 
     for name in definitions:
         check_definition(name, set())
+    for ref in references(schema):
+        if ref not in definitions:
+            raise ProviderFailure("CONFIGURATION")
     optional = 0
     union = 0
 
@@ -289,6 +292,11 @@ class AnthropicProvider:
             raise ProviderFailure("OUTPUT_MISSING")
         self.last_observation = _usage(response.get("usage"))
         stop_reason = response.get("stop_reason")
+        # In API version 2026-10-21, refusals can be reported through
+        # stop_details even when stop_reason is end_turn.
+        details = response.get("stop_details")
+        if isinstance(details, dict) and details.get("type") == "refusal":
+            raise ProviderFailure("REFUSAL")
         if stop_reason == "refusal":
             raise ProviderFailure("REFUSAL")
         if stop_reason in {"max_tokens", "model_context_window_exceeded"}:
