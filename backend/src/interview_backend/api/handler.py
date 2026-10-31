@@ -51,7 +51,7 @@ MESSAGES = {
 def response(reply: Reply) -> dict:
     return {
         "statusCode": reply.status,
-        "headers": {"Content-Type": "application/json"},
+        "headers": {"Content-Type": "application/json", "Cache-Control": "no-store"},
         "body": json.dumps(reply.body, ensure_ascii=True, allow_nan=False),
     }
 
