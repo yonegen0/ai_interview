@@ -317,7 +317,6 @@ def test_star_live_generation_uses_existing_validation():
     assert live.last_observation["output_tokens"] == 120
 
 
-
 @pytest.mark.parametrize("tamper", [None, "invented_result", "reversed_negation"])
 def test_anthropic_star_natural_result_is_grounded_before_return(tamper):
     value = StarInput(
@@ -371,13 +370,11 @@ def test_anthropic_star_natural_result_is_grounded_before_return(tamper):
         assert result.status == "ready"
         assert [candidate.id for candidate in result.candidates] == ["A", "B", "C"]
         assert all(
-            realizations["R"][candidate.id] in candidate.text
-            for candidate in result.candidates
+            realizations["R"][candidate.id] in candidate.text for candidate in result.candidates
         )
     else:
         assert result.status == "needs_information"
         assert not result.candidates
-
 
 
 def test_selection_requires_explicit_secret_and_no_fallback():
