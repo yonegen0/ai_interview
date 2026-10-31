@@ -352,6 +352,18 @@ def test_transport_failure_never_retries():
     assert len(transport.requests) == 1
 
 
+def test_paid_worker_without_star_adapter_does_not_fall_back_to_fake(runtime):
+    provider = AnthropicProvider(Authentication(), transport=Transport())
+    worker = Worker(runtime.repository, provider, runtime.worker.clock)
+
+    assert isinstance(worker.star_worker.provider, LiveStarProvider)
+    assert worker.star_worker.provider.transport is provider
+    assert worker.star_worker.provider.provider_id.startswith(
+        "star:anthropic:claude-haiku-5-5:"
+    )
+    assert not provider.transport.requests
+
+
 def test_paid_worker_quota_and_duplicate_delivery(runtime):
     from conftest import uid
 
