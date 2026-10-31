@@ -72,7 +72,13 @@ def log_event(event, *, sink=None, **fields):
         elif key == "failureReason":
             valid = isinstance(value, str) and value in REASONS
         elif key == "provider":
-            valid = isinstance(value, str) and value in {"fake", "openai", "bedrock", "unknown"}
+            valid = isinstance(value, str) and value in {
+                "fake",
+                "openai",
+                "bedrock",
+                "anthropic",
+                "unknown",
+            }
         elif key == "workload":
             valid = isinstance(value, str) and value in {"evaluation", "star"}
         elif key in {
@@ -113,6 +119,8 @@ def log_provider_usage(provider, observation, *, generation_id=None):
             "output_tokens": "outputTokens",
             "cached_tokens": "cacheReadInputTokens",
             "reasoning_tokens": "reasoningTokens",
+            "cache_read_input_tokens": "cacheReadInputTokens",
+            "cache_creation_input_tokens": "cacheWriteInputTokens",
         }
     )
     fields = {

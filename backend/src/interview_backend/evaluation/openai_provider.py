@@ -65,6 +65,7 @@ class HTTPTransport:
     def post(self, host, path, payload, headers, deadline):
         if (host, path) not in {
             ("api.openai.com", "/v1/responses"),
+            ("api.anthropic.com", "/v1/messages"),
             ("auth.openai.com", "/oauth/token"),
         }:
             raise ProviderFailure("CONFIGURATION")

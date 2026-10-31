@@ -3,6 +3,7 @@
 from interview_backend.evaluation.openai_provider import ProviderFailure
 from interview_backend.evaluation.provider import FakeProvider
 from interview_backend.evaluation.provider_configuration import (
+    ANTHROPIC_KEYS,
     BEDROCK_KEYS,
     WORKER_AI_KEYS,
     provider_values,
@@ -26,7 +27,7 @@ def checked_provider_environment(values, account, region):
     if not values:
         return {}
     provider = values.get("INTERVIEW_AI_PROVIDER")
-    if provider not in {"fake", "openai", "bedrock"}:
+    if provider not in {"fake", "openai", "bedrock", "anthropic"}:
         raise ValueError("InvalidProviderEnvironment")
     if region != "ap-northeast-1":
         raise ValueError("InvalidProviderEnvironment")
@@ -91,6 +92,35 @@ def checked_provider_environment(values, account, region):
                 values["INTERVIEW_FAKE_SCENARIO"],
                 values.get("INTERVIEW_VALIDATION_OWNER_HASHES", "").split(","),
             )
+    if provider == "anthropic":
+        from interview_backend.evaluation.anthropic_provider import AnthropicSettings
+
+        if set(values) - ANTHROPIC_KEYS:
+            raise ValueError("InvalidProviderEnvironment")
+        if (
+            values.get("INTERVIEW_ANTHROPIC_ENABLED") != "true"
+            or values.get("INTERVIEW_ANTHROPIC_AUTH") != "secret"
+            or not re.fullmatch(
+                re.escape(f"arn:aws:secretsmanager:{region}:{account}:secret:")
+                + r"[A-Za-z0-9/_+=.@-]+",
+                values.get("INTERVIEW_ANTHROPIC_SECRET_ARN", ""),
+            )
+        ):
+            raise ValueError("InvalidProviderEnvironment")
+        try:
+            AnthropicSettings(
+                model=values.get("INTERVIEW_ANTHROPIC_MODEL", ""),
+                api_version=values.get("INTERVIEW_ANTHROPIC_API_VERSION", ""),
+                effort=values.get("INTERVIEW_ANTHROPIC_EFFORT", "medium"),
+                max_output_tokens=int(values.get("INTERVIEW_ANTHROPIC_MAX_OUTPUT_TOKENS", "4096")),
+                monthly_user_limit=int(values.get("INTERVIEW_ANTHROPIC_MONTHLY_USER_LIMIT", "100")),
+                monthly_global_limit=int(
+                    values.get("INTERVIEW_ANTHROPIC_MONTHLY_GLOBAL_LIMIT", "3000")
+                ),
+                workspace_id=values.get("INTERVIEW_ANTHROPIC_WORKSPACE_ID"),
+            )
+        except ValueError, TypeError, ProviderFailure:
+            raise ValueError("InvalidProviderEnvironment") from None
     if provider == "openai":
         if values.get("INTERVIEW_OPENAI_ENABLED") != "true":
             raise ValueError("InvalidProviderEnvironment")
@@ -145,11 +175,39 @@ def select_provider(environment):
         )
 
         return BedrockProvider(settings=BedrockSettings.from_environment(environment))
+    if selection == "anthropic":
+        from interview_backend.evaluation.anthropic_provider import (
+            AnthropicProvider,
+            AnthropicSettings,
+        )
+        from interview_backend.evaluation.openai_auth import SecretAuthentication
+
+        region = environment.get("INTERVIEW_REGION", "")
+        account = environment.get("INTERVIEW_ACCOUNT_ID", "")
+        values = provider_values(environment)
+        try:
+            checked_provider_environment(values, account, region)
+            settings = AnthropicSettings(
+                model=values.get("INTERVIEW_ANTHROPIC_MODEL", ""),
+                api_version=values.get("INTERVIEW_ANTHROPIC_API_VERSION", ""),
+                effort=values.get("INTERVIEW_ANTHROPIC_EFFORT", "medium"),
+                max_output_tokens=int(values.get("INTERVIEW_ANTHROPIC_MAX_OUTPUT_TOKENS", "4096")),
+                monthly_user_limit=int(values.get("INTERVIEW_ANTHROPIC_MONTHLY_USER_LIMIT", "100")),
+                monthly_global_limit=int(
+                    values.get("INTERVIEW_ANTHROPIC_MONTHLY_GLOBAL_LIMIT", "3000")
+                ),
+                workspace_id=values.get("INTERVIEW_ANTHROPIC_WORKSPACE_ID"),
+            )
+        except ValueError, TypeError, ProviderFailure:
+            raise ProviderFailure("CONFIGURATION") from None
+        return AnthropicProvider(
+            SecretAuthentication(region, values["INTERVIEW_ANTHROPIC_SECRET_ARN"]),
+            settings=settings,
+        )
     from interview_backend.evaluation.openai_auth import AWSFederation, SecretAuthentication
     from interview_backend.evaluation.openai_provider import (
         OpenAIProvider,
         OpenAISettings,
-        ProviderFailure,
     )
 
     if selection != "openai" or environment.get("INTERVIEW_OPENAI_ENABLED") != "true":

@@ -147,7 +147,7 @@ def build_entry(component):
             and os.environ.get("INTERVIEW_WIF_SMOKE_ENABLED") == "true"
             and (not scenario)
         )
-        if provider_mode not in {"bedrock", "openai"} and (
+        if provider_mode not in {"bedrock", "openai", "anthropic"} and (
             not (validation_only and (scenario or smoke_only))
         ):
             raise ValueError("InvalidProviderSelection")

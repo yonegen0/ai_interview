@@ -30,6 +30,9 @@ PROVIDER_IDS = frozenset(
         "bedrock:jp:haiku-5-5:low",
         "openai:gpt-6-luna:low",
         "openai:gpt-6-luna:medium",
+        "anthropic:claude-haiku-5-5:2026-10-21:low",
+        "anthropic:claude-haiku-5-5:2026-10-21:medium",
+        "anthropic:claude-haiku-5-5:2026-10-21:high",
     )
     for version in (VERSION, PROSE_VERSION)
 )
@@ -111,6 +114,7 @@ def validate_plan(plan, value):
 
 class LiveStarProvider:
     def __init__(self, transport, *, mode="natural"):
+        from interview_backend.evaluation.anthropic_provider import AnthropicProvider
         from interview_backend.evaluation.bedrock_provider import BedrockProvider
         from interview_backend.evaluation.openai_provider import OpenAIProvider
 
@@ -118,6 +122,9 @@ class LiveStarProvider:
             identity = "bedrock:jp:haiku-5-5:low"
         elif isinstance(transport, OpenAIProvider):
             identity = f"openai:gpt-6-luna:{transport.settings.effort}"
+        elif isinstance(transport, AnthropicProvider):
+            s = transport.settings
+            identity = f"anthropic:{s.model}:{s.api_version}:{s.effort}"
         else:
             raise ProviderFailure("CONFIGURATION")
         if mode not in {"natural", "source"}:
@@ -208,11 +215,12 @@ class LiveStarProvider:
 
 
 def select_star_provider(provider):
+    from interview_backend.evaluation.anthropic_provider import AnthropicProvider
     from interview_backend.evaluation.bedrock_provider import BedrockProvider
     from interview_backend.evaluation.openai_provider import OpenAIProvider
     from interview_backend.star_assist.provider import FakeStarProvider
 
-    if isinstance(provider, (BedrockProvider, OpenAIProvider)):
+    if isinstance(provider, (BedrockProvider, OpenAIProvider, AnthropicProvider)):
         return LiveStarProvider(provider)
     if getattr(provider, "provider_id", None) == "fake":
         return FakeStarProvider()

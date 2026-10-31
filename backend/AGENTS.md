@@ -54,7 +54,7 @@
 
 ## AI Provider・評価契約
 
-- 採用方針はBedrock Claude Haiku 5.5（JP Geo）を標準、OpenAI Providerを明示設定の予備とする。
+- 採用方針はAnthropic直接API Claude Haiku 5.5を本番標準、BedrockとOpenAIを明示設定の手動予備とする。
 - AI Providerの採用方針と、現在の`main`への統合・AWS配備完了を混同しない。
 - 自動フォールバックは設けず、明示切替・設定検証・権限確認・課金確認を維持する。
 - FakeProviderは決定的なオフライン試験用。Fake成功を実モデルの品質・速度・IAM保証としない。
@@ -62,7 +62,7 @@
 - Structured Output等の契約をProvider境界で保持し、生成内容の架空補完・越権を防ぐ。
 - Coaching V2の30点評価・深掘り・文字数、STAR Ver.1.4の3案・入力保持・編集を壊さない。
 - 回数/費用/利用量制限はサーバー側の原子的判定と監査可能な記録を優先する。
-- Paid inference、実Bedrock、実OpenAI試験は個別承認と費用/副作用の境界に従う。
+- Paid inference、実Claude、実Bedrock、実OpenAI試験は個別承認と費用/副作用の境界に従う。
 
 ## 品質・検証
 
@@ -87,4 +87,5 @@
 - SQS: https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/welcome.html
 - Bedrock: https://docs.aws.amazon.com/bedrock/latest/userguide/what-is-bedrock.html
 - OpenAI（予備Provider）: https://developers.openai.com/api/docs/guides/structured-outputs
+- Anthropic（標準Provider）: https://platform.claude.com/docs/en/api/messages ｜ https://platform.claude.com/docs/en/build-with-claude/structured-outputs ｜ https://platform.claude.com/docs/en/api/versioning
 - 公式参照不可は未確認として記録。公式確認を口実に無関係な依存更新をしない。
