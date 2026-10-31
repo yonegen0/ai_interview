@@ -210,6 +210,21 @@ it("creates a new attempt only after confirmed failure", async () => {
   );
   expect(second.attemptId).not.toBe(first.attemptId);
 });
+it("never automatically replays a mutation after a 401", async () => {
+  const handler = vi.fn(() =>
+    HttpResponse.json({ code: "UNAUTHORIZED", message: "private detail" }, { status: 401 }),
+  );
+  server.use(http.post("http://localhost/api/no-replay", handler));
+  await expect(
+    request("/no-replay", z.unknown(), {
+      method: "POST",
+      key: crypto.randomUUID(),
+      body: { answer: "本人回答" },
+    }),
+  ).rejects.toMatchObject({ code: "UNAUTHORIZED", status: 401 });
+  expect(handler).toHaveBeenCalledTimes(1);
+});
+
 it("maps malformed responses", async () => {
   server.use(
     http.get("http://localhost/api/bad", () =>
