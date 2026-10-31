@@ -239,6 +239,12 @@ def test_question_guards_and_prompt_trust(runtime):
             CoachingResult(**result(question="あなた自身は何をしましたか？その結果は何ですか？")),
             context,
         )
+    # Superficial trailing punctuation must not turn a repeated question into a new one.
+    with pytest.raises(InvalidCoachingResult, match="RepeatedQuestion"):
+        validate_coaching_result(
+            CoachingResult(**result(question="あなた自身は何をしましたか")),
+            context,
+        )
     assert context.coaching_history[0].answer == "はい"
     from interview_backend.evaluation.provider import build_coaching_prompt
 
