@@ -49,3 +49,6 @@ def validate_coaching_result(result: CoachingResult, context: CoachingInput) -> 
     ]
     if len(questions) >= 2:
         raise InvalidCoachingResult("MultipleQuestions")
+    # Two complete questions on the same line also violate the one-issue rule.
+    if len(re.findall(r"[?？]", result.follow_up_question)) > 1:
+        raise InvalidCoachingResult("MultipleQuestions")
