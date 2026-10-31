@@ -125,7 +125,9 @@ export async function request<T>(
       });
     let response = await send(token);
     assertOwner();
-    if (response.status === 401) {
+    // Never replay a mutation after a 401: even an auth error is not proof
+    // that a previous write had no side effects. Refresh/retry GET only.
+    if (response.status === 401 && (options.method ?? "GET") === "GET") {
       try {
         token = await auth.access(true);
       } catch {
