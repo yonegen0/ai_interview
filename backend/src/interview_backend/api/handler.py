@@ -68,6 +68,10 @@ def parse_body(event: dict) -> dict:
     raw = event.get("body")
     if not isinstance(raw, str):
         raise BusinessError(400, "VALIDATION_ERROR")
+    # API Gateway permits much larger requests than any normal mutation needs.
+    # Reject oversized JSON (including base64 wire bodies) before parsing it.
+    if len(raw.encode("utf-8", errors="surrogatepass")) > 350 * 1024:
+        raise BusinessError(413, "REQUEST_TOO_LARGE")
     try:
         if event.get("isBase64Encoded", False):
             raw = base64.b64decode(raw, validate=True).decode("utf-8")
