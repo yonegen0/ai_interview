@@ -30,3 +30,8 @@ ses_domain = ""
 # exact Worker/Streams mapping ARNs; do not substitute a wildcard or omit the
 # approved file after the IAM grant has been installed. Empty is initial setup.
 # plan_event_source_mapping_arns = []
+
+# Claude直接API用Secretの読み取り権限は、既存Runtime Boundaryでは明示的に未許可。
+# 空文字は権限追加なし。実際のSecret ARN確定後、Bootstrap Plan/Applyを別途承認して設定。
+# IAM許可はdev Workerと対象Secret ARNにだけ限定。APIキーの値は絶対に書かない。
+worker_anthropic_secret_arn = ""
