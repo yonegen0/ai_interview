@@ -362,9 +362,35 @@ def anthropic_http_error(status, raw):
         return ProviderFailure("AUTHENTICATION")
     if status == 402:
         return ProviderFailure("BILLING")
-    if status == 429:
-        return ProviderFailure("RATE_LIMIT")
+    if status in (400, 429):
+        # Anthropic's fixed spend-cap error code is a 429, not a throughput limit.
+        # Custom spend caps are 400 invalid_request_error responses. Inspect
+        # allowlisted fields only; never persist or log raw API error content.
+        try:
+            envelope = strict_json(raw)
+            error = envelope.get("error") if isinstance(envelope, dict) else None
+            if isinstance(error, dict):
+                details = error.get("details")
+                if (
+                    status == 429
+                    and error.get("type") == "rate_limit_error"
+                    and isinstance(details, dict)
+                    and details.get("error_code") == "enforced_spend_limit_reached"
+                ):
+                    return ProviderFailure("BILLING")
+                if status == 400 and error.get("type") == "invalid_request_error":
+                    message = error.get("message")
+                    if isinstance(message, str) and message.startswith(
+                        (
+                            "You have reached your specified API usage limits",
+                            "You have reached your specified workspace API usage limits",
+                        )
+                    ):
+                        return ProviderFailure("BILLING")
+        except ProviderFailure:
+            pass
+        return ProviderFailure("RATE_LIMIT" if status == 429 else "HTTP_ERROR")
     # The API may have accepted a request before a 5xx response; never replay.
-    if status in (500, 502, 503, 504, 529) or status >= 500:
+    if status >= 500:
         return ProviderFailure("SERVER_ERROR", uncertain=True)
     return ProviderFailure("HTTP_ERROR")
