@@ -80,11 +80,17 @@ class GenerationPlan(Strict):
 def validate_plan(plan, value):
     """Semantic checks are separate from the strict wire schema/type validation."""
     if plan.status == "needs_information":
-        if plan.candidates or any(not s.strip() for s in plan.missingInformation):
+        if (
+            plan.candidates
+            or not 1 <= len(plan.missingInformation) <= 4
+            or any(
+                not question.strip() or len(question) > 200 for question in plan.missingInformation
+            )
+        ):
             raise ValueError("StarPlan")
-        return StarResult(
-            status=plan.status, candidates=[], missingInformation=plan.missingInformation
-        )
+        # Model-authored questions may assert unsupported applicant facts.
+        # Preserve status but return only a neutral, server-owned clarification.
+        return clarify("grounding")
     if [(c.id, c.style) for c in plan.candidates] != list(STYLES) or plan.missingInformation:
         raise ValueError("StarPlan")
     facts = value.notes.model_dump()
