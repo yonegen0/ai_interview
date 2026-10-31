@@ -262,6 +262,30 @@ def test_unsupported_schema_rejected_without_guesswork(schema):
         anthropic_schema(schema)
 
 
+def test_refusal_stop_details_never_saves_valid_looking_output():
+    # A malformed upstream combination must not silently pass domain validation.
+    transport = Transport(
+        response(
+            stop_reason="end_turn",
+            stop_details={"type": "refusal", "category": "cyber"},
+        )
+    )
+    with pytest.raises(ProviderFailure, match="REFUSAL"):
+        AnthropicProvider(Authentication(), transport=transport).evaluate(coaching_prompt())
+    assert len(transport.requests) == 1
+
+
+def test_unknown_schema_reference_is_rejected_before_http():
+    with pytest.raises(ProviderFailure, match="CONFIGURATION"):
+        anthropic_schema(
+            {
+                "type": "object",
+                "properties": {"value": {"$ref": "#/$defs/missing"}},
+                "required": ["value"],
+            }
+        )
+
+
 def test_star_live_generation_uses_existing_validation():
     transport = Transport(
         response(
