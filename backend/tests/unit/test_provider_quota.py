@@ -13,6 +13,7 @@ from interview_backend.bootstrap import build_runtime
 from interview_backend.evaluation.openai_provider import OpenAIProvider, OpenAISettings
 from interview_backend.evaluation.worker import Worker
 from interview_backend.repositories.memory import MemoryUnit
+from interview_backend.star_assist.provider import FakeStarProvider
 
 
 class NeverCalledBedrock:
@@ -38,7 +39,12 @@ def test_provider_switch_does_not_reset_owner_usage(runtime):
     assert Worker(runtime.repository, openai, runtime.worker.clock).run("same-owner", first)
     bedrock = NeverCalledBedrock()
     second = start(runtime, owner="same-owner", number=2)
-    assert Worker(runtime.repository, bedrock, runtime.worker.clock).run("same-owner", second)
+    # Quota test stub is not a real BedrockProvider; opt into the fake STAR
+    # adapter explicitly rather than relying on an implicit paid-to-fake switch.
+    worker = Worker(
+        runtime.repository, bedrock, runtime.worker.clock, star_provider=FakeStarProvider()
+    )
+    assert worker.run("same-owner", second)
     assert bedrock.calls == 0
     snapshot = runtime.repository.snapshot()
     assert snapshot.evaluations[second].failure_reason == "PREPARATION_FAILED"
