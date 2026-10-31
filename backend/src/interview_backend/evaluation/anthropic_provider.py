@@ -185,8 +185,8 @@ class AnthropicSettings:
     api_version: str = API_VERSION
     effort: str = "medium"
     max_output_tokens: int = 4096
-    monthly_user_limit: int = 100
-    monthly_global_limit: int = 3000
+    monthly_user_limit: int = 20
+    monthly_global_limit: int = 600
     workspace_id: str | None = None
 
     def __post_init__(self):

@@ -47,7 +47,15 @@ class StarWorker:
         started = False
         for _ in range(2):
             try:
-                started = self.repository.star_start(lease)
+                if self.provider.provider_id == "fake":
+                    started = self.repository.star_start(lease)
+                else:
+                    settings = self.provider.transport.settings
+                    started = self.repository.star_start(
+                        lease,
+                        monthly_user_limit=settings.monthly_user_limit,
+                        monthly_global_limit=settings.monthly_global_limit,
+                    )
                 break
             except StorageError:
                 continue

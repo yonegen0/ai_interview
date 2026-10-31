@@ -52,10 +52,10 @@ variable "worker_ai_environment" {
       lookup(var.worker_ai_environment, "INTERVIEW_BEDROCK_EFFORT", "low") == "low" &&
       can(regex("^[0-9]+$", lookup(var.worker_ai_environment, "INTERVIEW_BEDROCK_MAX_TOKENS", "2048"))) &&
       try(tonumber(lookup(var.worker_ai_environment, "INTERVIEW_BEDROCK_MAX_TOKENS", "2048")) == 2048, false) &&
-      can(regex("^[0-9]+$", lookup(var.worker_ai_environment, "INTERVIEW_BEDROCK_MONTHLY_USER_LIMIT", "100"))) &&
-      try(tonumber(lookup(var.worker_ai_environment, "INTERVIEW_BEDROCK_MONTHLY_USER_LIMIT", "100")) >= 1 && tonumber(lookup(var.worker_ai_environment, "INTERVIEW_BEDROCK_MONTHLY_USER_LIMIT", "100")) <= 100, false) &&
-      can(regex("^[0-9]+$", lookup(var.worker_ai_environment, "INTERVIEW_BEDROCK_MONTHLY_GLOBAL_LIMIT", "3000"))) &&
-      try(tonumber(lookup(var.worker_ai_environment, "INTERVIEW_BEDROCK_MONTHLY_GLOBAL_LIMIT", "3000")) >= 1 && tonumber(lookup(var.worker_ai_environment, "INTERVIEW_BEDROCK_MONTHLY_GLOBAL_LIMIT", "3000")) <= 3000, false) &&
+      can(regex("^[0-9]+$", lookup(var.worker_ai_environment, "INTERVIEW_BEDROCK_MONTHLY_USER_LIMIT", "20"))) &&
+      try(tonumber(lookup(var.worker_ai_environment, "INTERVIEW_BEDROCK_MONTHLY_USER_LIMIT", "20")) >= 1 && tonumber(lookup(var.worker_ai_environment, "INTERVIEW_BEDROCK_MONTHLY_USER_LIMIT", "20")) <= 20, false) &&
+      can(regex("^[0-9]+$", lookup(var.worker_ai_environment, "INTERVIEW_BEDROCK_MONTHLY_GLOBAL_LIMIT", "600"))) &&
+      try(tonumber(lookup(var.worker_ai_environment, "INTERVIEW_BEDROCK_MONTHLY_GLOBAL_LIMIT", "600")) >= 1 && tonumber(lookup(var.worker_ai_environment, "INTERVIEW_BEDROCK_MONTHLY_GLOBAL_LIMIT", "600")) <= 600, false) &&
       !var.worker_wif_enabled &&
       length([for k in keys(var.worker_ai_environment) : k if startswith(k, "INTERVIEW_VALIDATION_")]) == 0 &&
       length([for k in keys(var.worker_ai_environment) : k if startswith(k, "INTERVIEW_OPENAI_") || startswith(k, "INTERVIEW_ANTHROPIC_") || startswith(k, "INTERVIEW_WIF_") || startswith(k, "INTERVIEW_FAKE_")]) == 0
@@ -65,12 +65,12 @@ variable "worker_ai_environment" {
   validation {
     condition = lookup(var.worker_ai_environment, "INTERVIEW_AI_PROVIDER", "") != "openai" || (
       length([for k in keys(var.worker_ai_environment) : k if startswith(k, "INTERVIEW_BEDROCK_") || startswith(k, "INTERVIEW_ANTHROPIC_") || startswith(k, "INTERVIEW_WIF_") || startswith(k, "INTERVIEW_FAKE_") || startswith(k, "INTERVIEW_VALIDATION_")]) == 0 &&
-      can(regex("^[0-9]+$", lookup(var.worker_ai_environment, "INTERVIEW_OPENAI_MONTHLY_USER_LIMIT", "100"))) &&
-      try(tonumber(lookup(var.worker_ai_environment, "INTERVIEW_OPENAI_MONTHLY_USER_LIMIT", "100")) >= 1 && tonumber(lookup(var.worker_ai_environment, "INTERVIEW_OPENAI_MONTHLY_USER_LIMIT", "100")) <= 100, false) &&
-      can(regex("^[0-9]+$", lookup(var.worker_ai_environment, "INTERVIEW_OPENAI_MONTHLY_GLOBAL_LIMIT", "3000"))) &&
-      try(tonumber(lookup(var.worker_ai_environment, "INTERVIEW_OPENAI_MONTHLY_GLOBAL_LIMIT", "3000")) >= 1 && tonumber(lookup(var.worker_ai_environment, "INTERVIEW_OPENAI_MONTHLY_GLOBAL_LIMIT", "3000")) <= 3000, false)
+      can(regex("^[0-9]+$", lookup(var.worker_ai_environment, "INTERVIEW_OPENAI_MONTHLY_USER_LIMIT", "20"))) &&
+      try(tonumber(lookup(var.worker_ai_environment, "INTERVIEW_OPENAI_MONTHLY_USER_LIMIT", "20")) >= 1 && tonumber(lookup(var.worker_ai_environment, "INTERVIEW_OPENAI_MONTHLY_USER_LIMIT", "20")) <= 20, false) &&
+      can(regex("^[0-9]+$", lookup(var.worker_ai_environment, "INTERVIEW_OPENAI_MONTHLY_GLOBAL_LIMIT", "600"))) &&
+      try(tonumber(lookup(var.worker_ai_environment, "INTERVIEW_OPENAI_MONTHLY_GLOBAL_LIMIT", "600")) >= 1 && tonumber(lookup(var.worker_ai_environment, "INTERVIEW_OPENAI_MONTHLY_GLOBAL_LIMIT", "600")) <= 600, false)
     )
-    error_message = "OpenAI and Bedrock share the monthly 100/3000 ceilings."
+    error_message = "OpenAI and Bedrock share the monthly 20/600 ceilings."
   }
   validation {
     condition = lookup(var.worker_ai_environment, "INTERVIEW_AI_PROVIDER", "") == "anthropic" || (
@@ -88,10 +88,10 @@ variable "worker_ai_environment" {
       contains(["low", "medium", "high"], lookup(var.worker_ai_environment, "INTERVIEW_ANTHROPIC_EFFORT", "medium")) &&
       can(regex("^[0-9]+$", lookup(var.worker_ai_environment, "INTERVIEW_ANTHROPIC_MAX_OUTPUT_TOKENS", "4096"))) &&
       try(tonumber(lookup(var.worker_ai_environment, "INTERVIEW_ANTHROPIC_MAX_OUTPUT_TOKENS", "4096")) >= 1024 && tonumber(lookup(var.worker_ai_environment, "INTERVIEW_ANTHROPIC_MAX_OUTPUT_TOKENS", "4096")) <= 8192, false) &&
-      can(regex("^[0-9]+$", lookup(var.worker_ai_environment, "INTERVIEW_ANTHROPIC_MONTHLY_USER_LIMIT", "100"))) &&
-      try(tonumber(lookup(var.worker_ai_environment, "INTERVIEW_ANTHROPIC_MONTHLY_USER_LIMIT", "100")) >= 1 && tonumber(lookup(var.worker_ai_environment, "INTERVIEW_ANTHROPIC_MONTHLY_USER_LIMIT", "100")) <= 100, false) &&
-      can(regex("^[0-9]+$", lookup(var.worker_ai_environment, "INTERVIEW_ANTHROPIC_MONTHLY_GLOBAL_LIMIT", "3000"))) &&
-      try(tonumber(lookup(var.worker_ai_environment, "INTERVIEW_ANTHROPIC_MONTHLY_GLOBAL_LIMIT", "3000")) >= 1 && tonumber(lookup(var.worker_ai_environment, "INTERVIEW_ANTHROPIC_MONTHLY_GLOBAL_LIMIT", "3000")) <= 3000, false) &&
+      can(regex("^[0-9]+$", lookup(var.worker_ai_environment, "INTERVIEW_ANTHROPIC_MONTHLY_USER_LIMIT", "20"))) &&
+      try(tonumber(lookup(var.worker_ai_environment, "INTERVIEW_ANTHROPIC_MONTHLY_USER_LIMIT", "20")) >= 1 && tonumber(lookup(var.worker_ai_environment, "INTERVIEW_ANTHROPIC_MONTHLY_USER_LIMIT", "20")) <= 20, false) &&
+      can(regex("^[0-9]+$", lookup(var.worker_ai_environment, "INTERVIEW_ANTHROPIC_MONTHLY_GLOBAL_LIMIT", "600"))) &&
+      try(tonumber(lookup(var.worker_ai_environment, "INTERVIEW_ANTHROPIC_MONTHLY_GLOBAL_LIMIT", "600")) >= 1 && tonumber(lookup(var.worker_ai_environment, "INTERVIEW_ANTHROPIC_MONTHLY_GLOBAL_LIMIT", "600")) <= 600, false) &&
       (
         !contains(keys(var.worker_ai_environment), "INTERVIEW_ANTHROPIC_WORKSPACE_ID") ||
         can(regex("^wrkspc_[A-Za-z0-9]+$", lookup(var.worker_ai_environment, "INTERVIEW_ANTHROPIC_WORKSPACE_ID", "")))

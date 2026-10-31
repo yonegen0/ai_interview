@@ -1149,7 +1149,7 @@ def test_audit_star_backlog_uses_existing_age_and_deadline_metrics(star):
 
 
 @pytest.mark.parametrize("uncertain,untrusted", [(False, False), (True, False), (False, True)])
-def test_live_worker_pins_provider_once_isolates_quota_and_never_replays(
+def test_live_worker_pins_provider_once_shares_quota_and_never_replays(
     star, uncertain, untrusted, capsys
 ):
     from botocore.exceptions import ReadTimeoutError
@@ -1205,21 +1205,6 @@ def test_live_worker_pins_provider_once_isolates_quota_and_never_replays(
             }
 
     runtime, _, request, _, _, _, _, _, draft, _ = star
-    from uuid import NAMESPACE_URL, uuid5
-
-    from interview_backend.models.internal import ProviderUsage
-
-    budget_id = str(uuid5(NAMESPACE_URL, "interview-provider-usage:2026-10"))
-
-    def saturate(tx):
-        for owner, limit in (("owner", 100), ("@ai-global-budget", 3000)):
-            tx.new(
-                ("ProviderUsage", owner, budget_id),
-                ProviderUsage(owner, budget_id, "2026-10", limit),
-            )
-
-    runtime.repository._atomic(saturate)
-    normal_before = runtime.repository.snapshot().provider_usage
     client = Client()
     provider = LiveStarProvider(BedrockProvider(client_factory=lambda *a, **k: client))
     worker = StarWorker(runtime.repository, provider)
@@ -1250,7 +1235,8 @@ def test_live_worker_pins_provider_once_isolates_quota_and_never_replays(
     assert job.provider_id == provider.provider_id and job.call_started
     assert decode(encode("StarGeneration", job, 1))[0].provider_id == provider.provider_id
     assert runtime.repository.star_quota("owner").body["user"]["consumed"] == 1
-    assert runtime.repository.snapshot().provider_usage == normal_before
+    usage = runtime.repository.snapshot().provider_usage
+    assert len(usage) == 2 and all(row.calls == 1 for row in usage.values())
     runtime.repository.star_recover("owner", identifier)
     assert client.calls == 1
 
