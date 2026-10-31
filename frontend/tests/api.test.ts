@@ -210,6 +210,40 @@ it("creates a new attempt only after confirmed failure", async () => {
   );
   expect(second.attemptId).not.toBe(first.attemptId);
 });
+it.each(["POST", "PUT", "PATCH", "DELETE"])(
+  "never automatically replays a %s mutation after a 401",
+  async (method) => {
+    const handler = vi.fn(() =>
+      HttpResponse.json(
+        { code: "UNAUTHORIZED", message: "private detail" },
+        { status: 401 },
+      ),
+    );
+    server.use(http.all("http://localhost/api/no-replay", handler));
+    await expect(
+      request("/no-replay", z.unknown(), {
+        method,
+        key: crypto.randomUUID(),
+        body: { answer: "本人回答" },
+      }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED", status: 401 });
+    expect(handler).toHaveBeenCalledTimes(1);
+  },
+);
+
+it("preserves one authenticated GET retry following a 401", async () => {
+  const handler = vi.fn(() =>
+    handler.mock.calls.length === 1
+      ? HttpResponse.json({ code: "UNAUTHORIZED", message: "expired" }, { status: 401 })
+      : HttpResponse.json({ ok: true }),
+  );
+  server.use(http.get("http://localhost/api/get-retry", handler));
+  await expect(
+    request("/get-retry", z.object({ ok: z.literal(true) })),
+  ).resolves.toEqual({ ok: true });
+  expect(handler).toHaveBeenCalledTimes(2);
+});
+
 it("maps malformed responses", async () => {
   server.use(
     http.get("http://localhost/api/bad", () =>
