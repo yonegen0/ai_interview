@@ -17,6 +17,7 @@ from interview_backend.evaluation.provider import build_coaching_prompt, build_p
 from interview_backend.evaluation.selection import select_provider
 from interview_backend.evaluation.worker import Worker
 from interview_backend.models.public import CoachingInput
+from interview_backend.star_assist.grounding import source_realizations
 from interview_backend.star_assist.live_provider import LiveStarProvider, select_star_provider
 from interview_backend.star_assist.models import Notes, StarInput
 
@@ -314,6 +315,66 @@ def test_star_live_generation_uses_existing_validation():
     assert len(transport.requests) == 1
     assert transport.requests[0][2]["max_tokens"] == 2048
     assert live.last_observation["output_tokens"] == 120
+
+
+@pytest.mark.parametrize("tamper", [None, "invented_result", "reversed_negation"])
+def test_anthropic_star_natural_result_is_grounded_before_return(tamper):
+    value = StarInput(
+        notes=Notes(
+            S="顧客から相談がありました。",
+            T="状況の整理を担当しました。",
+            A="顧客に状況を共有しました。",
+            R="成果は確認できませんでした。",
+        ),
+        targetCategory="corporate_sales",
+        industry="製造",
+        company="応募先",
+        candidates=[],
+        selectedCandidateId=None,
+        generationId=None,
+    )
+    realizations = source_realizations(value.notes.model_dump())
+    orders = {
+        "A": ["R", "S", "T", "A"],
+        "B": ["A", "S", "T", "R"],
+        "C": ["S", "T", "A", "R"],
+    }
+    candidates = [
+        {
+            "id": identifier,
+            "style": style,
+            "passages": [
+                {"source": field, "text": realizations[field][identifier]}
+                for field in orders[identifier]
+            ],
+        }
+        for identifier, style in (
+            ("A", "conclusion"),
+            ("B", "action"),
+            ("C", "conversational"),
+        )
+    ]
+    if tamper == "invented_result":
+        candidates[1]["passages"][0]["text"] = "売上を200%改善しました。"
+    elif tamper == "reversed_negation":
+        candidates[0]["passages"][0]["text"] = "成果を確認できました。"
+    transport = Transport(
+        response({"status": "ready", "candidates": candidates, "missingInformation": []})
+    )
+    live = LiveStarProvider(AnthropicProvider(Authentication(), transport=transport))
+    result = live.generate_with_deadline("具体的な経験は？", value, Deadline(1000, lambda: 0))
+    assert len(transport.requests) == 1
+    assert transport.requests[0][2]["max_tokens"] == 2048
+    assert live.last_observation["output_tokens"] == 120
+    if tamper is None:
+        assert result.status == "ready"
+        assert [candidate.id for candidate in result.candidates] == ["A", "B", "C"]
+        assert all(
+            realizations["R"][candidate.id] in candidate.text for candidate in result.candidates
+        )
+    else:
+        assert result.status == "needs_information"
+        assert not result.candidates
 
 
 def test_selection_requires_explicit_secret_and_no_fallback():
