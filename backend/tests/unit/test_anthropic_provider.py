@@ -262,6 +262,48 @@ def test_unsupported_schema_rejected_without_guesswork(schema):
         anthropic_schema(schema)
 
 
+@pytest.mark.parametrize(
+    "schema",
+    [
+        {
+            "type": "object",
+            "properties": {"value": {"$ref": "#/definitions/Item"}},
+            "required": ["value"],
+            "$defs": {"Item": {"type": "string"}},
+        },
+        {
+            "type": "object",
+            "properties": {"value": {"$ref": "#/$defs/Item"}},
+            "required": ["value"],
+            "definitions": {"Item": {"type": "string"}},
+        },
+        {
+            "type": "object",
+            "properties": {"value": {"$ref": "#/$defs/Item/missing"}},
+            "required": ["value"],
+            "$defs": {"Item": {"type": "string"}, "missing": {"type": "string"}},
+        },
+    ],
+)
+def test_schema_does_not_accept_wrong_ref_namespace_or_nested_pointer(schema):
+    with pytest.raises(ProviderFailure, match="CONFIGURATION"):
+        anthropic_schema(schema)
+
+
+def test_schema_accepts_distinct_definition_namespaces():
+    schema = {
+        "type": "object",
+        "properties": {
+            "first": {"$ref": "#/$defs/Item"},
+            "second": {"$ref": "#/definitions/Item"},
+        },
+        "required": ["first", "second"],
+        "$defs": {"Item": {"type": "string"}},
+        "definitions": {"Item": {"type": "integer"}},
+    }
+    assert anthropic_schema(schema)["properties"] == schema["properties"]
+
+
 def test_refusal_stop_details_never_saves_valid_looking_output():
     # A malformed upstream combination must not silently pass domain validation.
     transport = Transport(
