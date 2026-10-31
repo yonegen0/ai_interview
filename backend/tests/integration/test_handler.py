@@ -153,7 +153,6 @@ def test_allow_header_is_not_added_to_other_responses(runtime):
         assert "Allow" not in runtime.handler(event)["headers"]
 
 
-
 def test_authenticated_api_json_responses_are_not_cacheable(runtime):
     created = runtime.handler(demo_event("POST", "/sessions", CREATE, uid(901)))
     assert created["statusCode"] == 201
@@ -170,7 +169,6 @@ def test_authenticated_api_json_responses_are_not_cacheable(runtime):
     for reply in responses:
         assert reply["headers"]["Content-Type"] == "application/json"
         assert reply["headers"].get("Cache-Control") == "no-store"
-
 
 
 def test_session_creation_limit_http_contract_and_atomicity(runtime, monkeypatch):
