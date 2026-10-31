@@ -74,12 +74,12 @@ run "anthropic_invalid_secret_account_rejected" {
   command = plan
   variables {
     worker_ai_environment = {
-      INTERVIEW_AI_PROVIDER            = "anthropic"
-      INTERVIEW_ANTHROPIC_ENABLED      = "true"
-      INTERVIEW_ANTHROPIC_AUTH         = "secret"
-      INTERVIEW_ANTHROPIC_SECRET_ARN   = "arn:aws:secretsmanager:ap-northeast-1:000000000000:secret:wrong"
-      INTERVIEW_ANTHROPIC_MODEL        = "claude-haiku-5-5"
-      INTERVIEW_ANTHROPIC_API_VERSION  = "2026-10-21"
+      INTERVIEW_AI_PROVIDER           = "anthropic"
+      INTERVIEW_ANTHROPIC_ENABLED     = "true"
+      INTERVIEW_ANTHROPIC_AUTH        = "secret"
+      INTERVIEW_ANTHROPIC_SECRET_ARN  = "arn:aws:secretsmanager:ap-northeast-1:000000000000:secret:wrong"
+      INTERVIEW_ANTHROPIC_MODEL       = "claude-haiku-5-5"
+      INTERVIEW_ANTHROPIC_API_VERSION = "2026-10-21"
     }
   }
   expect_failures = [var.worker_ai_environment]
