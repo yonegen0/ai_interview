@@ -31,10 +31,10 @@ jobs:
       - run: npm run build-storybook
       - run: npm run build:mock
       - run: npm run test:e2e
-      - name: Audit all frontend dependencies
-        run: npm audit --include=dev --audit-level=low
       - name: Audit production frontend dependencies
         run: npm audit --omit=dev --audit-level=low
+      - name: Audit all frontend dependencies
+        run: npm audit --include=dev --audit-level=low
       - name: Bound failure report before upload
         if: failure()
         id: failure-report
