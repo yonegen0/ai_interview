@@ -83,7 +83,10 @@ def validate_plan(plan, value):
         if (
             plan.candidates
             or not 1 <= len(plan.missingInformation) <= 4
-            or any(not question.strip() or len(question) > 200 for question in plan.missingInformation)
+            or any(
+                not question.strip() or len(question) > 200
+                for question in plan.missingInformation
+            )
         ):
             raise ValueError("StarPlan")
         # Model-authored questions may assert unsupported applicant facts.
