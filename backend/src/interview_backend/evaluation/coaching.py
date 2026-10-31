@@ -11,7 +11,10 @@ class InvalidCoachingResult(ValueError):
 
 
 def question_signature(value: str) -> str:
-    return "".join(c for c in unicodedata.normalize("NFKC", value) if c not in JS_WHITESPACE).rstrip("。.!?")
+    normalized = "".join(
+        c for c in unicodedata.normalize("NFKC", value) if c not in JS_WHITESPACE
+    )
+    return normalized.rstrip("。.!?")
 
 
 def unavailable(value: str) -> bool:
