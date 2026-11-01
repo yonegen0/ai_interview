@@ -234,7 +234,14 @@ def test_tracked_inventory_covers_all_used_types_and_rejects_data_sources():
     m = tool("toolchain_compatibility")
     root = Path(__file__).resolve().parents[3]
     files = {str(path): path.read_bytes() for path in (root / "terraform").rglob("*.tf")}
-    assert len(m.resource_types(files)) == 41
+    kinds = m.resource_types(files)
+    assert len(kinds) == 45
+    assert {
+        "aws_dynamodb_resource_policy",
+        "aws_sqs_queue_policy",
+        "aws_secretsmanager_secret",
+        "aws_secretsmanager_secret_policy",
+    } <= kinds
     with pytest.raises(ValueError, match="DataSourceReview"):
         m.resource_types({"synthetic.tf": b'data "aws_caller_identity" "synthetic" {}'})
 
