@@ -147,7 +147,11 @@ def test_invalid_generated_id_is_internal_failure_and_rolls_back(runtime):
 def test_method_not_allowed_header(runtime, path, allowed):
     result = runtime.handler(demo_event("DELETE", path))
     assert result["statusCode"] == 405
-    assert result["headers"] == {"Content-Type": "application/json", "Allow": allowed}
+    assert result["headers"] == {
+        "Content-Type": "application/json",
+        "Cache-Control": "no-store",
+        "Allow": allowed,
+    }
     assert json.loads(result["body"]) == {
         "code": "METHOD_NOT_ALLOWED",
         "message": "Method not allowed.",
@@ -161,6 +165,24 @@ def test_allow_header_is_not_added_to_other_responses(runtime):
         {"rawPath": "/sessions", "requestContext": {"http": {"method": "DELETE"}}},
     ]:
         assert "Allow" not in runtime.handler(event)["headers"]
+
+
+def test_authenticated_api_json_responses_are_not_cacheable(runtime):
+    created = runtime.handler(demo_event("POST", "/sessions", CREATE, uid(901)))
+    assert created["statusCode"] == 201
+    session_id = body(created)["sessionId"]
+    responses = (
+        created,
+        runtime.handler(demo_event("GET", f"/sessions/{session_id}/question")),
+        runtime.handler(demo_event("GET", f"/evaluations/{uid(999)}")),
+        runtime.handler(demo_event("GET", "/unknown")),
+        runtime.handler(demo_event("GET", "/practice-options")),
+        runtime.handler(demo_event("DELETE", "/sessions")),
+    )
+    assert responses[1]["statusCode"] == 200
+    for reply in responses:
+        assert reply["headers"]["Content-Type"] == "application/json"
+        assert reply["headers"].get("Cache-Control") == "no-store"
 
 
 def test_session_creation_limit_http_contract_and_atomicity(runtime, monkeypatch):
