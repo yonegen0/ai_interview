@@ -66,7 +66,10 @@ run "enable_without_quarantine_rejected" {
 }
 run "quarantine_has_no_legacy_data_mutation" {
   command = plan
-  variables { legacy_quarantine_enabled = true }
+  variables {
+    legacy_quarantine_enabled   = true
+    legacy_preservation_enabled = true
+  }
   assert {
     condition = length(aws_iam_role_policy.legacy_quarantine) == 5 && alltrue([
       for p in aws_iam_role_policy.legacy_quarantine :
@@ -76,4 +79,60 @@ run "quarantine_has_no_legacy_data_mutation" {
     ])
     error_message = "Quarantine must deny legacy side effects and credential acquisition for all five roles."
   }
+  assert {
+    condition = alltrue([for p in aws_iam_role_policy.legacy_quarantine :
+      jsondecode(p.policy).Statement[1].NotResource == local.legacy_archive_arn &&
+      jsondecode(p.policy).Statement[2].NotAction == "sqs:SendMessage"
+    ])
+    error_message = "Quarantine must preserve native async SendMessage while denying receive/delete/redrive."
+  }
+}
+run "preservation_can_precede_quarantine" {
+  command = plan
+  variables { legacy_preservation_enabled = true }
+  assert {
+    condition = (
+      length(aws_iam_role_policy.legacy_quarantine) == 0 &&
+      length(aws_iam_role_policy.legacy_preservation_delivery) == 4 &&
+      length(aws_sqs_queue.legacy_archive) == 1 &&
+      aws_sqs_queue.legacy_archive[0].message_retention_seconds == 1209600 &&
+      alltrue([for p in aws_iam_role_policy.legacy_preservation_delivery :
+        jsondecode(p.policy).Statement[0].Action == ["sqs:SendMessage"] &&
+        jsondecode(p.policy).Statement[0].Resource == local.legacy_archive_arn
+      ]) && !output.manifest.configuration.worker_enabled
+    )
+    error_message = "Prepare only archive and send permissions, without stopping legacy or enabling invite."
+  }
+}
+run "quarantine_without_preservation_rejected" {
+  command = plan
+  variables { legacy_quarantine_enabled = true }
+  expect_failures = [var.legacy_quarantine_enabled]
+}
+run "confirmed_native_async_target" {
+  command = plan
+  variables {
+    legacy_preservation_enabled = true
+    legacy_async_targets = {
+      worker_live = { function_name = "ai-interview-dev-worker", qualifier = "live" }
+    }
+  }
+  assert {
+    condition = (
+      aws_lambda_function_event_invoke_config.legacy_preservation["worker_live"].maximum_retry_attempts == 0 &&
+      aws_lambda_function_event_invoke_config.legacy_preservation["worker_live"].destination_config[0].on_failure[0].destination == local.legacy_archive_arn &&
+      length(aws_iam_role_policy.legacy_quarantine) == 0
+    )
+    error_message = "Native failures must be retained without retrying legacy jobs or freezing before verification."
+  }
+}
+run "new_worker_cannot_be_legacy_target" {
+  command = plan
+  variables {
+    legacy_preservation_enabled = true
+    legacy_async_targets = {
+      wrong = { function_name = "ai-interview-invite-g1-worker", qualifier = "live" }
+    }
+  }
+  expect_failures = [var.legacy_async_targets]
 }

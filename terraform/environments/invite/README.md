@@ -20,7 +20,7 @@ devの停止・writer・過去ledgerが未確定で、同じtableの空counter�
   CORSは明示HTTPS origin。Cognitoは招待専用、USER/ADMIN/JWTは既存契約を保持。
 - customerログ14日、table削除保護/PITR。入口有効時は既存customer用21 alarmを世代別EMFで監視。
   AWS通知予算は最大$10/月。通知は強制課金停止ではなく、Anthropic料金も含まない。
-- 全入口とquarantineはdefault false。初回closed planは旧資源を変更しない。
+- 全入口、保全準備、quarantineはdefault false。初回closed planは旧資源を変更しない。
 
 ## 承認・実行順
 
@@ -35,10 +35,16 @@ devの停止・writer・過去ledgerが未確定で、同じtableの空counter�
 2. 4入口/frontend/quarantine=falseでclosed saved Planをレビュー。新規資源のみ、replace/destroyなし、
    secret値なし、隔離policy・専用boundary・Artifact一致を確認してから別途Apply承認を得る。
    初回作成は継続課金資源を含む。成功時はState・policy・alias・閉鎖を読戻す。
-3. 旧API/Scheduler/2 mappingの閉鎖を維持。旧4 Lambda全版への新規実行をreserved concurrency=0で停止。
-   実行中・native async・SQS/DLQ/Stream失敗をprivate記録へ保全し、timeout経過を確認する。
-   purge、redrive、旧データコピー、旧未知推論の再実行をしない。
-   `legacy_quarantine_enabled=true`だけの別saved Plan/Applyで既知5 Roleの書込み・有料AI・credential取得をDeny。
+3. 旧API/Scheduler/2 mappingの閉鎖を維持。**concurrency=0より先に**
+   `legacy_preservation_enabled=true`の別Plan/Applyでlegacy専用archive queueと旧4 RoleのSendMessageだけを準備。
+   全対象関数/alias/使用versionのasync設定を照合し、既存destinationがあれば勝手に上書き・importしない。
+   未設定と確認できた対象だけを`legacy_async_targets`に指定し、on-failureをarchiveへ設定する。
+   旧native処理の追加retryは0。全対象のdestination・送信権限・保存経路を独立読戻ししてから停止へ進む。
+   archiveにはconsumer/redriveを作らない。最大14日なので期限内に暗号化private証跡へ退避し、
+   実行中・既存SQS/DLQ/Stream失敗もprivate保全する。purge、旧データの新work queueへのコピー、未知推論の再実行をしない。
+   その後、旧4 Lambda全版への新規実行をreserved concurrency=0で停止し、実行中timeout経過を確認する。
+   `legacy_quarantine_enabled=true`の別saved Plan/Applyで既知5 Roleの書込み・有料AI・credential取得をDeny。
+   archiveへのSendMessageだけは保全用に残し、受信/削除/redriveを旧Roleに許可しない。
    外部Providerの旧キー/旧workspace権限を失効し、cached keyによるHTTP送信も止める。
    IAMだけではcached外部キーを止められない。**独立読戻し成功前に入口を有効化しない。**
    quarantineは削除保護付きで、closure時もtrueを維持する。旧環境の再開は別承認。
@@ -73,6 +79,7 @@ Apply部分失敗/State不整合/未知差分なら再Applyやdestroyで修復�
 - [DynamoDB resource policy・Role条件](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/rbac-examples.html)
 - [DynamoDB対応API](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/rbac-iam-actions.html)
 - [SQS DLQ/redrive](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-dead-letter-queues.html)
+- [Lambda native async保全とconcurrency=0](https://docs.aws.amazon.com/lambda/latest/dg/invocation-async-retain-records.html)
 - [Haiku 5.5モデル・料金](https://platform.claude.com/docs/en/models/haiku-5-5/overview)
 
 料金は2026-11-01確認時、入力100k token以下で$0.10/MTok入力・$0.50/MTok出力。
