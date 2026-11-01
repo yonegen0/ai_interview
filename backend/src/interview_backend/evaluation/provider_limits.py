@@ -1,7 +1,7 @@
 """Shared paid-provider monthly request ceilings."""
 
-MONTHLY_USER_MAX = 100
-MONTHLY_GLOBAL_MAX = 3000
+MONTHLY_USER_MAX = 20
+MONTHLY_GLOBAL_MAX = 600
 
 
 def validate_limits(user_limit, global_limit):
