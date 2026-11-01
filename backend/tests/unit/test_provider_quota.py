@@ -109,6 +109,22 @@ def test_star_reserves_last_combined_slot_once_then_evaluation_is_rejected(star)
     assert usage == {"owner": 20, "@ai-global-budget": 600}
 
 
+def test_evaluation_uses_last_shared_slot_before_paid_star(star):
+    """Evaluation-first ordering must never permit a second paid STAR reservation."""
+    runtime = star[0]
+    seed_usage(runtime.repository, 19, 599)
+    evaluation = evaluation_lease(runtime)
+    assert runtime.repository.reserve_provider_call(evaluation, 20, 600).status == "reserved"
+
+    star_lease, _, calls = paid_star(star)
+    assert not runtime.repository.star_start(star_lease)
+    usage = {row.owner: row.calls for row in runtime.repository.snapshot().provider_usage.values()}
+    assert usage == {"owner": 20, "@ai-global-budget": 600}
+    quota = runtime.repository.star_quota("owner").body["user"]
+    assert quota == {"reserved": 0, "consumed": 0, "remaining": 20}
+    assert calls == []
+
+
 def test_evaluation_and_star_compete_atomically_for_the_last_slot(star):
     from concurrent.futures import ThreadPoolExecutor
     from threading import Barrier
