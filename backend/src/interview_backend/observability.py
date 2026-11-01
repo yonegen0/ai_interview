@@ -160,7 +160,9 @@ class ObservedRepository:
                     provider="openai"
                     if provider_id and provider_id.startswith("openai")
                     else (
-                        "bedrock"
+                        "anthropic"
+                        if provider_id and provider_id.startswith("anthropic:")
+                        else "bedrock"
                         if provider_id and provider_id.startswith("bedrock")
                         else "fake"
                         if provider_id == "fake"
