@@ -33,8 +33,8 @@ class BedrockSettings:
     region: str = REGION
     effort: str = "low"
     max_tokens: int = 2048
-    monthly_user_limit: int = 100
-    monthly_global_limit: int = 3000
+    monthly_user_limit: int = 20
+    monthly_global_limit: int = 600
 
     def __post_init__(self):
         if (
@@ -74,8 +74,8 @@ class BedrockSettings:
             region=env.get("INTERVIEW_REGION", REGION),
             effort=env.get("INTERVIEW_BEDROCK_EFFORT", "low"),
             max_tokens=checked_uint("INTERVIEW_BEDROCK_MAX_TOKENS", "2048"),
-            monthly_user_limit=checked_uint("INTERVIEW_BEDROCK_MONTHLY_USER_LIMIT", "100"),
-            monthly_global_limit=checked_uint("INTERVIEW_BEDROCK_MONTHLY_GLOBAL_LIMIT", "3000"),
+            monthly_user_limit=checked_uint("INTERVIEW_BEDROCK_MONTHLY_USER_LIMIT", "20"),
+            monthly_global_limit=checked_uint("INTERVIEW_BEDROCK_MONTHLY_GLOBAL_LIMIT", "600"),
         )
 
 
