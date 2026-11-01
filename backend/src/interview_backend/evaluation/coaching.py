@@ -11,7 +11,8 @@ class InvalidCoachingResult(ValueError):
 
 
 def question_signature(value: str) -> str:
-    return "".join(c for c in unicodedata.normalize("NFKC", value) if c not in JS_WHITESPACE)
+    normalized = "".join(c for c in unicodedata.normalize("NFKC", value) if c not in JS_WHITESPACE)
+    return normalized.rstrip("。.!?")
 
 
 def unavailable(value: str) -> bool:
@@ -48,4 +49,7 @@ def validate_coaching_result(result: CoachingResult, context: CoachingInput) -> 
         if re.match(r"^\s*(?:\d+[.)．、]|[-*・])\s*.+[?？]\s*$", line)
     ]
     if len(questions) >= 2:
+        raise InvalidCoachingResult("MultipleQuestions")
+    # Two complete questions on the same line also violate the one-issue rule.
+    if len(re.findall(r"[?？]", result.follow_up_question)) > 1:
         raise InvalidCoachingResult("MultipleQuestions")
