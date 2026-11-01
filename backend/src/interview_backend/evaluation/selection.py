@@ -113,9 +113,9 @@ def checked_provider_environment(values, account, region):
                 api_version=values.get("INTERVIEW_ANTHROPIC_API_VERSION", ""),
                 effort=values.get("INTERVIEW_ANTHROPIC_EFFORT", "medium"),
                 max_output_tokens=int(values.get("INTERVIEW_ANTHROPIC_MAX_OUTPUT_TOKENS", "4096")),
-                monthly_user_limit=int(values.get("INTERVIEW_ANTHROPIC_MONTHLY_USER_LIMIT", "100")),
+                monthly_user_limit=int(values.get("INTERVIEW_ANTHROPIC_MONTHLY_USER_LIMIT", "20")),
                 monthly_global_limit=int(
-                    values.get("INTERVIEW_ANTHROPIC_MONTHLY_GLOBAL_LIMIT", "3000")
+                    values.get("INTERVIEW_ANTHROPIC_MONTHLY_GLOBAL_LIMIT", "600")
                 ),
                 workspace_id=values.get("INTERVIEW_ANTHROPIC_WORKSPACE_ID"),
             )
@@ -148,8 +148,8 @@ def checked_provider_environment(values, account, region):
         OpenAISettings(
             effort=values.get("INTERVIEW_OPENAI_EFFORT", "low"),
             max_output_tokens=int(values.get("INTERVIEW_OPENAI_MAX_OUTPUT_TOKENS", "4096")),
-            monthly_user_limit=int(values.get("INTERVIEW_OPENAI_MONTHLY_USER_LIMIT", "100")),
-            monthly_global_limit=int(values.get("INTERVIEW_OPENAI_MONTHLY_GLOBAL_LIMIT", "3000")),
+            monthly_user_limit=int(values.get("INTERVIEW_OPENAI_MONTHLY_USER_LIMIT", "20")),
+            monthly_global_limit=int(values.get("INTERVIEW_OPENAI_MONTHLY_GLOBAL_LIMIT", "600")),
         )
     return dict(values)
 
@@ -192,9 +192,9 @@ def select_provider(environment):
                 api_version=values.get("INTERVIEW_ANTHROPIC_API_VERSION", ""),
                 effort=values.get("INTERVIEW_ANTHROPIC_EFFORT", "medium"),
                 max_output_tokens=int(values.get("INTERVIEW_ANTHROPIC_MAX_OUTPUT_TOKENS", "4096")),
-                monthly_user_limit=int(values.get("INTERVIEW_ANTHROPIC_MONTHLY_USER_LIMIT", "100")),
+                monthly_user_limit=int(values.get("INTERVIEW_ANTHROPIC_MONTHLY_USER_LIMIT", "20")),
                 monthly_global_limit=int(
-                    values.get("INTERVIEW_ANTHROPIC_MONTHLY_GLOBAL_LIMIT", "3000")
+                    values.get("INTERVIEW_ANTHROPIC_MONTHLY_GLOBAL_LIMIT", "600")
                 ),
                 workspace_id=values.get("INTERVIEW_ANTHROPIC_WORKSPACE_ID"),
             )
@@ -233,9 +233,9 @@ def select_provider(environment):
         settings = OpenAISettings(
             effort=environment.get("INTERVIEW_OPENAI_EFFORT", "low"),
             max_output_tokens=int(environment.get("INTERVIEW_OPENAI_MAX_OUTPUT_TOKENS", "4096")),
-            monthly_user_limit=int(environment.get("INTERVIEW_OPENAI_MONTHLY_USER_LIMIT", "100")),
+            monthly_user_limit=int(environment.get("INTERVIEW_OPENAI_MONTHLY_USER_LIMIT", "20")),
             monthly_global_limit=int(
-                environment.get("INTERVIEW_OPENAI_MONTHLY_GLOBAL_LIMIT", "3000")
+                environment.get("INTERVIEW_OPENAI_MONTHLY_GLOBAL_LIMIT", "600")
             ),
         )
     except TypeError, ValueError:
