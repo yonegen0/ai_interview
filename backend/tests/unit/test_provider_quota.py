@@ -191,8 +191,8 @@ def test_provider_switch_does_not_reset_owner_usage(runtime):
     assert Worker(runtime.repository, openai, runtime.worker.clock).run("same-owner", first)
     bedrock = NeverCalledBedrock()
     second = start(runtime, owner="same-owner", number=2)
-    # This paid-provider stub is not a real BedrockProvider. Do not depend on
-    # implicit Fake STAR fallback, which PR #98 correctly removes.
+    # Quota test stub is not a real BedrockProvider; opt into the fake STAR
+    # adapter explicitly rather than relying on an implicit paid-to-fake switch.
     worker = Worker(
         runtime.repository, bedrock, runtime.worker.clock, star_provider=FakeStarProvider()
     )

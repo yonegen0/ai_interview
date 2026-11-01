@@ -134,6 +134,37 @@ def test_openai_worker_emits_usage_once_even_when_output_is_rejected(runtime, ca
     assert runtime.repository.snapshot().evaluations[identifier].status == "failed"
 
 
+@pytest.mark.parametrize(
+    ("provider_id", "expected"),
+    [
+        ("anthropic:claude-haiku-5-5:2026-10-21:medium:4096:100:3000", "anthropic"),
+        ("openai:standard:low:4096:100:3000", "openai"),
+        ("bedrock:jp:haiku-5-5:low", "bedrock"),
+        ("fake", "fake"),
+    ],
+)
+def test_evaluation_terminal_event_attributes_selected_provider(provider_id, expected, capsys):
+    evaluation = SimpleNamespace(
+        id=uid(900),
+        attempt_id=uid(901),
+        status="completed",
+        failure_reason=None,
+        finished_at=1200,
+        created_at=1100,
+        execution_config=SimpleNamespace(provider_id=provider_id),
+    )
+    repository = SimpleNamespace(
+        finish=lambda lease: SimpleNamespace(status="applied", evaluation=evaluation)
+    )
+    observed = ObservedRepository(repository, Metrics("worker", sink=lambda _: None))
+    with invocation("worker"):
+        observed.finish(SimpleNamespace(evaluation_id=evaluation.id))
+    records = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert len(records) == 1
+    assert records[0]["event"] == "evaluation_terminal"
+    assert records[0]["provider"] == expected
+
+
 def test_logging_sink_failure_and_warm_context_isolation(capsys):
     with invocation(request="first-id"):
         log_event(

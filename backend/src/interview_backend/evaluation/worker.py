@@ -48,6 +48,15 @@ class Worker:
         self.metric = metric
         from interview_backend.star_assist.worker import StarWorker
 
+        # A paid evaluation provider must not silently select Fake STAR output
+        # when the STAR adapter is accidentally omitted by composition.
+        if star_provider is None and getattr(provider, "provider_id", "").startswith(
+            ("anthropic:", "openai:", "bedrock:")
+        ):
+            from interview_backend.star_assist.live_provider import select_star_provider
+
+            star_provider = select_star_provider(provider)
+
         self.star_worker = StarWorker(
             repository,
             star_provider,

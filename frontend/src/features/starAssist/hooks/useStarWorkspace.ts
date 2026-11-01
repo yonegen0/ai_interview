@@ -703,6 +703,7 @@ export function useStarWorkspace(
             starReceiptSchema,
           );
         starMeta.current = null;
+        storage.removeSaved(generationKey);
         setGenerationId(null);
         setGenerationCategory(null);
         setResultWaiting(false);

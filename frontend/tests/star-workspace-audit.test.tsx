@@ -278,3 +278,30 @@ it("resumes an accepted STAR generation after reload without starting a second p
   );
   expect(Object.keys(repository.read().star.generations)).toHaveLength(1);
 });
+
+it("forgets accepted STAR generation recovery after a successful draft discard", async () => {
+  const hook = await setup(false);
+  await act(async () => hook.resolve());
+  await waitFor(() => expect(hook.result.current.loading).toBe(false));
+  act(() => {
+    hook.result.current.form.setValue("targetCategory", "corporate_sales", {
+      shouldDirty: true,
+    });
+    hook.result.current.form.setValue("notes.A", "生成前に記録した本人の行動", {
+      shouldDirty: true,
+    });
+  });
+  await act(async () => hook.result.current.generate());
+  const recoveryKey =
+    `${auth.scope()}pocket:star:generation:${hook.session.sessionId}:${JSON.stringify(hook.origin)}`;
+  const saved = sessionStorage.getItem(recoveryKey);
+  expect(saved).toBeTruthy();
+  expect(JSON.parse(saved!)).toMatchObject({
+    version: 1,
+    generationId: expect.any(String),
+  });
+
+  await act(async () => hook.result.current.discardStar());
+  expect((await starApi.getDrafts(hook.contextId)).starDraft).toBeNull();
+  expect(sessionStorage.getItem(recoveryKey)).toBeNull();
+});
