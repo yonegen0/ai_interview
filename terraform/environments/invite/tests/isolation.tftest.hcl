@@ -136,3 +136,22 @@ run "new_worker_cannot_be_legacy_target" {
   }
   expect_failures = [var.legacy_async_targets]
 }
+run "cors_uses_its_own_distribution" {
+  command = plan
+  variables { cors_origins = [] }
+  assert {
+    condition     = output.manifest.configuration.cors_origins == [output.frontend.origin]
+    error_message = "First closed deployment must use its real CloudFront origin without placeholders or localhost."
+  }
+}
+run "duplicate_legacy_qualifiers_rejected" {
+  command = plan
+  variables {
+    legacy_preservation_enabled = true
+    legacy_async_targets = {
+      first = { function_name = "ai-interview-dev-worker", qualifier = "" }
+      same  = { function_name = "ai-interview-dev-worker", qualifier = "$LATEST" }
+    }
+  }
+  expect_failures = [var.legacy_async_targets]
+}

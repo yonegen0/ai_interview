@@ -62,7 +62,7 @@ module "service" {
   ses_email              = var.ses_email
   ses_identity_arn       = var.ses_identity_arn
   alarm_email            = var.alarm_email
-  cors_origins           = var.cors_origins
+  cors_origins           = setunion(var.cors_origins, toset([module.frontend.origin]))
   monthly_budget_usd     = var.monthly_budget_usd
   log_usage              = "customer"
   api_enabled            = var.api_enabled

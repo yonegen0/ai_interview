@@ -17,7 +17,8 @@ devの停止・writer・過去ledgerが未確定で、同じtableの空counter�
 - Secretは新規の専用名、読取りは新Workerのみ。値・APIキーをTerraform/State/tfvarsへ書かない。
   専用Anthropic workspaceと新キーを使用。旧キーを新環境へコピーしない。
 - 非公開S3/OAC/HTTPS CloudFrontは既存frontend moduleを再利用、旧web bucketとは別。
-  CORSは明示HTTPS origin。Cognitoは招待専用、USER/ADMIN/JWTは既存契約を保持。
+  CORSは新CloudFrontの正確なHTTPS originを自動参照し、追加は明示HTTPS originだけ。
+  Cognitoは招待専用、USER/ADMIN/JWTは既存契約を保持。
 - customerログ14日、table削除保護/PITR。入口有効時は既存customer用21 alarmを世代別EMFで監視。
   AWS通知予算は最大$10/月。通知は強制課金停止ではなく、Anthropic料金も含まない。
 - 全入口、保全準備、quarantineはdefault false。初回closed planは旧資源を変更しない。

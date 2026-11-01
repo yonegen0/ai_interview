@@ -23,9 +23,11 @@ variable "ses_email" { type = string }
 variable "ses_identity_arn" { type = string }
 variable "alarm_email" { type = string }
 variable "cors_origins" {
-  type = set(string)
+  description = "Optional extra HTTPS origins; the dedicated CloudFront origin is always included."
+  type        = set(string)
+  default     = []
   validation {
-    condition     = length(var.cors_origins) > 0 && alltrue([for origin in var.cors_origins : can(regex("^https://[^/*]+$", origin))])
+    condition     = alltrue([for origin in var.cors_origins : can(regex("^https://[^/*]+$", origin))])
     error_message = "Invite service requires explicit HTTPS origins."
   }
 }
