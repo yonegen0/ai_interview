@@ -49,6 +49,20 @@ def test_bad_body_returns_fixed_400(runtime, raw, encoded):
     assert not runtime.repository.snapshot().requests
 
 
+@pytest.mark.parametrize("encoded", [False, True])
+def test_oversized_normal_post_rejected_before_json_decode_or_storage(runtime, encoded):
+    event = demo_event("POST", "/sessions", CREATE, uid(100))
+    raw = json.dumps({**CREATE, "irrelevant": "x" * (350 * 1024)})
+    event["body"] = base64.b64encode(raw.encode()).decode() if encoded else raw
+    event["isBase64Encoded"] = encoded
+
+    result = runtime.handler(event)
+    assert result["statusCode"] == 413
+    assert body(result) == {"code": "REQUEST_TOO_LARGE", "message": "Request too large."}
+    assert not runtime.repository.snapshot().sessions
+    assert not runtime.repository.snapshot().requests
+
+
 @pytest.mark.parametrize("key", [None, "", "not-a-uuid", 1])
 def test_missing_or_bad_idempotency_key(runtime, key):
     event = demo_event("POST", "/sessions", CREATE, key)
