@@ -130,12 +130,24 @@ def anthropic_schema(original):
         raise ProviderFailure("CONFIGURATION")
     schema = convert(original)
     # Ref cycles are not supported by the API. Reject before sending.
-    definitions = schema.get("$defs", {}) | schema.get("definitions", {})
+    # Keep the two JSON Pointer namespaces distinct. Merging them by name
+    # can falsely accept a missing target and send an invalid paid API request.
+    definitions = {
+        (namespace, name): value
+        for namespace in ("$defs", "definitions")
+        for name, value in schema.get(namespace, {}).items()
+    }
 
     def references(node):
         if isinstance(node, dict):
             if "$ref" in node:
-                yield node["$ref"].split("/")[-1]
+                parts = node["$ref"][2:].split("/")
+                if len(parts) != 2 or parts[0] not in {"$defs", "definitions"}:
+                    raise ProviderFailure("CONFIGURATION")
+                encoded = parts[1]
+                if not encoded or re.search(r"~(?![01])", encoded):
+                    raise ProviderFailure("CONFIGURATION")
+                yield (parts[0], encoded.replace("~1", "/").replace("~0", "~"))
             for key, value in node.items():
                 if key != "$ref":
                     yield from references(value)
@@ -143,14 +155,14 @@ def anthropic_schema(original):
             for value in node:
                 yield from references(value)
 
-    def check_definition(name, ancestors):
-        if name in ancestors or name not in definitions:
+    def check_definition(identifier, ancestors):
+        if identifier in ancestors or identifier not in definitions:
             raise ProviderFailure("CONFIGURATION")
-        for ref in references(definitions[name]):
-            check_definition(ref, ancestors | {name})
+        for ref in references(definitions[identifier]):
+            check_definition(ref, ancestors | {identifier})
 
-    for name in definitions:
-        check_definition(name, set())
+    for identifier in definitions:
+        check_definition(identifier, set())
     for ref in references(schema):
         if ref not in definitions:
             raise ProviderFailure("CONFIGURATION")
