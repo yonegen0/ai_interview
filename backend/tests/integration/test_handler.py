@@ -49,6 +49,20 @@ def test_bad_body_returns_fixed_400(runtime, raw, encoded):
     assert not runtime.repository.snapshot().requests
 
 
+@pytest.mark.parametrize("encoded", [False, True])
+def test_oversized_normal_post_rejected_before_json_decode_or_storage(runtime, encoded):
+    event = demo_event("POST", "/sessions", CREATE, uid(100))
+    raw = json.dumps({**CREATE, "irrelevant": "x" * (350 * 1024)})
+    event["body"] = base64.b64encode(raw.encode()).decode() if encoded else raw
+    event["isBase64Encoded"] = encoded
+
+    result = runtime.handler(event)
+    assert result["statusCode"] == 413
+    assert body(result) == {"code": "REQUEST_TOO_LARGE", "message": "Request too large."}
+    assert not runtime.repository.snapshot().sessions
+    assert not runtime.repository.snapshot().requests
+
+
 @pytest.mark.parametrize("key", [None, "", "not-a-uuid", 1])
 def test_missing_or_bad_idempotency_key(runtime, key):
     event = demo_event("POST", "/sessions", CREATE, key)
@@ -133,7 +147,11 @@ def test_invalid_generated_id_is_internal_failure_and_rolls_back(runtime):
 def test_method_not_allowed_header(runtime, path, allowed):
     result = runtime.handler(demo_event("DELETE", path))
     assert result["statusCode"] == 405
-    assert result["headers"] == {"Content-Type": "application/json", "Allow": allowed}
+    assert result["headers"] == {
+        "Content-Type": "application/json",
+        "Cache-Control": "no-store",
+        "Allow": allowed,
+    }
     assert json.loads(result["body"]) == {
         "code": "METHOD_NOT_ALLOWED",
         "message": "Method not allowed.",
@@ -147,6 +165,24 @@ def test_allow_header_is_not_added_to_other_responses(runtime):
         {"rawPath": "/sessions", "requestContext": {"http": {"method": "DELETE"}}},
     ]:
         assert "Allow" not in runtime.handler(event)["headers"]
+
+
+def test_authenticated_api_json_responses_are_not_cacheable(runtime):
+    created = runtime.handler(demo_event("POST", "/sessions", CREATE, uid(901)))
+    assert created["statusCode"] == 201
+    session_id = body(created)["sessionId"]
+    responses = (
+        created,
+        runtime.handler(demo_event("GET", f"/sessions/{session_id}/question")),
+        runtime.handler(demo_event("GET", f"/evaluations/{uid(999)}")),
+        runtime.handler(demo_event("GET", "/unknown")),
+        runtime.handler(demo_event("GET", "/practice-options")),
+        runtime.handler(demo_event("DELETE", "/sessions")),
+    )
+    assert responses[1]["statusCode"] == 200
+    for reply in responses:
+        assert reply["headers"]["Content-Type"] == "application/json"
+        assert reply["headers"].get("Cache-Control") == "no-store"
 
 
 def test_session_creation_limit_http_contract_and_atomicity(runtime, monkeypatch):
