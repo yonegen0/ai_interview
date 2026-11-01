@@ -24,7 +24,7 @@ locals {
   )
 }
 resource "aws_cloudwatch_metric_alarm" "emf" {
-  for_each            = { for name, alarm in local.emf_alarms : name => alarm if local.monitoring_enabled && (local.environment != "dev" || contains(setunion(local.dev_emf_alarm_names, var.log_usage == "customer" ? toset(["PendingAge", "QueuedAge"]) : toset([])), name)) }
+  for_each            = { for name, alarm in local.emf_alarms : name => alarm if local.monitoring_enabled && (local.environment == "test" || contains(setunion(local.dev_emf_alarm_names, var.log_usage == "customer" ? toset(["PendingAge", "QueuedAge"]) : toset([])), name)) }
   alarm_name          = "${local.prefix}-${each.key}"
   namespace           = each.key == "OutcomeUnknown" ? null : "AIInterview"
   metric_name         = each.key == "OutcomeUnknown" ? null : each.value.metric
@@ -38,7 +38,7 @@ resource "aws_cloudwatch_metric_alarm" "emf" {
   treat_missing_data  = each.value.missing
   alarm_actions       = [aws_sns_topic.alarms.arn]
   ok_actions          = [aws_sns_topic.alarms.arn]
-  actions_enabled     = (each.key != "RecoveryHeartbeat" && (local.environment != "dev" || each.key != "RecoverySweepLag")) || var.scheduler_enabled
+  actions_enabled     = (each.key != "RecoveryHeartbeat" && (local.environment == "test" || each.key != "RecoverySweepLag")) || var.scheduler_enabled
   # Keep the existing address/name/topic; one sparse count from either role is sufficient.
   dynamic "metric_query" {
     for_each = each.key == "OutcomeUnknown" ? [1] : []
@@ -172,7 +172,7 @@ moved {
 
 # Standard API-wide metrics: no route-level detailed metrics or new EMF series.
 resource "aws_cloudwatch_metric_alarm" "api_5xx" {
-  count               = local.environment == "dev" && var.log_usage == "customer" && local.monitoring_enabled ? 1 : 0
+  count               = local.environment != "test" && var.log_usage == "customer" && local.monitoring_enabled ? 1 : 0
   alarm_name          = "${local.prefix}-api-5xx"
   namespace           = "AWS/ApiGateway"
   metric_name         = "5xx"
@@ -187,7 +187,7 @@ resource "aws_cloudwatch_metric_alarm" "api_5xx" {
   tags                = local.tags
 }
 resource "aws_cloudwatch_metric_alarm" "evaluation_failed" {
-  count               = local.environment == "dev" && var.log_usage == "customer" && local.monitoring_enabled ? 1 : 0
+  count               = local.environment != "test" && var.log_usage == "customer" && local.monitoring_enabled ? 1 : 0
   alarm_name          = "${local.prefix}-evaluation-failed"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   threshold           = 1

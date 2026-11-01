@@ -59,7 +59,9 @@ def log_event(event, *, sink=None, **fields):
         elif key == "component":
             valid = isinstance(value, str) and value in {"api", "admin", "worker", "dispatcher"}
         elif key == "environment":
-            valid = isinstance(value, str) and value in {"dev", "test"}
+            valid = isinstance(value, str) and (
+                value in {"dev", "test"} or re.fullmatch(r"invite-[a-z0-9]{1,16}", value)
+            )
         elif key == "status":
             valid = isinstance(value, str) and value in {
                 "processing",

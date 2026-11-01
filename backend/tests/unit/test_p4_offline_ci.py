@@ -144,8 +144,8 @@ def test_terraform_orchestration_preserves_original_and_checks_before_init(
             module.validate(repository, tmp_path)
     else:
         module.validate(repository, tmp_path)
-        assert len(calls) == 27
-        assert sum(c[0] == "test" for c in calls) == 3
+        assert len(calls) == 32
+        assert sum(c[0] == "test" for c in calls) == 4
     assert len(reads) == 2
     if failure in {"selection", "command"}:
         assert len(calls) == 2

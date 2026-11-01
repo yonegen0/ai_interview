@@ -5,7 +5,7 @@ from functools import lru_cache
 from time import monotonic
 from uuid import uuid4
 
-from interview_backend.aws_settings import AwsSettings
+from interview_backend.aws_settings import AwsSettings, function_environment
 from interview_backend.observability import Metrics, ObservedRepository
 from interview_backend.operational_logs import invocation_context, log_event
 from interview_backend.repositories.budget import storage_budget
@@ -153,9 +153,7 @@ def build_entry(component):
             raise ValueError("InvalidProviderSelection")
         checked_provider_environment(provider_values(os.environ), settings.account, settings.region)
         provider = select_provider(os.environ)
-    metrics = Metrics(
-        component, environment="test" if "-test-" in settings.function_name else "dev"
-    )
+    metrics = Metrics(component, environment=function_environment(settings.function_name))
     repository = ObservedRepository(
         DynamoDBRepository(client_for(settings.region), settings.table), metrics
     )
@@ -197,7 +195,7 @@ def _invoke(component, event, context):
     function = os.environ.get(
         "AWS_LAMBDA_FUNCTION_NAME", os.environ.get("INTERVIEW_FUNCTION_NAME", "")
     )
-    environment = "test" if "-test-" in function else "dev"
+    environment = function_environment(function)
     with invocation_context(component, environment, event, context):
         return _invoke_entry(component, environment, event, context)
 

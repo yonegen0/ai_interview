@@ -27,13 +27,14 @@ SCOPES = {
     "environments/dev": ("main.tf", "6.65.0"),
     "environments/test": ("main.tf", "6.64.0"),
     "environments/web": ("main.tf", "6.65.0"),
+    "environments/invite": ("main.tf", "6.65.0"),
     "modules/frontend": ("main.tf", "6.65.0"),
     "modules/service": ("versions.tf", "6.64.0"),
 }
 
 
 def candidate_configuration(before, candidate):
-    """Only the six literal CLI/provider requirements may change; retain every other byte."""
+    """Only inventoried literal CLI/provider requirements change; retain other bytes."""
     if candidate not in CANDIDATE_CLIS:
         raise ValueError("UnreviewedMigrationCandidate")
     expected = dict(before)
@@ -100,7 +101,7 @@ def configuration_bytes(copied):
 
 
 def export_candidate_bundle(repository, qualification, destination):
-    """Export twelve reviewed candidate files, without editing the active checkout.
+    """Export reviewed requirement/lock pairs, without editing the active checkout.
 
     The bundle is PR B input, never a complete or approved execution migration.
     Recheck source binding and every copied byte; never export State/Plan/credentials.
@@ -144,7 +145,7 @@ def export_candidate_bundle(repository, qualification, destination):
     if tracked_snapshot(repository) != snapshot:
         raise ValueError("OriginalTerraformChanged")
     changed = {name: raw for name, raw in prepared.items() if raw != baseline[name]}
-    if len(changed) != 12:
+    if len(changed) != 2 * len(SCOPES):
         raise ValueError("MigrationExportInventoryMismatch")
     destination.mkdir(exist_ok=False)
     for name, raw in changed.items():
@@ -287,7 +288,7 @@ def qualify(repository, temp_parent, executable, candidate, *, compare_provider_
             for provider, schema in baseline_schemas.items():
                 schema_comparisons[provider] = compare_schemas(schema, candidate_schema, kinds)
         tests = {}
-        for scope in ("bootstrap", "modules/service", "modules/frontend"):
+        for scope in ("bootstrap", "modules/service", "modules/frontend", "environments/invite"):
             tests[scope] = terraform(copied / "terraform" / scope, "test", "-no-color").decode()
         assert_migration(before, configuration_bytes(copied), candidate)
         report = {

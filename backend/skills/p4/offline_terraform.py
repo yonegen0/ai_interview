@@ -15,6 +15,7 @@ ROOTS = (
     "environments/test",
     "modules/service",
     "environments/web",
+    "environments/invite",
     "modules/frontend",
 )
 TOKEN = re.compile(
@@ -200,7 +201,7 @@ def validate(repository, temp_parent):
             assert_additive(before, lock.read_text(encoding="utf-8"))
             terraform(root, "init", "-backend=false", "-input=false", "-lockfile=readonly")
             terraform(root, "validate", "-no-color")
-        for root in ("modules/service", "bootstrap", "modules/frontend"):
+        for root in ("modules/service", "bootstrap", "modules/frontend", "environments/invite"):
             terraform(root, "test", "-no-color")
     finally:
         if tracked_snapshot(repository) != snapshot:
