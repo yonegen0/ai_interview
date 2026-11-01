@@ -56,8 +56,8 @@ run "anthropic_secret_scoped_to_worker" {
       INTERVIEW_ANTHROPIC_API_VERSION          = "2026-10-21"
       INTERVIEW_ANTHROPIC_EFFORT               = "medium"
       INTERVIEW_ANTHROPIC_MAX_OUTPUT_TOKENS    = "4096"
-      INTERVIEW_ANTHROPIC_MONTHLY_USER_LIMIT   = "100"
-      INTERVIEW_ANTHROPIC_MONTHLY_GLOBAL_LIMIT = "3000"
+      INTERVIEW_ANTHROPIC_MONTHLY_USER_LIMIT   = "20"
+      INTERVIEW_ANTHROPIC_MONTHLY_GLOBAL_LIMIT = "600"
     }
   }
   assert {
@@ -96,6 +96,66 @@ run "anthropic_mixed_provider_rejected" {
       INTERVIEW_ANTHROPIC_MODEL       = "claude-haiku-5-5"
       INTERVIEW_ANTHROPIC_API_VERSION = "2026-10-21"
       INTERVIEW_OPENAI_ENABLED        = "false"
+    }
+  }
+  expect_failures = [var.worker_ai_environment]
+}
+
+run "anthropic_user_limit_above_twenty_rejected" {
+  command = plan
+  variables {
+    worker_ai_environment = {
+      INTERVIEW_AI_PROVIDER                  = "anthropic"
+      INTERVIEW_ANTHROPIC_ENABLED            = "true"
+      INTERVIEW_ANTHROPIC_AUTH               = "secret"
+      INTERVIEW_ANTHROPIC_SECRET_ARN         = "arn:aws:secretsmanager:ap-northeast-1:123456789012:secret:offline"
+      INTERVIEW_ANTHROPIC_MODEL              = "claude-haiku-5-5"
+      INTERVIEW_ANTHROPIC_API_VERSION        = "2026-10-21"
+      INTERVIEW_ANTHROPIC_MONTHLY_USER_LIMIT = "21"
+    }
+  }
+  expect_failures = [var.worker_ai_environment]
+}
+
+run "anthropic_global_limit_above_six_hundred_rejected" {
+  command = plan
+  variables {
+    worker_ai_environment = {
+      INTERVIEW_AI_PROVIDER                    = "anthropic"
+      INTERVIEW_ANTHROPIC_ENABLED              = "true"
+      INTERVIEW_ANTHROPIC_AUTH                 = "secret"
+      INTERVIEW_ANTHROPIC_SECRET_ARN           = "arn:aws:secretsmanager:ap-northeast-1:123456789012:secret:offline"
+      INTERVIEW_ANTHROPIC_MODEL                = "claude-haiku-5-5"
+      INTERVIEW_ANTHROPIC_API_VERSION          = "2026-10-21"
+      INTERVIEW_ANTHROPIC_MONTHLY_GLOBAL_LIMIT = "601"
+    }
+  }
+  expect_failures = [var.worker_ai_environment]
+}
+
+run "bedrock_global_limit_above_six_hundred_rejected" {
+  command = plan
+  variables {
+    worker_ai_environment = {
+      INTERVIEW_AI_PROVIDER                  = "bedrock"
+      INTERVIEW_BEDROCK_ENABLED              = "true"
+      INTERVIEW_BEDROCK_MONTHLY_GLOBAL_LIMIT = "601"
+    }
+  }
+  expect_failures = [var.worker_ai_environment]
+}
+
+run "openai_user_limit_above_twenty_rejected" {
+  command = plan
+  variables {
+    worker_wif_enabled = true
+    worker_ai_environment = {
+      INTERVIEW_AI_PROVIDER                 = "openai"
+      INTERVIEW_OPENAI_ENABLED              = "true"
+      INTERVIEW_OPENAI_AUTH                 = "wif"
+      INTERVIEW_OPENAI_IDENTITY_PROVIDER_ID = "idp-offline"
+      INTERVIEW_OPENAI_SERVICE_ACCOUNT_ID   = "sa-offline"
+      INTERVIEW_OPENAI_MONTHLY_USER_LIMIT   = "21"
     }
   }
   expect_failures = [var.worker_ai_environment]

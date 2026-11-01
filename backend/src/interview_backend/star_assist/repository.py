@@ -757,7 +757,7 @@ class StarRepositoryMixin:
 
         return self._atomic(run, temporal=True)
 
-    def star_start(self, lease):
+    def star_start(self, lease, *, monthly_user_limit=20, monthly_global_limit=600):
         def run(tx):
             now = self.clock()
             job, dispatch = self._star_related(tx, lease.owner, lease.id)
@@ -783,6 +783,17 @@ class StarRepositoryMixin:
             if not valid:
                 self._star_finish(tx, job, dispatch, now, "CANCELLED")
                 return False
+            upper = min(job.lock_expires_at, job.deadline_at, draft.expires_at * 1000)
+            tx.window = CommitWindow(upper=upper)
+            if (
+                job.provider_id.startswith("star:")
+                and self._reserve_paid_usage(
+                    tx, job.owner, now, monthly_user_limit, monthly_global_limit, upper
+                )
+                is None
+            ):
+                self._star_finish(tx, job, dispatch, now, "FAILED_BEFORE_START")
+                return False
             for rr, quota, _ in self._star_quota_rows(tx, job.owner, job.month):
                 if quota.reserved < 1:
                     raise IntegrityError("star_quota_underflow")
@@ -790,9 +801,6 @@ class StarRepositoryMixin:
                 quota.consumed += 1
                 tx.put(rr, quota)
             job.call_started, job.quota_state, job.status = True, "consumed", "STARTED"
-            tx.window = CommitWindow(
-                upper=min(job.lock_expires_at, job.deadline_at, draft.expires_at * 1000)
-            )
             tx.put(ref("StarGeneration", job.owner, job.id), job)
             return True
 

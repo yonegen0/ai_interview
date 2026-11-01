@@ -146,10 +146,16 @@ export function StarAssistPanel({
             STAR下書きを破棄
           </Button>
           {w.quota && (
-            <Text>
-              今月の生成残り：あなた {w.quota.user.remaining} / 全体{" "}
-              {w.quota.global.remaining}（JST {w.quota.month}）
-            </Text>
+            <>
+              <Text>
+                STAR専用の生成枠：あなた {w.quota.user.remaining} / 全体{" "}
+                {w.quota.global.remaining}（JST {w.quota.month}）
+              </Text>
+              <Text>
+                有料生成は通常評価・Coachingと共通の月間利用上限にも制限されます。
+                この枠が残っていても生成できない場合があります。
+              </Text>
+            </>
           )}
           <Button
             type="button"

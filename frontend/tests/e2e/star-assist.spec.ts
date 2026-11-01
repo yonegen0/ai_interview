@@ -149,6 +149,18 @@ test("T15 application response cannot replace typing during apply", async ({
     "反映の通信中に本人が入力した内容です。",
   );
 });
+test("STAR quota label distinguishes JST-only allowance from the UTC shared paid cap", async ({
+  page,
+}) => {
+  await begin(page);
+  await page.getByRole("button", { name: "STARアシストを開く" }).click();
+  await expect(
+    page.getByText(/STAR専用の生成枠.*あなた 20 \/ 全体 600（JST/),
+  ).toBeVisible();
+  await expect(
+    page.getByText(/通常評価・Coaching.*月間利用上限/),
+  ).toBeVisible();
+});
 async function begin(page: Page) {
   await page.goto("/practice/");
   await page.getByRole("button", { name: "カテゴリ練習", exact: true }).click();
