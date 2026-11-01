@@ -44,7 +44,8 @@ def test_explicit_six_scope_migration_does_not_relax_additive_guard(candidate):
         name = f"terraform/{scope}/.terraform.lock.hcl"
         with pytest.raises(ValueError, match="ProviderSelectionChanged"):
             tool("offline_terraform").assert_additive(before[name].decode(), after[name].decode())
-    assert len(m.SCOPES) == 6
+    assert len(m.SCOPES) == 7
+    assert m.SCOPES["environments/invite"] == ("main.tf", "6.65.0")
 
 
 @pytest.mark.parametrize(
@@ -277,8 +278,8 @@ def test_qualification_is_isolated_and_never_invokes_formal_plan_apply(
         work = m.qualify(repository, tmp_path, executable, "1.16.7")
         report = json.loads((work / "report.json").read_text())
         assert report["aws_operations"] == 0 and report["formal_plan_apply"] is False
-        assert sum(c[0] == "validate" for c in calls) == 6
-        assert sum(c[0] == "test" for c in calls) == 3
+        assert sum(c[0] == "validate" for c in calls) == 7
+        assert sum(c[0] == "test" for c in calls) == 4
     assert len(reads) == 2
     assert all((repository / name).read_bytes() == raw for name, raw in before.items())
     if failure:
@@ -421,6 +422,6 @@ def test_candidate_bundle_is_bound_non_overwriting_and_keeps_adoption_on_hold(
         m.export_candidate_bundle(repository, qualification, destination)
         manifest = json.loads((destination / "UPGRADE_HOLD.json").read_text())
         assert manifest["status"] == "HOLD_INCOMPLETE_EXECUTION_MIGRATION_DO_NOT_MERGE"
-        assert len(manifest["files"]) == 12
+        assert len(manifest["files"]) == 14
         assert not list(destination.rglob("*.tfstate"))
     assert all((repository / name).read_bytes() == raw for name, raw in before.items())
