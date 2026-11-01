@@ -162,19 +162,34 @@ def test_cleanup_reads_only_journal_keys_and_retains_usage():
 
 
 @pytest.mark.parametrize("paid_authorized", [False, True])
-def test_bedrock_binding_requires_explicit_paid_approval(tmp_path, paid_authorized):
+@pytest.mark.parametrize("provider", ["bedrock", "anthropic"])
+def test_paid_binding_requires_explicit_paid_approval(tmp_path, paid_authorized, provider):
     binding = tool("coaching_binding")
     approval, raw_manifest, callbacks = inputs(tmp_path)
     manifest = json.loads(raw_manifest)
-    manifest["worker_ai_environment"] = {
+    environment = {
         "INTERVIEW_AI_PROVIDER": "bedrock",
         "INTERVIEW_BEDROCK_ENABLED": "true",
         "INTERVIEW_BEDROCK_PROFILE_ID": "jp.anthropic.claude-haiku-5-5",
     }
+    if provider == "anthropic":
+        environment = {
+            "INTERVIEW_AI_PROVIDER": "anthropic",
+            "INTERVIEW_ANTHROPIC_ENABLED": "true",
+            "INTERVIEW_ANTHROPIC_AUTH": "secret",
+            "INTERVIEW_ANTHROPIC_SECRET_ARN": (
+                "arn:aws:secretsmanager:ap-northeast-1:111111111111:secret:worker-test-AbCdEf"
+            ),
+            "INTERVIEW_ANTHROPIC_MODEL": "claude-haiku-5-5",
+            "INTERVIEW_ANTHROPIC_API_VERSION": "2026-10-21",
+            "INTERVIEW_ANTHROPIC_MONTHLY_USER_LIMIT": "20",
+            "INTERVIEW_ANTHROPIC_MONTHLY_GLOBAL_LIMIT": "600",
+        }
+    manifest["worker_ai_environment"] = environment
     raw_manifest = json.dumps(manifest).encode()
     approval.update(
-        provider="bedrock",
-        scenario="bedrock",
+        provider=provider,
+        scenario=provider,
         paid_calls_authorized=paid_authorized,
         manifest_sha256=hashlib.sha256(raw_manifest).hexdigest(),
     )
@@ -189,10 +204,11 @@ def test_bedrock_binding_requires_explicit_paid_approval(tmp_path, paid_authoriz
             binding.approval_binding(raw, hashlib.sha256(raw).hexdigest(), raw_manifest, **kwargs)
 
 
-def test_bedrock_cannot_use_a_fake_scenario():
+@pytest.mark.parametrize("provider", ["bedrock", "anthropic"])
+def test_paid_provider_cannot_use_a_fake_scenario(provider):
     suite = tool("suite_binding")
     with pytest.raises(ValueError, match="ScenarioManifestMismatch"):
         suite.validate_scenario(
-            {"provider": "bedrock", "scenario": "fake_normal", "expected_rounds": 0},
-            {"INTERVIEW_AI_PROVIDER": "bedrock"},
+            {"provider": provider, "scenario": "fake_normal", "expected_rounds": 0},
+            {"INTERVIEW_AI_PROVIDER": provider},
         )

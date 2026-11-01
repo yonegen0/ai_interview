@@ -143,8 +143,11 @@ def validate_inputs(
         from interview_backend.evaluation.selection import checked_provider_environment
 
         provider = result["worker_ai_environment"]
-        if not isinstance(provider, dict) or provider.get("INTERVIEW_AI_PROVIDER") != "bedrock":
-            raise DeploymentError("ExplicitBedrockConfigurationRequired")
+        if not isinstance(provider, dict) or provider.get("INTERVIEW_AI_PROVIDER") not in (
+            "bedrock",
+            "anthropic",
+        ):
+            raise DeploymentError("ExplicitPaidProviderConfigurationRequired")
         result["worker_ai_environment"] = checked_provider_environment(provider, account, region)
     if "monthly_budget_usd" in result:
         amount = result["monthly_budget_usd"]

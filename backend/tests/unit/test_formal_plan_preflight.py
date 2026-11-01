@@ -152,16 +152,39 @@ def test_unaccepted_full_variables_cannot_silently_override_transport(key, value
         tool("terraform_dev").validate_inputs(values, "123456789012", "ap-northeast-1")
 
 
-def test_explicit_bedrock_settings_survive_standard_plan_and_apply_input_mapping(monkeypatch):
+ANTHROPIC_ENVIRONMENT = {
+    "INTERVIEW_AI_PROVIDER": "anthropic",
+    "INTERVIEW_ANTHROPIC_ENABLED": "true",
+    "INTERVIEW_ANTHROPIC_AUTH": "secret",
+    "INTERVIEW_ANTHROPIC_SECRET_ARN": (
+        "arn:aws:secretsmanager:ap-northeast-1:123456789012:secret:worker-test-AbCdEf"
+    ),
+    "INTERVIEW_ANTHROPIC_MODEL": "claude-haiku-5-5",
+    "INTERVIEW_ANTHROPIC_API_VERSION": "2026-10-21",
+    "INTERVIEW_ANTHROPIC_MONTHLY_USER_LIMIT": "20",
+    "INTERVIEW_ANTHROPIC_MONTHLY_GLOBAL_LIMIT": "600",
+}
+
+
+@pytest.mark.parametrize(
+    "provider",
+    [
+        {
+            "INTERVIEW_AI_PROVIDER": "bedrock",
+            "INTERVIEW_BEDROCK_ENABLED": "true",
+            "INTERVIEW_BEDROCK_PROFILE_ID": "jp.anthropic.claude-haiku-5-5",
+            "INTERVIEW_BEDROCK_EFFORT": "low",
+            "INTERVIEW_BEDROCK_MAX_TOKENS": "2048",
+        },
+        ANTHROPIC_ENVIRONMENT,
+    ],
+    ids=["bedrock", "anthropic"],
+)
+def test_explicit_provider_settings_survive_standard_plan_and_apply_input_mapping(
+    monkeypatch, provider
+):
     module = tool("ci_deploy")
     values = valid_inputs()
-    provider = {
-        "INTERVIEW_AI_PROVIDER": "bedrock",
-        "INTERVIEW_BEDROCK_ENABLED": "true",
-        "INTERVIEW_BEDROCK_PROFILE_ID": "jp.anthropic.claude-haiku-5-5",
-        "INTERVIEW_BEDROCK_EFFORT": "low",
-        "INTERVIEW_BEDROCK_MAX_TOKENS": "2048",
-    }
     values["worker_ai_environment"] = provider
     assert (
         tool("terraform_dev").validate_inputs(values, "123456789012", "ap-northeast-1")[
@@ -185,9 +208,44 @@ def test_explicit_bedrock_settings_survive_standard_plan_and_apply_input_mapping
 
 
 @pytest.mark.parametrize(
+    "overrides",
+    [
+        {"INTERVIEW_ANTHROPIC_ENABLED": "false"},
+        {"INTERVIEW_ANTHROPIC_AUTH": "wif"},
+        {
+            "INTERVIEW_ANTHROPIC_SECRET_ARN": (
+                "arn:aws:secretsmanager:us-east-1:123456789012:secret:x"
+            )
+        },
+        {
+            "INTERVIEW_ANTHROPIC_SECRET_ARN": (
+                "arn:aws:secretsmanager:ap-northeast-1:000000000000:secret:x"
+            )
+        },
+        {"INTERVIEW_ANTHROPIC_MODEL": "unknown"},
+        {"INTERVIEW_ANTHROPIC_MONTHLY_USER_LIMIT": "21"},
+        {"INTERVIEW_ANTHROPIC_MONTHLY_GLOBAL_LIMIT": "601"},
+        {"INTERVIEW_ANTHROPIC_MONTHLY_GLOBAL_LIMIT": 600},
+        {"INTERVIEW_BEDROCK_ENABLED": "true"},
+        {"INTERVIEW_OPENAI_ENABLED": "true"},
+        {"INTERVIEW_ANTHROPIC_API_KEY": "synthetic-forbidden-value"},
+    ],
+)
+def test_standard_anthropic_inputs_retain_provider_and_quota_boundaries(overrides):
+    with pytest.raises(ValueError):
+        tool("terraform_dev").validate_inputs(
+            valid_inputs() | {"worker_ai_environment": ANTHROPIC_ENVIRONMENT | overrides},
+            "123456789012",
+            "ap-northeast-1",
+        )
+
+
+@pytest.mark.parametrize(
     "provider",
     [
         {"INTERVIEW_AI_PROVIDER": "fake"},
+        {"INTERVIEW_AI_PROVIDER": []},
+        {"INTERVIEW_AI_PROVIDER": {}},
         {"INTERVIEW_AI_PROVIDER": "openai", "INTERVIEW_OPENAI_ENABLED": "true"},
         {"INTERVIEW_AI_PROVIDER": "bedrock", "INTERVIEW_BEDROCK_ENABLED": "false"},
         {

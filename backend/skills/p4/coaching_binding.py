@@ -66,7 +66,7 @@ def approval_binding(raw, digest, manifest_raw, *, run_id, account, callbacks):
         or len(set(subjects.values())) != 3
     ):
         raise ValueError("DistinctApprovedSubjectsRequired")
-    if approval.get("provider") not in {"fake", "openai", "bedrock"}:
+    if approval.get("provider") not in ("fake", "openai", "bedrock", "anthropic"):
         raise ValueError("ExplicitProviderRequired")
     from interview_backend.evaluation.selection import checked_provider_environment
 
@@ -76,7 +76,7 @@ def approval_binding(raw, digest, manifest_raw, *, run_id, account, callbacks):
     if environment.get("INTERVIEW_AI_PROVIDER", "fake") != approval["provider"]:
         raise ValueError("ProviderManifestMismatch")
     if (
-        approval["provider"] in {"openai", "bedrock"}
+        approval["provider"] in {"openai", "bedrock", "anthropic"}
         and approval.get("paid_calls_authorized") is not True
     ):
         raise ValueError("PaidCallsNotApproved")

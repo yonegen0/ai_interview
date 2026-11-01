@@ -18,6 +18,7 @@ def validate_scenario(approval, environment):
         "fake_failure": ("fake", "provider_failure", 0),
         "openai": ("openai", None, approval["expected_rounds"]),
         "bedrock": ("bedrock", None, approval["expected_rounds"]),
+        "anthropic": ("anthropic", None, approval["expected_rounds"]),
     }
     if scenario not in expected:
         raise ValueError("SeparateApprovedScenarioRequired")
