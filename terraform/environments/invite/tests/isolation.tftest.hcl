@@ -138,9 +138,19 @@ run "new_worker_cannot_be_legacy_target" {
 }
 run "cors_uses_its_own_distribution" {
   command = plan
+  # Hosting has its own module tests; bind this root test to its output contract.
+  override_module {
+    target = module.frontend
+    outputs = {
+      bucket_name     = "synthetic-invite-web"
+      distribution_id = "SYNTHETIC"
+      origin          = "https://invite-g1.example.invalid"
+      enabled         = false
+    }
+  }
   variables { cors_origins = [] }
   assert {
-    condition     = output.manifest.configuration.cors_origins == [output.frontend.origin]
+    condition     = output.manifest.configuration.cors_origins == tolist([output.frontend.origin])
     error_message = "First closed deployment must use its real CloudFront origin without placeholders or localhost."
   }
 }
