@@ -11,7 +11,7 @@ import pytest
 from conftest import uid
 from pydantic import ValidationError
 
-from interview_backend.evaluation.coaching import validate_coaching_result
+from interview_backend.evaluation.coaching import InvalidCoachingResult, validate_coaching_result
 from interview_backend.evaluation.provider import build_coaching_prompt
 from interview_backend.models.internal import BusinessError, IntegrityError
 from interview_backend.models.public import (
@@ -232,6 +232,18 @@ def test_question_guards_and_prompt_trust(runtime):
     with pytest.raises(ValueError):
         validate_coaching_result(
             CoachingResult(**result(question="1. 何をしましたか？\n2. 結果は何ですか？")), context
+        )
+    # A model-generated two-question follow-up must not be stored as one round.
+    with pytest.raises(InvalidCoachingResult, match="MultipleQuestions"):
+        validate_coaching_result(
+            CoachingResult(**result(question="あなた自身は何をしましたか？その結果は何ですか？")),
+            context,
+        )
+    # Superficial trailing punctuation must not turn a repeated question into a new one.
+    with pytest.raises(InvalidCoachingResult, match="RepeatedQuestion"):
+        validate_coaching_result(
+            CoachingResult(**result(question="あなた自身は何をしましたか")),
+            context,
         )
     assert context.coaching_history[0].answer == "はい"
     from interview_backend.evaluation.provider import build_coaching_prompt
