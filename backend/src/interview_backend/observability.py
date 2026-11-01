@@ -2,6 +2,7 @@
 
 import json
 import math
+import re
 from time import time
 
 from interview_backend.models.internal import IntegrityError, StorageError, StorageFormatError
@@ -46,10 +47,9 @@ UNITS = {
 
 class Metrics:
     def __init__(self, component, *, environment="dev", sink=print, clock=time):
-        if component not in {"api", "worker", "dispatcher", "admin"} or environment not in {
-            "dev",
-            "test",
-        }:
+        if component not in {"api", "worker", "dispatcher", "admin"} or not (
+            environment in {"dev", "test"} or re.fullmatch(r"invite-[a-z0-9]{1,16}", environment)
+        ):
             raise ValueError("InvalidMetricDimension")
         self.component, self.environment, self.sink, self.clock = (
             component,

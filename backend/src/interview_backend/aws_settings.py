@@ -10,6 +10,16 @@ class ConfigurationError(ValueError):
         super().__init__("InvalidConfiguration")
 
 
+def function_environment(function_name: str) -> str:
+    """Bound metric cardinality to server-owned deployment names, including generation."""
+    match = re.fullmatch(
+        r"ai-interview-(invite-[a-z0-9]{1,16})-(?:api|admin|worker|dispatcher)", function_name
+    )
+    if match:
+        return match[1]
+    return "test" if "-test-" in function_name else "dev"
+
+
 @dataclass(frozen=True)
 class AwsSettings:
     component: str
@@ -51,8 +61,9 @@ class AwsSettings:
         region = required("REGION", r"(?:ap|us|eu|ca|sa|me|af|il|mx)-[a-z]+-\d+")
         if env.get("AWS_REGION", region) != region:
             raise ConfigurationError()
-        table = required("TABLE_NAME", r"ai-interview-(?:dev|test-[a-z0-9-]+)-[A-Za-z0-9_.-]+")
-        function = required("FUNCTION_NAME", rf"ai-interview-(?:dev|test-[a-z0-9-]+)-{component}")
+        namespace = r"(?:dev|test-[a-z0-9-]+|invite-[a-z0-9]{1,16})"
+        table = required("TABLE_NAME", rf"ai-interview-{namespace}-[A-Za-z0-9_.-]+")
+        function = required("FUNCTION_NAME", rf"ai-interview-{namespace}-{component}")
         prefix = function.removesuffix(f"-{component}")
         if table != f"{prefix}-main":
             raise ConfigurationError()

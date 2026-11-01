@@ -60,7 +60,7 @@ resource "aws_lambda_function" "main" {
   environment {
     variables = merge(local.common_env, local.role_env[each.key], { INTERVIEW_COMPONENT = each.key, INTERVIEW_FUNCTION_NAME = "${local.prefix}-${each.key}" })
   }
-  depends_on = [aws_cloudwatch_log_group.lambda, aws_iam_role_policy.runtime]
+  depends_on = [aws_cloudwatch_log_group.lambda, aws_iam_role_policy.runtime, aws_dynamodb_resource_policy.isolation_table, aws_dynamodb_resource_policy.isolation_stream, aws_sqs_queue_policy.isolation]
   tags       = local.tags
 }
 resource "aws_lambda_alias" "entry" {

@@ -29,9 +29,10 @@ resource "aws_dynamodb_table" "main" {
     }
     projection_type = "KEYS_ONLY"
   }
-  stream_enabled   = true
-  stream_view_type = "NEW_AND_OLD_IMAGES"
-  point_in_time_recovery { enabled = false }
+  stream_enabled              = true
+  stream_view_type            = "NEW_AND_OLD_IMAGES"
+  deletion_protection_enabled = var.deployment_generation != ""
+  point_in_time_recovery { enabled = var.deployment_generation != "" }
   # Omit SSE configuration to retain DynamoDB's AWS-owned key default. No TTL.
   tags = local.tags
 }

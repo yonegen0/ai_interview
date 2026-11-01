@@ -20,6 +20,15 @@ variable "run_id" {
     error_message = "Run ID must be a short lowercase identifier."
   }
 }
+variable "deployment_generation" {
+  description = "Immutable invite environment/accounting generation; empty preserves dev/test."
+  type        = string
+  default     = ""
+  validation {
+    condition     = var.deployment_generation == "" || (var.run_id == "" && can(regex("^[a-z0-9]{1,16}$", var.deployment_generation)))
+    error_message = "Invite generation must be 1-16 lowercase alphanumerics and cannot share a test run."
+  }
+}
 variable "boundary_arn" { type = string }
 variable "artifact_bucket" { type = string }
 variable "artifact_key" {
@@ -84,8 +93,8 @@ variable "monthly_budget_usd" {
 }
 locals {
   log_retention_days = var.log_usage == "customer" ? 14 : 3
-  prefix             = var.run_id == "" ? "ai-interview-dev" : "ai-interview-test-${var.run_id}"
-  environment        = var.run_id == "" ? "dev" : "test"
+  prefix             = var.deployment_generation != "" ? "ai-interview-invite-${var.deployment_generation}" : (var.run_id == "" ? "ai-interview-dev" : "ai-interview-test-${var.run_id}")
+  environment        = var.deployment_generation != "" ? "invite-${var.deployment_generation}" : (var.run_id == "" ? "dev" : "test")
   tags               = { Project = "ai-interview", Environment = local.environment, ManagedBy = "Terraform", RunId = var.run_id }
   table_arn          = "arn:aws:dynamodb:${var.region}:${var.account_id}:table/${local.prefix}-main"
   schedule_arn       = "arn:aws:scheduler:${var.region}:${var.account_id}:schedule/${local.prefix}/recovery"
