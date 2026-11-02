@@ -75,6 +75,21 @@ def test_month_change_cannot_hide_legacy_activity(offset):
     start = datetime(2026, 12, 1, tzinfo=UTC)
     result = assess_cutover(review(isolation_effective_at=start + timedelta(milliseconds=offset)))
     assert "legacy_activity_overlaps_new_period" in result.blockers
+    assert result.isolation == result.new_generation == "BLOCKED"
+
+
+@pytest.mark.parametrize(
+    "field,original,blocker",
+    [
+        ("new_table_arn", "legacy_table_arn", "storage_not_isolated"),
+        ("new_writer_roles", "legacy_writer_roles", "writer_roles_reused"),
+    ],
+)
+def test_isolation_status_rejects_shared_storage_or_writer_roles(field, original, blocker):
+    base = review()
+    result = assess_cutover(review(**{field: getattr(base, original)}))
+    assert result.isolation == result.new_generation == "BLOCKED"
+    assert blocker in result.blockers
 
 
 def test_unknown_isolation_time_and_same_storage_or_role_are_blocked():
