@@ -150,7 +150,16 @@ def assess_cutover(review: GenerationReview) -> CutoverAssessment:
     return CutoverAssessment(
         historical_accounting=review.historical_accounting.status,
         isolation="BLOCKED"
-        if isolation_blockers or review.isolation_effective_at is None
+        if isolation_blockers
+        or any(
+            name in blockers
+            for name in (
+                "isolation_effective_at_unproven",
+                "legacy_activity_overlaps_new_period",
+                "storage_not_isolated",
+                "writer_roles_reused",
+            )
+        )
         else "PASS",
         new_generation="BLOCKED" if blockers else "PASS",
         blockers=tuple(blockers),
