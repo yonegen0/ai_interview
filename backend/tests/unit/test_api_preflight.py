@@ -79,9 +79,7 @@ def test_preflight_rejects_wrong_payload_version(version):
     assert handled == []
 
 
-@pytest.mark.parametrize(
-    "route_key", ["$default", "OPTIONS /other", "GET /practice-options", ""]
-)
+@pytest.mark.parametrize("route_key", ["$default", "OPTIONS /other", "GET /practice-options", ""])
 def test_preflight_rejects_unrecognized_route_key(route_key):
     entry, handled = _entry()
     request = _preflight(route_key)
