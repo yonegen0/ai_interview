@@ -1,4 +1,23 @@
-mock_provider "aws" {}
+# Mock apply must return AWS-shaped computed identifiers for provider validation.
+# Values below are synthetic and never used for deployment.
+mock_provider "aws" {
+  mock_resource "aws_cognito_user_pool" {
+    defaults = {
+      id = "ap-northeast-1_TestPool123"
+    }
+  }
+  mock_resource "aws_dynamodb_table" {
+    defaults = {
+      arn        = "arn:aws:dynamodb:ap-northeast-1:123456789012:table/ai-interview-invite-g1-main"
+      stream_arn = "arn:aws:dynamodb:ap-northeast-1:123456789012:table/ai-interview-invite-g1-main/stream/2026-11-03T00:00:00.000"
+    }
+  }
+  mock_resource "aws_sns_topic" {
+    defaults = {
+      arn = "arn:aws:sns:ap-northeast-1:123456789012:ai-interview-invite-g1-alarms"
+    }
+  }
+}
 variables {
   account_id             = "123456789012"
   region                 = "ap-northeast-1"
