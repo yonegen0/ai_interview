@@ -27,6 +27,16 @@ mock_provider "aws" {
       arn = "arn:aws:logs:ap-northeast-1:123456789012:log-group:/aws/apigateway/ai-interview-invite-g1"
     }
   }
+  mock_resource "aws_apigatewayv2_api" {
+    defaults = {
+      execution_arn = "arn:aws:execute-api:ap-northeast-1:123456789012:synthetic123"
+    }
+  }
+  mock_resource "aws_lambda_alias" {
+    defaults = {
+      arn = "arn:aws:lambda:ap-northeast-1:123456789012:function:ai-interview-invite-g1-dispatcher:recovery"
+    }
+  }
 }
 variables {
   account_id             = "123456789012"
