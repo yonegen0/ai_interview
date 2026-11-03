@@ -250,32 +250,69 @@ it("enables OTP resend after 60 ticks and removes the cooldown on unmount", asyn
   });
   expect(begin).toHaveBeenCalledTimes(2);
 });
-it("checks six digits and returns to the permitted screen after OTP success", async () => {
-  vi.spyOn(auth, "begin").mockResolvedValue("challenge");
-  const complete = vi.spyOn(auth, "complete").mockResolvedValue();
-  const { result } = renderHook(useEmailOtpLogin, {
-    wrapper: environment().wrapper,
-  });
-  act(() => result.current.form.setValue("email", "admin@example.invalid"));
-  await act(async () => {
-    await result.current.actions.submit();
-  });
-  act(() => result.current.form.setValue("code", "123"));
-  await act(async () => {
-    await result.current.actions.submit();
-  });
-  expect(complete).not.toHaveBeenCalled();
-  act(() => result.current.form.setValue("code", "123456"));
-  await act(async () => {
-    await result.current.actions.submit();
-  });
-  expect(complete).toHaveBeenCalledWith(
-    "admin@example.invalid",
-    "challenge",
-    "123456",
-  );
-  expect(replace).toHaveBeenCalledWith("/admin/questions/");
-});
+it.each(["012345", "01234567"])(
+  "passes an unchanged OTP %s and returns to the permitted screen",
+  async (code) => {
+    vi.spyOn(auth, "begin").mockResolvedValue("challenge");
+    const complete = vi.spyOn(auth, "complete").mockResolvedValue();
+    const { result } = renderHook(useEmailOtpLogin, {
+      wrapper: environment().wrapper,
+    });
+    act(() => result.current.form.setValue("email", "admin@example.invalid"));
+    await act(async () => {
+      await result.current.actions.submit();
+    });
+    act(() => result.current.form.setValue("code", "123"));
+    await act(async () => {
+      await result.current.actions.submit();
+    });
+    expect(complete).not.toHaveBeenCalled();
+    act(() => result.current.form.setValue("code", code));
+    await act(async () => {
+      await result.current.actions.submit();
+    });
+    expect(complete).toHaveBeenCalledWith(
+      "admin@example.invalid",
+      "challenge",
+      code,
+    );
+    expect(replace).toHaveBeenCalledWith("/admin/questions/");
+  },
+);
+it.each([
+  "",
+  "12345",
+  "1234567",
+  "123456789",
+  "１２３４５６",
+  "12345a",
+  " 123456",
+  "123456\n",
+])(
+  "rejects malformed OTP %j without authentication or resend",
+  async (code) => {
+    const begin = vi.spyOn(auth, "begin").mockResolvedValue("challenge");
+    const complete = vi.spyOn(auth, "complete").mockResolvedValue();
+    const { result, unmount } = renderHook(useEmailOtpLogin, {
+      wrapper: environment().wrapper,
+    });
+    act(() => result.current.form.setValue("email", "admin@example.invalid"));
+    await act(async () => {
+      await result.current.actions.submit();
+    });
+    act(() => result.current.form.setValue("code", code));
+    await act(async () => {
+      await result.current.actions.submit();
+    });
+    expect(complete).not.toHaveBeenCalled();
+    expect(begin).toHaveBeenCalledTimes(1);
+    expect(result.current.form.getFieldState("code").error?.message).toBe(
+      "6桁または8桁の半角数字を入力してください。",
+    );
+    expect(replace).not.toHaveBeenCalled();
+    unmount();
+  },
+);
 it("cancels and clears the previous user's queries on an identity change", () => {
   const { client, wrapper } = environment();
   const clear = vi.spyOn(client, "clear");

@@ -57,32 +57,35 @@ it("requests EMAIL_OTP and handles SELECT_CHALLENGE", async () => {
     },
   });
 });
-it("submits code, refreshes and revokes without any client secret", async () => {
-  const result = { AccessToken: "synthetic", ExpiresIn: 300 };
-  sdk.send.mockResolvedValue({ AuthenticationResult: result });
-  const adapter = cognitoAdapter();
-  expect(
-    await adapter.complete("user@example.invalid", "challenge", "123456"),
-  ).toEqual(result);
-  expect(sdk.send.mock.calls[0][0].input).toMatchObject({
-    ChallengeName: "EMAIL_OTP",
-    ChallengeResponses: {
-      USERNAME: "user@example.invalid",
-      EMAIL_OTP_CODE: "123456",
-    },
-    Session: "challenge",
-  });
-  await adapter.refresh("synthetic-refresh");
-  expect(sdk.send.mock.calls[1][0].input).toMatchObject({
-    AuthFlow: "REFRESH_TOKEN_AUTH",
-    AuthParameters: { REFRESH_TOKEN: "synthetic-refresh" },
-  });
-  await adapter.revoke("synthetic-refresh");
-  expect(sdk.send.mock.calls[2][0].input).toEqual({
-    ClientId: "synthetic-client",
-    Token: "synthetic-refresh",
-  });
-});
+it.each(["012345", "01234567"])(
+  "submits unchanged OTP %s, refreshes and revokes without any client secret",
+  async (code) => {
+    const result = { AccessToken: "synthetic", ExpiresIn: 300 };
+    sdk.send.mockResolvedValue({ AuthenticationResult: result });
+    const adapter = cognitoAdapter();
+    expect(
+      await adapter.complete("user@example.invalid", "challenge", code),
+    ).toEqual(result);
+    expect(sdk.send.mock.calls[0][0].input).toMatchObject({
+      ChallengeName: "EMAIL_OTP",
+      ChallengeResponses: {
+        USERNAME: "user@example.invalid",
+        EMAIL_OTP_CODE: code,
+      },
+      Session: "challenge",
+    });
+    await adapter.refresh("synthetic-refresh");
+    expect(sdk.send.mock.calls[1][0].input).toMatchObject({
+      AuthFlow: "REFRESH_TOKEN_AUTH",
+      AuthParameters: { REFRESH_TOKEN: "synthetic-refresh" },
+    });
+    await adapter.revoke("synthetic-refresh");
+    expect(sdk.send.mock.calls[2][0].input).toEqual({
+      ClientId: "synthetic-client",
+      Token: "synthetic-refresh",
+    });
+  },
+);
 it("fails missing configuration before any SDK send", () => {
   vi.stubEnv("NEXT_PUBLIC_COGNITO_CLIENT_ID", "");
   expect(() => cognitoAdapter()).toThrow("接続設定");
