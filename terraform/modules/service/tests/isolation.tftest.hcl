@@ -17,6 +17,16 @@ mock_provider "aws" {
       arn = "arn:aws:sns:ap-northeast-1:123456789012:ai-interview-invite-g1-alarms"
     }
   }
+  mock_resource "aws_iam_role" {
+    defaults = {
+      arn = "arn:aws:iam::123456789012:role/ai-interview-invite-g1-mock-runtime"
+    }
+  }
+  mock_resource "aws_cloudwatch_log_group" {
+    defaults = {
+      arn = "arn:aws:logs:ap-northeast-1:123456789012:log-group:/aws/apigateway/ai-interview-invite-g1"
+    }
+  }
 }
 variables {
   account_id             = "123456789012"
