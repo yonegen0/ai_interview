@@ -60,7 +60,8 @@ run "invalid_generation_rejected" {
   expect_failures = [var.deployment_generation]
 }
 run "minimal_monitoring_and_closure_isolation" {
-  command = plan
+  # Queue policy JSON contains provider-computed ARNs; assert it after mock-only apply.
+  command = apply
   variables {
     monitoring_profile        = "minimal"
     automatic_closure_enabled = true
