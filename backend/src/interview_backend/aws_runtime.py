@@ -29,6 +29,25 @@ class ApiEntry:
         try:
             self.settings.require_invocation(context, {"live"})
             request = event.get("requestContext") or {}
+            # API Gateway's existing unauthenticated OPTIONS routes integrate with
+            # this Lambda. Only those exact routes may skip JWT validation.
+            if (
+                self.settings.component == "api"
+                and event.get("version") == "2.0"
+                and request.get("accountId") == self.settings.account
+                and request.get("apiId") == self.settings.api_id
+                and request.get("stage") == self.settings.stage
+                and event.get("routeKey") in {"OPTIONS /", "OPTIONS /{proxy+}"}
+                and request.get("routeKey") == event.get("routeKey")
+                and (request.get("http") or {}).get("method") == "OPTIONS"
+            ):
+                result = {
+                    "statusCode": 204,
+                    "headers": {"Cache-Control": "no-store"},
+                    "body": "",
+                }
+                self.metrics.emit("ApiRequest")
+                return result
             claims = ((request.get("authorizer") or {}).get("jwt") or {}).get("claims") or {}
             if not (
                 event.get("version") == "2.0"
