@@ -92,13 +92,48 @@ variable "monthly_budget_usd" {
   }
 }
 locals {
-  log_retention_days = var.log_usage == "customer" ? 14 : 3
+  log_retention_days = var.monitoring_profile == "minimal" ? 3 : (var.log_usage == "customer" ? 14 : 3)
   prefix             = var.deployment_generation != "" ? "ai-interview-invite-${var.deployment_generation}" : (var.run_id == "" ? "ai-interview-dev" : "ai-interview-test-${var.run_id}")
   environment        = var.deployment_generation != "" ? "invite-${var.deployment_generation}" : (var.run_id == "" ? "dev" : "test")
   tags               = { Project = "ai-interview", Environment = local.environment, ManagedBy = "Terraform", RunId = var.run_id }
   table_arn          = "arn:aws:dynamodb:${var.region}:${var.account_id}:table/${local.prefix}-main"
   schedule_arn       = "arn:aws:scheduler:${var.region}:${var.account_id}:schedule/${local.prefix}/recovery"
   function_arns      = { for role in ["api", "worker", "dispatcher", "admin"] : role => "arn:aws:lambda:${var.region}:${var.account_id}:function:${local.prefix}-${role}" }
+}
+
+variable "monitoring_profile" {
+  description = "Invite-only minimal monitoring; existing dev/test contracts remain full."
+  type        = string
+  default     = "full"
+  validation {
+    condition     = var.monitoring_profile == "full" || (var.monitoring_profile == "minimal" && var.deployment_generation != "" && var.log_usage == "customer")
+    error_message = "Minimal monitoring requires an isolated invite generation."
+  }
+}
+variable "release_expires_at_epoch" {
+  description = "Server-owned access deadline; zero preserves existing environments."
+  type        = number
+  default     = 0
+  validation {
+    condition     = floor(var.release_expires_at_epoch) == var.release_expires_at_epoch && var.release_expires_at_epoch >= 0
+    error_message = "Release expiry must be a non-negative Unix second."
+  }
+}
+variable "star_monthly_user_limit" {
+  type    = number
+  default = 20
+  validation {
+    condition     = floor(var.star_monthly_user_limit) == var.star_monthly_user_limit && var.star_monthly_user_limit >= 1 && var.star_monthly_user_limit <= 100
+    error_message = "STAR emergency user cap must be an integer from 1 to 100."
+  }
+}
+variable "star_monthly_global_limit" {
+  type    = number
+  default = 600
+  validation {
+    condition     = floor(var.star_monthly_global_limit) == var.star_monthly_global_limit && var.star_monthly_global_limit >= 1 && var.star_monthly_global_limit <= 2000
+    error_message = "STAR emergency service cap must be an integer from 1 to 2000."
+  }
 }
 
 variable "log_usage" {

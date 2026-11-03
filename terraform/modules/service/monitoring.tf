@@ -24,7 +24,7 @@ locals {
   )
 }
 resource "aws_cloudwatch_metric_alarm" "emf" {
-  for_each            = { for name, alarm in local.emf_alarms : name => alarm if local.monitoring_enabled && (local.environment == "test" || contains(setunion(local.dev_emf_alarm_names, var.log_usage == "customer" ? toset(["PendingAge", "QueuedAge"]) : toset([])), name)) }
+  for_each            = { for name, alarm in local.emf_alarms : name => alarm if var.monitoring_profile == "full" && local.monitoring_enabled && (local.environment == "test" || contains(setunion(local.dev_emf_alarm_names, var.log_usage == "customer" ? toset(["PendingAge", "QueuedAge"]) : toset([])), name)) }
   alarm_name          = "${local.prefix}-${each.key}"
   namespace           = each.key == "OutcomeUnknown" ? null : "AIInterview"
   metric_name         = each.key == "OutcomeUnknown" ? null : each.value.metric
@@ -65,7 +65,7 @@ resource "aws_cloudwatch_metric_alarm" "emf" {
   tags = local.tags
 }
 resource "aws_cloudwatch_metric_alarm" "dlq" {
-  for_each            = { for name, queue in { worker = aws_sqs_queue.worker_dlq.name, stream = aws_sqs_queue.stream_failure.name } : name => queue if local.monitoring_enabled }
+  for_each            = { for name, queue in { worker = aws_sqs_queue.worker_dlq.name, stream = aws_sqs_queue.stream_failure.name } : name => queue if var.monitoring_profile == "full" && local.monitoring_enabled }
   alarm_name          = "${local.prefix}-dlq-${each.key}"
   namespace           = "AWS/SQS"
   metric_name         = "ApproximateNumberOfMessagesVisible"
@@ -80,7 +80,7 @@ resource "aws_cloudwatch_metric_alarm" "dlq" {
   tags                = local.tags
 }
 resource "aws_cloudwatch_metric_alarm" "lambda" {
-  for_each            = { for pair in setproduct(keys(local.function_arns), ["Errors", "Throttles"]) : "${pair[0]}-${pair[1]}" => pair if local.monitoring_enabled }
+  for_each            = { for pair in setproduct(keys(local.function_arns), ["Errors", "Throttles"]) : "${pair[0]}-${pair[1]}" => pair if local.monitoring_enabled && (var.monitoring_profile == "full" || (pair[0] == "worker" && pair[1] == "Errors")) }
   alarm_name          = "${local.prefix}-${each.key}"
   namespace           = "AWS/Lambda"
   metric_name         = each.value[1]
@@ -187,7 +187,7 @@ resource "aws_cloudwatch_metric_alarm" "api_5xx" {
   tags                = local.tags
 }
 resource "aws_cloudwatch_metric_alarm" "evaluation_failed" {
-  count               = local.environment != "test" && var.log_usage == "customer" && local.monitoring_enabled ? 1 : 0
+  count               = var.monitoring_profile == "full" && local.environment != "test" && var.log_usage == "customer" && local.monitoring_enabled ? 1 : 0
   alarm_name          = "${local.prefix}-evaluation-failed"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   threshold           = 1

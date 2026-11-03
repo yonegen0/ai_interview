@@ -12,12 +12,14 @@ provider "aws" {
   max_retries         = 0
 }
 locals {
-  generation  = "g1"
-  prefix      = "ai-interview-invite-${local.generation}"
-  region      = "ap-northeast-1"
-  table_arn   = "arn:aws:dynamodb:${local.region}:${var.account_id}:table/${local.prefix}-main"
-  queue_arns  = [for name in ["main", "worker-dlq", "stream-failure"] : "arn:aws:sqs:${local.region}:${var.account_id}:${local.prefix}-${name}"]
-  worker_role = "arn:aws:iam::${var.account_id}:role/${local.prefix}-worker-runtime"
+  generation        = "g1"
+  prefix            = "ai-interview-invite-${local.generation}"
+  region            = "ap-northeast-1"
+  release_end       = timeadd("1970-01-01T00:00:00Z", "${local.release_end_epoch}s")
+  release_end_epoch = 1796050800
+  table_arn         = "arn:aws:dynamodb:${local.region}:${var.account_id}:table/${local.prefix}-main"
+  queue_arns        = [for name in ["main", "worker-dlq", "stream-failure"] : "arn:aws:sqs:${local.region}:${var.account_id}:${local.prefix}-${name}"]
+  worker_role       = "arn:aws:iam::${var.account_id}:role/${local.prefix}-worker-runtime"
 }
 
 resource "aws_secretsmanager_secret" "claude" {
@@ -49,26 +51,31 @@ resource "aws_iam_policy" "runtime_boundary" {
   ] })
 }
 module "service" {
-  source                 = "../../modules/service"
-  deployment_generation  = local.generation
-  isolation_operator_arn = var.deployment_role_arn
-  account_id             = var.account_id
-  region                 = local.region
-  boundary_arn           = aws_iam_policy.runtime_boundary.arn
-  artifact_bucket        = var.artifact_bucket
-  artifact_key           = var.artifact_key
-  artifact_version       = var.artifact_version
-  artifact_sha256_base64 = var.artifact_sha256_base64
-  ses_email              = var.ses_email
-  ses_identity_arn       = var.ses_identity_arn
-  alarm_email            = var.alarm_email
-  cors_origins           = setunion(var.cors_origins, toset([module.frontend.origin]))
-  monthly_budget_usd     = var.monthly_budget_usd
-  log_usage              = "customer"
-  api_enabled            = var.api_enabled
-  worker_enabled         = var.worker_enabled
-  streams_enabled        = var.streams_enabled
-  scheduler_enabled      = var.scheduler_enabled
+  source                    = "../../modules/service"
+  deployment_generation     = local.generation
+  isolation_operator_arn    = var.deployment_role_arn
+  account_id                = var.account_id
+  region                    = local.region
+  boundary_arn              = aws_iam_policy.runtime_boundary.arn
+  artifact_bucket           = var.artifact_bucket
+  artifact_key              = var.artifact_key
+  artifact_version          = var.artifact_version
+  artifact_sha256_base64    = var.artifact_sha256_base64
+  ses_email                 = var.ses_email
+  ses_identity_arn          = var.ses_identity_arn
+  alarm_email               = var.alarm_email
+  cors_origins              = setunion(var.cors_origins, toset([module.frontend.origin]))
+  monthly_budget_usd        = var.monthly_budget_usd
+  log_usage                 = "customer"
+  monitoring_profile        = "minimal"
+  automatic_closure_enabled = true
+  release_expires_at_epoch  = local.release_end_epoch
+  star_monthly_user_limit   = 100
+  star_monthly_global_limit = 2000
+  api_enabled               = var.api_enabled
+  worker_enabled            = var.worker_enabled
+  streams_enabled           = var.streams_enabled
+  scheduler_enabled         = var.scheduler_enabled
   worker_ai_environment = {
     INTERVIEW_AI_PROVIDER                    = "anthropic"
     INTERVIEW_ANTHROPIC_ENABLED              = "true"
@@ -78,8 +85,8 @@ module "service" {
     INTERVIEW_ANTHROPIC_API_VERSION          = "2026-10-21"
     INTERVIEW_ANTHROPIC_EFFORT               = "medium"
     INTERVIEW_ANTHROPIC_MAX_OUTPUT_TOKENS    = "4096"
-    INTERVIEW_ANTHROPIC_MONTHLY_USER_LIMIT   = "20"
-    INTERVIEW_ANTHROPIC_MONTHLY_GLOBAL_LIMIT = "600"
+    INTERVIEW_ANTHROPIC_MONTHLY_USER_LIMIT   = "100"
+    INTERVIEW_ANTHROPIC_MONTHLY_GLOBAL_LIMIT = "2000"
     INTERVIEW_ANTHROPIC_WORKSPACE_ID         = var.anthropic_workspace_id
   }
   depends_on = [aws_secretsmanager_secret_policy.claude, aws_iam_role_policy.legacy_quarantine]
@@ -87,10 +94,11 @@ module "service" {
 
 # Reuse hosting implementation, with independent bucket/distribution and closed default.
 module "frontend" {
-  source      = "../../modules/frontend"
-  bucket_name = "ai-interview-invite-g1-web-${var.account_id}"
-  enabled     = var.frontend_enabled
-  depends_on  = [aws_iam_role_policy.legacy_quarantine]
+  source                   = "../../modules/frontend"
+  bucket_name              = "ai-interview-invite-g1-web-${var.account_id}"
+  enabled                  = var.frontend_enabled
+  release_expires_at_epoch = local.release_end_epoch
+  depends_on               = [aws_iam_role_policy.legacy_quarantine]
 }
 output "manifest" { value = module.service.manifest }
 output "frontend" {

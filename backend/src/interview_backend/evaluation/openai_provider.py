@@ -180,7 +180,9 @@ class OpenAISettings:
         ):
             raise ProviderFailure("CONFIGURATION")
         try:
-            validate_limits(self.monthly_user_limit, self.monthly_global_limit)
+            validate_limits(
+                self.monthly_user_limit, self.monthly_global_limit, user_max=20, global_max=600
+            )
         except ValueError:
             raise ProviderFailure("CONFIGURATION") from None
 

@@ -11,7 +11,12 @@ def validate_configuration(manifest):
     days = configuration.get("log_retention_days")
     if usage not in ("developer", "customer") or type(days) is not int:
         raise ValueError("ExplicitLogUsageRequired")
-    if days != (14 if usage == "customer" else 3):
+    profile = manifest.get("monitoring_profile", "full")
+    if profile not in {"full", "minimal"} or (
+        profile == "minimal" and not re.fullmatch(r"invite-[a-z0-9]{1,16}", manifest["environment"])
+    ):
+        raise ValueError("InvalidMonitoringProfile")
+    if days != (3 if profile == "minimal" else 14 if usage == "customer" else 3):
         raise ValueError("LogRetentionUsageMismatch")
     for key in (*FLAGS, "test_monitoring_enabled", "test_closure_confirmed"):
         if type(configuration.get(key)) is not bool:

@@ -223,8 +223,8 @@ def test_explicit_provider_settings_survive_standard_plan_and_apply_input_mappin
             )
         },
         {"INTERVIEW_ANTHROPIC_MODEL": "unknown"},
-        {"INTERVIEW_ANTHROPIC_MONTHLY_USER_LIMIT": "21"},
-        {"INTERVIEW_ANTHROPIC_MONTHLY_GLOBAL_LIMIT": "601"},
+        {"INTERVIEW_ANTHROPIC_MONTHLY_USER_LIMIT": "101"},
+        {"INTERVIEW_ANTHROPIC_MONTHLY_GLOBAL_LIMIT": "2001"},
         {"INTERVIEW_ANTHROPIC_MONTHLY_GLOBAL_LIMIT": 600},
         {"INTERVIEW_BEDROCK_ENABLED": "true"},
         {"INTERVIEW_OPENAI_ENABLED": "true"},

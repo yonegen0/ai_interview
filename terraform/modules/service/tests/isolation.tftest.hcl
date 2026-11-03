@@ -59,6 +59,40 @@ run "invalid_generation_rejected" {
   variables { deployment_generation = "g1/legacy" }
   expect_failures = [var.deployment_generation]
 }
+run "minimal_monitoring_and_closure_isolation" {
+  command = plan
+  variables {
+    monitoring_profile        = "minimal"
+    automatic_closure_enabled = true
+    api_enabled               = true
+    log_usage                 = "customer"
+    release_expires_at_epoch  = 1796050800
+  }
+  assert {
+    condition = (
+      length(aws_cloudwatch_metric_alarm.emf) == 0 &&
+      length(aws_cloudwatch_metric_alarm.dlq) == 0 &&
+      length(aws_cloudwatch_metric_alarm.lambda) == 1 &&
+      length(aws_cloudwatch_metric_alarm.minimal) == 2 &&
+      length(aws_cloudwatch_metric_alarm.minimal_dlq) == 1 &&
+      length(aws_cloudwatch_metric_alarm.api_5xx) == 1 &&
+      length(aws_cloudwatch_metric_alarm.evaluation_failed) == 0 &&
+      length(aws_cloudwatch_metric_alarm.minimal["CriticalFailure"].dimensions) == 2 &&
+      aws_cloudwatch_metric_alarm.minimal["RecoveryHeartbeat"].treat_missing_data == "breaching" &&
+      aws_cloudwatch_log_group.lambda["worker"].retention_in_days == 3
+    )
+    error_message = "Minimal invite monitoring must keep five alarms, two bounded custom series and short logs."
+  }
+  assert {
+    condition = (
+      strcontains(aws_sqs_queue_policy.isolation["stream_failure"].policy, "close-runtime") &&
+      !strcontains(aws_sqs_queue_policy.isolation["main"].policy, "close-runtime") &&
+      !strcontains(aws_dynamodb_resource_policy.isolation_table[0].policy, "close-runtime") &&
+      aws_lambda_function.main["api"].environment[0].variables.INTERVIEW_RELEASE_EXPIRES_AT == "1796050800"
+    )
+    error_message = "Closure roles may deliver failure notices, without entering business data or bypassing API expiry."
+  }
+}
 run "test_and_invite_cannot_share_generation" {
   command = plan
   variables { run_id = "synthetic" }

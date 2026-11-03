@@ -13,9 +13,13 @@ resource "aws_iam_role" "lambda" {
 }
 locals {
   common_env = {
-    INTERVIEW_ACCOUNT_ID = var.account_id
-    INTERVIEW_REGION     = var.region
-    INTERVIEW_TABLE_NAME = aws_dynamodb_table.main.name
+    INTERVIEW_ACCOUNT_ID                = var.account_id
+    INTERVIEW_REGION                    = var.region
+    INTERVIEW_TABLE_NAME                = aws_dynamodb_table.main.name
+    INTERVIEW_MONITORING_PROFILE        = var.monitoring_profile
+    INTERVIEW_RELEASE_EXPIRES_AT        = tostring(var.release_expires_at_epoch)
+    INTERVIEW_STAR_MONTHLY_USER_LIMIT   = tostring(var.star_monthly_user_limit)
+    INTERVIEW_STAR_MONTHLY_GLOBAL_LIMIT = tostring(var.star_monthly_global_limit)
   }
   role_env = {
     api = {
@@ -70,7 +74,7 @@ resource "aws_lambda_alias" "entry" {
   function_version = aws_lambda_function.main[each.value.role].version
 }
 resource "aws_lambda_event_source_mapping" "worker" {
-  depends_on                         = [aws_cloudwatch_metric_alarm.emf, aws_cloudwatch_metric_alarm.lambda, aws_cloudwatch_metric_alarm.dlq, aws_cloudwatch_metric_alarm.iterator, aws_cloudwatch_metric_alarm.failure_rate, aws_sns_topic_policy.alarms, aws_sns_topic_subscription.email]
+  depends_on                         = [aws_cloudwatch_metric_alarm.minimal, aws_cloudwatch_metric_alarm.minimal_dlq, aws_cloudwatch_metric_alarm.api_5xx, aws_cloudwatch_metric_alarm.emf, aws_cloudwatch_metric_alarm.lambda, aws_cloudwatch_metric_alarm.dlq, aws_cloudwatch_metric_alarm.iterator, aws_cloudwatch_metric_alarm.failure_rate, aws_sns_topic_policy.alarms, aws_sns_topic_subscription.email]
   event_source_arn                   = aws_sqs_queue.main.arn
   function_name                      = aws_lambda_alias.entry["worker"].arn
   enabled                            = var.worker_enabled
@@ -80,7 +84,7 @@ resource "aws_lambda_event_source_mapping" "worker" {
   scaling_config { maximum_concurrency = 2 }
 }
 resource "aws_lambda_event_source_mapping" "streams" {
-  depends_on                         = [aws_cloudwatch_metric_alarm.emf, aws_cloudwatch_metric_alarm.lambda, aws_cloudwatch_metric_alarm.dlq, aws_cloudwatch_metric_alarm.iterator, aws_cloudwatch_metric_alarm.failure_rate, aws_sns_topic_policy.alarms, aws_sns_topic_subscription.email]
+  depends_on                         = [aws_cloudwatch_metric_alarm.minimal, aws_cloudwatch_metric_alarm.minimal_dlq, aws_cloudwatch_metric_alarm.api_5xx, aws_cloudwatch_metric_alarm.emf, aws_cloudwatch_metric_alarm.lambda, aws_cloudwatch_metric_alarm.dlq, aws_cloudwatch_metric_alarm.iterator, aws_cloudwatch_metric_alarm.failure_rate, aws_sns_topic_policy.alarms, aws_sns_topic_subscription.email]
   event_source_arn                   = aws_dynamodb_table.main.stream_arn
   function_name                      = aws_lambda_alias.entry["streams"].arn
   enabled                            = var.streams_enabled
@@ -131,5 +135,5 @@ resource "aws_scheduler_schedule" "recovery" {
       maximum_event_age_in_seconds = 60
     }
   }
-  depends_on = [aws_iam_role_policy.scheduler, aws_cloudwatch_metric_alarm.emf, aws_cloudwatch_metric_alarm.lambda, aws_cloudwatch_metric_alarm.dlq, aws_cloudwatch_metric_alarm.iterator, aws_cloudwatch_metric_alarm.failure_rate, aws_sns_topic_policy.alarms, aws_sns_topic_subscription.email]
+  depends_on = [aws_iam_role_policy.scheduler, aws_cloudwatch_metric_alarm.minimal, aws_cloudwatch_metric_alarm.minimal_dlq, aws_cloudwatch_metric_alarm.api_5xx, aws_cloudwatch_metric_alarm.emf, aws_cloudwatch_metric_alarm.lambda, aws_cloudwatch_metric_alarm.dlq, aws_cloudwatch_metric_alarm.iterator, aws_cloudwatch_metric_alarm.failure_rate, aws_sns_topic_policy.alarms, aws_sns_topic_subscription.email]
 }

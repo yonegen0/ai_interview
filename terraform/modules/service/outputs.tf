@@ -44,5 +44,16 @@ output "manifest" {
     artifact           = { bucket = var.artifact_bucket, key = var.artifact_key, version = var.artifact_version, sha256_base64 = var.artifact_sha256_base64 }
     log_groups         = { for k, g in aws_cloudwatch_log_group.lambda : k => g.name }
     alarm_topic_arn    = aws_sns_topic.alarms.arn
-  }, length(var.worker_ai_environment) == 0 ? {} : { worker_ai_environment = var.worker_ai_environment }, var.worker_wif_enabled ? { worker_wif_enabled = true } : {})
+  }, var.monitoring_profile == "minimal" ? { monitoring_profile = "minimal" } : {}, length(var.worker_ai_environment) == 0 ? {} : { worker_ai_environment = var.worker_ai_environment }, var.worker_wif_enabled ? { worker_wif_enabled = true } : {})
+}
+output "closure_target" {
+  value = {
+    api_id             = aws_apigatewayv2_api.main.id
+    mappings           = [aws_lambda_event_source_mapping.worker.uuid, aws_lambda_event_source_mapping.streams.uuid]
+    schedule_group     = aws_scheduler_schedule_group.recovery.name
+    scheduler_role_arn = aws_iam_role.scheduler.arn
+    topic              = aws_sns_topic.alarms.arn
+    failure_queue_arn  = aws_sqs_queue.stream_failure.arn
+    alarms             = [for suffix in ["api-5xx", "worker-Errors", "CriticalFailure", "RecoveryHeartbeat", "dlq"] : "${local.prefix}-${suffix}"]
+  }
 }
