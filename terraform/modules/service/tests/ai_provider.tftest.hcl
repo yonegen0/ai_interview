@@ -101,7 +101,7 @@ run "anthropic_mixed_provider_rejected" {
   expect_failures = [var.worker_ai_environment]
 }
 
-run "anthropic_user_limit_above_twenty_rejected" {
+run "anthropic_user_limit_above_emergency_cap_rejected" {
   command = plan
   variables {
     worker_ai_environment = {
@@ -111,13 +111,13 @@ run "anthropic_user_limit_above_twenty_rejected" {
       INTERVIEW_ANTHROPIC_SECRET_ARN         = "arn:aws:secretsmanager:ap-northeast-1:123456789012:secret:offline"
       INTERVIEW_ANTHROPIC_MODEL              = "claude-haiku-5-5"
       INTERVIEW_ANTHROPIC_API_VERSION        = "2026-10-21"
-      INTERVIEW_ANTHROPIC_MONTHLY_USER_LIMIT = "21"
+      INTERVIEW_ANTHROPIC_MONTHLY_USER_LIMIT = "101"
     }
   }
   expect_failures = [var.worker_ai_environment]
 }
 
-run "anthropic_global_limit_above_six_hundred_rejected" {
+run "anthropic_global_limit_above_emergency_cap_rejected" {
   command = plan
   variables {
     worker_ai_environment = {
@@ -127,7 +127,7 @@ run "anthropic_global_limit_above_six_hundred_rejected" {
       INTERVIEW_ANTHROPIC_SECRET_ARN           = "arn:aws:secretsmanager:ap-northeast-1:123456789012:secret:offline"
       INTERVIEW_ANTHROPIC_MODEL                = "claude-haiku-5-5"
       INTERVIEW_ANTHROPIC_API_VERSION          = "2026-10-21"
-      INTERVIEW_ANTHROPIC_MONTHLY_GLOBAL_LIMIT = "601"
+      INTERVIEW_ANTHROPIC_MONTHLY_GLOBAL_LIMIT = "2001"
     }
   }
   expect_failures = [var.worker_ai_environment]

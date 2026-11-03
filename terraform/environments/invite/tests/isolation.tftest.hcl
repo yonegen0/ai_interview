@@ -37,8 +37,8 @@ run "closed_generation" {
     condition = (
       jsondecode(aws_secretsmanager_secret_policy.claude.policy).Statement[0].Effect == "Deny" &&
       jsondecode(aws_secretsmanager_secret_policy.claude.policy).Statement[0].Condition.ArnNotEquals["aws:PrincipalArn"] == [local.worker_role] &&
-      output.manifest.worker_ai_environment["INTERVIEW_ANTHROPIC_MONTHLY_USER_LIMIT"] == "20" &&
-      output.manifest.worker_ai_environment["INTERVIEW_ANTHROPIC_MONTHLY_GLOBAL_LIMIT"] == "600"
+      output.manifest.worker_ai_environment["INTERVIEW_ANTHROPIC_MONTHLY_USER_LIMIT"] == "100" &&
+      output.manifest.worker_ai_environment["INTERVIEW_ANTHROPIC_MONTHLY_GLOBAL_LIMIT"] == "2000"
     )
     error_message = "Only the generation Worker can read the new secret, with bounded shared quota."
   }

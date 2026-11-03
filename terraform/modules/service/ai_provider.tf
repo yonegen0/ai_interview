@@ -70,7 +70,7 @@ variable "worker_ai_environment" {
       can(regex("^[0-9]+$", lookup(var.worker_ai_environment, "INTERVIEW_OPENAI_MONTHLY_GLOBAL_LIMIT", "600"))) &&
       try(tonumber(lookup(var.worker_ai_environment, "INTERVIEW_OPENAI_MONTHLY_GLOBAL_LIMIT", "600")) >= 1 && tonumber(lookup(var.worker_ai_environment, "INTERVIEW_OPENAI_MONTHLY_GLOBAL_LIMIT", "600")) <= 600, false)
     )
-    error_message = "OpenAI and Bedrock share the monthly 20/600 ceilings."
+    error_message = "OpenAI and Bedrock retain the monthly 20/600 ceilings."
   }
   validation {
     condition = lookup(var.worker_ai_environment, "INTERVIEW_AI_PROVIDER", "") == "anthropic" || (
@@ -89,9 +89,9 @@ variable "worker_ai_environment" {
       can(regex("^[0-9]+$", lookup(var.worker_ai_environment, "INTERVIEW_ANTHROPIC_MAX_OUTPUT_TOKENS", "4096"))) &&
       try(tonumber(lookup(var.worker_ai_environment, "INTERVIEW_ANTHROPIC_MAX_OUTPUT_TOKENS", "4096")) >= 1024 && tonumber(lookup(var.worker_ai_environment, "INTERVIEW_ANTHROPIC_MAX_OUTPUT_TOKENS", "4096")) <= 8192, false) &&
       can(regex("^[0-9]+$", lookup(var.worker_ai_environment, "INTERVIEW_ANTHROPIC_MONTHLY_USER_LIMIT", "20"))) &&
-      try(tonumber(lookup(var.worker_ai_environment, "INTERVIEW_ANTHROPIC_MONTHLY_USER_LIMIT", "20")) >= 1 && tonumber(lookup(var.worker_ai_environment, "INTERVIEW_ANTHROPIC_MONTHLY_USER_LIMIT", "20")) <= 20, false) &&
+      try(tonumber(lookup(var.worker_ai_environment, "INTERVIEW_ANTHROPIC_MONTHLY_USER_LIMIT", "20")) >= 1 && tonumber(lookup(var.worker_ai_environment, "INTERVIEW_ANTHROPIC_MONTHLY_USER_LIMIT", "20")) <= 100, false) &&
       can(regex("^[0-9]+$", lookup(var.worker_ai_environment, "INTERVIEW_ANTHROPIC_MONTHLY_GLOBAL_LIMIT", "600"))) &&
-      try(tonumber(lookup(var.worker_ai_environment, "INTERVIEW_ANTHROPIC_MONTHLY_GLOBAL_LIMIT", "600")) >= 1 && tonumber(lookup(var.worker_ai_environment, "INTERVIEW_ANTHROPIC_MONTHLY_GLOBAL_LIMIT", "600")) <= 600, false) &&
+      try(tonumber(lookup(var.worker_ai_environment, "INTERVIEW_ANTHROPIC_MONTHLY_GLOBAL_LIMIT", "600")) >= 1 && tonumber(lookup(var.worker_ai_environment, "INTERVIEW_ANTHROPIC_MONTHLY_GLOBAL_LIMIT", "600")) <= 2000, false) &&
       (
         !contains(keys(var.worker_ai_environment), "INTERVIEW_ANTHROPIC_WORKSPACE_ID") ||
         can(regex("^wrkspc_[A-Za-z0-9]+$", lookup(var.worker_ai_environment, "INTERVIEW_ANTHROPIC_WORKSPACE_ID", "")))

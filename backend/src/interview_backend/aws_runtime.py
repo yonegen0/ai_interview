@@ -28,6 +28,11 @@ class ApiEntry:
         result = None
         try:
             self.settings.require_invocation(context, {"live"})
+            from interview_backend.release_window import expired
+
+            if expired(os.environ):
+                result = _api_error(403, "FORBIDDEN")
+                return result
             request = event.get("requestContext") or {}
             # API Gateway's existing unauthenticated OPTIONS routes integrate with
             # this Lambda. Only those exact routes may skip JWT validation.
@@ -172,10 +177,21 @@ def build_entry(component):
             raise ValueError("InvalidProviderSelection")
         checked_provider_environment(provider_values(os.environ), settings.account, settings.region)
         provider = select_provider(os.environ)
-    metrics = Metrics(component, environment=function_environment(settings.function_name))
-    repository = ObservedRepository(
-        DynamoDBRepository(client_for(settings.region), settings.table), metrics
+    metrics = Metrics(
+        component,
+        environment=function_environment(settings.function_name),
+        profile=os.environ.get("INTERVIEW_MONITORING_PROFILE", "full"),
     )
+    raw_repository = DynamoDBRepository(client_for(settings.region), settings.table)
+    from interview_backend.evaluation.provider_limits import validate_limits
+
+    limits = (
+        int(os.environ.get("INTERVIEW_STAR_MONTHLY_USER_LIMIT", "20")),
+        int(os.environ.get("INTERVIEW_STAR_MONTHLY_GLOBAL_LIMIT", "600")),
+    )
+    validate_limits(*limits)
+    raw_repository.star_monthly_limits = limits
+    repository = ObservedRepository(raw_repository, metrics)
     if component == "api":
         from interview_backend.api.handler import Handler
         from interview_backend.application.service import Application
@@ -223,7 +239,11 @@ def _invoke_entry(component, environment, event, context):
     try:
         entry = build_entry(component)
     except Exception:
-        Metrics(component, environment=environment).emit("InvalidConfiguration")
+        Metrics(
+            component,
+            environment=environment,
+            profile=os.environ.get("INTERVIEW_MONITORING_PROFILE", "full"),
+        ).emit("InvalidConfiguration")
         log_event("invalid_configuration")
         if component in {"api", "admin"}:
             return _api_error(500, "INTERNAL_SERVER_ERROR")

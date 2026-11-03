@@ -13,6 +13,10 @@ def expected_alarms(manifest, prefix):
             and not manifest["configuration"]["test_monitoring_enabled"]
         ):
             return {}
+    if manifest.get("monitoring_profile") == "minimal":
+        from minimal_alarms import expected_minimal_alarms
+
+        return expected_minimal_alarms(manifest, prefix)
     topic = manifest["alarm_topic_arn"]
     common = {
         "ComparisonOperator": "GreaterThanOrEqualToThreshold",

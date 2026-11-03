@@ -16,6 +16,14 @@ variable "enabled" {
   type    = bool
   default = false
 }
+variable "release_expires_at_epoch" {
+  type    = number
+  default = 0
+  validation {
+    condition     = floor(var.release_expires_at_epoch) == var.release_expires_at_epoch && var.release_expires_at_epoch >= 0
+    error_message = "Release expiry must be a non-negative Unix second."
+  }
+}
 
 resource "aws_s3_bucket" "assets" {
   bucket        = var.bucket_name
@@ -65,7 +73,7 @@ resource "aws_cloudfront_function" "routes" {
   runtime = "cloudfront-js-2.0"
   comment = "Next static-export trailing-slash route lookup; no user data or logs"
   publish = true
-  code    = file("${path.module}/rewrite.js")
+  code    = "var releaseExpiresAt = ${var.release_expires_at_epoch};\n${file("${path.module}/rewrite.js")}"
 }
 resource "aws_cloudfront_response_headers_policy" "assets" {
   name = "${var.bucket_name}-security"

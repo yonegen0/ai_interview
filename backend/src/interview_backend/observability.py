@@ -46,11 +46,16 @@ UNITS = {
 
 
 class Metrics:
-    def __init__(self, component, *, environment="dev", sink=print, clock=time):
+    def __init__(self, component, *, environment="dev", sink=print, clock=time, profile="full"):
         if component not in {"api", "worker", "dispatcher", "admin"} or not (
             environment in {"dev", "test"} or re.fullmatch(r"invite-[a-z0-9]{1,16}", environment)
         ):
             raise ValueError("InvalidMetricDimension")
+        if profile not in {"full", "minimal"} or (
+            profile == "minimal" and not environment.startswith("invite-")
+        ):
+            raise ValueError("InvalidMonitoringProfile")
+        self.profile = profile
         self.component, self.environment, self.sink, self.clock = (
             component,
             environment,
@@ -66,14 +71,39 @@ class Metrics:
             or value < 0
         ):
             raise ValueError("InvalidMetric")
+        dimensions = ["Project", "Environment", "Component"]
+        unit = UNITS[name]
+        if self.profile == "minimal":
+            if name != "RecoveryHeartbeat":
+                critical = (
+                    name
+                    in {
+                        "InvalidConfiguration",
+                        "InternalInvocationFailed",
+                        "WorkerBatchFailure",
+                        "StreamBatchFailure",
+                        "DBError",
+                        "IntegrityError",
+                        "MissingEvaluation",
+                        "OutcomeUnknown",
+                        "EvaluationFailed",
+                        "RecoveryPartitionBlocked",
+                    }
+                    or (name in {"PendingAge", "QueuedAge"} and value > 120)
+                    or (name == "RecoverySweepLag" and value > 180)
+                )
+                if not critical:
+                    return
+                name, value, unit = "CriticalFailure", 1, "Count"
+            dimensions = ["Project", "Environment"]
         item = {
             "_aws": {
                 "Timestamp": int(self.clock() * 1000),
                 "CloudWatchMetrics": [
                     {
                         "Namespace": "AIInterview",
-                        "Dimensions": [["Project", "Environment", "Component"]],
-                        "Metrics": [{"Name": name, "Unit": UNITS[name]}],
+                        "Dimensions": [dimensions],
+                        "Metrics": [{"Name": name, "Unit": unit}],
                     }
                 ],
             },

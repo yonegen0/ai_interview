@@ -83,6 +83,9 @@ def bound_expiry(tx, expires_at):
 
 
 class StarRepositoryMixin:
+    # Server-owned configuration; counters and transaction layout remain unchanged.
+    star_monthly_limits = (20, 600)
+
     def star_post(self, owner, key, fingerprint, method, path, operation):
         generated = {}
 
@@ -451,8 +454,8 @@ class StarRepositoryMixin:
         identifier = quota_id(month)
         rows = []
         for kind, subject, limit in (
-            ("StarQuota", owner, 20),
-            ("GlobalStarQuota", "@star-service", 600),
+            ("StarQuota", owner, self.star_monthly_limits[0]),
+            ("GlobalStarQuota", "@star-service", self.star_monthly_limits[1]),
         ):
             rr = ref(kind, subject, month)
             row = tx.get(rr) or (StarQuota if kind == "StarQuota" else GlobalStarQuota)(
@@ -474,12 +477,12 @@ class StarRepositoryMixin:
                     "user": {
                         "reserved": rows[0][1].reserved,
                         "consumed": rows[0][1].consumed,
-                        "remaining": 20 - rows[0][1].reserved - rows[0][1].consumed,
+                        "remaining": max(0, rows[0][2] - rows[0][1].reserved - rows[0][1].consumed),
                     },
                     "global": {
                         "reserved": rows[1][1].reserved,
                         "consumed": rows[1][1].consumed,
-                        "remaining": 600 - rows[1][1].reserved - rows[1][1].consumed,
+                        "remaining": max(0, rows[1][2] - rows[1][1].reserved - rows[1][1].consumed),
                     },
                 },
             )

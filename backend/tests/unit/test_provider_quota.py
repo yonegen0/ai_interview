@@ -214,7 +214,7 @@ def test_repository_rejects_limits_above_shared_contract(runtime):
     lease = runtime.repository.claim(
         "owner", evaluation_id, 1, uid(900), runtime.worker.coaching_config
     ).lease
-    for user_limit, global_limit in ((21, 600), (20, 601), (True, 600), (100, 3000)):
+    for user_limit, global_limit in ((101, 600), (20, 2001), (True, 600), (100, 3000)):
         with pytest.raises(ValueError, match="provider_usage_limit"):
             runtime.repository.reserve_provider_call(lease, user_limit, global_limit)
 

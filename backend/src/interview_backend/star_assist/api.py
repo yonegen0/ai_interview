@@ -63,8 +63,8 @@ def handle(repository, owner, method, path, headers, payload):
                 200,
                 {
                     "categories": [{"id": k, "label": v} for k, v in CATEGORIES.items()],
-                    "userMonthlyLimit": 20,
-                    "globalMonthlyLimit": 600,
+                    "userMonthlyLimit": repository.star_monthly_limits[0],
+                    "globalMonthlyLimit": repository.star_monthly_limits[1],
                 },
             )
         return {

@@ -1,4 +1,43 @@
-mock_provider "aws" {}
+# Mock apply must return AWS-shaped computed identifiers for provider validation.
+# Values below are synthetic and never used for deployment.
+mock_provider "aws" {
+  mock_resource "aws_cognito_user_pool" {
+    defaults = {
+      id = "ap-northeast-1_TestPool123"
+    }
+  }
+  mock_resource "aws_dynamodb_table" {
+    defaults = {
+      arn        = "arn:aws:dynamodb:ap-northeast-1:123456789012:table/ai-interview-invite-g1-main"
+      stream_arn = "arn:aws:dynamodb:ap-northeast-1:123456789012:table/ai-interview-invite-g1-main/stream/2026-11-03T00:00:00.000"
+    }
+  }
+  mock_resource "aws_sns_topic" {
+    defaults = {
+      arn = "arn:aws:sns:ap-northeast-1:123456789012:ai-interview-invite-g1-alarms"
+    }
+  }
+  mock_resource "aws_iam_role" {
+    defaults = {
+      arn = "arn:aws:iam::123456789012:role/ai-interview-invite-g1-mock-runtime"
+    }
+  }
+  mock_resource "aws_cloudwatch_log_group" {
+    defaults = {
+      arn = "arn:aws:logs:ap-northeast-1:123456789012:log-group:/aws/apigateway/ai-interview-invite-g1"
+    }
+  }
+  mock_resource "aws_apigatewayv2_api" {
+    defaults = {
+      execution_arn = "arn:aws:execute-api:ap-northeast-1:123456789012:synthetic123"
+    }
+  }
+  mock_resource "aws_lambda_alias" {
+    defaults = {
+      arn = "arn:aws:lambda:ap-northeast-1:123456789012:function:ai-interview-invite-g1-dispatcher:recovery"
+    }
+  }
+}
 variables {
   account_id             = "123456789012"
   region                 = "ap-northeast-1"
@@ -58,6 +97,41 @@ run "invalid_generation_rejected" {
   command = plan
   variables { deployment_generation = "g1/legacy" }
   expect_failures = [var.deployment_generation]
+}
+run "minimal_monitoring_and_closure_isolation" {
+  # Queue policy JSON contains provider-computed ARNs; assert it after mock-only apply.
+  command = apply
+  variables {
+    monitoring_profile        = "minimal"
+    automatic_closure_enabled = true
+    api_enabled               = true
+    log_usage                 = "customer"
+    release_expires_at_epoch  = 1796050800
+  }
+  assert {
+    condition = (
+      length(aws_cloudwatch_metric_alarm.emf) == 0 &&
+      length(aws_cloudwatch_metric_alarm.dlq) == 0 &&
+      length(aws_cloudwatch_metric_alarm.lambda) == 1 &&
+      length(aws_cloudwatch_metric_alarm.minimal) == 2 &&
+      length(aws_cloudwatch_metric_alarm.minimal_dlq) == 1 &&
+      length(aws_cloudwatch_metric_alarm.api_5xx) == 1 &&
+      length(aws_cloudwatch_metric_alarm.evaluation_failed) == 0 &&
+      length(aws_cloudwatch_metric_alarm.minimal["CriticalFailure"].dimensions) == 2 &&
+      aws_cloudwatch_metric_alarm.minimal["RecoveryHeartbeat"].treat_missing_data == "breaching" &&
+      aws_cloudwatch_log_group.lambda["worker"].retention_in_days == 3
+    )
+    error_message = "Minimal invite monitoring must keep five alarms, two bounded custom series and short logs."
+  }
+  assert {
+    condition = (
+      strcontains(aws_sqs_queue_policy.isolation["stream_failure"].policy, "close-runtime") &&
+      !strcontains(aws_sqs_queue_policy.isolation["main"].policy, "close-runtime") &&
+      !strcontains(aws_dynamodb_resource_policy.isolation_table[0].policy, "close-runtime") &&
+      aws_lambda_function.main["api"].environment[0].variables.INTERVIEW_RELEASE_EXPIRES_AT == "1796050800"
+    )
+    error_message = "Closure roles may deliver failure notices, without entering business data or bypassing API expiry."
+  }
 }
 run "test_and_invite_cannot_share_generation" {
   command = plan

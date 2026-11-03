@@ -10,6 +10,14 @@ variable "isolation_operator_arn" {
     error_message = "Invite isolation requires a same-account operator role, never a legacy runtime."
   }
 }
+variable "automatic_closure_enabled" {
+  type    = bool
+  default = false
+  validation {
+    condition     = !var.automatic_closure_enabled || var.deployment_generation != ""
+    error_message = "Automatic closure is restricted to an isolated invite generation."
+  }
+}
 locals {
   isolation_enabled = var.deployment_generation != ""
   # Exceptions to Deny do not grant data access. Identity IAM and boundary still apply.
@@ -40,6 +48,6 @@ resource "aws_sqs_queue_policy" "isolation" {
   policy = jsonencode({ Version = "2012-10-17", Statement = [{
     Sid = "RejectOtherGenerations", Effect = "Deny", Principal = "*", Action = "sqs:*", Resource = each.value.arn,
     # AWS service delivery/redrive remains governed by identity/source/redrive policies.
-    Condition = { ArnNotEquals = { "aws:PrincipalArn" = local.isolation_trusted_roles }, Bool = { "aws:PrincipalIsAWSService" = "false" } }
+    Condition = { ArnNotEquals = { "aws:PrincipalArn" = concat(local.isolation_trusted_roles, each.key == "stream_failure" && var.automatic_closure_enabled ? [for role in ["close-runtime", "close-trigger"] : "arn:aws:iam::${var.account_id}:role/${local.prefix}-${role}"] : []) }, Bool = { "aws:PrincipalIsAWSService" = "false" } }
   }] })
 }
