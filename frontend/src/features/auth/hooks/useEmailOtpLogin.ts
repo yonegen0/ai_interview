@@ -62,8 +62,10 @@ export function useEmailOtpLogin() {
       return;
     }
     if (sending.current) return;
-    if (!/^\d{6}$/.test(values.code)) {
-      form.setError("code", { message: "6桁のコードを入力してください。" });
+    if (![6, 8].includes(values.code.length) || /[^0-9]/.test(values.code)) {
+      form.setError("code", {
+        message: "6桁または8桁の半角数字を入力してください。",
+      });
       return;
     }
     sending.current = true;
