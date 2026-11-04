@@ -23,7 +23,7 @@ EVENTS = {
     "internal_batch_failure",
     "provider_usage",
     "assist_generation_terminal",
-
+}
 
 
 @contextmanager
