@@ -497,33 +497,6 @@ test("STAR four-step dialog retains draft and fits both 390px and 1440px", async
   }
 });
 
-test("STAR blocks generation for invalid industry or company", async ({ page }) => {
-  await begin(page);
-  await page.getByRole("button", { name: "STARアシストを開く" }).click();
-  await page.getByLabel("S 状況").fill("法人営業で顧客対応を担当していました。");
-  for (let i = 0; i < 3; i++)
-    await page.getByRole("button", { name: "次へ", exact: true }).click();
-  await page.getByRole("combobox", { name: "応募先カテゴリ" }).click();
-  await page.getByRole("option", { name: "法人営業", exact: true }).click();
-
-  const generate = page.getByRole("button", { name: "3案を生成（1回）" });
-  const industry = page.getByLabel("志望業界（任意）");
-  const company = page.getByLabel("応募先企業名（任意）");
-  await expect(generate).toBeEnabled();
-
-  await industry.fill("業".repeat(101));
-  await expect(industry).toHaveAttribute("aria-invalid", "true");
-  await expect(generate).toBeDisabled();
-  await industry.fill("営業");
-  await expect(generate).toBeEnabled();
-
-  await company.fill("社".repeat(201));
-  await expect(company).toHaveAttribute("aria-invalid", "true");
-  await expect(generate).toBeDisabled();
-  await company.fill("応募先");
-  await expect(generate).toBeEnabled();
-});
-
 test("STAR blocks generation when optional profile fields exceed schema limits", async ({ page }) => {
   await begin(page);
   await page.getByRole("button", { name: "STARアシストを開く" }).click();
