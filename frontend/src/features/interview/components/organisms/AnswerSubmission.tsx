@@ -133,7 +133,7 @@ export function AnswerSubmission({
               </Button>
             )}
           </StatusRow>
-          {phase === "answering" && workspace && (
+          {phase === "answering" && workspace?.available && (
             <StarAssistPanel workspace={workspace} hasAnswer={count > 0} />
           )}
           <form onSubmit={onSubmit}>

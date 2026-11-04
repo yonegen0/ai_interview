@@ -122,6 +122,7 @@ export const useAnswerOperation = (
     (value: string) => form.reset({ answer: value }),
     [form],
   );
+  const assistConfigured = session.question.assistType ?? "star";
   const workspace = useStarWorkspace(
     session,
     operation
@@ -141,7 +142,7 @@ export const useAnswerOperation = (
         : { operationKind: "initial_answer", questionId: session.question.id },
     answer,
     form.formState.isDirty,
-    phase === "answering",
+    phase === "answering" && assistConfigured !== "none",
     saved && !saved.pending
       ? {
           draft: saved.draft,
@@ -149,6 +150,7 @@ export const useAnswerOperation = (
         }
       : null,
     restoreAnswer,
+    assistConfigured === "none" ? "star" : assistConfigured,
   );
   const mutation = useMutation({
     retry: false,
