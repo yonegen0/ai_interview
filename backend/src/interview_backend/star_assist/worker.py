@@ -112,7 +112,7 @@ class StarWorker:
                 if finished:
                     if status == "FAILED_AFTER_START":
                         log_event(
-                                "assist_generation_terminal",
+                            "assist_generation_terminal",
                             generationId=identifier,
                             assistType=lease.input.assistType,
                             terminalStatus=status,
