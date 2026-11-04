@@ -125,7 +125,7 @@ test("T15 application response cannot replace typing during apply", async ({
     sessionStorage.setItem("pocket:scenario", "star_apply_delayed"),
   );
   await page.getByRole("button", { name: "この回答を反映" }).click();
-  await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "入力中の回答を置き換えますか？" })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.getByLabel("あなたの回答")).toHaveValue(
     "確認前の既存入力です。",
@@ -154,6 +154,9 @@ test("STAR quota label distinguishes JST-only allowance from the UTC shared paid
 }) => {
   await begin(page);
   await page.getByRole("button", { name: "STARアシストを開く" }).click();
+  for (let i = 0; i < 3; i++) {
+    await page.getByRole("button", { name: "次へ", exact: true }).click();
+  }
   await expect(
     page.getByText(/STAR専用の生成枠.*あなた 20 \/ 全体 600（JST/),
   ).toBeVisible();
@@ -173,16 +176,19 @@ async function begin(page: Page) {
 }
 async function generate(page: Page) {
   await page.getByRole("button", { name: "STARアシストを開く" }).click();
+  await page.getByRole("button", { name: "次へ", exact: true }).click();
+  await page.getByRole("button", { name: "次へ", exact: true }).click();
+  await page.getByLabel("A 本人の行動").fill("私は顧客の課題を整理しました。");
+  await page.getByRole("button", { name: "次へ", exact: true }).click();
   await page.getByRole("combobox", { name: "応募先カテゴリ" }).click();
   await page.getByRole("option", { name: "法人営業", exact: true }).click();
-  await page.getByLabel("A 本人の行動").fill("私は顧客の課題を整理しました。");
   await expect(
     page.getByRole("status").filter({ hasText: "下書き：" }),
   ).toContainText("保存済");
   await page.getByRole("button", { name: "3案を生成（1回）" }).click();
   await expect(page.getByLabel("案Aの回答")).toBeVisible();
 }
-for (const width of [375, 768, 1280])
+for (const width of [375, 390, 768, 1280, 1440])
   test(`T15/T21/T22 ${width}px three editable choices and apply without evaluation`, async ({
     page,
   }, testInfo) => {
@@ -203,6 +209,10 @@ for (const width of [375, 768, 1280])
     await expect(page.getByLabel("案Bの回答")).toHaveValue(
       "本人が選択前に編集した回答Bです。",
     );
+    await page.getByLabel("案Aの回答").focus();
+    await page.keyboard.press("Tab");
+    await expect(page.getByLabel("案Bの回答")).toBeFocused();
+    await page.screenshot({ path: testInfo.outputPath(`star-dialog-${width}.png`) });
     await page.getByRole("button", { name: "この回答を反映" }).click();
     await expect(page.getByLabel("あなたの回答")).toHaveValue(
       "本人が選択前に編集した回答Aです。",
@@ -229,9 +239,6 @@ for (const width of [375, 768, 1280])
         }),
     );
     expect(count).toBe(0);
-    await page.getByLabel("案Aの回答").focus();
-    await page.keyboard.press("Tab");
-    await expect(page.getByLabel("案Bの回答")).toBeFocused();
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= window.innerWidth,
@@ -458,4 +465,28 @@ test("T20 owner switch cannot restore another person's drafts", async ({
   await expect(page.getByLabel("あなたの回答")).toHaveValue(
     "元の本人だけの保存です。",
   );
+});
+
+
+test("STAR four-step dialog retains draft and fits both 390px and 1440px", async ({ page }) => {
+  for (const width of [390, 1440]) {
+    await page.setViewportSize({ width, height: 844 });
+    await begin(page);
+    await page.getByRole("button", { name: "STARアシストを開く" }).click();
+    const dialog = page.getByRole("dialog", { name: /STARアシスト/ });
+    await expect(dialog).toBeVisible();
+    await page.getByLabel("S 状況").fill("営業担当としての経験です。");
+    await page.getByRole("button", { name: "次へ", exact: true }).click();
+    await expect(page.getByLabel("T 課題")).toBeVisible();
+    await page.getByRole("button", { name: "戻る" }).click();
+    await expect(page.getByLabel("S 状況")).toHaveValue("営業担当としての経験です。");
+    await page.getByRole("button", { name: "キャンセル", exact: true }).click();
+    await expect(dialog).not.toBeVisible();
+    await page.getByRole("button", { name: "STARアシストを開く" }).click();
+    await expect(page.getByLabel("S 状況")).toHaveValue("営業担当としての経験です。");
+    expect(
+      await dialog.evaluate((node) => node.scrollWidth <= node.clientWidth),
+    ).toBe(true);
+    await page.getByRole("button", { name: "キャンセル", exact: true }).click();
+  }
 });

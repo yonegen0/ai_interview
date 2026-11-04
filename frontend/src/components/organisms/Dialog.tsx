@@ -1,7 +1,6 @@
 /**
  * @file Dialog.tsx
- * @description モーダルシェル共通コンポーネント。title / content / actions を props で受け、
- *   本文領域は overflow: visible で Outlined Input のラベル見切れを防ぐ
+ * @description 共通モーダル。既存の表示挙動を維持しつつ、長い内容とモバイル全画面にも対応。
  */
 "use client";
 
@@ -13,48 +12,40 @@ import MuiDialogContent from "@mui/material/DialogContent";
 import MuiDialogTitle from "@mui/material/DialogTitle";
 import { styled } from "@mui/material/styles";
 
-/** 共通 Dialog の Props */
 export type DialogProps = {
-  /** 表示中か（controlled） */
   open: boolean;
-  /** 閉じる要求（背景クリック・Escape。実行中ガードは呼び出し側 onClose 内で行う） */
   onClose: () => void;
-  /** ダイアログ見出し */
-  title: string;
-  /** DialogContent 相当の本体 */
+  title: ReactNode;
   content: ReactNode;
-  /** DialogActions 相当のフッター（通常は Button 群） */
   actions: ReactNode;
-  /** 最大幅。省略時 sm */
   maxWidth?: MuiDialogProps["maxWidth"];
-  /** 幅 100%。省略時 true */
   fullWidth?: boolean;
+  /** モバイル等で画面全体を使う場合のみ指定する。 */
+  fullScreen?: boolean;
+  /** 長いフォームの時のみスクロール可能な本文を利用する。 */
+  scrollContent?: boolean;
 };
 
-/** Outlined Input の縮小ラベルが DialogContent でクリップされないよう overflow を解除 */
-const StyledDialogContent = styled(MuiDialogContent)(({ theme }) => ({
-  overflow: "visible",
-  ".MuiDialogTitle-root + &": {
-    paddingTop: theme.spacing(1),
-  },
+const StyledDialogContent = styled(MuiDialogContent, {
+  shouldForwardProp: (prop) => prop !== "$scrollContent",
+})<{ $scrollContent: boolean }>(({ theme, $scrollContent }) => ({
+  overflow: $scrollContent ? "auto" : "visible",
+  minHeight: 0,
+  ".MuiDialogTitle-root + &": { paddingTop: theme.spacing(1) },
 }));
 
-/**
- * モーダルシェルを表示する
- * @param props 表示に必要なプロパティ
- * @returns ダイアログ UI
- */
-export const Dialog = (props: DialogProps) => {
-  return (
-    <MuiDialog
-      open={props.open}
-      onClose={props.onClose}
-      maxWidth={props.maxWidth ?? "sm"}
-      fullWidth={props.fullWidth ?? true}
-    >
-      <MuiDialogTitle>{props.title}</MuiDialogTitle>
-      <StyledDialogContent>{props.content}</StyledDialogContent>
-      <MuiDialogActions>{props.actions}</MuiDialogActions>
-    </MuiDialog>
-  );
-};
+export const Dialog = (props: DialogProps) => (
+  <MuiDialog
+    open={props.open}
+    onClose={props.onClose}
+    maxWidth={props.maxWidth ?? "sm"}
+    fullWidth={props.fullWidth ?? true}
+    fullScreen={props.fullScreen ?? false}
+  >
+    <MuiDialogTitle>{props.title}</MuiDialogTitle>
+    <StyledDialogContent $scrollContent={props.scrollContent ?? false}>
+      {props.content}
+    </StyledDialogContent>
+    <MuiDialogActions>{props.actions}</MuiDialogActions>
+  </MuiDialog>
+);

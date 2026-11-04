@@ -22,9 +22,12 @@ export const Initial: Story = {
     await userEvent.click(
       canvas.getByRole("button", { name: "STARアシストを開く" }),
     );
-    await expect(canvas.getByLabelText("A 本人の行動")).toBeVisible();
-    await expect(
-      canvas.getByRole("button", { name: "3案を生成（1回）" }),
-    ).toBeDisabled();
+    const dialog = within(document.body);
+    await expect(dialog.getByRole("dialog", { name: /STARアシスト/ })).toBeVisible();
+    await userEvent.click(dialog.getByRole("button", { name: "次へ", exact: true }));
+    await userEvent.click(dialog.getByRole("button", { name: "次へ", exact: true }));
+    await expect(dialog.getByLabelText("A 本人の行動")).toBeVisible();
+    await userEvent.click(dialog.getByRole("button", { name: "次へ", exact: true }));
+    await expect(dialog.getByRole("button", { name: "3案を生成（1回）" })).toBeDisabled();
   },
 };
