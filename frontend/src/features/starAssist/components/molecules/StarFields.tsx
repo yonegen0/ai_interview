@@ -4,7 +4,7 @@ import { styled } from "@mui/material/styles";
 import { Input } from "@/components/atoms/Input";
 import { Text } from "@/components/atoms/Text";
 import type { UseFormReturn } from "react-hook-form";
-import type { StarInput } from "@/lib/api/schemas/star";
+import { countStarText, STAR_OUTPUT_LIMIT, type StarInput } from "@/lib/api/schemas/star";
 const Fields = styled("div")(({ theme }) => ({
   display: "grid",
   gap: theme.spacing(2),
@@ -74,8 +74,8 @@ export function StarCandidateFields({
             multiline
             minRows={4}
             disabled={disabled}
-            error={Array.from(candidate.text).length > 400}
-            helperText={`${Array.from(candidate.text).length} / 400文字。選択前から編集できます。`}
+            error={countStarText(candidate.text) > STAR_OUTPUT_LIMIT}
+            helperText={`${countStarText(candidate.text)} / ${STAR_OUTPUT_LIMIT}文字。選択前から編集できます。`}
           />
         </CandidateField>
       ))}

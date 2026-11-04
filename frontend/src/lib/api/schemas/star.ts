@@ -1,6 +1,12 @@
 /** @file star.ts @description STAR補助APIと共有Mockのstrict契約。 */
 import { z } from "zod";
 const id = z.uuid();
+export const STAR_INPUT_LIMIT = 600;
+export const STAR_OUTPUT_LIMIT = 600;
+export const countStarText = (text: string): number =>
+  Array.from(text.replace(/\r\n?/g, "\n")).length;
+export const countStarNotes = (notes: { S: string; T: string; A: string; R: string }): number =>
+  countStarText(notes.S) + countStarText(notes.T) + countStarText(notes.A) + countStarText(notes.R);
 const bounded = (maximum: number) =>
   z
     .string()
@@ -38,7 +44,7 @@ export const starCandidateSchema = z
   .object({
     id: z.enum(["A", "B", "C"]),
     style: z.enum(["conclusion", "action", "conversational"]),
-    text: bounded(400),
+    text: bounded(STAR_OUTPUT_LIMIT),
   })
   .strict();
 const candidates = z

@@ -425,12 +425,12 @@ export function fakeStarResult(job: Job) {
       .join("\n"),
   );
   return starResultSchema.parse(
-    !facts.A.trim() || answers.some((v) => Array.from(v).length > 400)
+    !facts.A.trim() || answers.some((v) => Array.from(v).length > 600)
       ? {
           status: "needs_information",
           candidates: [],
           missingInformation: [
-            "本人が行ったことを、400文字以内にまとめられる短い事実で入力してください。",
+            "本人が行ったことを、600文字以内にまとめられる短い事実で入力してください。",
           ],
         }
       : {

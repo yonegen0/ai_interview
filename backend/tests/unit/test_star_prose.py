@@ -104,7 +104,7 @@ def test_one_to_four_fields_generate_without_padding(fields):
     assert client.data["targetCategory"] == "it_engineering"
     assert client.data["company"] == "応募先株式会社"
     assert all("応募先株式会社" not in c.text for c in result.candidates)
-    assert client.kwargs["inferenceConfig"] == {"maxTokens": 2048}
+    assert client.kwargs["inferenceConfig"] == {"maxTokens": 4096}
 
 
 @pytest.mark.parametrize("field", ["S", "T", "R"])
@@ -176,20 +176,23 @@ def test_long_notes_compress_verbosity_without_dropping_distinct_claims():
 
 
 @pytest.mark.parametrize("extra", [0, 1])
-def test_400_codepoint_boundary_counts_server_opening_and_astral_characters(extra):
+def test_600_codepoint_boundary_counts_server_opening_and_astral_characters(extra):
     # No Japanese endings here: only terminal punctuation and discourse label.
-    v = value(A="😀" * (400 - len(OPENINGS["B"]) - 1 + extra))
+    v = value(A="😀" * (600 - len(OPENINGS["B"]) - 1 + extra))
     client = Client()
-    result = live(client).generate("経験は？", v)
-    assert result.status == ("ready" if extra == 0 else "needs_information")
-    assert client.calls == (1 if extra == 0 else 0)
-    if extra == 0:
-        assert len(result.candidates[1].text) == 400
+    if extra:
+        with pytest.raises(ProviderFailure, match="INVALID_SCHEMA"):
+            live(client).generate("経験は？", v)
+    else:
+        result = live(client).generate("経験は？", v)
+        assert result.status == "ready"
+        assert len(result.candidates[1].text) == 600
+    assert client.calls == 1
 
 
 def test_unverifiable_long_compression_and_exact_contradiction_clarify_without_send():
     client = Client()
-    for v in (value(A="あ" * 401), value(A="記録を共有した。", R="記録を共有しなかった。")):
+    for v in (value(A="あ" * 601), value(A="記録を共有した。", R="記録を共有しなかった。")):
         assert live(client).generate("経験は？", v).status == "needs_information"
     assert client.calls == 0
 
@@ -331,7 +334,7 @@ def test_natural_openai_manual_path_and_schema_no_network():
     )
     result = provider.generate("経験は？", value(A="記録を共有した。"))
     assert result.status == "ready" and transport.calls == 1
-    assert transport.payload["max_output_tokens"] == 2048
+    assert transport.payload["max_output_tokens"] == 4096
     assert transport.payload["text"]["format"]["name"] == "star_prose_v2"
     assert transport.payload["text"]["format"]["strict"] is True
     assert transport.payload["text"]["format"]["schema"]["additionalProperties"] is False

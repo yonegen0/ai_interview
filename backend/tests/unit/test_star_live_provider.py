@@ -74,7 +74,7 @@ def test_bedrock_sdk_shape_grounding_styles_and_independent_token_cap():
     assert client.calls == 1
     request = client.kwargs
     assert request["modelId"] == "jp.anthropic.claude-haiku-5-5"
-    assert request["inferenceConfig"] == {"maxTokens": 2048}
+    assert request["inferenceConfig"] == {"maxTokens": 4096}
     assert request["additionalModelRequestFields"] == {
         "thinking": {"type": "adaptive"},
         "output_config": {"effort": "low"},
@@ -255,6 +255,6 @@ def test_manual_openai_reuses_transport_schema_and_star_cap():
     )
     assert live.generate("経験は？", value()).status == "ready"
     assert transport.calls == 1
-    assert transport.payload["max_output_tokens"] == 2048
+    assert transport.payload["max_output_tokens"] == 4096
     assert transport.payload["text"]["format"]["strict"] is True
     assert transport.payload["model"] == "gpt-6-luna"

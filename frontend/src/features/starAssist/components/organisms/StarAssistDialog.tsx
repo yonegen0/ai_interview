@@ -13,7 +13,7 @@ import { Input } from "@/components/atoms/Input";
 import { Select } from "@/components/atoms/Select";
 import { Text } from "@/components/atoms/Text";
 import { Dialog } from "@/components/organisms/Dialog";
-import { starInputSchema, starNotesSchema, targetCategories, type StarInput } from "@/lib/api/schemas/star";
+import { STAR_INPUT_LIMIT, countStarNotes, starInputSchema, starNotesSchema, targetCategories, type StarInput } from "@/lib/api/schemas/star";
 import type { StarWorkspace } from "../../hooks/useStarWorkspace";
 import { starSteps } from "../../model/steps";
 import { StarCandidateFields } from "../molecules/StarFields";
@@ -110,7 +110,8 @@ export function StarAssistDialog({ open, onClose, workspace: w, onApply, onDisca
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
   const last = step === starSteps.length - 1;
-  const notesValid = starNotesSchema.safeParse(w.input.notes).success;
+  const totalCount = countStarNotes(w.input.notes);
+  const notesValid = starNotesSchema.safeParse(w.input.notes).success && totalCount <= STAR_INPUT_LIMIT;
   const inputValid = starInputSchema.safeParse(w.input).success;
   const canGenerate = !w.loading && !w.busy && !w.pending && !w.generating &&
     !!w.input.targetCategory && notesValid && inputValid &&
@@ -138,6 +139,13 @@ export function StarAssistDialog({ open, onClose, workspace: w, onApply, onDisca
       <Text role="status" aria-live="polite" variant="caption" color="text.secondary">
         下書き：{w.status}{w.loading ? "（保存版を確認中）" : ""}
       </Text>
+      <Text role="status" aria-live="polite" variant="body2"
+        color={totalCount > STAR_INPUT_LIMIT ? "error.main" : "text.secondary"}>
+        入力文字数：{totalCount} / {STAR_INPUT_LIMIT}文字
+      </Text>
+      {totalCount > STAR_INPUT_LIMIT && (
+        <Alert severity="error">STARアシストは4項目の合計600文字まで入力できます。内容を短くしてください。</Alert>
+      )}
       <StarAssistStepper activeStep={step} />
       <Columns>
         <StarAssistStepForm step={step} form={w.form} input={w.input} disabled={false} />
@@ -268,7 +276,7 @@ export function StarAssistDialog({ open, onClose, workspace: w, onApply, onDisca
           </Button>
         ) : (
           <Button type="button" variant="contained" endIcon={<ArrowForwardIcon />}
-            disabled={w.busy || !notesValid}
+            disabled={w.busy}
             onClick={() => setStep((value) => Math.min(starSteps.length - 1, value + 1))}>
             次へ
           </Button>

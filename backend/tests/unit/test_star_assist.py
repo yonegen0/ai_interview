@@ -817,7 +817,7 @@ def test_T21_unicode_no_truncation_and_oversized_draft(star):
     )
     accepted, result = generated(star)
     candidates = deepcopy(result["result"]["candidates"])
-    candidates[0]["text"] = "😀" * 400
+    candidates[0]["text"] = "😀" * 600
     body = {
         **value,
         "candidates": candidates,
@@ -1048,7 +1048,7 @@ def test_audit_invalid_provider_output_fails_once_without_refunding(star, monkey
         if mutation == "extra":
             result["secret"] = "not-allowed"
         elif mutation == "too_long":
-            result["candidates"][0]["text"] = "😀" * 401
+            result["candidates"][0]["text"] = "😀" * 601
         elif mutation == "missing":
             del result["status"]
         else:
