@@ -5,10 +5,10 @@ import { MascotCoachCard } from "@/components/molecules/MascotCoachCard";
 import { Text } from "@/components/atoms/Text";
 import { Button } from "@/components/atoms/Button";
 import { Link } from "@/components/atoms/Link";
-const ErrorMessage = styled("p")(({ theme }) => ({
+const ErrorMessage = styled(Text)(({ theme }) => ({
   // AppShellの背景グラデーション上でも4.5:1以上のコントラストを保つ。
   color: darken(theme.palette.error.dark, 0.1),
-  whiteSpace: "pre-wrap",
+  margin: 0,
 }));
 const ErrorCard = styled(MascotCoachCard)(({ theme }) => ({
   marginBlock: theme.spacing(2),
@@ -43,6 +43,8 @@ export const ErrorView = ({
       </>
     }
   >
-    <ErrorMessage role="alert">{error.message}</ErrorMessage>
+    <ErrorMessage variant="body1" component="p" role="alert">
+      {error.message}
+    </ErrorMessage>
   </ErrorCard>
 );

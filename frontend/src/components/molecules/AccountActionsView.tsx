@@ -2,6 +2,10 @@
 "use client";
 import { Button } from "@/components/atoms/Button";
 import { Link } from "@/components/atoms/Link";
+import { Actions } from "@/components/atoms/Actions";
+import { styled } from "@mui/material/styles";
+const NavigationActions = styled(Actions)({ marginTop: 0 });
+
 export type AccountActionsViewProps = {
   authenticated: boolean;
   admin?: boolean;
@@ -13,15 +17,17 @@ export const AccountActionsView = ({
   onLogout,
 }: AccountActionsViewProps) => (
   <nav aria-label="アカウント">
-    {authenticated ? (
+    <NavigationActions>
+      {authenticated ? (
       <>
-        {admin && <Link href="/admin/questions/">質問管理</Link>}{" "}
+        {admin && <Link href="/admin/questions/">質問管理</Link>}
         <Button variant="text" color="inherit" type="button" onClick={onLogout}>
           ログアウト
         </Button>
       </>
     ) : (
       <Link href="/login/">ログイン</Link>
-    )}
+      )}
+    </NavigationActions>
   </nav>
 );
