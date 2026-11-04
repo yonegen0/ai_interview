@@ -110,6 +110,8 @@ export function StarAssistDialog({ open, onClose, workspace: w, onApply, onDisca
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
   const mode = w.mode;
+  const draftMode = w.input.assistType ?? "star";
+  const modeChanged = draftMode !== mode;
   const meta = assistModes[mode];
   const steps = meta.steps;
   const last = step === steps.length - 1;
@@ -117,7 +119,7 @@ export function StarAssistDialog({ open, onClose, workspace: w, onApply, onDisca
   const inputLimit = mode === "star" ? STAR_INPUT_LIMIT : OTHER_ASSIST_INPUT_LIMIT;
   const notesValid = starNotesSchema.safeParse(w.input.notes).success && totalCount <= inputLimit;
   const inputValid = starInputSchema.safeParse(w.input).success;
-  const canGenerate = !w.loading && !w.busy && !w.pending && !w.generating &&
+  const canGenerate = !modeChanged && !w.loading && !w.busy && !w.pending && !w.generating &&
     (mode !== "star" || !!w.input.targetCategory) && notesValid && inputValid &&
     steps.some(({ key }) => w.input.notes[key].trim()) &&
     w.quota?.user.remaining !== 0 && w.quota?.global.remaining !== 0;
@@ -143,6 +145,12 @@ export function StarAssistDialog({ open, onClose, workspace: w, onApply, onDisca
       <Text role="status" aria-live="polite" variant="caption" color="text.secondary">
         下書き：{w.status}{w.loading ? "（保存版を確認中）" : ""}
       </Text>
+      {modeChanged && (
+        <Alert severity="warning">
+          管理者が回答アシストの種類を変更しました。以前の下書きは保持しています。
+          新しいモードで生成するには、下書きを確認したうえで明示的に破棄してください。
+        </Alert>
+      )}
       {mode === "star" && (
         <Text role="status" aria-live="polite" variant="body2"
           color={totalCount > inputLimit ? "error.main" : "text.secondary"}>
@@ -255,7 +263,7 @@ export function StarAssistDialog({ open, onClose, workspace: w, onApply, onDisca
             type="button"
             variant="contained"
             onClick={onApply}
-            disabled={!w.input.selectedCandidateId || w.busy || w.pending || !w.form.formState.isValid}
+            disabled={modeChanged || !w.input.selectedCandidateId || w.busy || w.pending || !w.form.formState.isValid}
           >
             この回答を反映
           </Button>
