@@ -157,11 +157,11 @@ const CardIcon = styled("span")(({ theme }) => ({
   backgroundColor: alpha(theme.palette.primary.main, 0.09),
 }));
 
-const CardCopy = styled("span")({
+const CardCopy = styled("span")(({ theme }) => ({
   display: "grid",
-  gap: 4,
+  gap: theme.spacing(0.5),
   minWidth: 0,
-});
+}));
 
 const CardEyebrow = styled(Text)(({ theme }) => ({
   ...theme.typography.caption,
