@@ -1272,11 +1272,15 @@ def test_live_started_recovery_after_provider_switch_never_reinfers(star):
     )
     assert runtime.repository.star_quota("owner").body["user"]["consumed"] == 1
 
-@pytest.mark.parametrize("case", json.loads(
-    (Path(__file__).resolve().parents[3] / "contracts/assist-character-fixtures.json").read_text(
-        encoding="utf-8"
-    )
-), ids=lambda row: row["name"])
+@pytest.mark.parametrize(
+    "case",
+    json.loads(
+        (
+            Path(__file__).resolve().parents[3] / "contracts/assist-character-fixtures.json"
+        ).read_text(encoding="utf-8")
+    ),
+    ids=lambda row: row["name"],
+)
 def test_assist_notes_codepoint_fixture_matches_frontend(case):
     from interview_backend.star_assist.models import StarInput, star_notes_length
 
@@ -1323,11 +1327,17 @@ def test_assist_candidate_shapes_and_independent_limits(mode):
         if mode == "star"
         else [{"id": "A", "style": "conclusion", "text": "回答"}]
     )
-    assert StarResult.model_validate({
-        "status": "ready", "candidates": candidates, "missingInformation": []
-    }).status == "ready"
+    assert (
+        StarResult.model_validate(
+            {"status": "ready", "candidates": candidates, "missingInformation": []}
+        ).status
+        == "ready"
+    )
     with pytest.raises(ValidationError):
-        StarInput.model_validate({
-            **input_data, "candidates": [{**candidates[0], "text": "x" * 601}],
-            "generationId": str(uuid4()),
-        })
+        StarInput.model_validate(
+            {
+                **input_data,
+                "candidates": [{**candidates[0], "text": "x" * 601}],
+                "generationId": str(uuid4()),
+            }
+        )
