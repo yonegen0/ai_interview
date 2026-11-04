@@ -201,9 +201,9 @@ test("home guide and action cards navigate to implemented destinations", async (
     .toBeVisible();
 
   await page.getByRole("link", { name: /カテゴリから選ぶ/ }).click();
-  await expect(page).toHaveURL(/\\/practice\\/$/);
+  await expect(page).toHaveURL(/\/practice\/$/);
 
   await page.goto("/");
   await page.getByRole("link", { name: /3分から始める/ }).click();
-  await expect(page).toHaveURL(/\\/practice\\/$/);
+  await expect(page).toHaveURL(/\/practice\/$/);
 });
