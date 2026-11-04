@@ -258,3 +258,32 @@ def test_manual_openai_reuses_transport_schema_and_star_cap():
     assert transport.payload["max_output_tokens"] == 4096
     assert transport.payload["text"]["format"]["strict"] is True
     assert transport.payload["model"] == "gpt-6-luna"
+
+
+@pytest.mark.parametrize("mode", ["prep", "motivation", "career_change", "career_plan"])
+def test_four_assist_modes_one_response_one_provider_call(mode):
+    client = Client(body={"answer": "本人の事実に基づく回答です。", "missingInformation": []})
+    transport = BedrockProvider(client_factory=lambda *a, **k: client)
+    live = LiveStarProvider(transport)
+    input_value = value()
+    input_value.assistType = mode
+    input_value.targetCategory = None
+    result = live.generate("強みを教えてください。", input_value)
+    assert result.status == "ready"
+    assert [(c.id, c.style) for c in result.candidates] == [("A", "conclusion")]
+    assert result.candidates[0].text == "本人の事実に基づく回答です。"
+    assert client.calls == 1
+    assert client.kwargs["inferenceConfig"] == {"maxTokens": 2048}
+    data = json.loads(client.kwargs["messages"][0]["content"][0]["text"])
+    assert data["mode"] == mode
+    assert data["notes"]["A"] == "課題を共有した。"
+
+
+def test_assist_output_over_500_is_not_truncated_or_retried():
+    client = Client(body={"answer": "😀" * 501, "missingInformation": []})
+    transport = BedrockProvider(client_factory=lambda *a, **k: client)
+    input_value = value()
+    input_value.assistType = "prep"
+    with pytest.raises(ProviderFailure, match="INVALID_SCHEMA"):
+        LiveStarProvider(transport).generate("強みは？", input_value)
+    assert client.calls == 1

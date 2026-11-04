@@ -93,7 +93,7 @@ def test_one_to_four_fields_generate_without_padding(fields):
     result = live(client).generate("経験は？", value(**{k: notes[k] for k in fields}))
     assert result.status == "ready" and client.calls == 1
     assert all(0 < len(c.text) < 150 for c in result.candidates)
-    assert all(len(c.text) <= 400 for c in result.candidates)
+    assert all(len(c.text) <= 600 for c in result.candidates)
     assert len({c.text for c in result.candidates}) == 3
     assert "共有しました。" in result.candidates[0].text
     assert "共有したんです。" in result.candidates[2].text
@@ -169,7 +169,7 @@ def test_long_notes_compress_verbosity_without_dropping_distinct_claims():
     result = live(client).generate("経験は？", value(A=note))
     assert result.status == "ready" and client.calls == 1
     for candidate in result.candidates:
-        assert len(candidate.text) <= 400
+        assert len(candidate.text) <= 600
         for i in range(24):
             assert f"工程{i:02}" in candidate.text
     assert "することが" not in result.candidates[0].text

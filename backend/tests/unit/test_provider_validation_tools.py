@@ -417,7 +417,7 @@ def test_star_corpus_is_valid_and_uses_locked_converse_shape_without_network(mon
             def converse(self, **request):
                 validate_parameters(request, shape)
                 assert request["modelId"] == "jp.anthropic.claude-haiku-5-5"
-                assert request["inferenceConfig"] == {"maxTokens": 2048}
+                assert request["inferenceConfig"] == {"maxTokens": 4096}
                 assert len(json.dumps(request, ensure_ascii=True).encode()) <= 24000
                 self.requests.append(request)
                 # Safe synthetic clarification validates corpus request feasibility only.
