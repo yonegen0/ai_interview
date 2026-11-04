@@ -68,6 +68,8 @@ export function usePracticeController(
       previousAnswer: retryFrom
         ? (previousAnswer ?? session.activeCoaching?.initialAnswer)
         : undefined,
+      currentAnswer: state.answer,
+      draftStatus: state.draftStatus,
       onClear: state.clearInput,
       onRestorePrevious: state.restorePrevious,
       field: state.form.register("answer"),
