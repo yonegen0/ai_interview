@@ -156,7 +156,7 @@ def test_missing_action_and_long_facts_ask_information_without_send():
     live = adapter(client)
     for notes in (
         {"S": "状況", "T": "", "A": "", "R": ""},
-        {"S": "", "T": "", "A": "あ" * 401, "R": ""},
+        {"S": "", "T": "", "A": "あ" * 601, "R": ""},
     ):
         v = value().model_copy(update={"notes": value().notes.model_validate(notes)})
         assert live.generate("経験は？", v).status == "needs_information"

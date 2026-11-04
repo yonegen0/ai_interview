@@ -450,7 +450,7 @@ def test_star_corpus_is_valid_and_uses_locked_converse_shape_without_network(mon
         result = provider.generate("工夫した経験は？", StarInput.model_validate(case["input"]))
         assert result.status == "needs_information"
         assert len(client.requests) <= 1
-        assert len(client.requests) == (0 if case["id"] in {"contradiction", "boundary-401"} else 1)
+        assert len(client.requests) == (0 if case["id"] == "contradiction" else 1)
 
 
 def test_offline_sdk_cannot_read_host_config_or_credentials(monkeypatch):
