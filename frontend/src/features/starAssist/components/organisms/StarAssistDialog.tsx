@@ -134,6 +134,9 @@ export function StarAssistDialog({ open, onClose, workspace: w, onApply, onDisca
 
   const content = (
     <Content>
+      <Text role="status" aria-live="polite" variant="caption" color="text.secondary">
+        下書き：{w.status}{w.loading ? "（保存版を確認中）" : ""}
+      </Text>
       <StarAssistStepper activeStep={step} />
       <Columns>
         <StarAssistStepForm step={step} form={w.form} input={w.input} disabled={false} />
