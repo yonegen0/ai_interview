@@ -215,7 +215,7 @@ export function StarAssistDialog({ open, onClose, workspace: w, onApply, onDisca
       )}
       {last && w.quota && (
         <Text variant="body2">
-          回答アシストの生成枠：あなた {w.quota.user.remaining} / 全体 {w.quota.global.remaining}（JST {w.quota.month}）
+          {mode === "star" ? "STAR専用の生成枠" : "回答アシストの生成枠"}：あなた {w.quota.user.remaining} / 全体 {w.quota.global.remaining}（JST {w.quota.month}）
         </Text>
       )}
       {last && (

@@ -52,7 +52,9 @@ export function StarAssistStepForm({
   const parsed = starNotesSchema.shape[current.key].safeParse(text);
   const error = form.formState.errors.notes?.[current.key]?.message ??
     (parsed.success ? null : parsed.error.issues[0]?.message);
-  const label = mode === "star" && current.key === "A" ? "A 本人の行動" : current.label;
+  const label = mode === "star"
+    ? current.key === "A" ? "A 本人の行動" : current.key + " " + current.label
+    : current.label;
   return (
     <FormCard aria-label={current.label + "の入力"}>
       <Heading>
