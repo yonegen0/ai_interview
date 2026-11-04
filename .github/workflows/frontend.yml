@@ -9,6 +9,7 @@ jobs:
   verify:
     name: Frontend verify
     runs-on: ubuntu-latest
+    timeout-minutes: 35
     defaults:
       run:
         working-directory: frontend

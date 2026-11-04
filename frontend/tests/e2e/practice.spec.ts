@@ -6,7 +6,9 @@ const begin = async (page: Page) => {
     .getByRole("button", { name: /\u30ab\u30c6\u30b4\u30ea\u7df4\u7fd2/ })
     .click();
   await page.getByRole("button", { name: "カテゴリ練習", exact: true }).click();
-  await page.getByRole("button", { name: /^転職理由/ }).click();
+  await expect(page.getByRole("button", { name: "練習を始める", exact: true })).toBeDisabled();
+  await page.getByRole("combobox", { name: "練習するカテゴリ" }).click();
+  await page.getByRole("option", { name: /^転職理由（\d+問）$/ }).click();
   await page.getByRole("button", { name: "練習を始める", exact: true }).click();
   await expect(page.getByLabel("あなたの回答")).toBeVisible();
 };
@@ -154,7 +156,8 @@ test("mascot assets are static and image failures do not block practice", async 
   expect(failedDimensions?.width).toBe(dimensions?.width);
   expect(failedDimensions?.height).toBe(dimensions?.height);
   await page.getByRole("button", { name: "カテゴリ練習", exact: true }).click();
-  await page.getByRole("button", { name: /^転職理由/ }).click();
+  await page.getByRole("combobox", { name: "練習するカテゴリ" }).click();
+  await page.getByRole("option", { name: /^転職理由（\d+問）$/ }).click();
   await page.getByRole("button", { name: "練習を始める", exact: true }).click();
   await answer(page);
   await expect(
