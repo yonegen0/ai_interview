@@ -1,6 +1,6 @@
 /** @file StarAssist.stories.tsx @description STAR初期入力と各案編集のStory受入。 */
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import { PracticeSessionContent } from "@/features/interview/components/pages/PracticeSessionContent";
 import { createSessionFixture, createStoryState } from "../../fixtures";
 const session = createSessionFixture();
@@ -23,7 +23,9 @@ export const Initial: Story = {
       canvas.getByRole("button", { name: "STARアシストを開く" }),
     );
     const dialog = within(document.body);
-    await expect(dialog.getByRole("dialog", { name: /STARアシスト/ })).toBeVisible();
+    await waitFor(() =>
+      expect(dialog.getByRole("dialog", { name: /STARアシスト/ })).toBeVisible(),
+    );
     await userEvent.click(dialog.getByRole("button", { name: "次へ" }));
     await userEvent.click(dialog.getByRole("button", { name: "次へ" }));
     await expect(dialog.getByLabelText("A 本人の行動")).toBeVisible();
