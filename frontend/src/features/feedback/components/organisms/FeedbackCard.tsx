@@ -7,6 +7,7 @@ import { scoreTypography, scaledRadius, radiusLength } from "@/theme/tokens";
 
 import { alpha, styled } from "@mui/material/styles";
 import { Text } from "@/components/atoms/Text";
+import { FullTextPreview } from "@/components/organisms/FullTextPreview";
 import { Panel } from "@/components/atoms/Panel";
 import { MascotCoachCard } from "@/components/molecules/MascotCoachCard";
 import type { Feedback } from "@/lib/api/schemas";
@@ -116,11 +117,6 @@ const AnswerSection = styled("section")(({ theme }) => ({
   padding: theme.spacing(0, 0.5),
 }));
 
-const AnswerText = styled(BodyText)(({ theme }) => ({
-  paddingLeft: theme.spacing(2),
-  borderLeft: `3px solid ${alpha(theme.palette.primary.main, 0.25)}`,
-}));
-
 const CoachingHistoryDetails = styled("details")(({ theme }) => ({
   padding: theme.spacing(2),
   border: `1px solid ${theme.palette.divider}`,
@@ -222,7 +218,7 @@ const Points = ({
     {values.length ? (
       <PointsList>
         {values.map((value, index) => (
-          <li key={index}>{value}</li>
+          <li key={index}><FullTextPreview title={title} text={value} /></li>
         ))}
       </PointsList>
     ) : (
@@ -261,22 +257,20 @@ const LegacyFeedbackCard = ({ feedback }: { feedback: LegacyFeedback }) => (
         </>
       }
     >
-      <Text>{feedback.summary}</Text>
+      <FullTextPreview title="総評" text={feedback.summary} />
     </Introduction>
     <ReportFlow>
       <QuestionSection>
         <SectionTitle variant="h2" component="h2">
           質問
         </SectionTitle>
-        <BodyText variant="body1" component="p">
-          {feedback.question.question}
-        </BodyText>
+        <FullTextPreview title="質問" text={feedback.question.question} lines={2} />
       </QuestionSection>
       <AnswerSection>
         <SectionTitle variant="h2" component="h2">
           あなたの回答
         </SectionTitle>
-        <AnswerText>{feedback.answer}</AnswerText>
+        <FullTextPreview title="あなたの回答" text={feedback.answer} />
       </AnswerSection>
       <PointsGrid>
         <Points
@@ -295,9 +289,7 @@ const LegacyFeedbackCard = ({ feedback }: { feedback: LegacyFeedback }) => (
           <SectionTitle variant="h2" component="h2">
             回答例
           </SectionTitle>
-          <BodyText variant="body1" component="p">
-            {feedback.exampleAnswer}
-          </BodyText>
+          <FullTextPreview title="回答例" text={feedback.exampleAnswer} />
         </ExampleSection>
       )}
     </ReportFlow>
@@ -346,19 +338,19 @@ const CoachingFeedbackCard = ({ feedback: f }: { feedback: FeedbackV2 }) => (
       </BodyText>
       <QuestionSection>
         <SectionTitle component="h2">質問</SectionTitle>
-        <BodyText>{f.question.question}</BodyText>
+        <FullTextPreview title="質問" text={f.question.question} lines={2} />
       </QuestionSection>
       <AnswerSection>
         <SectionTitle component="h2">初回の回答</SectionTitle>
-        <AnswerText>{f.answer}</AnswerText>
+        <FullTextPreview title="初回の回答" text={f.answer} />
       </AnswerSection>
       {f.coachingHistory.length > 0 && (
         <CoachingHistoryDetails>
           <summary>深掘りの履歴（{f.coachingCount}回）</summary>
           {f.coachingHistory.map((h, i) => (
             <QuestionSection key={i}>
-              <BodyText>{h.question}</BodyText>
-              <AnswerText>{h.answer}</AnswerText>
+              <FullTextPreview title={"深掘り質問 " + (i + 1)} text={h.question} lines={2} />
+              <FullTextPreview title={"深掘り回答 " + (i + 1)} text={h.answer} />
             </QuestionSection>
           ))}
         </CoachingHistoryDetails>
@@ -378,7 +370,7 @@ const CoachingFeedbackCard = ({ feedback: f }: { feedback: FeedbackV2 }) => (
       {f.result.example !== null && (
         <ExampleSection>
           <SectionTitle component="h2">改善回答</SectionTitle>
-          <BodyText>{f.result.example}</BodyText>
+          <FullTextPreview title="改善回答" text={f.result.example} />
         </ExampleSection>
       )}
     </ReportFlow>
