@@ -523,3 +523,30 @@ test("STAR blocks generation for invalid industry or company", async ({ page }) 
   await company.fill("応募先");
   await expect(generate).toBeEnabled();
 });
+
+test("STAR blocks generation when optional profile fields exceed schema limits", async ({ page }) => {
+  await begin(page);
+  await page.getByRole("button", { name: "STARアシストを開く" }).click();
+  await page.getByLabel("S 状況").fill("営業の現場で顧客対応を担当しました。");
+  for (let i = 0; i < 3; i++) {
+    await page.getByRole("button", { name: "次へ", exact: true }).click();
+  }
+  await page.getByRole("combobox", { name: "応募先カテゴリ" }).click();
+  await page.getByRole("option", { name: "法人営業", exact: true }).click();
+
+  const generateButton = page.getByRole("button", { name: "3案を生成（1回）" });
+  await expect(generateButton).toBeEnabled();
+  const industry = page.getByLabel("志望業界（任意）");
+  await industry.fill("業".repeat(101));
+  await expect(industry).toHaveAttribute("aria-invalid", "true");
+  await expect(generateButton).toBeDisabled();
+  await industry.fill("営業");
+  await expect(generateButton).toBeEnabled();
+
+  const company = page.getByLabel("応募先企業名（任意）");
+  await company.fill("社".repeat(201));
+  await expect(company).toHaveAttribute("aria-invalid", "true");
+  await expect(generateButton).toBeDisabled();
+  await company.fill("応募先");
+  await expect(generateButton).toBeEnabled();
+});
