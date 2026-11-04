@@ -180,14 +180,17 @@ def test_600_codepoint_boundary_counts_server_opening_and_astral_characters(extr
     # No Japanese endings here: only terminal punctuation and discourse label.
     v = value(A="😀" * (600 - len(OPENINGS["B"]) - 1 + extra))
     client = Client()
+    result = live(client).generate("経験は？", v)
     if extra:
-        with pytest.raises(ProviderFailure, match="INVALID_SCHEMA"):
-            live(client).generate("経験は？", v)
+        assert result.status == "needs_information"
+        assert result.missingInformation == [
+            "条件や否定を残して、回答に使う経験を短く整理してください。"
+        ]
+        assert client.calls == 0
     else:
-        result = live(client).generate("経験は？", v)
         assert result.status == "ready"
         assert len(result.candidates[1].text) == 600
-    assert client.calls == 1
+        assert client.calls == 1
 
 
 def test_unverifiable_long_compression_and_exact_contradiction_clarify_without_send():
@@ -338,3 +341,44 @@ def test_natural_openai_manual_path_and_schema_no_network():
     assert transport.payload["text"]["format"]["name"] == "star_prose_v2"
     assert transport.payload["text"]["format"]["strict"] is True
     assert transport.payload["text"]["format"]["schema"]["additionalProperties"] is False
+
+
+def test_600_input_with_unavoidable_render_expansion_clarifies_before_ai():
+    # The input is within 600 code points, but punctuation / openings / separators
+    # make the complete A/B/C output longer than 600.
+    notes = value(S="い" * 2, A="あ" * 598)
+    for mode in ("natural", "source"):
+        client = Client()
+        provider = LiveStarProvider(
+            BedrockProvider(client_factory=lambda *a, **k: client),
+            mode=mode,
+        )
+        result = provider.generate("経験は？", notes)
+        assert result.status == "needs_information"
+        assert not result.candidates
+        assert "短く" in result.missingInformation[0] or "600文字" in result.missingInformation[0]
+        assert client.calls == 0
+
+
+def test_output_length_is_defensively_clarified_not_marked_invalid_schema():
+    # The server-owned post-validation also preserves a meaningful clarification.
+    from interview_backend.star_assist.grounding import validate_prose
+    from interview_backend.star_assist.grounding import ProsePlan, ProseCandidate, Passage
+
+    notes = value(A="😀" * 596)
+    variants = {key: rewrite_field(notes.notes.A, key) for key in ("A", "B", "C")}
+    plan = ProsePlan(
+        status="ready",
+        missingInformation=[],
+        candidates=[
+            ProseCandidate(
+                id=identifier,
+                style=style,
+                passages=[Passage(source="A", text=variants[identifier])],
+            )
+            for identifier, style in (
+                ("A", "conclusion"), ("B", "action"), ("C", "conversational")
+            )
+        ],
+    )
+    assert validate_prose(plan, notes).status == "needs_information"

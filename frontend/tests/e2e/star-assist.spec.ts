@@ -524,3 +524,41 @@ test("STAR blocks generation when optional profile fields exceed schema limits",
   await company.fill("応募先");
   await expect(generateButton).toBeEnabled();
 });
+
+for (const [mode, label, firstStep] of [
+  ["prep", "PREP", "結論"],
+  ["motivation", "志望動機", "志望理由"],
+  ["career_change", "転職理由", "転職のきっかけ"],
+  ["career_plan", "キャリアプラン", "目指す姿"],
+] as const) {
+  test(`${label} generates one answer and applies it without additional editing`, async ({ page }) => {
+    await page.addInitScript(() => sessionStorage.setItem("pocket:mock:role", "ADMIN"));
+    await page.goto("/admin/questions/");
+    await page.getByRole("combobox", { name: "回答アシスト" }).first().click();
+    await page.getByRole("option", { name: label, exact: true }).click();
+    await page.getByRole("button", { name: "保存内容を確認", exact: true }).click();
+    await page.getByRole("button", { name: "保存して反映", exact: true }).click();
+    await expect(page.getByRole("status")).toContainText("質問一覧を保存しました");
+    await page.goto("/practice/");
+    await page.getByRole("button", { name: "カテゴリ練習", exact: true }).click();
+    await page.getByRole("combobox", { name: "練習するカテゴリ" }).click();
+    await page.getByRole("option", { name: "自己紹介（1問）", exact: true }).click();
+    await page.getByRole("button", { name: "練習を始める", exact: true }).click();
+    await page.getByRole("button", { name: new RegExp(label + "アシスト") }).click();
+    await page.getByLabel(firstStep, { exact: true }).fill("顧客の課題を聞き、対応してきました。");
+    for (let i = 0; i < 3; i++)
+      await page.getByRole("button", { name: "次へ", exact: true }).click();
+    await expect(
+      page.getByRole("status").filter({ hasText: "下書き：" }),
+    ).toContainText("保存済");
+    await page.getByRole("button", { name: "回答案を生成（1回）" }).click();
+    await expect(page.getByLabel("案Aの回答")).toBeVisible();
+    const apply = page.getByRole("button", { name: "この回答を反映", exact: true });
+    await expect(apply).toBeEnabled();
+    await apply.click();
+    await expect(page.getByLabel("あなたの回答")).toHaveValue(
+      "顧客の課題を聞き、対応してきました。",
+    );
+    await expect(page.getByRole("button", { name: "回答を送信", exact: true })).toBeEnabled();
+  });
+}

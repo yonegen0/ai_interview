@@ -419,12 +419,11 @@ export function useStarWorkspace(
     const result = generation.data?.result;
     if (!result || result.status !== "ready" || !generationId || !isActive())
       return;
-    form.setValue("candidates", result.candidates, {
-      shouldDirty: true,
-      shouldValidate: true,
-    });
+    // Validate only after all interdependent fields describe one consistent draft.
+    form.setValue("candidates", result.candidates, { shouldDirty: true });
     form.setValue("generationId", generationId, { shouldDirty: true });
     form.setValue("selectedCandidateId", mode === "star" ? null : "A", { shouldDirty: true });
+    void form.trigger();
     setGenerationCategory(generation.data!.generationTargetCategory);
     setResultWaiting(false);
   }, [generation.data, generationId, form, isActive, mode]);

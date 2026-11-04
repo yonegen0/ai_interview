@@ -12,6 +12,7 @@ import { Button } from "@/components/atoms/Button";
 import { Input } from "@/components/atoms/Input";
 import { Select } from "@/components/atoms/Select";
 import { Text } from "@/components/atoms/Text";
+import { COACHING_ANSWER_MAX_LENGTH, countCodePoints } from "@/lib/textLimits";
 import { Dialog } from "@/components/organisms/Dialog";
 import { STAR_INPUT_LIMIT, OTHER_ASSIST_INPUT_LIMIT, countStarNotes, starInputSchema, starNotesSchema, targetCategories, type StarInput } from "@/lib/api/schemas/star";
 import type { StarWorkspace } from "../../hooks/useStarWorkspace";
@@ -119,6 +120,11 @@ export function StarAssistDialog({ open, onClose, workspace: w, onApply, onDisca
   const inputLimit = mode === "star" ? STAR_INPUT_LIMIT : OTHER_ASSIST_INPUT_LIMIT;
   const notesValid = starNotesSchema.safeParse(w.input.notes).success && totalCount <= inputLimit;
   const inputValid = starInputSchema.safeParse(w.input).success;
+  const selectedAnswer = w.input.candidates.find(
+    (candidate) => candidate.id === w.input.selectedCandidateId,
+  );
+  const selectedAnswerLength = selectedAnswer ? countCodePoints(selectedAnswer.text) : 0;
+  const requiresAnswerEditing = selectedAnswerLength > COACHING_ANSWER_MAX_LENGTH;
   const canGenerate = !modeChanged && !w.loading && !w.busy && !w.pending && !w.generating &&
     (mode !== "star" || !!w.input.targetCategory) && notesValid && inputValid &&
     steps.some(({ key }) => w.input.notes[key].trim()) &&
@@ -259,13 +265,20 @@ export function StarAssistDialog({ open, onClose, workspace: w, onApply, onDisca
               />
             ))}
           </RadioGroup>}
+          {requiresAnswerEditing && (
+            <Alert severity="warning" role="status">
+              この回答は{selectedAnswerLength}文字です。回答送信の上限は
+              {COACHING_ANSWER_MAX_LENGTH}文字です。回答欄に反映してから、
+              事実を確認しながら短く編集してください。自動で切り捨てたり送信したりしません。
+            </Alert>
+          )}
           <Button
             type="button"
             variant="contained"
             onClick={onApply}
             disabled={modeChanged || !w.input.selectedCandidateId || w.busy || w.pending || !w.form.formState.isValid}
           >
-            この回答を反映
+            {requiresAnswerEditing ? "回答欄へ反映して短く編集" : "この回答を反映"}
           </Button>
         </Result>
       )}

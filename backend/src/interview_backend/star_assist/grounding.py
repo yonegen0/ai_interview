@@ -222,6 +222,6 @@ def validate_prose(plan, value):
             return clarify("grounding")
         text = OPENINGS[c.id] + "".join(p.text for p in c.passages)
         if len(text) > STAR_CANDIDATE_MAX_LENGTH:
-            raise ValueError("StarOutputLimit")
+            return clarify("length")
         candidates.append(Candidate(id=c.id, style=c.style, text=text))
     return StarResult(status="ready", candidates=candidates, missingInformation=[])

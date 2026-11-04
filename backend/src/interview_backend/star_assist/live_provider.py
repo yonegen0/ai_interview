@@ -20,6 +20,7 @@ from interview_backend.star_assist.grounding import (
 from interview_backend.star_assist.models import (
     OTHER_CANDIDATE_MAX_LENGTH,
     OTHER_NOTES_MAX_LENGTH,
+    STAR_CANDIDATE_MAX_LENGTH,
     STAR_NOTES_MAX_LENGTH,
     Candidate,
     StarResult,
@@ -209,8 +210,12 @@ class LiveStarProvider:
             return clarify("length")
         if not any(s.strip() for s in facts.values()):
             raise ProviderFailure("CONFIGURATION")
+        # Source mode includes newline separators between all supplied fields.
+        # Check the rendered candidate length before the paid provider request.
         if self.mode == "source" and (
-            not facts["A"].strip() or star_notes_length(facts) > STAR_NOTES_MAX_LENGTH
+            not facts["A"].strip()
+            or len("\n".join(text for text in facts.values() if text.strip()))
+            > STAR_CANDIDATE_MAX_LENGTH
         ):
             return StarResult(
                 status="needs_information",
@@ -227,8 +232,17 @@ class LiveStarProvider:
         if self.mode == "natural":
             if contradictory(facts):
                 return clarify("conflict")
-            data["realizations"] = source_realizations(facts)
-            data["realizations"] = prompt_realizations(data["realizations"])
+            realizations = source_realizations(facts)
+            # The model only reorders these server-owned strings. If even one
+            # A/B/C candidate must exceed 600, it cannot safely fit after the call.
+            if any(
+                len(OPENINGS[identifier])
+                + sum(len(parts[identifier]) for parts in realizations.values())
+                > STAR_CANDIDATE_MAX_LENGTH
+                for identifier, _ in STYLES
+            ):
+                return clarify("length")
+            data["realizations"] = prompt_realizations(realizations)
             data["openings"] = OPENINGS
             data["lengthTarget"] = [150, 220]
             data["compactEndings"] = COMPACT_ENDINGS
