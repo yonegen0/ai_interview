@@ -116,6 +116,7 @@ test("T15 application response cannot replace typing during apply", async ({
   await begin(page);
   await generate(page);
   await page.getByRole("radio", { name: "案Aを選択" }).check();
+  await page.getByRole("button", { name: "キャンセル", exact: true }).click();
   await page.getByLabel("あなたの回答").fill("確認前の既存入力です。");
   await page.waitForTimeout(1200);
   await expect(
@@ -124,6 +125,7 @@ test("T15 application response cannot replace typing during apply", async ({
   await page.evaluate(() =>
     sessionStorage.setItem("pocket:scenario", "star_apply_delayed"),
   );
+  await page.getByRole("button", { name: "STARアシストを開く" }).click();
   await page.getByRole("button", { name: "この回答を反映" }).click();
   await expect(page.getByRole("dialog", { name: "入力中の回答を置き換えますか？" })).toBeVisible();
   await page.keyboard.press("Escape");
@@ -295,6 +297,7 @@ test("T20 close tab restores server draft and STAR edits", async ({
   await begin(page);
   await generate(page);
   await page.getByLabel("案Cの回答").fill("閉タブから復元する回答Cです。");
+  await page.getByRole("button", { name: "キャンセル", exact: true }).click();
   await page.getByLabel("あなたの回答").fill("通常下書きも復元します。");
   await expect(
     page.getByRole("status").filter({ hasText: "下書き：" }),
@@ -308,6 +311,9 @@ test("T20 close tab restores server draft and STAR edits", async ({
     "通常下書きも復元します。",
   );
   await next.getByRole("button", { name: "STARアシストを開く" }).click();
+  for (let i = 0; i < 3; i++) {
+    await next.getByRole("button", { name: "次へ", exact: true }).click();
+  }
   await expect(next.getByLabel("案Cの回答")).toHaveValue(
     "閉タブから復元する回答Cです。",
   );
