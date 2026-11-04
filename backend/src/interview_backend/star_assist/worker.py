@@ -110,18 +110,19 @@ class StarWorker:
             try:
                 finished = self.repository.star_finish(lease, status, result)
                 if finished:
-                    log_event(
-                        "assist_generation_terminal",
-                        generationId=identifier,
-                        assistType=lease.input.assistType,
-                        terminalStatus=status,
-                        failureKind=failure_kind,
-                        stopReason=getattr(
-                            getattr(self.provider, "transport", None), "last_stop_reason", None
-                        ),
-                        maxTokens=4096 if lease.input.assistType == "star" else 2048,
-                        elapsedMs=int((self.monotonic() - began) * 1000),
-                    )
+                    if status == "FAILED_AFTER_START":
+                        log_event(
+                                "assist_generation_terminal",
+                            generationId=identifier,
+                            assistType=lease.input.assistType,
+                            terminalStatus=status,
+                            failureKind=failure_kind,
+                            stopReason=getattr(
+                                getattr(self.provider, "transport", None), "last_stop_reason", None
+                            ),
+                            maxTokens=4096 if lease.input.assistType == "star" else 2048,
+                            elapsedMs=int((self.monotonic() - began) * 1000),
+                        )
                     if status == "OUTCOME_UNKNOWN":
                         self.metric("OutcomeUnknown")
                 return finished
