@@ -307,7 +307,11 @@ class AnthropicProvider:
         self.last_observation = _usage(response.get("usage"))
         stop_reason = response.get("stop_reason")
         if stop_reason in {
-            "end_turn", "max_tokens", "model_context_window_exceeded", "refusal", "tool_use",
+            "end_turn",
+            "max_tokens",
+            "model_context_window_exceeded",
+            "refusal",
+            "tool_use",
         }:
             self.last_stop_reason = stop_reason
         # In API version 2026-10-21, refusals can be reported through

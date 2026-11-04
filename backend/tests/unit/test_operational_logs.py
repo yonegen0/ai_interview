@@ -450,7 +450,6 @@ def test_private_support_cli_decodes_existing_wire_item(
         identity.unlink(missing_ok=True)
 
 
-
 def test_star_terminal_logs_only_explicit_diagnostics_and_no_body():
     entries = []
     with invocation("worker"):
