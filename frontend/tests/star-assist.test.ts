@@ -2,6 +2,7 @@
 import { beforeEach, afterEach, describe, expect, it } from "vitest";
 import fixture from "../../contracts/star-v14-fixtures.json";
 import characterCases from "../../contracts/assist-character-fixtures.json";
+import { generationFailureMessage } from "@/features/starAssist/hooks/useStarWorkspace";
 import { setupServer } from "msw/node";
 import { createHandlers } from "@/mocks/handlers";
 import { createRepository } from "@/mocks/store";
@@ -381,4 +382,16 @@ it("keeps single-candidate UTF-16 output within the existing 500-unit normal ans
   expect(starInputSchema.safeParse({
     ...input, candidates: [{ ...input.candidates[0], text: "😀".repeat(251) }],
   }).success).toBe(false);
+});
+
+describe("answer assist failure messaging", () => {
+  it("warns of a potentially charged regeneration only for unknown outcome", () => {
+    const unknown = generationFailureMessage("OUTCOME_UNKNOWN");
+    expect(unknown).toContain("AIが実行済みの可能性");
+    expect(unknown).toContain("新たに利用枠を消費する場合");
+    expect(unknown).toContain("入力内容は保持");
+    const failed = generationFailureMessage("FAILED_AFTER_START");
+    expect(failed).toContain("生成を完了できませんでした");
+    expect(failed).not.toContain("利用枠を消費");
+  });
 });

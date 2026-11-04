@@ -65,7 +65,7 @@ ASSIST_COMMON_INSTRUCTIONS = (
     "記入例を本人の経験に転用しない。確認されていない成果や改善努力を補わず、質問に直接答える。"
     "否定・条件・指定年数を維持し、誇張した敬語を避ける。短い入力を架空の経験で水増ししない。"
     "答えられるだけの情報がなければ、missingInformationを1件以上、answerを空文字列で返す。"
-    "答えられる場合はanswerに500コードポイント以内の1案を返し、missingInformationは空にする。"
+    "答えられる場合はanswerに500 UTF-16コード単位以内の1案を返し、missingInformationは空にする。"
 )
 
 

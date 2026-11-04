@@ -287,3 +287,16 @@ def test_assist_output_over_500_is_not_truncated_or_retried():
     with pytest.raises(ProviderFailure, match="INVALID_SCHEMA"):
         LiveStarProvider(transport).generate("強みは？", input_value)
     assert client.calls == 1
+
+
+def test_assist_prompt_uses_the_same_utf16_limit_as_the_validator():
+    from interview_backend.star_assist.live_provider import (
+        ASSIST_COMMON_INSTRUCTIONS,
+        AssistReply,
+    )
+
+    assert "500 UTF-16コード単位以内" in ASSIST_COMMON_INSTRUCTIONS
+    assert "500コードポイント" not in ASSIST_COMMON_INSTRUCTIONS
+    assert AssistReply(answer="😀" * 250, missingInformation=[]).answer == "😀" * 250
+    with pytest.raises(ValueError, match="AssistOutputTooLong"):
+        AssistReply(answer="😀" * 251, missingInformation=[])

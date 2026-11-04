@@ -35,6 +35,13 @@ import {
 import type { Session } from "@/lib/api/schemas";
 import { canonical, sha256 } from "@/lib/jsonHash";
 
+export function generationFailureMessage(status: string): string {
+  if (status === "OUTCOME_UNKNOWN") {
+    return "生成結果を確認できませんでした。AIが実行済みの可能性があります。入力内容は保持されています。再生成すると新たに利用枠を消費する場合があります。";
+  }
+  return "回答の生成を完了できませんでした。入力内容は保持されています。もう一度お試しください。";
+}
+
 type SaveState = "未保存" | "保存中" | "保存済" | "保存失敗" | "競合";
 const responseSchema = (op: StarOperation): z.ZodType<unknown> =>
   op.path.endsWith("/answer-contexts")
@@ -452,7 +459,7 @@ export function useStarWorkspace(
     } else if (generation.data.result)
       setError(generation.data.result.missingInformation.join(" "));
     else
-      setError("回答の生成を完了できませんでした。入力内容は保持されています。もう一度お試しください。");
+      setError(generationFailureMessage(generation.data.status));
   }, [generation.data, generationId, adopt, isActive, quota]);
 
   const generate = async () => {
