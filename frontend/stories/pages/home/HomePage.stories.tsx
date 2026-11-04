@@ -14,41 +14,42 @@ type Story = StoryObj<typeof meta>;
 
 const assertHomeContent = async (canvasElement: HTMLElement) => {
   const canvas = within(canvasElement);
-  const steps = [
-    {
-      title: "カテゴリを選ぶ",
-      description: "練習したいテーマを選んで、一問から始めましょう。",
-    },
-    {
-      title: "自分の言葉で答える",
-      description: "質問を読み、経験や考えを文章にまとめましょう。",
-    },
-    {
-      title: "振り返って、もう一度",
-      description: "フィードバックを確認して、再挑戦や次の質問へ進みましょう。",
-    },
-  ];
-
   await expect(canvas.getAllByRole("heading", { level: 1 })).toHaveLength(1);
   await expect(
     canvas.getByRole("heading", {
       level: 1,
-      name: "今日の3分が、面接の自信になる。",
+      name: "面接は、練習で、もっと話しやすくなる。",
     }),
   ).toBeInTheDocument();
-  const stepList = canvas.getByRole("list");
-  await expect(within(stepList).getAllByRole("listitem")).toHaveLength(3);
 
-  for (const step of steps) {
+  await expect(
+    canvas.getByRole("link", { name: "今すぐ面接練習を始める" }),
+  ).toHaveAttribute("href", "/practice/");
+  await expect(
+    canvas.getByRole("link", { name: /まずは使い方ガイド/ }),
+  ).toHaveAttribute("href", "#home-how-it-works");
+
+  for (const title of ["カテゴリから選ぶ", "3分から始める"]) {
     await expect(
-      canvas.getByRole("heading", { level: 3, name: step.title }),
-    ).toBeInTheDocument();
-    await expect(canvas.getByText(step.description)).toBeInTheDocument();
+      canvas.getByRole("link", { name: new RegExp(title) }),
+    ).toHaveAttribute("href", "/practice/");
   }
 
   await expect(
-    canvas.getByRole("link", { name: "面接練習を始める →" }),
-  ).toHaveAttribute("href", "/practice/");
+    canvas.getByRole("heading", {
+      level: 2,
+      name: "練習を続ける3つのステップ",
+    }),
+  ).toBeInTheDocument();
+  const steps = within(canvas.getByRole("list")).getAllByRole("listitem");
+  await expect(steps).toHaveLength(3);
+  for (const [index, text] of [
+    "質問を選ぶ",
+    "自分の言葉で答える",
+    "フィードバックで振り返る",
+  ].entries()) {
+    await expect(steps[index]).toHaveTextContent(text);
+  }
 };
 
 export const Default: Story = {
@@ -81,10 +82,10 @@ export const KeyboardNavigation: Story = {
     await expect(canvas.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     await userEvent.tab();
     await expect(
-      canvas.getByRole("link", { name: /面接練習を始める/ }),
+      canvas.getByRole("link", { name: "今すぐ面接練習を始める" }),
     ).toHaveFocus();
     await expect(
-      canvas.getByRole("link", { name: /面接練習を始める/ }),
+      canvas.getByRole("link", { name: "今すぐ面接練習を始める" }),
     ).toHaveAttribute("href", "/practice/");
   },
 };
