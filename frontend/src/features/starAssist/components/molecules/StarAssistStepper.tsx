@@ -4,7 +4,7 @@
 import { Step, StepLabel, Stepper } from "@mui/material";
 import { styled } from "@mui/material/styles";
 import { Text } from "@/components/atoms/Text";
-import { starSteps } from "../../model/steps";
+import { starSteps, type AssistStep } from "../../model/steps";
 
 const Progress = styled(Stepper)(({ theme }) => ({
   padding: theme.spacing(2, 0, 3),
@@ -37,10 +37,12 @@ const StepName = styled("span")(({ theme }) => ({
   },
 }));
 
-export function StarAssistStepper({ activeStep }: { activeStep: number }) {
+export function StarAssistStepper({ activeStep, steps = starSteps, label = "STAR" }: {
+  activeStep: number; steps?: readonly AssistStep[]; label?: string;
+}) {
   return (
-    <Progress activeStep={activeStep} alternativeLabel aria-label="STARの入力ステップ">
-      {starSteps.map((step) => (
+    <Progress activeStep={activeStep} alternativeLabel aria-label={label + "の入力ステップ"}>
+      {steps.map((step) => (
         <Step key={step.key}>
           <StepLabel>
             <StepName>
