@@ -55,9 +55,8 @@ test("ADMIN login edits, publishes, adds/removes/reorders, and keeps an existing
   ).toBeVisible();
   await page.goto("/practice/");
   await page.getByRole("button", { name: "カテゴリ練習", exact: true }).click();
-  await page
-    .getByRole("button", { name: "自己紹介（1問）", exact: true })
-    .click();
+  await page.getByRole("combobox", { name: "練習するカテゴリ" }).click();
+  await page.getByRole("option", { name: "自己紹介（1問）", exact: true }).click();
   await page.getByRole("button", { name: "練習を始める", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "更新後の自己紹介をしてください。" }),
@@ -110,9 +109,8 @@ for (const width of [375, 768, 899, 900, 1280])
     await page
       .getByRole("button", { name: "カテゴリ練習", exact: true })
       .click();
-    await page
-      .getByRole("button", { name: "企業選び（2問）", exact: true })
-      .click();
+    await page.getByRole("combobox", { name: "練習するカテゴリ" }).click();
+    await page.getByRole("option", { name: "企業選び（2問）", exact: true }).click();
     await page
       .getByRole("button", { name: "練習を始める", exact: true })
       .click();
