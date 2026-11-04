@@ -17,6 +17,10 @@ import {
   generationSchema,
   starReceiptSchema,
   starValue,
+  countStarNotes,
+  OTHER_ASSIST_INPUT_LIMIT,
+  OTHER_ASSIST_OUTPUT_LIMIT,
+  STAR_INPUT_LIMIT,
 } from "@/lib/api/schemas/star";
 import { idSchema, type Answer } from "@/lib/api/schemas";
 import { MockConflict } from "./coaching";
@@ -413,6 +417,23 @@ export function startStarJob(
 }
 export function fakeStarResult(job: Job) {
   const facts = job.input.notes;
+  if (job.input.assistType && job.input.assistType !== "star") {
+    const answer = (["S", "T", "A", "R"] as const)
+      .filter((key) => facts[key].trim())
+      .map((key) => facts[key])
+      .join("\n");
+    return starResultSchema.parse(
+      !answer || answer.length > OTHER_ASSIST_OUTPUT_LIMIT
+        ? {
+            status: "needs_information", candidates: [],
+            missingInformation: ["回答の要点を短く整理してください。"],
+          }
+        : {
+            status: "ready", missingInformation: [],
+            candidates: [{ id: "A", style: "conclusion", text: answer }],
+          },
+    );
+  }
   const orders: Array<Array<keyof typeof facts>> = [
     ["R", "S", "T", "A"],
     ["A", "S", "T", "R"],
@@ -425,12 +446,12 @@ export function fakeStarResult(job: Job) {
       .join("\n"),
   );
   return starResultSchema.parse(
-    !facts.A.trim() || answers.some((v) => Array.from(v).length > 400)
+    !facts.A.trim() || answers.some((v) => Array.from(v).length > 600)
       ? {
           status: "needs_information",
           candidates: [],
           missingInformation: [
-            "本人が行ったことを、400文字以内にまとめられる短い事実で入力してください。",
+            "本人が行ったことを、600文字以内にまとめられる短い事実で入力してください。",
           ],
         }
       : {
@@ -723,8 +744,15 @@ export function starRoute(
         return fail("STAR_GENERATION_IN_PROGRESS");
       if (row.value.version !== body.expectedVersion)
         return fail("DRAFT_VERSION_CONFLICT");
+      const configuredMode = state.sessions[context.sessionId]?.question.assistType ?? "star";
+      const draftMode = row.value.assistType ?? "star";
+      if (configuredMode === "none" || configuredMode !== draftMode)
+        return fail("ASSIST_MODE_FORBIDDEN", 403);
+      const limit = draftMode === "star" ? STAR_INPUT_LIMIT : OTHER_ASSIST_INPUT_LIMIT;
+      if (countStarNotes(row.value.notes) > limit)
+        return fail("ASSIST_INPUT_TOO_LONG", 400);
       if (
-        !row.value.targetCategory ||
+        (draftMode === "star" && !row.value.targetCategory) ||
         !Object.values(row.value.notes).some((v) => v.trim())
       )
         return fail("VALIDATION_ERROR", 400);
@@ -787,6 +815,9 @@ export function starRoute(
           a = draft(state, owner, body.answerDraftId, false, now);
         if (a.context.id !== context.id)
           return fail("STAR_DRAFT_NOT_FOUND", 404);
+        const configuredMode = state.sessions[context.sessionId]?.question.assistType ?? "star";
+        if (configuredMode === "none" || configuredMode !== (s.value.assistType ?? "star"))
+          return fail("ASSIST_MODE_FORBIDDEN", 403);
         const answer = state.star.answers[body.answerDraftId];
         if (
           s.value.version !== body.expectedVersion ||

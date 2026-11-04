@@ -1,6 +1,8 @@
 /** @file star-assist.test.ts @description STAR contract, CAS, expiry, cancellation and real MSW APIs. */
 import { beforeEach, afterEach, describe, expect, it } from "vitest";
 import fixture from "../../contracts/star-v14-fixtures.json";
+import characterCases from "../../contracts/assist-character-fixtures.json";
+import { generationFailureMessage } from "@/features/starAssist/hooks/useStarWorkspace";
 import { setupServer } from "msw/node";
 import { createHandlers } from "@/mocks/handlers";
 import { createRepository } from "@/mocks/store";
@@ -14,6 +16,11 @@ import { sha256, canonical, contextUuid } from "@/lib/jsonHash";
 import {
   targetCategories,
   emptyStarInput,
+  countStarNotes,
+  STAR_INPUT_LIMIT,
+  STAR_OUTPUT_LIMIT,
+  OTHER_ASSIST_OUTPUT_LIMIT,
+  type AssistMode,
   starInputSchema,
   starResultSchema,
   starReceiptSchema,
@@ -323,5 +330,68 @@ describe("STAR v1.4", () => {
     expect(Object.values(state.star.quotas).map((q) => q.consumed)).toEqual([
       1, 1,
     ]);
+  });
+});
+
+describe("Five answer-assist modes (offline contracts)", () => {
+  it.each(characterCases)("counts applicant code points identically: $name", ({ notes, expected }) => {
+    expect(countStarNotes(notes)).toBe(expected);
+    expect(countStarNotes(notes) <= STAR_INPUT_LIMIT).toBe(expected <= 600);
+  });
+  it.each(["star", "prep", "motivation", "career_change", "career_plan"] as AssistMode[])(
+    "keeps the response shape distinct for %s",
+    (mode) => {
+      const notes = { S: "事実", T: "理由", A: "行動", R: "今後" };
+      const value = { ...emptyStarInput(mode), notes };
+      expect(starInputSchema.safeParse(value).success).toBe(true);
+      const candidates = mode === "star"
+        ? (["A", "B", "C"] as const).map((id, index) => ({
+          id, style: (["conclusion", "action", "conversational"] as const)[index], text: "事実",
+        }))
+        : [{ id: "A" as const, style: "conclusion" as const, text: "事実" }];
+      expect(starResultSchema.safeParse({
+        status: "ready", candidates, missingInformation: [],
+      }).success).toBe(true);
+      const bad = { ...value, candidates, generationId: crypto.randomUUID() };
+      expect(starInputSchema.safeParse(bad).success).toBe(true);
+      if (mode !== "star") {
+        bad.candidates = [{ id: "A", style: "conclusion", text: "あ".repeat(OTHER_ASSIST_OUTPUT_LIMIT + 1) }] as typeof candidates;
+        expect(starInputSchema.safeParse(bad).success).toBe(false);
+      }
+    },
+  );
+  it("rejects STAR A/B/C output of 601 characters", () => {
+    const candidates = (["A", "B", "C"] as const).map((id, i) => ({
+      id, style: (["conclusion", "action", "conversational"] as const)[i],
+      text: "😀".repeat(i === 0 ? STAR_OUTPUT_LIMIT + 1 : 3),
+    }));
+    expect(starResultSchema.safeParse({
+      status: "ready", candidates, missingInformation: [],
+    }).success).toBe(false);
+  });
+});
+
+it("keeps single-candidate UTF-16 output within the existing 500-unit normal answer limit", () => {
+  const input = {
+    ...emptyStarInput("prep"),
+    candidates: [{ id: "A" as const, style: "conclusion" as const, text: "😀".repeat(250) }],
+    generationId: crypto.randomUUID(),
+    selectedCandidateId: "A" as const,
+  };
+  expect(starInputSchema.safeParse(input).success).toBe(true);
+  expect(starInputSchema.safeParse({
+    ...input, candidates: [{ ...input.candidates[0], text: "😀".repeat(251) }],
+  }).success).toBe(false);
+});
+
+describe("answer assist failure messaging", () => {
+  it("warns of a potentially charged regeneration only for unknown outcome", () => {
+    const unknown = generationFailureMessage("OUTCOME_UNKNOWN");
+    expect(unknown).toContain("AIが実行済みの可能性");
+    expect(unknown).toContain("新たに利用枠を消費する場合");
+    expect(unknown).toContain("入力内容は保持");
+    const failed = generationFailureMessage("FAILED_AFTER_START");
+    expect(failed).toContain("生成を完了できませんでした");
+    expect(failed).not.toContain("利用枠を消費");
   });
 });

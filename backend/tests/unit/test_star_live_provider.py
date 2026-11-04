@@ -74,7 +74,7 @@ def test_bedrock_sdk_shape_grounding_styles_and_independent_token_cap():
     assert client.calls == 1
     request = client.kwargs
     assert request["modelId"] == "jp.anthropic.claude-haiku-5-5"
-    assert request["inferenceConfig"] == {"maxTokens": 2048}
+    assert request["inferenceConfig"] == {"maxTokens": 4096}
     assert request["additionalModelRequestFields"] == {
         "thinking": {"type": "adaptive"},
         "output_config": {"effort": "low"},
@@ -156,7 +156,7 @@ def test_missing_action_and_long_facts_ask_information_without_send():
     live = adapter(client)
     for notes in (
         {"S": "状況", "T": "", "A": "", "R": ""},
-        {"S": "", "T": "", "A": "あ" * 401, "R": ""},
+        {"S": "", "T": "", "A": "あ" * 601, "R": ""},
     ):
         v = value().model_copy(update={"notes": value().notes.model_validate(notes)})
         assert live.generate("経験は？", v).status == "needs_information"
@@ -255,6 +255,48 @@ def test_manual_openai_reuses_transport_schema_and_star_cap():
     )
     assert live.generate("経験は？", value()).status == "ready"
     assert transport.calls == 1
-    assert transport.payload["max_output_tokens"] == 2048
+    assert transport.payload["max_output_tokens"] == 4096
     assert transport.payload["text"]["format"]["strict"] is True
     assert transport.payload["model"] == "gpt-6-luna"
+
+
+@pytest.mark.parametrize("mode", ["prep", "motivation", "career_change", "career_plan"])
+def test_four_assist_modes_one_response_one_provider_call(mode):
+    client = Client(body={"answer": "本人の事実に基づく回答です。", "missingInformation": []})
+    transport = BedrockProvider(client_factory=lambda *a, **k: client)
+    live = LiveStarProvider(transport)
+    input_value = value()
+    input_value.assistType = mode
+    input_value.targetCategory = None
+    result = live.generate("強みを教えてください。", input_value)
+    assert result.status == "ready"
+    assert [(c.id, c.style) for c in result.candidates] == [("A", "conclusion")]
+    assert result.candidates[0].text == "本人の事実に基づく回答です。"
+    assert client.calls == 1
+    assert client.kwargs["inferenceConfig"] == {"maxTokens": 2048}
+    data = json.loads(client.kwargs["messages"][0]["content"][0]["text"])
+    assert data["mode"] == mode
+    assert data["notes"]["A"] == "課題を共有した。"
+
+
+def test_assist_output_over_500_is_not_truncated_or_retried():
+    client = Client(body={"answer": "😀" * 501, "missingInformation": []})
+    transport = BedrockProvider(client_factory=lambda *a, **k: client)
+    input_value = value()
+    input_value.assistType = "prep"
+    with pytest.raises(ProviderFailure, match="INVALID_SCHEMA"):
+        LiveStarProvider(transport).generate("強みは？", input_value)
+    assert client.calls == 1
+
+
+def test_assist_prompt_uses_the_same_utf16_limit_as_the_validator():
+    from interview_backend.star_assist.live_provider import (
+        ASSIST_COMMON_INSTRUCTIONS,
+        AssistReply,
+    )
+
+    assert "500 UTF-16コード単位以内" in ASSIST_COMMON_INSTRUCTIONS
+    assert "500コードポイント" not in ASSIST_COMMON_INSTRUCTIONS
+    assert AssistReply(answer="😀" * 250, missingInformation=[]).answer == "😀" * 250
+    with pytest.raises(ValueError, match="AssistOutputTooLong"):
+        AssistReply(answer="😀" * 251, missingInformation=[])

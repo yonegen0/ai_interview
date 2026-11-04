@@ -1,6 +1,16 @@
 /** @file star.ts @description STAR補助APIと共有Mockのstrict契約。 */
 import { z } from "zod";
 const id = z.uuid();
+export const STAR_INPUT_LIMIT = 600;
+export const STAR_OUTPUT_LIMIT = 600;
+export const OTHER_ASSIST_INPUT_LIMIT = 1600;
+export const OTHER_ASSIST_OUTPUT_LIMIT = 500;
+export const assistModeSchema = z.enum(["star", "prep", "motivation", "career_change", "career_plan"]);
+export type AssistMode = z.infer<typeof assistModeSchema>;
+export const countStarText = (text: string): number =>
+  Array.from(text.replace(/\r\n?/g, "\n")).length;
+export const countStarNotes = (notes: { S: string; T: string; A: string; R: string }): number =>
+  countStarText(notes.S) + countStarText(notes.T) + countStarText(notes.A) + countStarText(notes.R);
 const bounded = (maximum: number) =>
   z
     .string()
@@ -38,7 +48,7 @@ export const starCandidateSchema = z
   .object({
     id: z.enum(["A", "B", "C"]),
     style: z.enum(["conclusion", "action", "conversational"]),
-    text: bounded(400),
+    text: bounded(STAR_OUTPUT_LIMIT),
   })
   .strict();
 const candidates = z
@@ -47,16 +57,17 @@ const candidates = z
   .refine(
     (v) =>
       v.length === 0 ||
-      (v.length === 3 &&
+      ((v.length === 3 &&
         v.every(
           (c, i) =>
             c.id === ["A", "B", "C"][i] &&
             c.style === ["conclusion", "action", "conversational"][i],
-        )),
+        )) || (v.length === 1 && v[0].id === "A" && v[0].style === "conclusion")),
   );
 export const starInputSchema = z
   .object({
     notes: starNotesSchema,
+    assistType: assistModeSchema.optional(),
     targetCategory: targetCategorySchema.nullable(),
     industry: bounded(100),
     company: bounded(200),
@@ -68,6 +79,10 @@ export const starInputSchema = z
   .refine(
     (v) =>
       Boolean(v.candidates.length) === Boolean(v.generationId) &&
+      (v.candidates.length === 0 ||
+        (v.assistType && v.assistType !== "star"
+          ? v.candidates.length === 1 && v.candidates[0].text.length <= OTHER_ASSIST_OUTPUT_LIMIT
+          : v.candidates.length === 3)) &&
       (!v.selectedCandidateId ||
         v.candidates.some((c) => c.id === v.selectedCandidateId)),
   );
@@ -80,7 +95,7 @@ export const starResultSchema = z
   .strict()
   .refine((v) =>
     v.status === "ready"
-      ? v.candidates.length === 3 && v.candidates.every((c) => !!c.text.trim())
+      ? [1, 3].includes(v.candidates.length) && v.candidates.every((c) => !!c.text.trim())
       : v.candidates.length === 0 && v.missingInformation.length > 0,
   );
 export const starReceiptSchema = z
@@ -105,6 +120,7 @@ export const starDraftSchema = starReceiptSchema
     (v) =>
       starInputSchema.safeParse({
         notes: v.notes,
+        assistType: v.assistType,
         targetCategory: v.targetCategory,
         industry: v.industry,
         company: v.company,
@@ -214,7 +230,7 @@ export const generationSchema = z
       "FAILED_AFTER_START",
       "OUTCOME_UNKNOWN",
     ]),
-    generationTargetCategory: targetCategorySchema,
+    generationTargetCategory: targetCategorySchema.nullable(),
     result: starResultSchema.nullable(),
   })
   .strict();
@@ -270,8 +286,9 @@ export type Drafts = z.infer<typeof draftsSchema>;
 export type StarReceipt = z.infer<typeof starReceiptSchema>;
 export type StarContextInput = z.infer<typeof contextRequestSchema>;
 export type StarOperation = z.infer<typeof starOperationRecoverySchema>;
-export const emptyStarInput = (): StarInput => ({
+export const emptyStarInput = (mode: AssistMode = "star"): StarInput => ({
   notes: { S: "", T: "", A: "", R: "" },
+  ...(mode !== "star" ? { assistType: mode } : {}),
   targetCategory: null,
   industry: "",
   company: "",
@@ -281,6 +298,7 @@ export const emptyStarInput = (): StarInput => ({
 });
 export const starValue = (v: StarInput): StarInput => ({
   notes: v.notes,
+  ...(v.assistType ? { assistType: v.assistType } : {}),
   targetCategory: v.targetCategory,
   industry: v.industry,
   company: v.company,

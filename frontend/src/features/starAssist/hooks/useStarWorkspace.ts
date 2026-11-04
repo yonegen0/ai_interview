@@ -27,12 +27,20 @@ import {
   emptyStarInput,
   type StarContextInput,
   type StarInput,
+  type AssistMode,
   type StarOperation,
   type StarReceipt,
   type Drafts,
 } from "@/lib/api/schemas/star";
 import type { Session } from "@/lib/api/schemas";
 import { canonical, sha256 } from "@/lib/jsonHash";
+
+export function generationFailureMessage(status: string): string {
+  if (status === "OUTCOME_UNKNOWN") {
+    return "生成結果を確認できませんでした。AIが実行済みの可能性があります。入力内容は保持されています。再生成すると新たに利用枠を消費する場合があります。";
+  }
+  return "回答の生成を完了できませんでした。入力内容は保持されています。もう一度お試しください。";
+}
 
 type SaveState = "未保存" | "保存中" | "保存済" | "保存失敗" | "競合";
 const responseSchema = (op: StarOperation): z.ZodType<unknown> =>
@@ -59,6 +67,7 @@ export function useStarWorkspace(
   enabled: boolean,
   localCache: { draft: string; serverDraftId?: string } | null,
   restoreAnswer: (answer: string) => void,
+  mode: AssistMode = "star",
 ) {
   const { scope, isActive, assertActive, storage } = useOperationScope();
   const contextBody = JSON.stringify(origin);
@@ -91,7 +100,7 @@ export function useStarWorkspace(
   const form = useForm<StarInput>({
     resolver: zodResolver(starInputSchema),
     mode: "onChange",
-    defaultValues: emptyStarInput(),
+    defaultValues: emptyStarInput(mode),
   });
   const watched = useWatch({ control: form.control });
   const input = starValue(
@@ -107,7 +116,7 @@ export function useStarWorkspace(
   const answerMeta = useRef<StarReceipt | null>(null),
     starMeta = useRef<StarReceipt | null>(null);
   const answerBaseline = useRef(answer),
-    starBaseline = useRef(JSON.stringify(emptyStarInput()));
+    starBaseline = useRef(JSON.stringify(emptyStarInput(mode)));
   const initialized = useRef(false),
     locked = useRef(false),
     active = useRef(enabled);
@@ -211,7 +220,7 @@ export function useStarWorkspace(
         });
       answerBaseline.current = value.answerDraft?.answer ?? "";
       starBaseline.current = JSON.stringify(
-        value.starDraft ? starValue(value.starDraft) : emptyStarInput(),
+        value.starDraft ? starValue(value.starDraft) : emptyStarInput(mode),
       );
       if (overwrite) {
         if (value.answerDraft) restoreAnswer(value.answerDraft.answer);
@@ -276,7 +285,7 @@ export function useStarWorkspace(
     )
       return;
     const value = {
-      ...emptyStarInput(),
+      ...emptyStarInput(mode),
       targetCategory: preferences.data.category?.targetCategory ?? null,
       industry: preferences.data.details?.industry ?? "",
       company: preferences.data.details?.company ?? "",
@@ -376,7 +385,7 @@ export function useStarWorkspace(
     );
     starMeta.current = result;
     starBaseline.current = JSON.stringify(snapshot);
-    if (snapshot.generationId === generationId && snapshot.candidates.length === 3)
+    if (snapshot.generationId === generationId && snapshot.candidates.length === (mode === "star" ? 3 : 1))
       storage.removeSaved(generationKey);
     return result;
   };
@@ -417,15 +426,14 @@ export function useStarWorkspace(
     const result = generation.data?.result;
     if (!result || result.status !== "ready" || !generationId || !isActive())
       return;
-    form.setValue("candidates", result.candidates, {
-      shouldDirty: true,
-      shouldValidate: true,
-    });
+    // Validate only after all interdependent fields describe one consistent draft.
+    form.setValue("candidates", result.candidates, { shouldDirty: true });
     form.setValue("generationId", generationId, { shouldDirty: true });
-    form.setValue("selectedCandidateId", null, { shouldDirty: true });
+    form.setValue("selectedCandidateId", mode === "star" ? null : "A", { shouldDirty: true });
+    void form.trigger();
     setGenerationCategory(generation.data!.generationTargetCategory);
     setResultWaiting(false);
-  }, [generation.data, generationId, form, isActive]);
+  }, [generation.data, generationId, form, isActive, mode]);
   useEffect(() => {
     if (
       !generation.data ||
@@ -451,7 +459,7 @@ export function useStarWorkspace(
     } else if (generation.data.result)
       setError(generation.data.result.missingInformation.join(" "));
     else
-      setError(`生成状態: ${generation.data.status}。自動再生成はしません。`);
+      setError(generationFailureMessage(generation.data.status));
   }, [generation.data, generationId, adopt, isActive, quota]);
 
   const generate = async () => {
@@ -665,6 +673,8 @@ export function useStarWorkspace(
     }
   });
   return {
+    mode,
+    available: enabled,
     form,
     input,
     contextId,
@@ -707,7 +717,7 @@ export function useStarWorkspace(
         setGenerationId(null);
         setGenerationCategory(null);
         setResultWaiting(false);
-        const value = emptyStarInput();
+        const value = emptyStarInput(mode);
         starBaseline.current = JSON.stringify(value);
         form.reset(value);
         setStatus("保存済");

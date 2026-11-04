@@ -18,6 +18,8 @@ from interview_backend.models.internal import (
 from interview_backend.repositories.budget import CommitWindow
 from interview_backend.star_assist.models import (
     DAY,
+    OTHER_NOTES_MAX_LENGTH,
+    STAR_NOTES_MAX_LENGTH,
     AnswerAssist,
     AnswerContext,
     AnswerDraft,
@@ -32,6 +34,7 @@ from interview_backend.star_assist.models import (
     StarRequest,
     TargetCategoryPreference,
     TargetDetailsPreference,
+    star_notes_length,
 )
 
 
@@ -417,6 +420,10 @@ class StarRepositoryMixin:
         answer, answer_context = self._star_draft(tx, owner, "AnswerDraft", body.answerDraftId, now)
         if answer_context.id != context.id:
             raise BusinessError(404, "STAR_DRAFT_NOT_FOUND")
+        session = tx.get(ref("Session", owner, context.session_id))
+        configured = session.question.assistType or "star"
+        if configured == "none" or configured != star.value.assistType:
+            raise BusinessError(403, "ASSIST_MODE_FORBIDDEN")
         if star.version != body.expectedVersion or answer.version != body.expectedAnswerVersion:
             raise BusinessError(409, "DRAFT_VERSION_CONFLICT")
         candidate = next((c for c in star.value.candidates if c.id == body.candidateId), None)
@@ -495,7 +502,14 @@ class StarRepositoryMixin:
             raise BusinessError(409, "STAR_GENERATION_IN_PROGRESS")
         if row.version != body.expectedVersion:
             raise BusinessError(409, "DRAFT_VERSION_CONFLICT")
-        if row.value.targetCategory is None or not any(
+        session = tx.get(ref("Session", owner, context.session_id))
+        configured = session.question.assistType or "star"
+        if configured == "none" or configured != row.value.assistType:
+            raise BusinessError(403, "ASSIST_MODE_FORBIDDEN")
+        maximum = STAR_NOTES_MAX_LENGTH if configured == "star" else OTHER_NOTES_MAX_LENGTH
+        if star_notes_length(row.value.notes) > maximum:
+            raise BusinessError(400, "ASSIST_INPUT_TOO_LONG")
+        if (configured == "star" and row.value.targetCategory is None) or not any(
             v.strip() for v in row.value.notes.model_dump().values()
         ):
             raise BusinessError(400, "VALIDATION_ERROR")

@@ -93,7 +93,7 @@ def test_one_to_four_fields_generate_without_padding(fields):
     result = live(client).generate("経験は？", value(**{k: notes[k] for k in fields}))
     assert result.status == "ready" and client.calls == 1
     assert all(0 < len(c.text) < 150 for c in result.candidates)
-    assert all(len(c.text) <= 400 for c in result.candidates)
+    assert all(len(c.text) <= 600 for c in result.candidates)
     assert len({c.text for c in result.candidates}) == 3
     assert "共有しました。" in result.candidates[0].text
     assert "共有したんです。" in result.candidates[2].text
@@ -104,7 +104,7 @@ def test_one_to_four_fields_generate_without_padding(fields):
     assert client.data["targetCategory"] == "it_engineering"
     assert client.data["company"] == "応募先株式会社"
     assert all("応募先株式会社" not in c.text for c in result.candidates)
-    assert client.kwargs["inferenceConfig"] == {"maxTokens": 2048}
+    assert client.kwargs["inferenceConfig"] == {"maxTokens": 4096}
 
 
 @pytest.mark.parametrize("field", ["S", "T", "R"])
@@ -169,27 +169,33 @@ def test_long_notes_compress_verbosity_without_dropping_distinct_claims():
     result = live(client).generate("経験は？", value(A=note))
     assert result.status == "ready" and client.calls == 1
     for candidate in result.candidates:
-        assert len(candidate.text) <= 400
+        assert len(candidate.text) <= 600
         for i in range(24):
             assert f"工程{i:02}" in candidate.text
     assert "することが" not in result.candidates[0].text
 
 
 @pytest.mark.parametrize("extra", [0, 1])
-def test_400_codepoint_boundary_counts_server_opening_and_astral_characters(extra):
+def test_600_codepoint_boundary_counts_server_opening_and_astral_characters(extra):
     # No Japanese endings here: only terminal punctuation and discourse label.
-    v = value(A="😀" * (400 - len(OPENINGS["B"]) - 1 + extra))
+    v = value(A="😀" * (600 - len(OPENINGS["B"]) - 1 + extra))
     client = Client()
     result = live(client).generate("経験は？", v)
-    assert result.status == ("ready" if extra == 0 else "needs_information")
-    assert client.calls == (1 if extra == 0 else 0)
-    if extra == 0:
-        assert len(result.candidates[1].text) == 400
+    if extra:
+        assert result.status == "needs_information"
+        assert result.missingInformation == [
+            "条件や否定を残して、回答に使う経験を短く整理してください。"
+        ]
+        assert client.calls == 0
+    else:
+        assert result.status == "ready"
+        assert len(result.candidates[1].text) == 600
+        assert client.calls == 1
 
 
 def test_unverifiable_long_compression_and_exact_contradiction_clarify_without_send():
     client = Client()
-    for v in (value(A="あ" * 401), value(A="記録を共有した。", R="記録を共有しなかった。")):
+    for v in (value(A="あ" * 601), value(A="記録を共有した。", R="記録を共有しなかった。")):
         assert live(client).generate("経験は？", v).status == "needs_information"
     assert client.calls == 0
 
@@ -331,7 +337,50 @@ def test_natural_openai_manual_path_and_schema_no_network():
     )
     result = provider.generate("経験は？", value(A="記録を共有した。"))
     assert result.status == "ready" and transport.calls == 1
-    assert transport.payload["max_output_tokens"] == 2048
+    assert transport.payload["max_output_tokens"] == 4096
     assert transport.payload["text"]["format"]["name"] == "star_prose_v2"
     assert transport.payload["text"]["format"]["strict"] is True
     assert transport.payload["text"]["format"]["schema"]["additionalProperties"] is False
+
+
+def test_600_input_with_unavoidable_render_expansion_clarifies_before_ai():
+    # The input is within 600 code points, but punctuation / openings / separators
+    # make the complete A/B/C output longer than 600.
+    notes = value(S="い" * 2, A="あ" * 598)
+    for mode in ("natural", "source"):
+        client = Client()
+        provider = LiveStarProvider(
+            BedrockProvider(client_factory=lambda *a, client=client, **k: client),
+            mode=mode,
+        )
+        result = provider.generate("経験は？", notes)
+        assert result.status == "needs_information"
+        assert not result.candidates
+        assert "短く" in result.missingInformation[0] or "600文字" in result.missingInformation[0]
+        assert client.calls == 0
+
+
+def test_output_length_is_defensively_clarified_not_marked_invalid_schema():
+    # The server-owned post-validation also preserves a meaningful clarification.
+    from interview_backend.star_assist.grounding import (
+        Passage,
+        ProseCandidate,
+        ProsePlan,
+        validate_prose,
+    )
+
+    notes = value(A="😀" * 596)
+    variants = {key: rewrite_field(notes.notes.A, key) for key in ("A", "B", "C")}
+    plan = ProsePlan(
+        status="ready",
+        missingInformation=[],
+        candidates=[
+            ProseCandidate(
+                id=identifier,
+                style=style,
+                passages=[Passage(source="A", text=variants[identifier])],
+            )
+            for identifier, style in (("A", "conclusion"), ("B", "action"), ("C", "conversational"))
+        ],
+    )
+    assert validate_prose(plan, notes).status == "needs_information"

@@ -817,7 +817,7 @@ def test_T21_unicode_no_truncation_and_oversized_draft(star):
     )
     accepted, result = generated(star)
     candidates = deepcopy(result["result"]["candidates"])
-    candidates[0]["text"] = "😀" * 400
+    candidates[0]["text"] = "😀" * 600
     body = {
         **value,
         "candidates": candidates,
@@ -1048,7 +1048,7 @@ def test_audit_invalid_provider_output_fails_once_without_refunding(star, monkey
         if mutation == "extra":
             result["secret"] = "not-allowed"
         elif mutation == "too_long":
-            result["candidates"][0]["text"] = "😀" * 401
+            result["candidates"][0]["text"] = "😀" * 601
         elif mutation == "missing":
             del result["status"]
         else:
@@ -1271,3 +1271,106 @@ def test_live_started_recovery_after_provider_switch_never_reinfers(star):
         request("GET", "/star-assist/generations/" + identifier)[1]["status"] == "OUTCOME_UNKNOWN"
     )
     assert runtime.repository.star_quota("owner").body["user"]["consumed"] == 1
+
+
+@pytest.mark.parametrize(
+    "case",
+    json.loads(
+        (
+            Path(__file__).resolve().parents[3] / "contracts/assist-character-fixtures.json"
+        ).read_text(encoding="utf-8")
+    ),
+    ids=lambda row: row["name"],
+)
+def test_assist_notes_codepoint_fixture_matches_frontend(case):
+    from interview_backend.star_assist.models import StarInput, star_notes_length
+
+    original = deepcopy(case["notes"])
+    value = StarInput(
+        notes=case["notes"],
+        targetCategory="corporate_sales",
+        industry="",
+        company="",
+        candidates=[],
+        selectedCandidateId=None,
+        generationId=None,
+    )
+    assert star_notes_length(value.notes) == case["expected"]
+    assert value.notes.model_dump() == original
+
+
+@pytest.mark.parametrize("mode", ["star", "prep", "motivation", "career_change", "career_plan"])
+def test_assist_candidate_shapes_and_independent_limits(mode):
+    from pydantic import ValidationError
+
+    from interview_backend.star_assist.models import StarInput, StarResult
+
+    input_data = {
+        "notes": {"S": "本人の事実", "T": "", "A": "担当", "R": ""},
+        "assistType": mode,
+        "targetCategory": "corporate_sales" if mode == "star" else None,
+        "industry": "",
+        "company": "",
+        "selectedCandidateId": None,
+        "generationId": None,
+    }
+    value = StarInput.model_validate({**input_data, "candidates": []})
+    assert value.assistType == mode
+    candidates = (
+        [
+            {"id": name, "style": style, "text": "回答"}
+            for name, style in (
+                ("A", "conclusion"),
+                ("B", "action"),
+                ("C", "conversational"),
+            )
+        ]
+        if mode == "star"
+        else [{"id": "A", "style": "conclusion", "text": "回答"}]
+    )
+    assert (
+        StarResult.model_validate(
+            {"status": "ready", "candidates": candidates, "missingInformation": []}
+        ).status
+        == "ready"
+    )
+    with pytest.raises(ValidationError):
+        StarInput.model_validate(
+            {
+                **input_data,
+                "candidates": [{**candidates[0], "text": "x" * 601}],
+                "generationId": str(uuid4()),
+            }
+        )
+
+
+def test_other_assist_generated_answer_uses_normal_answer_utf16_limit():
+    from pydantic import ValidationError
+
+    from interview_backend.star_assist.models import StarInput
+
+    value = {
+        "assistType": "prep",
+        "notes": {"S": "事実", "T": "", "A": "", "R": ""},
+        "targetCategory": None,
+        "industry": "",
+        "company": "",
+        "generationId": str(uuid4()),
+        "selectedCandidateId": "A",
+    }
+    assert (
+        StarInput.model_validate(
+            {
+                **value,
+                "candidates": [{"id": "A", "style": "conclusion", "text": "😀" * 250}],
+            }
+        ).assistType
+        == "prep"
+    )
+    with pytest.raises(ValidationError):
+        StarInput.model_validate(
+            {
+                **value,
+                "candidates": [{"id": "A", "style": "conclusion", "text": "😀" * 251}],
+            }
+        )

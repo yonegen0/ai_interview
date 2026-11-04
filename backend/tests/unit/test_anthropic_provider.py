@@ -416,7 +416,7 @@ def test_star_live_generation_uses_existing_validation():
     result = live.generate_with_deadline("工夫を教えて", value, Deadline(1000, lambda: 0))
     assert result.status == "needs_information"
     assert len(transport.requests) == 1
-    assert transport.requests[0][2]["max_tokens"] == 2048
+    assert transport.requests[0][2]["max_tokens"] == 4096
     assert live.last_observation["output_tokens"] == 120
 
 
@@ -467,7 +467,7 @@ def test_anthropic_star_natural_result_is_grounded_before_return(tamper):
     live = LiveStarProvider(AnthropicProvider(Authentication(), transport=transport))
     result = live.generate_with_deadline("具体的な経験は？", value, Deadline(1000, lambda: 0))
     assert len(transport.requests) == 1
-    assert transport.requests[0][2]["max_tokens"] == 2048
+    assert transport.requests[0][2]["max_tokens"] == 4096
     assert live.last_observation["output_tokens"] == 120
     if tamper is None:
         assert result.status == "ready"

@@ -234,12 +234,14 @@ class AnthropicProvider:
         )
         self.clock = clock
         self.last_observation = None
+        self.last_stop_reason = None
 
     def evaluate(self, prompt):
         return self.evaluate_with_deadline(prompt, Deadline(self.clock() + 40, self.clock))
 
     def evaluate_with_deadline(self, prompt, deadline):
         self.last_observation = None
+        self.last_stop_reason = None
         if isinstance(prompt, StructuredPrompt):
             instructions, data = prompt.instructions, prompt.data
         elif isinstance(prompt, CoachingPrompt):
@@ -304,6 +306,14 @@ class AnthropicProvider:
             raise ProviderFailure("OUTPUT_MISSING")
         self.last_observation = _usage(response.get("usage"))
         stop_reason = response.get("stop_reason")
+        if stop_reason in {
+            "end_turn",
+            "max_tokens",
+            "model_context_window_exceeded",
+            "refusal",
+            "tool_use",
+        }:
+            self.last_stop_reason = stop_reason
         # In API version 2026-10-21, refusals can be reported through
         # stop_details even when stop_reason is end_turn.
         details = response.get("stop_details")

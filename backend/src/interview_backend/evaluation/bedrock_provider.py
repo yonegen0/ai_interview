@@ -93,6 +93,7 @@ class BedrockProvider:
             f"{self.settings.monthly_user_limit}:{self.settings.monthly_global_limit}"
         )
         self.last_observation = None
+        self.last_stop_reason = None
 
     def evaluate(self, prompt):
         return self.evaluate_with_deadline(prompt, Deadline(self.clock() + 40, self.clock))
@@ -116,6 +117,7 @@ class BedrockProvider:
 
     def evaluate_with_deadline(self, prompt, deadline):
         self.last_observation = None
+        self.last_stop_reason = None
         if isinstance(prompt, StructuredPrompt):
             data, instruction = prompt.data, prompt.instructions
         elif isinstance(prompt, CoachingPrompt):
@@ -252,6 +254,8 @@ class BedrockProvider:
                     safe[key] = value
             self.last_observation = safe
         stop = response.get("stopReason")
+        if stop in {"end_turn", "max_tokens", "guardrail_intervened", "content_filtered"}:
+            self.last_stop_reason = stop
         if stop == "max_tokens":
             raise ProviderFailure("INCOMPLETE")
         if stop in {"guardrail_intervened", "content_filtered"}:

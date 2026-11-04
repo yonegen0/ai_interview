@@ -163,3 +163,19 @@ it("isolates recovery by subject", () => {
   auth.setMockActor("mock-user", ["USER"]);
   expect(readSaved("pocket:create", operationSchema)).toEqual(value);
 });
+
+it.each(["star", "prep", "motivation", "career_change", "career_plan", "none"] as const)(
+  "saves and restores admin-selected assistType %s",
+  async (assistType) => {
+    auth.setMockActor("admin", ["ADMIN"]);
+    const original = await getQuestionBank();
+    await saveQuestionBank({
+      expectedVersion: original.version,
+      questions: [{ ...original.questions[0], assistType }],
+    }, crypto.randomUUID());
+    const saved = await getQuestionBank();
+    expect(saved.questions[0].assistType).toBe(assistType);
+    auth.setMockActor("mock-user", ["USER"]);
+    await expect(getQuestionBank()).rejects.toMatchObject({ status: 403 });
+  },
+);

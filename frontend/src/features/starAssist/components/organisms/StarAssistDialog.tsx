@@ -12,10 +12,11 @@ import { Button } from "@/components/atoms/Button";
 import { Input } from "@/components/atoms/Input";
 import { Select } from "@/components/atoms/Select";
 import { Text } from "@/components/atoms/Text";
+import { COACHING_ANSWER_MAX_LENGTH, countCodePoints } from "@/lib/textLimits";
 import { Dialog } from "@/components/organisms/Dialog";
-import { starInputSchema, starNotesSchema, targetCategories, type StarInput } from "@/lib/api/schemas/star";
+import { STAR_INPUT_LIMIT, OTHER_ASSIST_INPUT_LIMIT, countStarNotes, starInputSchema, starNotesSchema, targetCategories, type StarInput } from "@/lib/api/schemas/star";
 import type { StarWorkspace } from "../../hooks/useStarWorkspace";
-import { starSteps } from "../../model/steps";
+import { assistModes } from "../../model/steps";
 import { StarCandidateFields } from "../molecules/StarFields";
 import { StarAssistStepper } from "../molecules/StarAssistStepper";
 import { StarAssistTips } from "../molecules/StarAssistTips";
@@ -109,26 +110,38 @@ export function StarAssistDialog({ open, onClose, workspace: w, onApply, onDisca
   const [step, setStep] = useState(0);
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
-  const last = step === starSteps.length - 1;
-  const notesValid = starNotesSchema.safeParse(w.input.notes).success;
+  const mode = w.mode;
+  const draftMode = w.input.assistType ?? "star";
+  const modeChanged = draftMode !== mode;
+  const meta = assistModes[mode];
+  const steps = meta.steps;
+  const last = step === steps.length - 1;
+  const totalCount = countStarNotes(w.input.notes);
+  const inputLimit = mode === "star" ? STAR_INPUT_LIMIT : OTHER_ASSIST_INPUT_LIMIT;
+  const notesValid = starNotesSchema.safeParse(w.input.notes).success && totalCount <= inputLimit;
   const inputValid = starInputSchema.safeParse(w.input).success;
-  const canGenerate = !w.loading && !w.busy && !w.pending && !w.generating &&
-    !!w.input.targetCategory && notesValid && inputValid &&
-    starSteps.some(({ key }) => w.input.notes[key].trim()) &&
+  const selectedAnswer = w.input.candidates.find(
+    (candidate) => candidate.id === w.input.selectedCandidateId,
+  );
+  const selectedAnswerLength = selectedAnswer ? countCodePoints(selectedAnswer.text) : 0;
+  const requiresAnswerEditing = selectedAnswerLength > COACHING_ANSWER_MAX_LENGTH;
+  const canGenerate = !modeChanged && !w.loading && !w.busy && !w.pending && !w.generating &&
+    (mode !== "star" || !!w.input.targetCategory) && notesValid && inputValid &&
+    steps.some(({ key }) => w.input.notes[key].trim()) &&
     w.quota?.user.remaining !== 0 && w.quota?.global.remaining !== 0;
 
   const title = (
     <Header>
       <HeaderRow>
         <HeaderIcon fontSize="large" aria-hidden="true" />
-        <Text variant="h2" component="h2">STARアシスト</Text>
-        <Tag>面接回答をSTARで整理</Tag>
-        <Close aria-label="STARアシストを閉じる" onClick={onClose} size="small">
+        <Text variant="h2" component="h2">{meta.label}</Text>
+        <Tag>{meta.tag}</Tag>
+        <Close aria-label={meta.label + "を閉じる"} onClick={onClose} size="small">
           <CloseIcon />
         </Close>
       </HeaderRow>
       <Text variant="body2" color="text.secondary">
-        エピソードを4つのステップで入力すると、面接で使える回答を作成できます。
+        {meta.description}
       </Text>
     </Header>
   );
@@ -138,12 +151,31 @@ export function StarAssistDialog({ open, onClose, workspace: w, onApply, onDisca
       <Text role="status" aria-live="polite" variant="caption" color="text.secondary">
         下書き：{w.status}{w.loading ? "（保存版を確認中）" : ""}
       </Text>
-      <StarAssistStepper activeStep={step} />
+      {modeChanged && (
+        <Alert severity="warning">
+          管理者が回答アシストの種類を変更しました。以前の下書きは保持しています。
+          新しいモードで生成するには、下書きを確認したうえで明示的に破棄してください。
+        </Alert>
+      )}
+      {mode === "star" && (
+        <Text role="status" aria-live="polite" variant="body2"
+          color={totalCount > inputLimit ? "error.main" : "text.secondary"}>
+          入力文字数：{totalCount} / {STAR_INPUT_LIMIT}文字
+        </Text>
+      )}
+      {totalCount > inputLimit && (
+        <Alert severity="error">
+          {mode === "star"
+            ? "STARアシストは4項目の合計600文字まで入力できます。内容を短くしてください。"
+            : "入力は4項目の合計1600文字までです。内容を短くしてください。"}
+        </Alert>
+      )}
+      <StarAssistStepper activeStep={step} steps={steps} label={meta.label} />
       <Columns>
-        <StarAssistStepForm step={step} form={w.form} input={w.input} disabled={false} />
-        <StarAssistTips step={step} />
+        <StarAssistStepForm step={step} steps={steps} mode={mode} form={w.form} input={w.input} disabled={false} />
+        <StarAssistTips step={step} steps={steps} />
       </Columns>
-      {last && (
+      {last && mode === "star" && (
         <Settings aria-label="応募先の設定">
           <Text variant="h3" component="h3">応募先の設定</Text>
           <Select
@@ -189,7 +221,7 @@ export function StarAssistDialog({ open, onClose, workspace: w, onApply, onDisca
       )}
       {last && w.quota && (
         <Text variant="body2">
-          STAR専用の生成枠：あなた {w.quota.user.remaining} / 全体 {w.quota.global.remaining}（JST {w.quota.month}）
+          {mode === "star" ? "STAR専用の生成枠" : "回答アシストの生成枠"}：あなた {w.quota.user.remaining} / 全体 {w.quota.global.remaining}（JST {w.quota.month}）
         </Text>
       )}
       {last && (
@@ -204,17 +236,19 @@ export function StarAssistDialog({ open, onClose, workspace: w, onApply, onDisca
           生成中に編集が進みました。結果で入力を上書きしていません。
         </Alert>
       )}
-      {last && w.generationCategory && (
+      {last && mode === "star" && w.generationCategory && (
         <Text variant="body2">現在の3案の生成時カテゴリ：{targetCategories[w.generationCategory]}</Text>
       )}
       {last && w.input.candidates.length > 0 && (
-        <Result aria-label="生成したSTAR回答">
-          <Text component="h3" variant="h3">生成した3案から選択</Text>
+        <Result aria-label="生成した回答アシスト">
+          <Text component="h3" variant="h3">
+            {mode === "star" ? "生成した3案から選択" : "生成した回答案"}
+          </Text>
           <Text variant="body2" color="text.secondary">
             生成した回答は、ご自身の事実に合うよう確認・編集してください。正式送信するまでは採点されません。
           </Text>
-          <StarCandidateFields form={w.form} input={w.input} disabled={false} />
-          <RadioGroup
+          <StarCandidateFields form={w.form} input={w.input} disabled={false} mode={mode} />
+          {mode === "star" && <RadioGroup
             aria-label="反映する回答案"
             value={w.input.selectedCandidateId ?? ""}
             onChange={(_, value) =>
@@ -230,21 +264,28 @@ export function StarAssistDialog({ open, onClose, workspace: w, onApply, onDisca
                 label={"案" + candidate.id + "を選択"}
               />
             ))}
-          </RadioGroup>
+          </RadioGroup>}
+          {requiresAnswerEditing && (
+            <Alert severity="warning" role="status">
+              この回答は{selectedAnswerLength}文字です。回答送信の上限は
+              {COACHING_ANSWER_MAX_LENGTH}文字です。回答欄に反映してから、
+              事実を確認しながら短く編集してください。自動で切り捨てたり送信したりしません。
+            </Alert>
+          )}
           <Button
             type="button"
             variant="contained"
             onClick={onApply}
-            disabled={!w.input.selectedCandidateId || w.busy || w.pending || !w.form.formState.isValid}
+            disabled={modeChanged || !w.input.selectedCandidateId || w.busy || w.pending || !w.form.formState.isValid}
           >
-            この回答を反映
+            {requiresAnswerEditing ? "回答欄へ反映して短く編集" : "この回答を反映"}
           </Button>
         </Result>
       )}
       {last && (
         <Button type="button" color="error" size="small" onClick={onDiscard}
           disabled={w.busy || w.pending || w.loading || w.generating}>
-          STAR下書きを破棄
+          {meta.label}の下書きを破棄
         </Button>
       )}
       {w.error && <Alert severity="error">{w.error}</Alert>}
@@ -263,13 +304,14 @@ export function StarAssistDialog({ open, onClose, workspace: w, onApply, onDisca
           <Button type="button" variant="contained" endIcon={<AutoAwesomeOutlinedIcon />}
             disabled={!canGenerate}
             onClick={() => void w.generate()}>
-            {w.generating ? "3案を生成しています…" :
-              w.input.candidates.length ? "新カテゴリ・メモで再生成（1回）" : "3案を生成（1回）"}
+            {w.generating ? "回答を生成しています…" :
+              w.input.candidates.length ? "新しい入力で再生成（1回）" :
+              mode === "star" ? "3案を生成（1回）" : "回答案を生成（1回）"}
           </Button>
         ) : (
           <Button type="button" variant="contained" endIcon={<ArrowForwardIcon />}
-            disabled={w.busy || !notesValid}
-            onClick={() => setStep((value) => Math.min(starSteps.length - 1, value + 1))}>
+            disabled={w.busy}
+            onClick={() => setStep((value) => Math.min(steps.length - 1, value + 1))}>
             次へ
           </Button>
         )}

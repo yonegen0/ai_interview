@@ -108,11 +108,14 @@ export const createSchema = z.union([
   }),
 ]);
 export const createdSchema = z.object({ sessionId: idSchema });
+export const assistTypeSchema = z.enum(["star", "prep", "motivation", "career_change", "career_plan", "none"]);
+export type AssistType = z.infer<typeof assistTypeSchema>;
 export const questionSchema = z.object({
   id: idSchema,
   category: categorySchema,
   difficulty: z.literal("standard"),
   question: z.string().min(1),
+  assistType: assistTypeSchema.nullable().optional(),
 });
 export const errorSchema = z.object({ code: z.string(), message: z.string() });
 export const statusSchema = z.enum(["processing", "completed", "failed"]);

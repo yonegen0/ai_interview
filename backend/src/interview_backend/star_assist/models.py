@@ -6,7 +6,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from interview_backend.models.public import Identifier
-from interview_backend.text_limits import code_point_length
+from interview_backend.text_limits import code_point_length, utf16_length
 
 DAY = 86400
 CATEGORIES = {
@@ -39,6 +39,23 @@ class Strict(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
 
+STAR_NOTES_MAX_LENGTH = 600
+STAR_CANDIDATE_MAX_LENGTH = 600
+OTHER_NOTES_MAX_LENGTH = 1600
+OTHER_CANDIDATE_MAX_LENGTH = 500
+ASSIST_TYPES = ("star", "prep", "motivation", "career_change", "career_plan")
+AssistType = Literal["star", "prep", "motivation", "career_change", "career_plan"]
+
+
+def star_notes_length(notes):
+    """Count input code points, with CRLF and CR normalized to LF."""
+    values = notes.model_dump() if isinstance(notes, Notes) else notes
+    return sum(
+        code_point_length(value.replace("\r\n", "\n").replace("\r", "\n"))
+        for value in values.values()
+    )
+
+
 def text(value, maximum):
     if code_point_length(value) > maximum:
         raise ValueError("text_limit")
@@ -65,7 +82,7 @@ class Candidate(Strict):
     @field_validator("text")
     @classmethod
     def bounded(cls, value):
-        return text(value, 400)
+        return text(value, STAR_CANDIDATE_MAX_LENGTH)
 
 
 class StarResult(Strict):
@@ -80,7 +97,11 @@ class StarResult(Strict):
                 ("A", "conclusion"),
                 ("B", "action"),
                 ("C", "conversational"),
-            ] or any(not c.text.strip() for c in self.candidates):
+            ] and [(c.id, c.style) for c in self.candidates] != [
+                ("A", "conclusion"),
+            ]:
+                raise ValueError("candidates")
+            if any(not c.text.strip() for c in self.candidates):
                 raise ValueError("candidates")
         elif self.candidates or not self.missingInformation:
             raise ValueError("missing_information")
@@ -93,6 +114,7 @@ class StarResult(Strict):
 
 class StarInput(Strict):
     notes: Notes
+    assistType: AssistType = "star"
     targetCategory: TargetCategory | None
     industry: str
     company: str
@@ -107,12 +129,17 @@ class StarInput(Strict):
 
     @model_validator(mode="after")
     def consistent(self):
-        if self.candidates and [(c.id, c.style) for c in self.candidates] != [
-            ("A", "conclusion"),
-            ("B", "action"),
-            ("C", "conversational"),
-        ]:
+        expected = (
+            [("A", "conclusion"), ("B", "action"), ("C", "conversational")]
+            if self.assistType == "star"
+            else [("A", "conclusion")]
+        )
+        if self.candidates and [(c.id, c.style) for c in self.candidates] != expected:
             raise ValueError("candidates")
+        if self.assistType != "star" and any(
+            utf16_length(c.text) > OTHER_CANDIDATE_MAX_LENGTH for c in self.candidates
+        ):
+            raise ValueError("assist_output_length")
         if self.selectedCandidateId and self.selectedCandidateId not in [
             c.id for c in self.candidates
         ]:
