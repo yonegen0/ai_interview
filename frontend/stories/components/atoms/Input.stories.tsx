@@ -161,7 +161,7 @@ export const DisabledErrorPriority: Story = {
     await expect(input).toBeDisabled();
     await expect(
       input.closest(".MuiFormControl-root")!.querySelector("label"),
-    ).toHaveStyle({ color: theme.palette.text.disabled });
+    ).toHaveStyle({ color: theme.palette.text.secondary });
     await expect(input.closest(".MuiOutlinedInput-root")).toHaveStyle({
       boxShadow: "none",
     });
