@@ -26,7 +26,7 @@ from interview_backend.star_assist.models import (
     Strict,
     star_notes_length,
 )
-from interview_backend.text_limits import code_point_length, utf16_length
+from interview_backend.text_limits import utf16_length
 
 MAX_OUTPUT_TOKENS = 4096
 MAX_INPUT_BYTES = 24000
