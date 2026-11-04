@@ -1272,6 +1272,7 @@ def test_live_started_recovery_after_provider_switch_never_reinfers(star):
     )
     assert runtime.repository.star_quota("owner").body["user"]["consumed"] == 1
 
+
 @pytest.mark.parametrize(
     "case",
     json.loads(
