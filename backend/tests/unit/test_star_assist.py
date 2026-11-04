@@ -1344,7 +1344,6 @@ def test_assist_candidate_shapes_and_independent_limits(mode):
         )
 
 
-
 def test_other_assist_generated_answer_uses_normal_answer_utf16_limit():
     from pydantic import ValidationError
 
@@ -1359,10 +1358,19 @@ def test_other_assist_generated_answer_uses_normal_answer_utf16_limit():
         "generationId": str(uuid4()),
         "selectedCandidateId": "A",
     }
-    assert StarInput.model_validate({
-        **value, "candidates": [{"id": "A", "style": "conclusion", "text": "😀" * 250}],
-    }).assistType == "prep"
+    assert (
+        StarInput.model_validate(
+            {
+                **value,
+                "candidates": [{"id": "A", "style": "conclusion", "text": "😀" * 250}],
+            }
+        ).assistType
+        == "prep"
+    )
     with pytest.raises(ValidationError):
-        StarInput.model_validate({
-            **value, "candidates": [{"id": "A", "style": "conclusion", "text": "😀" * 251}],
-        })
+        StarInput.model_validate(
+            {
+                **value,
+                "candidates": [{"id": "A", "style": "conclusion", "text": "😀" * 251}],
+            }
+        )
