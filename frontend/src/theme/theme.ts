@@ -3,6 +3,7 @@
  * @description 全コンポーネントで使う共通テーマを定義する
  */
 import { createTheme } from "@mui/material/styles";
+import { backgroundDefaultColor } from "./tokens";
 
 const breakpoints = createTheme().breakpoints;
 
@@ -45,7 +46,7 @@ export const theme = createTheme({
       contrastText: "#ffffff",
     },
     background: {
-      default: "#f5f2ea", // ウォームなサンドクリーム
+      default: backgroundDefaultColor, // ウォームなサンドクリーム
       paper: "#ffffff", // glass は白の半透明を重ねるため据え置き
     },
     text: {

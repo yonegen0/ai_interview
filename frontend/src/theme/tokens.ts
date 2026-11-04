@@ -1,6 +1,9 @@
 /** @file tokens.ts @description 共通themeから派生する寸法とHero・スコアの専用文字スタイル。 */
 import type { Theme } from "@mui/material/styles";
 
+/** Shared background color for the theme and browser viewport metadata. */
+export const backgroundDefaultColor = "#f5f2ea";
+
 export const scaledRadius = (theme: Theme, ratio: number) =>
   typeof theme.shape.borderRadius === "number"
     ? theme.shape.borderRadius * ratio
