@@ -11,6 +11,7 @@ import { Text } from "@/components/atoms/Text";
 import { Actions } from "@/components/atoms/Actions";
 import { Dialog } from "@/components/organisms/Dialog";
 import type { StarWorkspace } from "../../hooks/useStarWorkspace";
+import { assistModes } from "../../model/steps";
 import { StarAssistDialog } from "./StarAssistDialog";
 
 const Area = styled("section")(({ theme }) => ({
@@ -70,6 +71,7 @@ export function StarAssistPanel({
   hasAnswer: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const meta = assistModes[w.mode];
   const [confirm, setConfirm] = useState<
     "apply" | "load" | "mine" | "discardStar" | null
   >(null);
@@ -83,19 +85,19 @@ export function StarAssistPanel({
   };
 
   return (
-    <Area aria-label="回答の保存とSTARアシスト">
+    <Area aria-label={"回答の保存と" + meta.label}>
       <Trigger type="button" onClick={() => setOpen(true)}
         aria-haspopup="dialog" aria-expanded={open}>
         <Icon aria-hidden="true" />
         <TriggerCopy>
-          <TriggerTitle>STARアシスト</TriggerTitle>
-          <TriggerCaption>経験を整理して、伝わる回答をサポート</TriggerCaption>
+          <TriggerTitle>{meta.label}</TriggerTitle>
+          <TriggerCaption>{meta.description}</TriggerCaption>
         </TriggerCopy>
         <ChevronRightIcon color="primary" aria-hidden="true" />
       </Trigger>
       <Status role="status" aria-live="polite">
         <Text component="span" variant="caption">
-          STAR下書き：{w.status}{w.loading ? "（保存版を確認中）" : ""}
+          {meta.label}下書き：{w.status}{w.loading ? "（保存版を確認中）" : ""}
         </Text>
       </Status>
       {w.error && <Alert severity="error">{w.error}</Alert>}
@@ -139,7 +141,7 @@ export function StarAssistPanel({
         onClose={() => setConfirm(null)}
         title={
           confirm === "apply" ? "入力中の回答を置き換えますか？"
-            : confirm === "discardStar" ? "STAR下書きを破棄しますか？"
+            : confirm === "discardStar" ? meta.label + "の下書きを破棄しますか？"
               : confirm === "mine" ? "自分の内容で保存版を更新しますか？"
                 : "保存版を読み込みますか？"
         }
@@ -148,7 +150,7 @@ export function StarAssistPanel({
             {confirm === "mine"
               ? "最新の保存版を確認して、自分の内容を新しい要求で保存します。"
               : confirm === "discardStar"
-                ? "STARメモと3案を破棄します。通常回答の入力は保持します。"
+                ? "回答アシストのメモと候補を破棄します。通常回答の入力は保持します。"
                 : "入力中の内容を置き換えます。"}
             正式送信・評価は開始しません。
           </Text>
