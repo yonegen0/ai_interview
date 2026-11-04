@@ -19,12 +19,12 @@ from interview_backend.star_assist.grounding import (
     validate_prose,
 )
 from interview_backend.star_assist.models import (
+    OTHER_CANDIDATE_MAX_LENGTH,
+    OTHER_NOTES_MAX_LENGTH,
+    STAR_NOTES_MAX_LENGTH,
     Candidate,
     StarResult,
     Strict,
-    STAR_NOTES_MAX_LENGTH,
-    OTHER_NOTES_MAX_LENGTH,
-    OTHER_CANDIDATE_MAX_LENGTH,
     star_notes_length,
 )
 

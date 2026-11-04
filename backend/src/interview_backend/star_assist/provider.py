@@ -1,10 +1,10 @@
 """Fake-only STAR generation using applicant facts; no network provider selection."""
 
 from interview_backend.star_assist.models import (
-    Candidate,
-    StarResult,
     STAR_CANDIDATE_MAX_LENGTH,
     STAR_NOTES_MAX_LENGTH,
+    Candidate,
+    StarResult,
     star_notes_length,
 )
 from interview_backend.text_limits import code_point_length

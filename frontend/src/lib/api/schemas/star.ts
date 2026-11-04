@@ -230,7 +230,7 @@ export const generationSchema = z
       "FAILED_AFTER_START",
       "OUTCOME_UNKNOWN",
     ]),
-    generationTargetCategory: targetCategorySchema,
+    generationTargetCategory: targetCategorySchema.nullable(),
     result: starResultSchema.nullable(),
   })
   .strict();

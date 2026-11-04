@@ -18,6 +18,8 @@ from interview_backend.models.internal import (
 from interview_backend.repositories.budget import CommitWindow
 from interview_backend.star_assist.models import (
     DAY,
+    OTHER_NOTES_MAX_LENGTH,
+    STAR_NOTES_MAX_LENGTH,
     AnswerAssist,
     AnswerContext,
     AnswerDraft,
@@ -26,15 +28,13 @@ from interview_backend.star_assist.models import (
     RecoveryRotation,
     StarApplication,
     StarDraft,
-    STAR_NOTES_MAX_LENGTH,
-    OTHER_NOTES_MAX_LENGTH,
-    star_notes_length,
     StarGeneration,
     StarQuota,
     StarRecoveryResult,
     StarRequest,
     TargetCategoryPreference,
     TargetDetailsPreference,
+    star_notes_length,
 )
 
 

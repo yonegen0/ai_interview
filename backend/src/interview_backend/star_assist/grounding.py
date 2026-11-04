@@ -9,7 +9,12 @@ are permitted. Unsupported compression requires clarification, never a retry.
 import re
 from typing import Literal
 
-from interview_backend.star_assist.models import Candidate, StarResult, Strict, STAR_CANDIDATE_MAX_LENGTH
+from interview_backend.star_assist.models import (
+    STAR_CANDIDATE_MAX_LENGTH,
+    Candidate,
+    StarResult,
+    Strict,
+)
 
 STYLES = (("A", "conclusion"), ("B", "action"), ("C", "conversational"))
 # These are discourse labels, not assertions of success, motivation or causality.

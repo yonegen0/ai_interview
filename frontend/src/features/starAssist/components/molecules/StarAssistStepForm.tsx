@@ -82,10 +82,10 @@ export function StarAssistStepForm({
             onCompositionEnd={(event) => {
               composing.current = false;
               // Keep the committed IME text untrimmed even on overflow.
-              field.onChange(event.currentTarget.value);
+              field.onChange((event.target as HTMLInputElement).value);
               setWarning(mode === "star" && countStarNotes({
                 ...form.getValues("notes"),
-                [current.key]: event.currentTarget.value,
+                [current.key]: (event.target as HTMLInputElement).value,
               }) > STAR_INPUT_LIMIT);
             }}
             onChange={(event) => {
