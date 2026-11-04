@@ -26,6 +26,8 @@ from interview_backend.star_assist.models import (
     RecoveryRotation,
     StarApplication,
     StarDraft,
+    STAR_NOTES_MAX_LENGTH,
+    star_notes_length,
     StarGeneration,
     StarQuota,
     StarRecoveryResult,
@@ -495,6 +497,8 @@ class StarRepositoryMixin:
             raise BusinessError(409, "STAR_GENERATION_IN_PROGRESS")
         if row.version != body.expectedVersion:
             raise BusinessError(409, "DRAFT_VERSION_CONFLICT")
+        if star_notes_length(row.value.notes) > STAR_NOTES_MAX_LENGTH:
+            raise BusinessError(400, "STAR_INPUT_TOO_LONG")
         if row.value.targetCategory is None or not any(
             v.strip() for v in row.value.notes.model_dump().values()
         ):

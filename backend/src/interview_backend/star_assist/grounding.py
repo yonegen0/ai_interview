@@ -9,7 +9,7 @@ are permitted. Unsupported compression requires clarification, never a retry.
 import re
 from typing import Literal
 
-from interview_backend.star_assist.models import Candidate, StarResult, Strict
+from interview_backend.star_assist.models import Candidate, StarResult, Strict, STAR_CANDIDATE_MAX_LENGTH
 
 STYLES = (("A", "conclusion"), ("B", "action"), ("C", "conversational"))
 # These are discourse labels, not assertions of success, motivation or causality.
@@ -216,7 +216,7 @@ def validate_prose(plan, value):
         if any(p.text != realizations[p.source][c.id] for p in c.passages):
             return clarify("grounding")
         text = OPENINGS[c.id] + "".join(p.text for p in c.passages)
-        if len(text) > 400:
-            return clarify("length")
+        if len(text) > STAR_CANDIDATE_MAX_LENGTH:
+            raise ValueError("StarOutputLimit")
         candidates.append(Candidate(id=c.id, style=c.style, text=text))
     return StarResult(status="ready", candidates=candidates, missingInformation=[])

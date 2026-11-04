@@ -39,6 +39,19 @@ class Strict(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
 
+STAR_NOTES_MAX_LENGTH = 600
+STAR_CANDIDATE_MAX_LENGTH = 600
+
+
+def star_notes_length(notes):
+    """Count input code points, with CRLF and CR normalized to LF."""
+    values = notes.model_dump() if isinstance(notes, Notes) else notes
+    return sum(
+        code_point_length(value.replace("\r\n", "\n").replace("\r", "\n"))
+        for value in values.values()
+    )
+
+
 def text(value, maximum):
     if code_point_length(value) > maximum:
         raise ValueError("text_limit")
@@ -65,7 +78,7 @@ class Candidate(Strict):
     @field_validator("text")
     @classmethod
     def bounded(cls, value):
-        return text(value, 400)
+        return text(value, STAR_CANDIDATE_MAX_LENGTH)
 
 
 class StarResult(Strict):
