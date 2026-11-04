@@ -1,7 +1,7 @@
 /** @file StarAssistTips.tsx @description 入力段階に応じたヒントを表示する補助カード。 */
 "use client";
 
-import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
+import CheckIcon from "@mui/icons-material/Check";
 import TipsAndUpdatesOutlinedIcon from "@mui/icons-material/TipsAndUpdatesOutlined";
 import { alpha, styled } from "@mui/material/styles";
 import { Text } from "@/components/atoms/Text";
@@ -47,7 +47,7 @@ export function StarAssistTips({ step }: { step: number }) {
       <Points>
         {current.tips.map((tip) => (
           <Point key={tip}>
-            <CheckCircleOutlineIcon fontSize="small" aria-hidden="true" />
+            <CheckIcon fontSize="small" aria-hidden="true" />
             <Text variant="body2">{tip}</Text>
           </Point>
         ))}

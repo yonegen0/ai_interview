@@ -44,7 +44,7 @@ export function StarAssistStepper({ activeStep }: { activeStep: number }) {
         <Step key={step.key}>
           <StepLabel>
             <StepName>
-              <Text component="span" variant="body2" fontWeight={700}>{step.label}</Text>
+              <Text component="span" variant="body2"><strong>{step.label}</strong></Text>
               <Text component="span" variant="caption" color="text.secondary">
                 {step.english}
               </Text>

@@ -24,10 +24,10 @@ export const Initial: Story = {
     );
     const dialog = within(document.body);
     await expect(dialog.getByRole("dialog", { name: /STARアシスト/ })).toBeVisible();
-    await userEvent.click(dialog.getByRole("button", { name: "次へ", exact: true }));
-    await userEvent.click(dialog.getByRole("button", { name: "次へ", exact: true }));
+    await userEvent.click(dialog.getByRole("button", { name: "次へ" }));
+    await userEvent.click(dialog.getByRole("button", { name: "次へ" }));
     await expect(dialog.getByLabelText("A 本人の行動")).toBeVisible();
-    await userEvent.click(dialog.getByRole("button", { name: "次へ", exact: true }));
+    await userEvent.click(dialog.getByRole("button", { name: "次へ" }));
     await expect(dialog.getByRole("button", { name: "3案を生成（1回）" })).toBeDisabled();
   },
 };
