@@ -15,9 +15,14 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 const selectJobChange = async (canvasElement: HTMLElement) => {
   const canvas = within(canvasElement);
-  await userEvent.click(
-    await canvas.findByRole("combobox", { name: "練習するカテゴリ" }),
+  const categorySelect = await canvas.findByRole("combobox", {
+    name: "練習するカテゴリ",
+  });
+  // 非同期のカテゴリ一覧が到着し、Selectが有効になってから操作する。
+  await waitFor(() =>
+    expect(categorySelect).not.toHaveAttribute("aria-disabled", "true"),
   );
+  await userEvent.click(categorySelect);
   await userEvent.click(
     await within(document.body).findByRole("option", { name: /^転職理由（[0-9]+問）$/ }),
   );

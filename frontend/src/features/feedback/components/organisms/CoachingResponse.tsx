@@ -46,7 +46,7 @@ function CurrentResponse({
       );
   }, [state.evaluation.data, router, feedback.attemptId, isActive]);
   return (
-    <Panel>
+    <Panel id="coaching-response" tabIndex={-1}>
       <Text variant="h2" component="h2">
         深掘り質問 {feedback.coachingCount + 1} / 3
       </Text>
@@ -69,7 +69,7 @@ function CurrentResponse({
   );
 }
 
-export function CoachingResponse({ feedback }: { feedback: FeedbackV2 }) {
+export function CoachingResponse({ feedback, onAvailabilityChange }: { feedback: FeedbackV2; onAvailabilityChange?: (available: boolean) => void }) {
   const { scope, isActive, assertActive } = useOperationScope();
   const query = useQuery({
     queryKey: [scope, "session", feedback.sessionId],
@@ -82,6 +82,17 @@ export function CoachingResponse({ feedback }: { feedback: FeedbackV2 }) {
     retry: retryGet,
   });
   const progress = query.data?.activeCoaching;
+  const canAnswer = Boolean(
+    query.data &&
+    !query.error &&
+    progress?.stage === "awaiting_answer" &&
+    progress.evaluationId === feedback.evaluationId &&
+    progress.attemptId === feedback.attemptId,
+  );
+  useEffect(() => {
+    onAvailabilityChange?.(canAnswer);
+    return () => onAvailabilityChange?.(false);
+  }, [onAvailabilityChange, canAnswer]);
   if (query.isPending)
     return <Text role="status">現在の質問を確認しています…</Text>;
   if (query.error)
@@ -93,13 +104,7 @@ export function CoachingResponse({ feedback }: { feedback: FeedbackV2 }) {
         }}
       />
     );
-  if (
-    !query.data ||
-    progress?.stage !== "awaiting_answer" ||
-    progress.evaluationId !== feedback.evaluationId ||
-    progress.attemptId !== feedback.attemptId
-  )
-    return null;
+  if (!canAnswer || !query.data) return null;
   return (
     <CurrentResponse
       key={feedback.evaluationId}
