@@ -162,3 +162,20 @@ test("confirmed exit discards a draft and Escape preserves it", async ({
   await page.goto(url);
   await expect(page.getByLabel("あなたの回答")).toHaveValue("");
 });
+
+test("home header stays compact and CTA visible on mobile", async ({ page }) => {
+  for (const width of [320, 375, 393]) {
+    await page.setViewportSize({ width, height: 800 });
+    await page.goto("/");
+
+    const header = page.getByRole("banner");
+    const bounds = await header.boundingBox();
+    expect(bounds).not.toBeNull();
+    expect(bounds!.height).toBeLessThan(112);
+
+    const hero = page.getByRole("heading", { level: 1 });
+    await expect(hero).toContainText("今日の3分を");
+    await expect(page.getByRole("link", { name: "面接練習を始める" })).toBeVisible();
+    await screenshot(page, "home-refresh", width);
+  }
+});
