@@ -35,6 +35,16 @@ test("normal, retry, next, direct result and browser navigation", async ({
   await expect(page.getByLabel("あなたの回答")).toHaveValue(
     "業務改善の経験を活かして、新しい環境で貢献したいと考えています。",
   );
+  await page.getByLabel("あなたの回答").fill("編集中の回答");
+  await page.getByRole("button", { name: "前回の回答をコピー" }).click();
+  await expect(page.getByText("入力中の回答を上書きしますか？")).toBeVisible();
+  await page.getByRole("button", { name: "キャンセル" }).click();
+  await expect(page.getByLabel("あなたの回答")).toHaveValue("編集中の回答");
+  await page.getByRole("button", { name: "前回の回答をコピー" }).click();
+  await page.getByRole("button", { name: "前回の回答に置き換える" }).click();
+  await expect(page.getByLabel("あなたの回答")).toHaveValue(
+    "業務改善の経験を活かして、新しい環境で貢献したいと考えています。",
+  );
   await answer(page);
   await expect(
     page.getByRole("heading", { name: "今回のフィードバック" }),
@@ -189,7 +199,7 @@ const expectContentWithinViewport = async (page: Page) => {
   );
   expect(overflowing).toEqual([]);
 };
-for (const width of [375, 768, 1280])
+for (const width of [375, 390, 768, 1440])
   test(`layout ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/practice/");
@@ -200,7 +210,7 @@ for (const width of [375, 768, 1280])
     const field = page.getByLabel("あなたの回答");
     await field.fill("😀".repeat(400));
     await expect(
-      page.getByText("400 / 400文字 · 150〜220文字がおすすめです"),
+      page.getByText("400 / 400文字"),
     ).toBeVisible();
     await expectContentWithinViewport(page);
     await field.fill("😀".repeat(400) + "あ");

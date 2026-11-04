@@ -1,384 +1,342 @@
 /**
  * @file FeedbackCard.tsx
- * @description スコアと評価内容を読みやすく整理するフィードバックレポート
+ * @description Coaching V2と通常評価を共通のスコア表示・省略カードへ整理する。
  */
 "use client";
-import { scoreTypography, scaledRadius, radiusLength } from "@/theme/tokens";
 
+import { useState, type ReactNode } from "react";
+import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
+import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
+import ThumbUpOutlinedIcon from "@mui/icons-material/ThumbUpOutlined";
+import LightbulbOutlinedIcon from "@mui/icons-material/LightbulbOutlined";
+import HistoryOutlinedIcon from "@mui/icons-material/HistoryOutlined";
+import AutoAwesomeOutlinedIcon from "@mui/icons-material/AutoAwesomeOutlined";
 import { alpha, styled } from "@mui/material/styles";
-import { Text } from "@/components/atoms/Text";
-import { FullTextPreview } from "@/components/organisms/FullTextPreview";
 import { Panel } from "@/components/atoms/Panel";
+import { Text } from "@/components/atoms/Text";
 import { MascotCoachCard } from "@/components/molecules/MascotCoachCard";
-import type { Feedback } from "@/lib/api/schemas";
-import {
-  isFeedbackV2,
-  type LegacyFeedback,
-  type FeedbackV2,
-} from "@/lib/api/schemas";
+import { FullTextDialog } from "@/components/organisms/FullTextDialog";
+import { FullTextPreview } from "@/components/organisms/FullTextPreview";
+import { scaledRadius, radiusLength } from "@/theme/tokens";
+import type { Feedback, FeedbackV2, LegacyFeedback } from "@/lib/api/schemas";
+import { isFeedbackV2 } from "@/lib/api/schemas";
+import { FeedbackScoreSummary } from "./FeedbackScoreSummary";
 
-type PointTone = "strength" | "improvement";
+type Tone = "standard" | "strength" | "improvement";
+type FullTextTarget = { title: string; text: string; icon?: ReactNode };
+type OpenFullText = (title: string, text: string, icon?: ReactNode) => void;
 
-const FeedbackPanel = styled(Panel)(({ theme }) => ({
-  padding: theme.spacing(2.5),
+const Report = styled(Panel)(({ theme }) => ({
+  display: "grid",
+  gap: theme.spacing(3),
+  padding: theme.spacing(2),
+  minWidth: 0,
   overflow: "hidden",
-  border: `1px solid ${alpha(theme.palette.primary.main, 0.14)}`,
+  border: "1px solid " + alpha(theme.palette.primary.main, 0.14),
   borderRadius: scaledRadius(theme, 1.5),
-  background: alpha(theme.palette.common.white, 0.94),
-  boxShadow: `0 20px 60px ${alpha(theme.palette.primary.dark, 0.1)}`,
-  [theme.breakpoints.up("md")]: {
-    padding: theme.spacing(4),
-  },
+  backgroundColor: theme.palette.background.paper,
+  boxShadow: "0 12px 38px " + alpha(theme.palette.primary.dark, 0.09),
+  [theme.breakpoints.up("md")]: { padding: theme.spacing(3) },
 }));
 
 const Introduction = styled(MascotCoachCard)(({ theme }) => ({
-  margin: theme.spacing(-2.5, -2.5, 3),
-  borderRadius: `${radiusLength(theme, 1.4375)} ${radiusLength(theme, 1.4375)} ${radiusLength(theme, 1.25)} ${radiusLength(theme, 1.25)}`,
-  [theme.breakpoints.up("md")]: { margin: theme.spacing(-4, -4, 3) },
+  margin: theme.spacing(-2, -2, 0),
+  borderRadius:
+    radiusLength(theme, 1.4375) + " " + radiusLength(theme, 1.4375) + " " +
+    radiusLength(theme, 1) + " " + radiusLength(theme, 1),
+  [theme.breakpoints.up("md")]: { margin: theme.spacing(-3, -3, 0) },
 }));
-const TitlePhrase = styled("span")({
-  display: "inline-block",
-  maxWidth: "100%",
-});
 
 const Eyebrow = styled(Text)(({ theme }) => ({
-  margin: theme.spacing(0, 0, 0.75),
+  margin: theme.spacing(0, 0, 0.5),
   ...theme.typography.overline,
-  color: theme.palette.text.secondary,
   fontWeight: 700,
-  letterSpacing: "0.14em",
-}));
-
-const Title = styled(Text)(({ theme }) => ({
-  margin: 0,
-  ...theme.typography.h1,
-  color: theme.palette.text.primary,
-  fontWeight: 700,
-  lineHeight: 1.4,
-  letterSpacing: "-0.02em",
-}));
-
-const ReportFlow = styled("div")(({ theme }) => ({
-  display: "grid",
-  gap: theme.spacing(3),
-}));
-
-const ScoreBlock = styled("div")(({ theme }) => ({
-  minWidth: 0,
-  marginTop: theme.spacing(2.5),
-}));
-
-const SectionTitle = styled(Text)(({ theme }) => ({
-  margin: theme.spacing(0, 0, 1.5),
-  ...theme.typography.h2,
-  color: theme.palette.text.primary,
-  fontWeight: 700,
-  lineHeight: 1.5,
-}));
-
-const ScoreLine = styled("p")(({ theme }) => ({
-  display: "flex",
-  alignItems: "baseline",
-  gap: theme.spacing(1),
-  margin: 0,
-  fontVariantNumeric: "tabular-nums",
-}));
-
-const ScoreValue = styled(Text)(({ theme }) => ({
-  ...scoreTypography(theme),
   color: theme.palette.primary.dark,
 }));
 
-const ScoreScale = styled(Text)(({ theme }) => ({
-  ...theme.typography.body1,
-  color: theme.palette.text.secondary,
-  fontWeight: 600,
+const Headline = styled(Text)(({ theme }) => ({
+  margin: 0,
+  ...theme.typography.h1,
+  color: theme.palette.text.primary,
+  lineHeight: 1.35,
 }));
 
-const BodyText = styled(Text)(({ theme }) => ({
+const ScoreStack = styled("div")(({ theme }) => ({
+  display: "grid",
+  gap: theme.spacing(2),
   minWidth: 0,
+}));
+
+const ResultList = styled("div")(({ theme }) => ({
+  display: "grid",
+  gap: theme.spacing(1.5),
+  minWidth: 0,
+}));
+
+const Detail = styled("section", {
+  shouldForwardProp: (prop) => prop !== "$tone",
+})<{ $tone: Tone }>(({ theme, $tone }) => ({
+  minWidth: 0,
+  display: "grid",
+  gap: theme.spacing(1),
+  padding: theme.spacing(2),
+  border: "1px solid " + alpha(theme.palette.primary.main, 0.12),
+  borderRadius: scaledRadius(theme, 1),
+  backgroundColor:
+    $tone === "strength" ? alpha(theme.palette.primary.main, 0.055) :
+    $tone === "improvement" ? alpha(theme.palette.secondary.main, 0.095) :
+    alpha(theme.palette.primary.main, 0.025),
+  [theme.breakpoints.up("md")]: {
+    gridTemplateColumns: "minmax(0, 180px) minmax(0, 1fr)",
+    alignItems: "start",
+    gap: theme.spacing(2),
+  },
+}));
+
+const DetailTitle = styled("div")(({ theme }) => ({
+  display: "flex",
+  minWidth: 0,
+  alignItems: "center",
+  gap: theme.spacing(1.25),
+}));
+
+const DetailIcon = styled("span")(({ theme }) => ({
+  display: "inline-flex",
+  flexShrink: 0,
+  color: theme.palette.primary.dark,
+}));
+
+const DetailHeading = styled(Text)(({ theme }) => ({
   margin: 0,
-  ...theme.typography.body1,
+  ...theme.typography.h3,
+  fontWeight: 700,
   color: theme.palette.text.primary,
-  lineHeight: 1.8,
-  whiteSpace: "pre-wrap",
   overflowWrap: "anywhere",
 }));
 
-const QuestionSection = styled("section")(({ theme }) => ({
+const DetailContent = styled("div")({
   minWidth: 0,
-  padding: theme.spacing(2.5),
-  borderRadius: scaledRadius(theme, 1),
-  backgroundColor: theme.palette.background.default,
-}));
-
-const AnswerSection = styled("section")(({ theme }) => ({
-  minWidth: 0,
-  padding: theme.spacing(0, 0.5),
-}));
-
-const CoachingHistoryDetails = styled("details")(({ theme }) => ({
-  padding: theme.spacing(2),
-  border: `1px solid ${theme.palette.divider}`,
-  borderRadius: scaledRadius(theme, 1),
-  backgroundColor: theme.palette.background.paper,
-  "& > summary": {
-    ...theme.typography.body1,
-    fontWeight: 700,
-    cursor: "pointer",
-  },
-  "& > summary:focus-visible": {
-    outline: `3px solid ${theme.palette.primary.dark}`,
-    outlineOffset: 3,
-  },
-  "&[open] > summary": { marginBottom: theme.spacing(1.5) },
-  "& > section + section": { marginTop: theme.spacing(1.5) },
-}));
-
-const PointsGrid = styled("div")(({ theme }) => ({
-  display: "grid",
-  gridTemplateColumns: "minmax(0, 1fr)",
-  alignItems: "start",
-  gap: theme.spacing(2),
-  minWidth: 0,
-  [theme.breakpoints.up("md")]: {
-    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-  },
-}));
-
-const PointsSection = styled("section", {
-  shouldForwardProp: (prop) => prop !== "$tone",
-})<{ $tone: PointTone }>(({ theme, $tone }) => ({
-  minWidth: 0,
-  padding: theme.spacing(2.5),
-  border: `1px solid ${
-    $tone === "strength"
-      ? alpha(theme.palette.primary.main, 0.14)
-      : alpha(theme.palette.secondary.main, 0.24)
-  }`,
-  borderRadius: scaledRadius(theme, 1),
-  backgroundColor:
-    $tone === "strength"
-      ? alpha(theme.palette.primary.main, 0.05)
-      : alpha(theme.palette.secondary.main, 0.1),
-  "& h2": {
-    color:
-      $tone === "strength"
-        ? theme.palette.primary.dark
-        : theme.palette.text.primary,
-  },
-  "& li::marker": {
-    color:
-      $tone === "strength"
-        ? theme.palette.primary.main
-        : theme.palette.secondary.dark,
-  },
-}));
+});
 
 const PointsList = styled("ul")(({ theme }) => ({
-  display: "grid",
-  gap: theme.spacing(1.5),
   margin: 0,
   paddingLeft: theme.spacing(2.5),
-  color: theme.palette.text.primary,
-  ...theme.typography.body1,
-  lineHeight: 1.8,
-  "& li": {
-    paddingLeft: theme.spacing(0.5),
-    whiteSpace: "pre-wrap",
-    overflowWrap: "anywhere",
-  },
+  display: "grid",
+  gap: theme.spacing(1),
+  "& li": { minWidth: 0, overflowWrap: "anywhere" },
+  "& li::marker": { color: theme.palette.primary.main },
 }));
 
-const EmptyText = styled(BodyText)(({ theme }) => ({
+const Empty = styled(Text)(({ theme }) => ({
   color: theme.palette.text.secondary,
 }));
 
-const ExampleSection = styled("section")(({ theme }) => ({
-  minWidth: 0,
-  padding: theme.spacing(2.5),
-  border: `1px solid ${alpha(theme.palette.secondary.main, 0.18)}`,
+const CoachingHistory = styled("details")(({ theme }) => ({
+  border: "1px solid " + theme.palette.divider,
   borderRadius: scaledRadius(theme, 1),
-  backgroundColor: alpha(theme.palette.secondary.main, 0.06),
+  padding: theme.spacing(2),
+  minWidth: 0,
+  "& > summary": {
+    cursor: "pointer",
+    ...theme.typography.body1,
+    fontWeight: 700,
+    color: theme.palette.primary.dark,
+  },
+  "& > summary:focus-visible": {
+    outline: "3px solid " + theme.palette.primary.main,
+    outlineOffset: 3,
+  },
 }));
 
-const Points = ({
+const HistoryItems = styled("div")(({ theme }) => ({
+  display: "grid",
+  gap: theme.spacing(1.5),
+  marginTop: theme.spacing(2),
+}));
+
+const JumpLink = styled("a")(({ theme }) => ({
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  alignSelf: "start",
+  borderRadius: scaledRadius(theme, 2),
+  border: "1px solid " + theme.palette.primary.main,
+  color: theme.palette.primary.dark,
+  ...theme.typography.button,
+  padding: theme.spacing(1.25, 2.5),
+  textDecoration: "none",
+  "&:hover": { background: alpha(theme.palette.primary.main, 0.08) },
+  "&:focus-visible": { outline: "3px solid " + theme.palette.primary.main, outlineOffset: 2 },
+}));
+
+function DetailRow({
+  title,
+  text,
+  icon,
+  tone = "standard",
+  lines = 3,
+  onOpen,
+}: {
+  title: string;
+  text: string;
+  icon: ReactNode;
+  tone?: Tone;
+  lines?: 2 | 3;
+  onOpen: OpenFullText;
+}) {
+  return (
+    <Detail $tone={tone}>
+      <DetailTitle>
+        <DetailIcon aria-hidden="true">{icon}</DetailIcon>
+        <DetailHeading component="h2" variant="h3">{title}</DetailHeading>
+      </DetailTitle>
+      <DetailContent>
+        <FullTextPreview title={title} text={text} icon={icon} lines={lines} onOpen={onOpen} />
+      </DetailContent>
+    </Detail>
+  );
+}
+
+function PointRow({
   title,
   values,
   tone,
+  icon,
+  onOpen,
 }: {
   title: string;
   values: string[];
-  tone: PointTone;
-}) => (
-  <PointsSection $tone={tone}>
-    <SectionTitle variant="h2" component="h2">
-      {title}
-    </SectionTitle>
-    {values.length ? (
-      <PointsList>
-        {values.map((value, index) => (
-          <li key={index}><FullTextPreview title={title} text={value} /></li>
-        ))}
-      </PointsList>
-    ) : (
-      <EmptyText>該当する項目はありません</EmptyText>
-    )}
-  </PointsSection>
-);
-
-/** 評価結果をレポート形式で表示する */
-const LegacyFeedbackCard = ({ feedback }: { feedback: LegacyFeedback }) => (
-  <FeedbackPanel>
-    <Introduction
-      variant="success"
-      emphasis="featured"
-      heading={
-        <>
-          <Eyebrow variant="overline" component="p">
-            FEEDBACK
-          </Eyebrow>
-          <Title variant="h1" component="h1" aria-label="今回のフィードバック">
-            今回の<TitlePhrase>フィードバック</TitlePhrase>
-          </Title>
-          <ScoreBlock>
-            <SectionTitle variant="h2" component="h2">
-              総合評価
-            </SectionTitle>
-            <ScoreLine>
-              <ScoreValue variant="h1" component="span">
-                {feedback.score}
-              </ScoreValue>
-              <ScoreScale variant="body1" component="span">
-                / 100
-              </ScoreScale>
-            </ScoreLine>
-          </ScoreBlock>
-        </>
-      }
-    >
-      <FullTextPreview title="総評" text={feedback.summary} />
-    </Introduction>
-    <ReportFlow>
-      <QuestionSection>
-        <SectionTitle variant="h2" component="h2">
-          質問
-        </SectionTitle>
-        <FullTextPreview title="質問" text={feedback.question.question} lines={2} />
-      </QuestionSection>
-      <AnswerSection>
-        <SectionTitle variant="h2" component="h2">
-          あなたの回答
-        </SectionTitle>
-        <FullTextPreview title="あなたの回答" text={feedback.answer} />
-      </AnswerSection>
-      <PointsGrid>
-        <Points
-          title="良かった点"
-          values={feedback.strengths}
-          tone="strength"
-        />
-        <Points
-          title="改善ポイント"
-          values={feedback.improvements}
-          tone="improvement"
-        />
-      </PointsGrid>
-      {feedback.exampleAnswer && (
-        <ExampleSection>
-          <SectionTitle variant="h2" component="h2">
-            回答例
-          </SectionTitle>
-          <FullTextPreview title="回答例" text={feedback.exampleAnswer} />
-        </ExampleSection>
-      )}
-    </ReportFlow>
-  </FeedbackPanel>
-);
-
-const CoachingFeedbackCard = ({ feedback: f }: { feedback: FeedbackV2 }) => (
-  <FeedbackPanel>
-    <Introduction
-      variant="success"
-      emphasis="featured"
-      heading={
-        <>
-          <Eyebrow variant="overline" component="p">
-            FEEDBACK
-          </Eyebrow>
-          <Title variant="h1" component="h1">
-            今回のフィードバック
-          </Title>
-          <ScoreBlock>
-            <SectionTitle variant="h2" component="h2">
-              総合評価
-            </SectionTitle>
-            <ScoreLine>
-              <ScoreValue component="span">{f.totalScore}</ScoreValue>
-              <ScoreScale component="span">/ 30 · {f.rank}</ScoreScale>
-            </ScoreLine>
-          </ScoreBlock>
-        </>
-      }
-    >
-      <Text>
-        {f.result.status === "coaching"
-          ? "追加の情報を確認して、回答を育てましょう。"
-          : "現時点の本人情報で回答をまとめました。"}
-      </Text>
-    </Introduction>
-    <ReportFlow>
-      <BodyText>
-        結論 {f.result.conclusion_score} / 10 · 具体性{" "}
-        {f.result.specificity_score} / 10 · 根拠 {f.result.reasoning_score} / 10
-      </BodyText>
-      <BodyText>
-        初回回答 {f.answerLength}文字 · 合計 {f.baseScore}点 · 文字数減点{" "}
-        {f.lengthPenalty}点
-      </BodyText>
-      <QuestionSection>
-        <SectionTitle component="h2">質問</SectionTitle>
-        <FullTextPreview title="質問" text={f.question.question} lines={2} />
-      </QuestionSection>
-      <AnswerSection>
-        <SectionTitle component="h2">初回の回答</SectionTitle>
-        <FullTextPreview title="初回の回答" text={f.answer} />
-      </AnswerSection>
-      {f.coachingHistory.length > 0 && (
-        <CoachingHistoryDetails>
-          <summary>深掘りの履歴（{f.coachingCount}回）</summary>
-          {f.coachingHistory.map((h, i) => (
-            <QuestionSection key={i}>
-              <FullTextPreview title={"深掘り質問 " + (i + 1)} text={h.question} lines={2} />
-              <FullTextPreview title={"深掘り回答 " + (i + 1)} text={h.answer} />
-            </QuestionSection>
-          ))}
-        </CoachingHistoryDetails>
-      )}
-      <PointsGrid>
-        <Points
-          title="良かった点"
-          values={[f.result.good_point]}
-          tone="strength"
-        />
-        <Points
-          title="改善ポイント"
-          values={[f.result.improvement]}
-          tone="improvement"
-        />
-      </PointsGrid>
-      {f.result.example !== null && (
-        <ExampleSection>
-          <SectionTitle component="h2">改善回答</SectionTitle>
-          <FullTextPreview title="改善回答" text={f.result.example} />
-        </ExampleSection>
-      )}
-    </ReportFlow>
-  </FeedbackPanel>
-);
-export const FeedbackCard = ({ feedback }: { feedback: Feedback }) =>
-  isFeedbackV2(feedback) ? (
-    <CoachingFeedbackCard feedback={feedback} />
-  ) : (
-    <LegacyFeedbackCard feedback={feedback} />
+  tone: Tone;
+  icon: ReactNode;
+  onOpen: OpenFullText;
+}) {
+  return (
+    <Detail $tone={tone}>
+      <DetailTitle>
+        <DetailIcon aria-hidden="true">{icon}</DetailIcon>
+        <DetailHeading component="h2" variant="h3">{title}</DetailHeading>
+      </DetailTitle>
+      <DetailContent>
+        {values.length ? (
+          <PointsList>
+            {values.map((value, index) => (
+              <li key={index}>
+                <FullTextPreview title={title + " " + (index + 1)} text={value} icon={icon} onOpen={onOpen} />
+              </li>
+            ))}
+          </PointsList>
+        ) : (
+          <Empty>該当する項目はありません</Empty>
+        )}
+      </DetailContent>
+    </Detail>
   );
+}
+
+function ReportHeading() {
+  return (
+    <Introduction
+      variant="success"
+      emphasis="featured"
+      heading={
+        <>
+          <Eyebrow variant="overline" component="p">FEEDBACK</Eyebrow>
+          <Headline variant="h1" component="h1">今回のフィードバック</Headline>
+        </>
+      }
+    >
+      <Text>回答の評価と、改善に向けたアドバイスです。</Text>
+    </Introduction>
+  );
+}
+
+function LegacyContent({ feedback: f, onOpen }: { feedback: LegacyFeedback; onOpen: OpenFullText }) {
+  return (
+    <>
+      <ScoreStack>
+        <FeedbackScoreSummary score={f.score} maximum={100} description="今回の回答を振り返り、次の練習につなげましょう。" />
+      </ScoreStack>
+      <ResultList>
+        <DetailRow title="質問" text={f.question.question} icon={<HelpOutlineIcon />} lines={2} onOpen={onOpen} />
+        <DetailRow title="あなたの回答" text={f.answer} icon={<DescriptionOutlinedIcon />} onOpen={onOpen} />
+        <DetailRow title="総評" text={f.summary} icon={<AutoAwesomeOutlinedIcon />} onOpen={onOpen} />
+        <PointRow title="良かった点" values={f.strengths} tone="strength" icon={<ThumbUpOutlinedIcon />} onOpen={onOpen} />
+        <PointRow title="改善ポイント" values={f.improvements} tone="improvement" icon={<LightbulbOutlinedIcon />} onOpen={onOpen} />
+        {f.exampleAnswer && <DetailRow title="回答例" text={f.exampleAnswer} icon={<AutoAwesomeOutlinedIcon />} onOpen={onOpen} />}
+      </ResultList>
+    </>
+  );
+}
+
+function CoachingContent({ feedback: f, onOpen }: { feedback: FeedbackV2; onOpen: OpenFullText }) {
+  return (
+    <>
+      <ScoreStack>
+        <FeedbackScoreSummary
+          score={f.totalScore}
+          maximum={30}
+          rank={f.rank}
+          description={f.result.status === "coaching"
+            ? "追加の情報を確認して、回答を育てましょう。"
+            : "現時点の本人情報で回答をまとめました。"}
+          breakdown={{
+            conclusion: f.result.conclusion_score,
+            specificity: f.result.specificity_score,
+            reasoning: f.result.reasoning_score,
+          }}
+          answerLength={f.answerLength}
+          baseScore={f.baseScore}
+          lengthPenalty={f.lengthPenalty}
+        />
+      </ScoreStack>
+      {f.result.status === "coaching" && f.coachingCount < 3 && (
+        <JumpLink href="#coaching-response">深掘り質問に回答する</JumpLink>
+      )}
+      <ResultList>
+        <DetailRow title="質問" text={f.question.question} icon={<HelpOutlineIcon />} lines={2} onOpen={onOpen} />
+        <DetailRow title="初回の回答" text={f.answer} icon={<DescriptionOutlinedIcon />} onOpen={onOpen} />
+        <PointRow title="良かった点" values={[f.result.good_point]} tone="strength" icon={<ThumbUpOutlinedIcon />} onOpen={onOpen} />
+        <PointRow title="改善ポイント" values={[f.result.improvement]} tone="improvement" icon={<LightbulbOutlinedIcon />} onOpen={onOpen} />
+        {f.result.example !== null && (
+          <DetailRow title="改善回答" text={f.result.example} icon={<AutoAwesomeOutlinedIcon />} onOpen={onOpen} />
+        )}
+      </ResultList>
+      {f.coachingHistory.length > 0 && (
+        <CoachingHistory>
+          <summary>深掘りの履歴（{f.coachingCount}回）</summary>
+          <HistoryItems>
+            {f.coachingHistory.map((history, index) => (
+              <div key={index}>
+                <DetailRow title={"深掘り質問 " + (index + 1)} text={history.question} icon={<HistoryOutlinedIcon />} lines={2} onOpen={onOpen} />
+                <DetailRow title={"深掘り回答 " + (index + 1)} text={history.answer} icon={<DescriptionOutlinedIcon />} onOpen={onOpen} />
+              </div>
+            ))}
+          </HistoryItems>
+        </CoachingHistory>
+      )}
+    </>
+  );
+}
+
+/** 画面内の全文表示を1個のDialogへ集約し、同時表示と重複マウントを防ぐ。 */
+export function FeedbackCard({ feedback }: { feedback: Feedback }) {
+  const [target, setTarget] = useState<FullTextTarget | null>(null);
+  const openFullText: OpenFullText = (title, text, icon) => setTarget({ title, text, icon });
+  return (
+    <>
+      <Report>
+        <ReportHeading />
+        {isFeedbackV2(feedback)
+          ? <CoachingContent feedback={feedback} onOpen={openFullText} />
+          : <LegacyContent feedback={feedback} onOpen={openFullText} />}
+      </Report>
+      <FullTextDialog
+        open={target !== null}
+        onClose={() => setTarget(null)}
+        title={target?.title ?? ""}
+        text={target?.text ?? ""}
+        icon={target?.icon}
+      />
+    </>
+  );
+}

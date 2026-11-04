@@ -14,6 +14,8 @@ export type FullTextPreviewProps = {
   text: string;
   lines?: 2 | 3;
   icon?: ReactNode;
+  /** 親が共通Dialogを管理する場合はこのcallbackだけを呼ぶ。 */
+  onOpen?: (title: string, text: string, icon?: ReactNode) => void;
 };
 
 const PreviewLayout = styled("div")(({ theme }) => ({
@@ -62,6 +64,7 @@ export function FullTextPreview({
   text,
   lines = 3,
   icon,
+  onOpen,
 }: FullTextPreviewProps) {
   const [open, setOpen] = useState(false);
   const [truncated, setTruncated] = useState(false);
@@ -100,20 +103,20 @@ export function FullTextPreview({
             variant="outlined"
             color="primary"
             size="small"
-            onClick={() => setOpen(true)}
+            onClick={() => onOpen ? onOpen(title, text, icon) : setOpen(true)}
             aria-label={title + "の全文を見る"}
           >
             全文を見る
           </MoreButton>
         )}
       </PreviewLayout>
-      <FullTextDialog
+      {!onOpen && <FullTextDialog
         open={open}
         onClose={() => setOpen(false)}
         title={title}
         text={text}
         icon={icon}
-      />
+      />}
     </>
   );
 }

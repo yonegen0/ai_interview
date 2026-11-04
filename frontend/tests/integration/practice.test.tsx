@@ -102,7 +102,7 @@ it.each(["あ".repeat(400), "😀".repeat(400)])(
     const view = await mount();
     const input = screen.getByLabelText("あなたの回答");
     fireEvent.change(input, { target: { value: validAnswer } });
-    await screen.findByText("400 / 400文字 · 150〜220文字がおすすめです");
+    await screen.findByText("400 / 400文字");
     fireEvent.change(input, { target: { value: validAnswer + "あ" } });
     await screen.findByText("400文字以内で入力してください。");
     expect(input).toHaveValue(validAnswer + "あ");
@@ -204,5 +204,48 @@ it("does not restore or automatically send an obsolete overlong pending request"
     screen.queryByRole("button", { name: "送信結果を再確認" }),
   ).not.toBeInTheDocument();
   expect(answerRequests).toBe(0);
+  view.unmount();
+});
+
+
+it("shows the previous-answer copy only for a retry and preserves edited text on cancel", async () => {
+  const created = await createSession("career", crypto.randomUUID());
+  const session = await getQuestion(created.sessionId);
+  const previous = "前回正式送信した回答です。";
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  const view = render(
+    <ThemeProvider theme={theme}>
+      <QueryClientProvider client={client}>
+        <PracticeSessionContent
+          session={session}
+          retryFrom={crypto.randomUUID()}
+          previousAnswer={previous}
+        />
+      </QueryClientProvider>
+    </ThemeProvider>,
+  );
+  const input = screen.getByLabelText("あなたの回答");
+  expect(input).toHaveValue(previous);
+  const copy = screen.getByRole("button", { name: "前回の回答をコピー" });
+  await userEvent.click(copy);
+  expect(screen.queryByText("入力中の回答を上書きしますか？")).not.toBeInTheDocument();
+  fireEvent.change(input, { target: { value: "編集中の別の回答" } });
+  await userEvent.click(copy);
+  expect(screen.getByText("入力中の回答を上書きしますか？")).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "キャンセル" }));
+  expect(input).toHaveValue("編集中の別の回答");
+  await userEvent.click(copy);
+  await userEvent.click(screen.getByRole("button", { name: "前回の回答に置き換える" }));
+  expect(input).toHaveValue(previous);
+  await screen.findByText(`${Array.from(previous).length} / 400文字`);
+  expect(answerRequests).toBe(0);
+  view.unmount();
+});
+
+it("does not show a previous-answer copy for an initial answer", async () => {
+  const view = await mount();
+  expect(screen.queryByRole("button", { name: "前回の回答をコピー" })).not.toBeInTheDocument();
   view.unmount();
 });

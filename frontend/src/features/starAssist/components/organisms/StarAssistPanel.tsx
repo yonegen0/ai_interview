@@ -1,9 +1,11 @@
-/** @file StarAssistPanel.tsx @description 保存状態とSTARダイアログの起動・確認操作。 */
+/** @file StarAssistPanel.tsx @description STAR起動カードと保存・競合復旧操作をまとめる。 */
 "use client";
 
 import { useState } from "react";
+import AutoAwesomeOutlinedIcon from "@mui/icons-material/AutoAwesomeOutlined";
+import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import { Alert } from "@mui/material";
-import { styled } from "@mui/material/styles";
+import { alpha, styled } from "@mui/material/styles";
 import { Button } from "@/components/atoms/Button";
 import { Text } from "@/components/atoms/Text";
 import { Actions } from "@/components/atoms/Actions";
@@ -12,10 +14,52 @@ import type { StarWorkspace } from "../../hooks/useStarWorkspace";
 import { StarAssistDialog } from "./StarAssistDialog";
 
 const Area = styled("section")(({ theme }) => ({
-  marginBlock: theme.spacing(2),
-  padding: theme.spacing(2),
-  border: "1px solid " + theme.palette.divider,
+  display: "grid",
+  gap: theme.spacing(1.5),
+}));
+const Trigger = styled(Button)(({ theme }) => ({
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: theme.spacing(1.5),
+  width: "100%",
+  padding: theme.spacing(2, 2.5),
+  minHeight: theme.spacing(10),
+  textAlign: "left",
   borderRadius: theme.shape.borderRadius,
+  border: "1px solid " + alpha(theme.palette.primary.main, 0.1),
+  backgroundColor: alpha(theme.palette.primary.light, 0.11),
+  color: theme.palette.text.primary,
+  "&:hover": { backgroundColor: alpha(theme.palette.primary.light, 0.2) },
+  "&:focus-visible": {
+    outline: "3px solid " + theme.palette.primary.main,
+    outlineOffset: 2,
+  },
+}));
+const Icon = styled(AutoAwesomeOutlinedIcon)(({ theme }) => ({
+  flexShrink: 0,
+  color: theme.palette.primary.main,
+  fontSize: theme.spacing(4.5),
+}));
+const TriggerCopy = styled("span")(({ theme }) => ({
+  display: "grid",
+  flex: 1,
+  minWidth: 0,
+  gap: theme.spacing(0.25),
+}));
+const TriggerTitle = styled("span")(({ theme }) => ({
+  ...theme.typography.h3,
+  color: theme.palette.text.primary,
+  fontWeight: 700,
+}));
+const TriggerCaption = styled("span")(({ theme }) => ({
+  ...theme.typography.body2,
+  color: theme.palette.text.secondary,
+  whiteSpace: "normal",
+}));
+const Status = styled("div")(({ theme }) => ({
+  color: theme.palette.text.secondary,
+  paddingInline: theme.spacing(0.5),
 }));
 
 export function StarAssistPanel({
@@ -40,40 +84,49 @@ export function StarAssistPanel({
 
   return (
     <Area aria-label="回答の保存とSTARアシスト">
-      <Text role="status" aria-live="polite">
-        下書き：{w.status}{w.loading ? "（保存版を確認中）" : ""}
-      </Text>
+      <Trigger type="button" onClick={() => setOpen(true)}
+        aria-haspopup="dialog" aria-expanded={open}>
+        <Icon aria-hidden="true" />
+        <TriggerCopy>
+          <TriggerTitle>STARアシスト</TriggerTitle>
+          <TriggerCaption>経験を整理して、伝わる回答をサポート</TriggerCaption>
+        </TriggerCopy>
+        <ChevronRightIcon color="primary" aria-hidden="true" />
+      </Trigger>
+      <Status role="status" aria-live="polite">
+        <Text component="span" variant="caption">
+          STAR下書き：{w.status}{w.loading ? "（保存版を確認中）" : ""}
+        </Text>
+      </Status>
       {w.error && <Alert severity="error">{w.error}</Alert>}
       {w.migrationWarning && <Alert severity="warning">{w.migrationWarning}</Alert>}
-      <Actions>
-        {w.pending && (
-          <Button type="button" onClick={() => void w.recover()} disabled={w.busy}>
-            保存結果を再確認
-          </Button>
-        )}
-        {w.status === "競合" && (
-          <>
-            <Button type="button" onClick={() => void w.inspectSaved()}>
-              保存版を確認
+      {(w.pending || w.status === "競合" || w.savedPreview !== null || (w.error && !w.pending)) && (
+        <Actions>
+          {w.pending && (
+            <Button type="button" onClick={() => void w.recover()} disabled={w.busy}>
+              保存結果を再確認
             </Button>
-            <Button type="button" onClick={() => setConfirm("load")}>
-              保存版を読み込む
-            </Button>
-            <Button type="button" onClick={() => setConfirm("mine")}
-              disabled={w.pending || w.busy}>
-              自分の内容を保存
-            </Button>
-          </>
-        )}
-        {w.savedPreview !== null && <Text>現在の保存版：{w.savedPreview}</Text>}
-        {w.error && !w.pending && (
-          <Button type="button" onClick={w.refresh}>補助保存を再読込み</Button>
-        )}
-        <Button type="button" variant="outlined" onClick={() => setOpen(true)}
-          aria-haspopup="dialog" aria-expanded={open}>
-          STARアシストを開く
-        </Button>
-      </Actions>
+          )}
+          {w.status === "競合" && (
+            <>
+              <Button type="button" onClick={() => void w.inspectSaved()}>
+                保存版を確認
+              </Button>
+              <Button type="button" onClick={() => setConfirm("load")}>
+                保存版を読み込む
+              </Button>
+              <Button type="button" onClick={() => setConfirm("mine")}
+                disabled={w.pending || w.busy}>
+                自分の内容を保存
+              </Button>
+            </>
+          )}
+          {w.savedPreview !== null && <Text>現在の保存版：{w.savedPreview}</Text>}
+          {w.error && !w.pending && (
+            <Button type="button" onClick={w.refresh}>補助保存を再読込み</Button>
+          )}
+        </Actions>
+      )}
       <StarAssistDialog
         open={open}
         onClose={() => setOpen(false)}
