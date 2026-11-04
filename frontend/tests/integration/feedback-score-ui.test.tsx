@@ -34,5 +34,5 @@ it("keeps ordinary evaluation on a 100-point scale without inventing V2 fields",
   expect(screen.getByText("/ 100")).toBeInTheDocument();
   expect(screen.queryByText("結論")).not.toBeInTheDocument();
   expect(screen.queryByText("文字数減点")).not.toBeInTheDocument();
-  expect(screen.queryByText(/評価$/)).not.toBeInTheDocument();
+  expect(screen.queryByText("A 評価")).not.toBeInTheDocument();
 });

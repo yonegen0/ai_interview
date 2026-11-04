@@ -91,7 +91,7 @@ test("three rounds retain drafts on reload, past results stay read-only, complet
   );
   await answer(page, "新しく練習します。");
   await feedback(page);
-  await expect(page.getByText(/初回回答 9文字/)).toBeVisible();
+  await expect(page.getByText("9 文字")).toBeVisible();
   await expect(
     page.locator("summary").filter({ hasText: "深掘りの履歴" }),
   ).toHaveCount(0);

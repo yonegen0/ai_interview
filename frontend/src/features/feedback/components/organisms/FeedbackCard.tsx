@@ -268,7 +268,7 @@ function LegacyContent({ feedback: f, onOpen }: { feedback: LegacyFeedback; onOp
   );
 }
 
-function CoachingContent({ feedback: f, onOpen }: { feedback: FeedbackV2; onOpen: OpenFullText }) {
+function CoachingContent({ feedback: f, onOpen, canJump }: { feedback: FeedbackV2; onOpen: OpenFullText; canJump: boolean }) {
   return (
     <>
       <ScoreStack>
@@ -289,7 +289,7 @@ function CoachingContent({ feedback: f, onOpen }: { feedback: FeedbackV2; onOpen
           lengthPenalty={f.lengthPenalty}
         />
       </ScoreStack>
-      {f.result.status === "coaching" && f.coachingCount < 3 && (
+      {canJump && f.result.status === "coaching" && f.coachingCount < 3 && (
         <JumpLink href="#coaching-response">深掘り質問に回答する</JumpLink>
       )}
       <ResultList>
@@ -319,7 +319,7 @@ function CoachingContent({ feedback: f, onOpen }: { feedback: FeedbackV2; onOpen
 }
 
 /** 画面内の全文表示を1個のDialogへ集約し、同時表示と重複マウントを防ぐ。 */
-export function FeedbackCard({ feedback }: { feedback: Feedback }) {
+export function FeedbackCard({ feedback, canJumpToCoaching = false }: { feedback: Feedback; canJumpToCoaching?: boolean }) {
   const [target, setTarget] = useState<FullTextTarget | null>(null);
   const openFullText: OpenFullText = (title, text, icon) => setTarget({ title, text, icon });
   return (
@@ -327,7 +327,7 @@ export function FeedbackCard({ feedback }: { feedback: Feedback }) {
       <Report>
         <ReportHeading />
         {isFeedbackV2(feedback)
-          ? <CoachingContent feedback={feedback} onOpen={openFullText} />
+          ? <CoachingContent feedback={feedback} onOpen={openFullText} canJump={canJumpToCoaching} />
           : <LegacyContent feedback={feedback} onOpen={openFullText} />}
       </Report>
       <FullTextDialog

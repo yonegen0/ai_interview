@@ -4,7 +4,6 @@
  */
 "use client";
 
-import type { ReactNode } from "react";
 import CircularProgress from "@mui/material/CircularProgress";
 import LinearProgress from "@mui/material/LinearProgress";
 import { alpha, styled } from "@mui/material/styles";
