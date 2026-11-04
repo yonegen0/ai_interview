@@ -100,6 +100,7 @@ export const useAnswerOperation = (
   ]);
   const locked = useRef(false);
   const [error, setError] = useState<Error | null>(null);
+  const [draftStatus, setDraftStatus] = useState<"saving" | "saved" | "unavailable">("saving");
   const form = useForm<{ answer: string }>({
     resolver: zodResolver(formSchema),
     mode: "onChange",
@@ -168,8 +169,8 @@ export const useAnswerOperation = (
       isActive() &&
       phase === "answering" &&
       (!(saved?.version === 3 && saved.serverDraftId) || !workspace.loading)
-    )
-      save(storageKey, {
+    ) {
+      const stored = save(storageKey, {
         version: 3,
         questionId: session.question.id,
         context,
@@ -181,6 +182,8 @@ export const useAnswerOperation = (
             }
           : {}),
       });
+      setDraftStatus(stored ? "saved" : "unavailable");
+    }
   }, [
     answer,
     phase,
@@ -332,16 +335,17 @@ export const useAnswerOperation = (
     form,
     workspace,
     previousAnswer,
+    draftStatus,
     clearInput: () => {
       workspace.clearApplication();
-      form.setValue("answer", "", { shouldDirty: true });
+      form.setValue("answer", "", { shouldDirty: true, shouldValidate: true });
     },
     restorePrevious: () => {
       workspace.clearApplication();
       form.setValue(
         "answer",
         previousAnswer ?? session.activeCoaching?.initialAnswer ?? "",
-        { shouldDirty: true },
+        { shouldDirty: true, shouldValidate: true },
       );
     },
     answer,

@@ -6,22 +6,19 @@ import type { Phase } from "./machine";
 /** Explain the existing exit behavior without changing storage or navigation. */
 export function exitNotice(phase: Phase): string {
   switch (phase) {
-    case "answering":
-      return "入力中の下書きは破棄されます。";
-    case "submitting":
-      return "送信結果はまだ確定していません。送信内容を保持して終了します。送信処理は取り消されません。";
-    case "recovery_required":
-      return "送信結果を確認できていません。送信内容を保持して終了し、元の練習で結果を再確認できます。";
+    case "answering": return "入力中の下書きは破棄されます。";
+    case "submitting": return "送信結果はまだ確定していません。送信内容を保持して終了します。送信処理は取り消されません。";
+    case "recovery_required": return "送信結果を確認できていません。送信内容を保持して終了し、元の練習で結果を再確認できます。";
     case "processing":
-    case "completed":
-      return "送信済みの評価は中止されません。";
-    case "failed":
-      return "練習画面を離れます。";
+    case "completed": return "送信済みの評価は中止されません。";
+    case "failed": return "練習画面を離れます。";
   }
 }
 export type AnswerSubmissionProps = {
   workspace?: import("@/features/starAssist/hooks/useStarWorkspace").StarWorkspace;
   previousAnswer?: string;
+  currentAnswer?: string;
+  draftStatus?: "saving" | "saved" | "unavailable";
   onClear?: () => void;
   onRestorePrevious?: () => void;
   field: UseFormRegisterReturn;
