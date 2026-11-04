@@ -239,7 +239,7 @@ it("shows the previous-answer copy only for a retry and preserves edited text on
   await userEvent.click(copy);
   await userEvent.click(screen.getByRole("button", { name: "前回の回答に置き換える" }));
   expect(input).toHaveValue(previous);
-  await screen.findByText("15 / 400文字");
+  await screen.findByText(`${Array.from(previous).length} / 400文字`);
   expect(answerRequests).toBe(0);
   view.unmount();
 });
