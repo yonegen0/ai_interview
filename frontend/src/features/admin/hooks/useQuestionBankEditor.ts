@@ -29,6 +29,7 @@ export function useQuestionBankEditor(baseline: BankSave["questions"] = []) {
         category: "self_introduction",
         difficulty: "standard",
         question: "",
+        assistType: "none",
       }),
     removeQuestion: remove,
     moveQuestion: (index: number, direction: -1 | 1) => {

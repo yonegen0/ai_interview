@@ -14,6 +14,14 @@ import {
   categories,
   type BankSave,
 } from "@/lib/api/schemas";
+const assistOptions = [
+  { value: "star", label: "STAR" },
+  { value: "prep", label: "PREP" },
+  { value: "motivation", label: "志望動機" },
+  { value: "career_change", label: "転職理由" },
+  { value: "career_plan", label: "キャリアプラン" },
+  { value: "none", label: "アシストなし" },
+];
 const options = activeCategoryIds.map((value) => ({
   value,
   label: categories[value],
@@ -93,6 +101,24 @@ export function QuestionEditorCard({
               disabled={disabled}
               fullWidth
               error={error?.category?.message}
+            />
+          )}
+        />
+        <Controller
+          control={control}
+          name={`questions.${index}.assistType`}
+          render={({ field: { ref, ...field } }) => (
+            <Select
+              {...field}
+              inputRef={ref}
+              value={field.value ?? "star"}
+              id={`assist-${fieldKey}`}
+              label="回答アシスト"
+              options={assistOptions}
+              disabled={disabled}
+              fullWidth
+              error={error?.assistType?.message}
+              onChange={(value) => field.onChange(value)}
             />
           )}
         />
