@@ -49,7 +49,7 @@ it("closes by the header close button and by the footer button", async () => {
 
 it("shows the full-text action only when the preview is actually clipped", async () => {
   const user = userEvent.setup();
-  render(<FullTextPreview title="改善ポイント" text="長い本文です。\n続く本文です。" lines={2} />);
+  render(<FullTextPreview title="改善ポイント" text={"長い本文です。\n続く本文です。"} lines={2} />);
   const paragraph = screen.getByText((_, element) => element?.tagName === "P" && element.textContent === "長い本文です。\n続く本文です。");
   expect(screen.queryByRole("button", { name: "改善ポイントの全文を見る" })).not.toBeInTheDocument();
   Object.defineProperty(paragraph, "scrollHeight", { configurable: true, value: 90 });
