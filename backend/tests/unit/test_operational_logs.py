@@ -448,3 +448,36 @@ def test_private_support_cli_decodes_existing_wire_item(
         output.unlink(missing_ok=True)
         raw.unlink(missing_ok=True)
         identity.unlink(missing_ok=True)
+
+
+
+def test_star_terminal_logs_only_explicit_diagnostics_and_no_body():
+    entries = []
+    with invocation("worker"):
+        log_event(
+            "assist_generation_terminal",
+            sink=entries.append,
+            generationId=uid(1234),
+            assistType="star",
+            terminalStatus="FAILED_AFTER_START",
+            failureKind="INCOMPLETE",
+            stopReason="max_tokens",
+            maxTokens=4096,
+            elapsedMs=1200,
+            question="private-question",
+            answer="private-answer",
+            prompt="private-prompt",
+            ownerSub="private-owner",
+            jwt="private-jwt",
+            exception=RuntimeError("private-exception"),
+        )
+    assert len(entries) == 1
+    value = json.loads(entries[0])
+    assert value["generationId"] == uid(1234)
+    assert value["assistType"] == "star"
+    assert value["terminalStatus"] == "FAILED_AFTER_START"
+    assert value["failureKind"] == "INCOMPLETE"
+    assert value["stopReason"] == "max_tokens"
+    assert value["maxTokens"] == 4096
+    assert value["elapsedMs"] == 1200
+    assert "private" not in entries[0]

@@ -22,7 +22,8 @@ EVENTS = {
     "invalid_configuration",
     "internal_batch_failure",
     "provider_usage",
-}
+    "assist_generation_terminal",
+
 
 
 @contextmanager
@@ -73,6 +74,28 @@ def log_event(event, *, sink=None, **fields):
             }
         elif key == "failureReason":
             valid = isinstance(value, str) and value in REASONS
+        elif key == "assistType":
+            valid = isinstance(value, str) and value in {
+                "star", "prep", "motivation", "career_change", "career_plan",
+            }
+        elif key == "terminalStatus":
+            valid = isinstance(value, str) and value in {
+                "SUCCEEDED", "NEEDS_INFORMATION", "FAILED_AFTER_START", "OUTCOME_UNKNOWN",
+            }
+        elif key == "failureKind":
+            valid = isinstance(value, str) and value in {
+                "AUTHENTICATION", "BILLING", "RATE_LIMIT", "SERVER_ERROR",
+                "HTTP_ERROR", "REFUSAL", "INCOMPLETE", "OUTPUT_MISSING", "INVALID_JSON",
+                "INVALID_SCHEMA", "TIMEOUT", "NETWORK", "OUTCOME_UNKNOWN",
+                "CONFIGURATION", "USAGE_LIMIT", "UNEXPECTED",
+            }
+        elif key == "stopReason":
+            valid = isinstance(value, str) and value in {
+                "end_turn", "max_tokens", "model_context_window_exceeded", "refusal",
+                "tool_use", "content_filtered", "guardrail_intervened",
+            }
+        elif key == "maxTokens":
+            valid = type(value) is int and 0 <= value <= 8192
         elif key == "provider":
             valid = isinstance(value, str) and value in {
                 "fake",

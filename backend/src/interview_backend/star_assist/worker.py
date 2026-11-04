@@ -5,7 +5,7 @@ from uuid import uuid4
 
 from interview_backend.evaluation.openai_provider import Deadline, ProviderFailure
 from interview_backend.models.internal import StorageError
-from interview_backend.operational_logs import log_provider_usage
+from interview_backend.operational_logs import log_event, log_provider_usage
 from interview_backend.star_assist.live_provider import PROVIDER_IDS
 from interview_backend.star_assist.models import StarResult
 from interview_backend.star_assist.provider import FakeStarProvider, validate_fake_facts
@@ -62,6 +62,7 @@ class StarWorker:
         if not started:
             return False
         began = self.monotonic()
+        failure_kind = None
         try:
             if self.provider.provider_id == "fake":
                 raw = self.provider.generate(lease.question, lease.input)
@@ -82,15 +83,18 @@ class StarWorker:
                 raise TimeoutError
             status = "SUCCEEDED" if result.status == "ready" else "NEEDS_INFORMATION"
         except TimeoutError:
+            failure_kind = "TIMEOUT"
             result, status = None, "OUTCOME_UNKNOWN"
         except ProviderFailure as exc:
             result = None
+            failure_kind = exc.kind
             status = (
                 "OUTCOME_UNKNOWN"
                 if exc.uncertain or exc.kind == "TIMEOUT"
                 else "FAILED_AFTER_START"
             )
         except Exception:
+            failure_kind = "UNEXPECTED"
             result, status = None, "FAILED_AFTER_START"
         if self.provider.provider_id.startswith("star:"):
             log_provider_usage(
@@ -105,8 +109,21 @@ class StarWorker:
         for _ in range(2):
             try:
                 finished = self.repository.star_finish(lease, status, result)
-                if finished and status == "OUTCOME_UNKNOWN":
-                    self.metric("OutcomeUnknown")
+                if finished:
+                    log_event(
+                        "assist_generation_terminal",
+                        generationId=identifier,
+                        assistType=lease.input.assistType,
+                        terminalStatus=status,
+                        failureKind=failure_kind,
+                        stopReason=getattr(
+                            getattr(self.provider, "transport", None), "last_stop_reason", None
+                        ),
+                        maxTokens=4096 if lease.input.assistType == "star" else 2048,
+                        elapsedMs=int((self.monotonic() - began) * 1000),
+                    )
+                    if status == "OUTCOME_UNKNOWN":
+                        self.metric("OutcomeUnknown")
                 return finished
             except StorageError:
                 continue
