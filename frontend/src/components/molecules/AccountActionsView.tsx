@@ -19,14 +19,19 @@ export const AccountActionsView = ({
   <nav aria-label="アカウント">
     <NavigationActions>
       {authenticated ? (
-      <>
-        {admin && <Link href="/admin/questions/">質問管理</Link>}
-        <Button variant="text" color="inherit" type="button" onClick={onLogout}>
-          ログアウト
-        </Button>
-      </>
-    ) : (
-      <Link href="/login/">ログイン</Link>
+        <>
+          {admin && <Link href="/admin/questions/">質問管理</Link>}
+          <Button
+            variant="text"
+            color="inherit"
+            type="button"
+            onClick={onLogout}
+          >
+            ログアウト
+          </Button>
+        </>
+      ) : (
+        <Link href="/login/">ログイン</Link>
       )}
     </NavigationActions>
   </nav>

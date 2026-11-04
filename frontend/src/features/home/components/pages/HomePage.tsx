@@ -64,9 +64,6 @@ const Eyebrow = styled(Text)(({ theme }) => ({
   ...theme.typography.overline,
   margin: theme.spacing(0, 0, 1.5),
   color: theme.palette.text.secondary,
-  fontWeight: 700,
-  lineHeight: 1.6,
-  letterSpacing: "0.12em",
   overflowWrap: "anywhere",
 }));
 
@@ -74,9 +71,6 @@ const HeroTitle = styled(Text)(({ theme }) => ({
   ...heroTypography(theme),
   margin: 0,
   color: theme.palette.primary.dark,
-  fontWeight: 700,
-  lineHeight: 1.3,
-  letterSpacing: "-0.03em",
   overflowWrap: "anywhere",
 }));
 

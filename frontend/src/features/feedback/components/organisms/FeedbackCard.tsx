@@ -86,9 +86,6 @@ const ScoreLine = styled("p")(({ theme }) => ({
 const ScoreValue = styled(Text)(({ theme }) => ({
   ...scoreTypography(theme),
   color: theme.palette.primary.dark,
-  fontWeight: 700,
-  lineHeight: 1,
-  letterSpacing: "-0.04em",
 }));
 
 const ScoreScale = styled(Text)(({ theme }) => ({
