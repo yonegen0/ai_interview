@@ -19,7 +19,7 @@ const selectJobChange = async (canvasElement: HTMLElement) => {
     await canvas.findByRole("combobox", { name: "練習するカテゴリ" }),
   );
   await userEvent.click(
-    await within(document.body).findByRole("option", { name: /^転職理由（\\d+問）$/ }),
+    await within(document.body).findByRole("option", { name: /^転職理由（[0-9]+問）$/ }),
   );
 };
 const submitCategory = async (canvasElement: HTMLElement) => {
