@@ -1,12 +1,7 @@
 /** @file PracticeModeSelector.tsx @description Presentation and composition for PracticeModeSelector. */
 "use client";
-import { styled } from "@mui/material/styles";
+import { ChoiceGrid } from "@/components/atoms/ChoiceGrid";
 import { ChoiceButton } from "@/components/atoms/ChoiceButton";
-const Grid = styled("div")(({ theme }) => ({
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 240px), 1fr))",
-  gap: theme.spacing(1.5),
-}));
 export type PracticeModeSelectorProps = {
   mode: "full" | "category";
   total?: number;
@@ -19,7 +14,7 @@ export const PracticeModeSelector = ({
   disabled,
   onSelect,
 }: PracticeModeSelectorProps) => (
-  <Grid>
+  <ChoiceGrid>
     <ChoiceButton
       selected={mode === "full"}
       disabled={disabled}
@@ -34,5 +29,5 @@ export const PracticeModeSelector = ({
     >
       カテゴリ練習
     </ChoiceButton>
-  </Grid>
+  </ChoiceGrid>
 );

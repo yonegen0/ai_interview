@@ -2,11 +2,7 @@
 import { categories, type Question } from "@/lib/api/schemas";
 import { Muted } from "@/components/atoms/Muted";
 import { Panel } from "@/components/atoms/Panel";
-import { styled } from "@mui/material/styles";
-const Text = styled("h2")(({ theme }) => ({
-  ...theme.typography.h2,
-  whiteSpace: "pre-wrap",
-}));
+import { Text } from "@/components/atoms/Text";
 export const QuestionCard = ({
   question,
   number,
@@ -27,6 +23,6 @@ export const QuestionCard = ({
         </>
       )}
     </Muted>
-    <Text>{question.question}</Text>
+    <Text variant="h2" component="h2">{question.question}</Text>
   </Panel>
 );

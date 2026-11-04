@@ -86,9 +86,6 @@ const ScoreLine = styled("p")(({ theme }) => ({
 const ScoreValue = styled(Text)(({ theme }) => ({
   ...scoreTypography(theme),
   color: theme.palette.primary.dark,
-  fontWeight: 700,
-  lineHeight: 1,
-  letterSpacing: "-0.04em",
 }));
 
 const ScoreScale = styled(Text)(({ theme }) => ({
@@ -122,6 +119,24 @@ const AnswerSection = styled("section")(({ theme }) => ({
 const AnswerText = styled(BodyText)(({ theme }) => ({
   paddingLeft: theme.spacing(2),
   borderLeft: `3px solid ${alpha(theme.palette.primary.main, 0.25)}`,
+}));
+
+const CoachingHistoryDetails = styled("details")(({ theme }) => ({
+  padding: theme.spacing(2),
+  border: `1px solid ${theme.palette.divider}`,
+  borderRadius: scaledRadius(theme, 1),
+  backgroundColor: theme.palette.background.paper,
+  "& > summary": {
+    ...theme.typography.body1,
+    fontWeight: 700,
+    cursor: "pointer",
+  },
+  "& > summary:focus-visible": {
+    outline: `3px solid ${theme.palette.primary.dark}`,
+    outlineOffset: 3,
+  },
+  "&[open] > summary": { marginBottom: theme.spacing(1.5) },
+  "& > section + section": { marginTop: theme.spacing(1.5) },
 }));
 
 const PointsGrid = styled("div")(({ theme }) => ({
@@ -338,7 +353,7 @@ const CoachingFeedbackCard = ({ feedback: f }: { feedback: FeedbackV2 }) => (
         <AnswerText>{f.answer}</AnswerText>
       </AnswerSection>
       {f.coachingHistory.length > 0 && (
-        <details>
+        <CoachingHistoryDetails>
           <summary>深掘りの履歴（{f.coachingCount}回）</summary>
           {f.coachingHistory.map((h, i) => (
             <QuestionSection key={i}>
@@ -346,7 +361,7 @@ const CoachingFeedbackCard = ({ feedback: f }: { feedback: FeedbackV2 }) => (
               <AnswerText>{h.answer}</AnswerText>
             </QuestionSection>
           ))}
-        </details>
+        </CoachingHistoryDetails>
       )}
       <PointsGrid>
         <Points

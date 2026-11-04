@@ -2,12 +2,10 @@
 "use client";
 import { styled } from "@mui/material/styles";
 import { ChoiceButton } from "@/components/atoms/ChoiceButton";
+import { ChoiceGrid } from "@/components/atoms/ChoiceGrid";
 import type { Category } from "@/lib/api/schemas";
 import type { PracticeStartView } from "../../model/practiceStart";
-const Grid = styled("div")(({ theme }) => ({
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 240px), 1fr))",
-  gap: theme.spacing(1.5),
+const Grid = styled(ChoiceGrid)(({ theme }) => ({
   marginTop: theme.spacing(2),
 }));
 export type PracticeCategorySelectorProps = {

@@ -7,6 +7,7 @@ import type { ReactNode } from "react";
 import { AppRouterCacheProvider } from "@mui/material-nextjs/v15-appRouter";
 import { AppProviders } from "@/providers/AppProviders";
 import { AppShell } from "@/components/templates/AppShell";
+import { backgroundDefaultColor } from "@/theme/tokens";
 
 export const metadata: Metadata = {
   title: "Interview Pocket | 3分でできるAI面接練習",
@@ -16,7 +17,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#f5f2ea",
+  themeColor: backgroundDefaultColor,
 };
 
 /** ルートレイアウトのProps */

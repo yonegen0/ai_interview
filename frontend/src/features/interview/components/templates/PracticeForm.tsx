@@ -1,6 +1,7 @@
 /** @file PracticeForm.tsx @description Presentation and composition for PracticeForm. */
 "use client";
 import { Text } from "@/components/atoms/Text";
+import { styled } from "@mui/material/styles";
 import { Header } from "@/components/molecules/Header";
 import { Button } from "@/components/atoms/Button";
 import { Link } from "@/components/atoms/Link";
@@ -17,6 +18,14 @@ import type {
   PracticeActions,
   AnswerSubmissionProps,
 } from "../../model/practice";
+const CoachingHistoryItem = styled("div")(({ theme }) => ({
+  display: "grid",
+  gap: theme.spacing(0.5),
+  padding: theme.spacing(1.5),
+  marginTop: theme.spacing(1),
+  borderLeft: `3px solid ${theme.palette.primary.main}`,
+}));
+
 export type PracticeFormProps = {
   view: PracticeView;
   form: AnswerSubmissionProps;
@@ -67,10 +76,10 @@ export const PracticeForm = ({ view, form, actions }: PracticeFormProps) => (
           <>
             <Text>初回回答：{view.session.activeCoaching.initialAnswer}</Text>
             {view.session.activeCoaching.coachingHistory.map((h, i) => (
-              <div key={i}>
+              <CoachingHistoryItem key={i}>
                 <Text>{h.question}</Text>
                 <Text>{h.answer}</Text>
-              </div>
+              </CoachingHistoryItem>
             ))}
           </>
         )}

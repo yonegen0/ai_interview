@@ -2,7 +2,7 @@
 "use client";
 import { useState } from "react";
 import { styled } from "@mui/material/styles";
-import { Radio, RadioGroup, FormControlLabel } from "@mui/material";
+import { Alert, Radio, RadioGroup, FormControlLabel } from "@mui/material";
 import { Button } from "@/components/atoms/Button";
 import { Input } from "@/components/atoms/Input";
 import { Select } from "@/components/atoms/Select";
@@ -45,8 +45,8 @@ export function StarAssistPanel({
         下書き：{w.status}
         {w.loading ? "（保存版を確認中）" : ""}
       </Text>
-      {w.error && <Text role="alert">{w.error}</Text>}
-      {w.migrationWarning && <Text role="alert">{w.migrationWarning}</Text>}
+      {w.error && <Alert severity="error">{w.error}</Alert>}
+      {w.migrationWarning && <Alert severity="warning">{w.migrationWarning}</Alert>}
       <Actions>
         {w.pending && (
           <Button

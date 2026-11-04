@@ -4,7 +4,7 @@ import type { FormEventHandler } from "react";
 import { Controller, type Control, type FieldErrors } from "react-hook-form";
 import { styled } from "@mui/material/styles";
 import { Input } from "@/components/atoms/Input";
-import { Text } from "@/components/atoms/Text";
+import Alert from "@mui/material/Alert";
 import { Button } from "@/components/atoms/Button";
 import { Actions } from "@/components/atoms/Actions";
 import type { LoginInput, LoginView } from "../../model/login";
@@ -111,7 +111,7 @@ export function EmailOtpForm({
           </>
         )}
       </Actions>
-      {view.error && <Text role="alert">{view.error}</Text>}
+      {view.error && <Alert severity="error">{view.error}</Alert>}
     </form>
   );
 }

@@ -11,6 +11,7 @@ import { ThemeProvider } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
 import Alert from "@mui/material/Alert";
 import { theme } from "@/theme/theme";
+import { Text } from "@/components/atoms/Text";
 import { retryGet } from "@/lib/api/client";
 import { storageAvailable, subscribeStorage } from "@/lib/storage/recovery";
 export const mockEnabled = process.env.NEXT_PUBLIC_MSW_ENABLED === "true";
@@ -74,7 +75,7 @@ export const AppProviders = ({ children }: { children: ReactNode }) => {
         ) : ready ? (
           children
         ) : (
-          <p role="status">練習環境を準備しています…</p>
+          <Text role="status">練習環境を準備しています…</Text>
         )}
       </QueryClientProvider>
     </ThemeProvider>
