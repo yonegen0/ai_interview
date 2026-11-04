@@ -13,13 +13,13 @@ import { Input } from "@/components/atoms/Input";
 import { Select } from "@/components/atoms/Select";
 import { Text } from "@/components/atoms/Text";
 import { Dialog } from "@/components/organisms/Dialog";
-import { starNotesSchema, targetCategories, type StarInput } from "@/lib/api/schemas/star";
+import { starInputSchema, starNotesSchema, targetCategories, type StarInput } from "@/lib/api/schemas/star";
 import type { StarWorkspace } from "../../hooks/useStarWorkspace";
 import { starSteps } from "../../model/steps";
 import { StarCandidateFields } from "../molecules/StarFields";
 import { StarAssistStepper } from "../molecules/StarAssistStepper";
 import { StarAssistTips } from "../molecules/StarAssistTips";
-import { StarAssistStepForm } from "./StarAssistStepForm";
+import { StarAssistStepForm } from "../molecules/StarAssistStepForm";
 
 const Header = styled("div")(({ theme }) => ({
   display: "grid",
@@ -111,8 +111,9 @@ export function StarAssistDialog({ open, onClose, workspace: w, onApply, onDisca
   const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
   const last = step === starSteps.length - 1;
   const notesValid = starNotesSchema.safeParse(w.input.notes).success;
+  const inputValid = starInputSchema.safeParse(w.input).success;
   const canGenerate = !w.loading && !w.busy && !w.pending && !w.generating &&
-    !!w.input.targetCategory && notesValid &&
+    !!w.input.targetCategory && notesValid && inputValid &&
     starSteps.some(({ key }) => w.input.notes[key].trim()) &&
     w.quota?.user.remaining !== 0 && w.quota?.global.remaining !== 0;
 
@@ -159,8 +160,20 @@ export function StarAssistDialog({ open, onClose, workspace: w, onApply, onDisca
             }
           />
           <SettingFields>
-            <Input {...w.form.register("industry")} label="志望業界（任意）" disabled={w.busy} />
-            <Input {...w.form.register("company")} label="応募先企業名（任意）" disabled={w.busy} />
+            <Input
+              {...w.form.register("industry")}
+              label="志望業界（任意）"
+              disabled={w.busy}
+              error={!!w.form.formState.errors.industry}
+              helperText={w.form.formState.errors.industry?.message}
+            />
+            <Input
+              {...w.form.register("company")}
+              label="応募先企業名（任意）"
+              disabled={w.busy}
+              error={!!w.form.formState.errors.company}
+              helperText={w.form.formState.errors.company?.message}
+            />
           </SettingFields>
           <NextActions>
             <Button type="button" size="small" onClick={() => void w.savePreferences(true)}
