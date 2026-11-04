@@ -13,5 +13,7 @@ class StructuredPrompt:
     max_request_bytes: int = 24000
 
     def __post_init__(self):
-        if self.max_tokens != 2048 or self.max_request_bytes != 24000:
+        # STAR needs three bounded candidates; preserve the existing budget elsewhere.
+        allowed = {2048, 4096} if self.version.startswith("star_") else {2048}
+        if self.max_tokens not in allowed or self.max_request_bytes != 24000:
             raise ValueError("StructuredGenerationBudget")
