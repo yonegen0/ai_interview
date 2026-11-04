@@ -53,7 +53,7 @@ export const fieldStyles = (theme: Theme) => ({
     },
     "&.Mui-disabled, &.Mui-disabled.Mui-focused, &.Mui-disabled.Mui-error, &.Mui-disabled.Mui-error.Mui-focused":
       {
-        color: theme.palette.text.disabled,
+        color: theme.palette.text.secondary,
         textShadow: "none",
       },
   },

@@ -1,10 +1,10 @@
 /** @file AnswerSubmission.tsx @description 回答作成カード・復元確認・送信状態を構成するOrganism。 */
 "use client";
 import { useState } from "react";
-import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
-import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutlineOutlined";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlined";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
-import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
+import ErrorOutlineIcon from "@mui/icons-material/ErrorOutlineOutlined";
 import SyncOutlinedIcon from "@mui/icons-material/SyncOutlined";
 import { alpha, styled } from "@mui/material/styles";
 import { StarAssistPanel } from "@/features/starAssist/components/organisms/StarAssistPanel";
@@ -86,7 +86,7 @@ export function AnswerSubmission({
   const canCopyPrevious = previousAnswer !== undefined && !!onRestorePrevious;
   const copyPrevious = () => {
     if (!canCopyPrevious || phase !== "answering" || currentAnswer === previousAnswer) return;
-    if (currentAnswer.length > 0) {
+    if ((currentAnswer ?? "").length > 0) {
       setConfirmCopy(true);
       return;
     }

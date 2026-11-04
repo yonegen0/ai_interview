@@ -165,7 +165,7 @@ export const DisabledErrorPriority: Story = {
     const root = select.closest(".MuiFormControl-root")!;
     await expect(select).toHaveAttribute("aria-disabled", "true");
     await expect(root.querySelector("label")).toHaveStyle({
-      color: theme.palette.text.disabled,
+      color: theme.palette.text.secondary,
     });
     await expect(select.closest(".MuiOutlinedInput-root")).toHaveStyle({
       boxShadow: "none",
