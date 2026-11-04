@@ -55,7 +55,9 @@ export function StarAssistStepForm({
       </Heading>
       <Text variant="body2" color="text.secondary">{current.description}</Text>
       <Input
+        key={current.key}
         {...form.register(`notes.${current.key}`)}
+        defaultValue={text}
         label={label}
         multiline
         minRows={5}
