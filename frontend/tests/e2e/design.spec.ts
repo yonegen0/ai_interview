@@ -162,3 +162,48 @@ test("confirmed exit discards a draft and Escape preserves it", async ({
   await page.goto(url);
   await expect(page.getByLabel("あなたの回答")).toHaveValue("");
 });
+
+test("home header stays compact and CTA visible on mobile", async ({ page }) => {
+  for (const width of [320, 375, 393, 768, 900, 1280]) {
+    await page.setViewportSize({ width, height: 800 });
+    await page.goto("/");
+
+    const header = page.getByRole("banner");
+    const bounds = await header.boundingBox();
+    expect(bounds).not.toBeNull();
+    expect(bounds!.height).toBeLessThan(112);
+
+    const hero = page.getByRole("heading", { level: 1 });
+    await expect(hero).toContainText("面接は、練習で、");
+    const primary = page.getByRole("link", { name: "今すぐ面接練習を始める" });
+    await expect(primary).toBeVisible();
+    await expect(primary).toHaveAttribute("href", "/practice/");
+    await expect(page.getByRole("link", { name: /まずは使い方ガイド/ }))
+      .toHaveAttribute("href", "#home-how-it-works");
+    await expect(page.getByRole("link", { name: /カテゴリから選ぶ/ }))
+      .toHaveAttribute("href", "/practice/");
+    await expect(page.getByRole("link", { name: /3分から始める/ }))
+      .toHaveAttribute("href", "/practice/");
+    const overflow = await page.evaluate(() =>
+      document.documentElement.scrollWidth > window.innerWidth + 1,
+    );
+    expect(overflow).toBe(false);
+    await screenshot(page, "home-refresh", width);
+  }
+});
+
+test("home guide and action cards navigate to implemented destinations", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 800 });
+  await page.goto("/");
+  await page.getByRole("link", { name: /まずは使い方ガイド/ }).click();
+  await expect(page).toHaveURL(/#home-how-it-works$/);
+  await expect(page.getByRole("heading", { name: "練習を続ける3つのステップ" }))
+    .toBeVisible();
+
+  await page.getByRole("link", { name: /カテゴリから選ぶ/ }).click();
+  await expect(page).toHaveURL(/\/practice\/$/);
+
+  await page.goto("/");
+  await page.getByRole("link", { name: /3分から始める/ }).click();
+  await expect(page).toHaveURL(/\/practice\/$/);
+});
