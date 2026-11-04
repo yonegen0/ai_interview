@@ -42,7 +42,9 @@ export const Dialog = (props: DialogProps) => (
     fullWidth={props.fullWidth ?? true}
     fullScreen={props.fullScreen ?? false}
   >
-    <MuiDialogTitle>{props.title}</MuiDialogTitle>
+    <MuiDialogTitle component={typeof props.title === "string" ? "h2" : "div"}>
+      {props.title}
+    </MuiDialogTitle>
     <StyledDialogContent $scrollContent={props.scrollContent ?? false}>
       {props.content}
     </StyledDialogContent>

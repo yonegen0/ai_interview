@@ -120,7 +120,7 @@ export function StarAssistDialog({ open, onClose, workspace: w, onApply, onDisca
     <Header>
       <HeaderRow>
         <HeaderIcon fontSize="large" aria-hidden="true" />
-        <Text variant="h2" component="span">STARアシスト</Text>
+        <Text variant="h2" component="h2">STARアシスト</Text>
         <Tag>面接回答をSTARで整理</Tag>
         <Close aria-label="STARアシストを閉じる" onClick={onClose} size="small">
           <CloseIcon />
