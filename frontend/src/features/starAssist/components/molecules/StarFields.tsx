@@ -10,6 +10,10 @@ const Fields = styled("div")(({ theme }) => ({
   gap: theme.spacing(2),
   marginBlock: theme.spacing(2),
 }));
+const CandidateField = styled("div")(({ theme }) => ({
+  display: "grid",
+  gap: theme.spacing(1),
+}));
 export function StarNotesFields({
   form,
   disabled,
@@ -53,7 +57,7 @@ export function StarCandidateFields({
   return (
     <Fields>
       {input.candidates.map((candidate, index) => (
-        <div key={candidate.id}>
+        <CandidateField key={candidate.id}>
           <Text variant="h3" component="h3">
             {candidate.id} —{" "}
             {
@@ -73,7 +77,7 @@ export function StarCandidateFields({
             error={Array.from(candidate.text).length > 400}
             helperText={`${Array.from(candidate.text).length} / 400文字。選択前から編集できます。`}
           />
-        </div>
+        </CandidateField>
       ))}
     </Fields>
   );
