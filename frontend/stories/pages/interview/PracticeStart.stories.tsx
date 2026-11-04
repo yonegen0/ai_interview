@@ -13,12 +13,19 @@ const meta = {
 } satisfies Meta<typeof PracticeStart>;
 export default meta;
 type Story = StoryObj<typeof meta>;
+const selectJobChange = async (canvasElement: HTMLElement) => {
+  const canvas = within(canvasElement);
+  await userEvent.click(
+    await canvas.findByRole("combobox", { name: "練習するカテゴリ" }),
+  );
+  await userEvent.click(
+    await within(document.body).findByRole("option", { name: /^転職理由（\\d+問）$/ }),
+  );
+};
 const submitCategory = async (canvasElement: HTMLElement) => {
   const canvas = within(canvasElement);
   await userEvent.click(canvas.getByRole("button", { name: "カテゴリ練習" }));
-  await userEvent.click(
-    await canvas.findByRole("button", { name: /^転職理由/ }),
-  );
+  await selectJobChange(canvasElement);
   await userEvent.click(canvas.getByRole("button", { name: "練習を始める" }));
   return canvas;
 };
@@ -28,9 +35,7 @@ export const Selected: Story = {
     await userEvent.click(
       within(canvasElement).getByRole("button", { name: "カテゴリ練習" }),
     );
-    await userEvent.click(
-      await within(canvasElement).findByRole("button", { name: /^転職理由/ }),
-    );
+    await selectJobChange(canvasElement);
   },
 };
 export const Created: Story = {
@@ -40,9 +45,7 @@ export const Created: Story = {
     await userEvent.click(canvas.getByRole("button", { name: "カテゴリ練習" }));
     await expect(start).toBeDisabled();
     await userEvent.click(canvas.getByRole("button", { name: "カテゴリ練習" }));
-    await userEvent.click(
-      await canvas.findByRole("button", { name: /^転職理由/ }),
-    );
+    await selectJobChange(canvasElement);
     await expect(start).toBeEnabled();
     await userEvent.click(start);
     await waitFor(() =>
