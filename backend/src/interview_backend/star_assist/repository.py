@@ -509,9 +509,8 @@ class StarRepositoryMixin:
         maximum = STAR_NOTES_MAX_LENGTH if configured == "star" else OTHER_NOTES_MAX_LENGTH
         if star_notes_length(row.value.notes) > maximum:
             raise BusinessError(400, "ASSIST_INPUT_TOO_LONG")
-        if (
-            (configured == "star" and row.value.targetCategory is None)
-            or not any(v.strip() for v in row.value.notes.model_dump().values())
+        if (configured == "star" and row.value.targetCategory is None) or not any(
+            v.strip() for v in row.value.notes.model_dump().values()
         ):
             raise BusinessError(400, "VALIDATION_ERROR")
         month = month_for(now)

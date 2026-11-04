@@ -30,6 +30,7 @@ class FakeStarProvider:
         if value.assistType != "star":
             # Offline deterministic echo of applicant data; never synthesize background.
             from interview_backend.star_assist.models import OTHER_CANDIDATE_MAX_LENGTH
+
             answer = "\n".join(text for text in facts.values() if text.strip())
             if not answer or code_point_length(answer) > OTHER_CANDIDATE_MAX_LENGTH:
                 return StarResult(

@@ -47,12 +47,15 @@ PROVIDER_IDS = frozenset(
 )
 STYLES = (("A", "conclusion"), ("B", "action"), ("C", "conversational"))
 ASSIST_INSTRUCTIONS = {
-    "prep": ("PREP形式で結論・理由・具体例または判断の補足・"
-             "仕事への活かし方を自然な日本語で組み立てる。"),
-    "motivation": ("志望理由・企業や業界の魅力・本人との接点・"
-                   "入社後の貢献を自然な日本語で組み立てる。"),
-    "career_change": ("転職のきっかけ・現状の課題・検討や行動・"
-                      "次の環境での希望を、事実を変えず前向きに整理する。"),
+    "prep": (
+        "PREP形式で結論・理由・具体例または判断の補足・仕事への活かし方を自然な日本語で組み立てる。"
+    ),
+    "motivation": (
+        "志望理由・企業や業界の魅力・本人との接点・入社後の貢献を自然な日本語で組み立てる。"
+    ),
+    "career_change": (
+        "転職のきっかけ・現状の課題・検討や行動・次の環境での希望を、事実を変えず前向きに整理する。"
+    ),
     "career_plan": "目指す姿・理由・必要な経験や能力・今後の行動を、期間と目標を守って整理する。",
 }
 ASSIST_COMMON_INSTRUCTIONS = (
@@ -207,8 +210,7 @@ class LiveStarProvider:
         if not any(s.strip() for s in facts.values()):
             raise ProviderFailure("CONFIGURATION")
         if self.mode == "source" and (
-            not facts["A"].strip()
-            or star_notes_length(facts) > STAR_NOTES_MAX_LENGTH
+            not facts["A"].strip() or star_notes_length(facts) > STAR_NOTES_MAX_LENGTH
         ):
             return StarResult(
                 status="needs_information",
@@ -307,7 +309,7 @@ class LiveStarProvider:
                 candidates=[Candidate(id="A", style="conclusion", text=parsed.answer)],
                 missingInformation=[],
             )
-        except (ValidationError, ValueError, TypeError):
+        except ValidationError, ValueError, TypeError:
             raise ProviderFailure("INVALID_SCHEMA") from None
         finally:
             deadline.seconds()
