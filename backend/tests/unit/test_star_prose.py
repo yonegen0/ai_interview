@@ -350,7 +350,7 @@ def test_600_input_with_unavoidable_render_expansion_clarifies_before_ai():
     for mode in ("natural", "source"):
         client = Client()
         provider = LiveStarProvider(
-            BedrockProvider(client_factory=lambda *a, **k: client),
+            BedrockProvider(client_factory=lambda *a, client=client, **k: client),
             mode=mode,
         )
         result = provider.generate("経験は？", notes)
@@ -362,8 +362,12 @@ def test_600_input_with_unavoidable_render_expansion_clarifies_before_ai():
 
 def test_output_length_is_defensively_clarified_not_marked_invalid_schema():
     # The server-owned post-validation also preserves a meaningful clarification.
-    from interview_backend.star_assist.grounding import validate_prose
-    from interview_backend.star_assist.grounding import ProsePlan, ProseCandidate, Passage
+    from interview_backend.star_assist.grounding import (
+        Passage,
+        ProseCandidate,
+        ProsePlan,
+        validate_prose,
+    )
 
     notes = value(A="😀" * 596)
     variants = {key: rewrite_field(notes.notes.A, key) for key in ("A", "B", "C")}
