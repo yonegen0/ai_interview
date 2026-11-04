@@ -423,7 +423,7 @@ export function fakeStarResult(job: Job) {
       .map((key) => facts[key])
       .join("\n");
     return starResultSchema.parse(
-      !answer || Array.from(answer).length > OTHER_ASSIST_OUTPUT_LIMIT
+      !answer || answer.length > OTHER_ASSIST_OUTPUT_LIMIT
         ? {
             status: "needs_information", candidates: [],
             missingInformation: ["回答の要点を短く整理してください。"],

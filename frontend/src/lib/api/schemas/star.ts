@@ -81,7 +81,7 @@ export const starInputSchema = z
       Boolean(v.candidates.length) === Boolean(v.generationId) &&
       (v.candidates.length === 0 ||
         (v.assistType && v.assistType !== "star"
-          ? v.candidates.length === 1 && countStarText(v.candidates[0].text) <= OTHER_ASSIST_OUTPUT_LIMIT
+          ? v.candidates.length === 1 && v.candidates[0].text.length <= OTHER_ASSIST_OUTPUT_LIMIT
           : v.candidates.length === 3)) &&
       (!v.selectedCandidateId ||
         v.candidates.some((c) => c.id === v.selectedCandidateId)),

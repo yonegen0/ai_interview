@@ -26,7 +26,7 @@ from interview_backend.star_assist.models import (
     Strict,
     star_notes_length,
 )
-from interview_backend.text_limits import code_point_length
+from interview_backend.text_limits import code_point_length, utf16_length
 
 MAX_OUTPUT_TOKENS = 4096
 MAX_INPUT_BYTES = 24000
@@ -75,7 +75,7 @@ class AssistReply(Strict):
     @field_validator("answer")
     @classmethod
     def validate_answer(cls, value: str) -> str:
-        if code_point_length(value) > OTHER_CANDIDATE_MAX_LENGTH:
+        if utf16_length(value) > OTHER_CANDIDATE_MAX_LENGTH:
             raise ValueError("AssistOutputTooLong")
         return value
 

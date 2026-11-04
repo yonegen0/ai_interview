@@ -369,3 +369,16 @@ describe("Five answer-assist modes (offline contracts)", () => {
     }).success).toBe(false);
   });
 });
+
+it("keeps single-candidate UTF-16 output within the existing 500-unit normal answer limit", () => {
+  const input = {
+    ...emptyStarInput("prep"),
+    candidates: [{ id: "A" as const, style: "conclusion" as const, text: "😀".repeat(250) }],
+    generationId: crypto.randomUUID(),
+    selectedCandidateId: "A" as const,
+  };
+  expect(starInputSchema.safeParse(input).success).toBe(true);
+  expect(starInputSchema.safeParse({
+    ...input, candidates: [{ ...input.candidates[0], text: "😀".repeat(251) }],
+  }).success).toBe(false);
+});

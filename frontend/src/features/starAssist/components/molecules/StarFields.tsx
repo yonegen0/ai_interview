@@ -60,6 +60,7 @@ export function StarCandidateFields({
   mode?: AssistMode;
 }) {
   const maximum = mode === "star" ? STAR_OUTPUT_LIMIT : OTHER_ASSIST_OUTPUT_LIMIT;
+  const length = (text: string) => mode === "star" ? countStarText(text) : text.length;
   return (
     <Fields>
       {input.candidates.map((candidate, index) => (
@@ -80,8 +81,8 @@ export function StarCandidateFields({
             multiline
             minRows={4}
             disabled={disabled}
-            error={countStarText(candidate.text) > maximum}
-            helperText={`${countStarText(candidate.text)} / ${maximum}文字。選択前から編集できます。`}
+            error={length(candidate.text) > maximum}
+            helperText={`${length(candidate.text)} / ${maximum}文字。選択前から編集できます。`}
           />
         </CandidateField>
       ))}

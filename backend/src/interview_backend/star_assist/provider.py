@@ -7,7 +7,7 @@ from interview_backend.star_assist.models import (
     StarResult,
     star_notes_length,
 )
-from interview_backend.text_limits import code_point_length
+from interview_backend.text_limits import code_point_length, utf16_length
 
 INSTRUCTIONS = (
     "本人メモだけを使い、結論・行動・会話の3案を作る。応募先に合わせるのは表現だけ。"
@@ -32,7 +32,7 @@ class FakeStarProvider:
             from interview_backend.star_assist.models import OTHER_CANDIDATE_MAX_LENGTH
 
             answer = "\n".join(text for text in facts.values() if text.strip())
-            if not answer or code_point_length(answer) > OTHER_CANDIDATE_MAX_LENGTH:
+            if not answer or utf16_length(answer) > OTHER_CANDIDATE_MAX_LENGTH:
                 return StarResult(
                     status="needs_information",
                     candidates=[],

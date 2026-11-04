@@ -6,7 +6,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from interview_backend.models.public import Identifier
-from interview_backend.text_limits import code_point_length
+from interview_backend.text_limits import code_point_length, utf16_length
 
 DAY = 86400
 CATEGORIES = {
@@ -137,7 +137,7 @@ class StarInput(Strict):
         if self.candidates and [(c.id, c.style) for c in self.candidates] != expected:
             raise ValueError("candidates")
         if self.assistType != "star" and any(
-            len(c.text) > OTHER_CANDIDATE_MAX_LENGTH for c in self.candidates
+            utf16_length(c.text) > OTHER_CANDIDATE_MAX_LENGTH for c in self.candidates
         ):
             raise ValueError("assist_output_length")
         if self.selectedCandidateId and self.selectedCandidateId not in [

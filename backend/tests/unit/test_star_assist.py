@@ -1342,3 +1342,27 @@ def test_assist_candidate_shapes_and_independent_limits(mode):
                 "generationId": str(uuid4()),
             }
         )
+
+
+
+def test_other_assist_generated_answer_uses_normal_answer_utf16_limit():
+    from pydantic import ValidationError
+
+    from interview_backend.star_assist.models import StarInput
+
+    value = {
+        "assistType": "prep",
+        "notes": {"S": "事実", "T": "", "A": "", "R": ""},
+        "targetCategory": None,
+        "industry": "",
+        "company": "",
+        "generationId": str(uuid4()),
+        "selectedCandidateId": "A",
+    }
+    assert StarInput.model_validate({
+        **value, "candidates": [{"id": "A", "style": "conclusion", "text": "😀" * 250}],
+    }).assistType == "prep"
+    with pytest.raises(ValidationError):
+        StarInput.model_validate({
+            **value, "candidates": [{"id": "A", "style": "conclusion", "text": "😀" * 251}],
+        })
