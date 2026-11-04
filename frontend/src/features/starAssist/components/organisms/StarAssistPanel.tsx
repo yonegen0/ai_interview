@@ -85,7 +85,7 @@ export function StarAssistPanel({
   return (
     <Area aria-label="回答の保存とSTARアシスト">
       <Trigger type="button" onClick={() => setOpen(true)}
-        aria-haspopup="dialog" aria-expanded={open}>
+        aria-label="STARアシストを開く" aria-haspopup="dialog" aria-expanded={open}>
         <Icon aria-hidden="true" />
         <TriggerCopy>
           <TriggerTitle>STARアシスト</TriggerTitle>
