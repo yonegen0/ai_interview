@@ -127,11 +127,15 @@ class Created(Model):
     sessionId: Identifier
 
 
+AssistType = Literal["star", "prep", "motivation", "career_change", "career_plan", "none"]
+
+
 class Question(Model):
     category: Category
     difficulty: Literal["standard"]
     id: Identifier
     question: Annotated[str, Field(min_length=1)]
+    assistType: AssistType | None = None
 
 
 class ManagedQuestion(Question):

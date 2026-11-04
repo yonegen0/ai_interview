@@ -41,6 +41,10 @@ class Strict(BaseModel):
 
 STAR_NOTES_MAX_LENGTH = 600
 STAR_CANDIDATE_MAX_LENGTH = 600
+OTHER_NOTES_MAX_LENGTH = 1600
+OTHER_CANDIDATE_MAX_LENGTH = 500
+ASSIST_TYPES = ("star", "prep", "motivation", "career_change", "career_plan")
+AssistType = Literal["star", "prep", "motivation", "career_change", "career_plan"]
 
 
 def star_notes_length(notes):
@@ -93,7 +97,11 @@ class StarResult(Strict):
                 ("A", "conclusion"),
                 ("B", "action"),
                 ("C", "conversational"),
-            ] or any(not c.text.strip() for c in self.candidates):
+            ] and [(c.id, c.style) for c in self.candidates] != [
+                ("A", "conclusion"),
+            ]:
+                raise ValueError("candidates")
+            if any(not c.text.strip() for c in self.candidates):
                 raise ValueError("candidates")
         elif self.candidates or not self.missingInformation:
             raise ValueError("missing_information")
@@ -106,6 +114,7 @@ class StarResult(Strict):
 
 class StarInput(Strict):
     notes: Notes
+    assistType: AssistType = "star"
     targetCategory: TargetCategory | None
     industry: str
     company: str
@@ -120,12 +129,17 @@ class StarInput(Strict):
 
     @model_validator(mode="after")
     def consistent(self):
-        if self.candidates and [(c.id, c.style) for c in self.candidates] != [
-            ("A", "conclusion"),
-            ("B", "action"),
-            ("C", "conversational"),
-        ]:
+        expected = (
+            [("A", "conclusion"), ("B", "action"), ("C", "conversational")]
+            if self.assistType == "star"
+            else [("A", "conclusion")]
+        )
+        if self.candidates and [(c.id, c.style) for c in self.candidates] != expected:
             raise ValueError("candidates")
+        if self.assistType != "star" and any(
+            len(c.text) > OTHER_CANDIDATE_MAX_LENGTH for c in self.candidates
+        ):
+            raise ValueError("assist_output_length")
         if self.selectedCandidateId and self.selectedCandidateId not in [
             c.id for c in self.candidates
         ]:

@@ -27,6 +27,21 @@ class FakeStarProvider:
         if self.behavior:
             return self.behavior(question, value)
         facts = value.notes.model_dump()
+        if value.assistType != "star":
+            # Offline deterministic echo of applicant data; never synthesize background.
+            from interview_backend.star_assist.models import OTHER_CANDIDATE_MAX_LENGTH
+            answer = "\n".join(text for text in facts.values() if text.strip())
+            if not answer or code_point_length(answer) > OTHER_CANDIDATE_MAX_LENGTH:
+                return StarResult(
+                    status="needs_information",
+                    candidates=[],
+                    missingInformation=["伝えたい内容を、要点を絞って入力してください。"],
+                )
+            return StarResult(
+                status="ready",
+                candidates=[Candidate(id="A", style="conclusion", text=answer)],
+                missingInformation=[],
+            )
         orders = (("R", "S", "T", "A"), ("A", "S", "T", "R"), ("S", "T", "A", "R"))
         answers = ["\n".join(facts[k] for k in order if facts[k].strip()) for order in orders]
         if (
@@ -61,6 +76,11 @@ def validate_fake_facts(value, result):
     if result.status != "ready":
         return
     facts = value.notes.model_dump()
+    if value.assistType != "star":
+        expected = "\n".join(text for text in facts.values() if text.strip())
+        if len(result.candidates) != 1 or result.candidates[0].text != expected:
+            raise ValueError("AssistFactsMismatch")
+        return
     orders = (("R", "S", "T", "A"), ("A", "S", "T", "R"), ("S", "T", "A", "R"))
     expected = ["\n".join(facts[k] for k in order if facts[k].strip()) for order in orders]
     if [c.text for c in result.candidates] != expected:
