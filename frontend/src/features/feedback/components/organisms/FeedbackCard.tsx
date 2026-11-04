@@ -5,7 +5,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
+import HelpOutlineIcon from "@mui/icons-material/HelpOutlined";
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
 import ThumbUpOutlinedIcon from "@mui/icons-material/ThumbUpOutlined";
 import LightbulbOutlinedIcon from "@mui/icons-material/LightbulbOutlined";
