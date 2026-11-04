@@ -119,7 +119,12 @@ export const useAnswerOperation = (
   const answer = useWatch({ control: form.control, name: "answer" }) ?? "";
   const evaluation = useEvaluation(attempt?.evaluationId, timing);
   const restoreAnswer = useCallback(
-    (value: string) => form.reset({ answer: value }),
+    (value: string) => {
+      form.reset({ answer: value });
+      // Generated answers may be 401–600 code points, but formal submission
+      // stays limited to 400; validate the restored value before enabling Send.
+      void form.trigger("answer");
+    },
     [form],
   );
   const assistConfigured = session.question.assistType ?? "star";

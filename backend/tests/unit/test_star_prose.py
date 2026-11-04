@@ -380,9 +380,7 @@ def test_output_length_is_defensively_clarified_not_marked_invalid_schema():
                 style=style,
                 passages=[Passage(source="A", text=variants[identifier])],
             )
-            for identifier, style in (
-                ("A", "conclusion"), ("B", "action"), ("C", "conversational")
-            )
+            for identifier, style in (("A", "conclusion"), ("B", "action"), ("C", "conversational"))
         ],
     )
     assert validate_prose(plan, notes).status == "needs_information"

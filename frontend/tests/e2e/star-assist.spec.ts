@@ -562,3 +562,18 @@ for (const [mode, label, firstStep] of [
     await expect(page.getByRole("button", { name: "回答を送信", exact: true })).toBeEnabled();
   });
 }
+
+test("STAR long generated answer is preserved until explicitly shortened for submission", async ({
+  page,
+}) => {
+  await begin(page);
+  await generate(page);
+  await page.getByLabel("案Aの回答").fill("あ".repeat(410));
+  await page.getByRole("radio", { name: "案Aを選択" }).check();
+  await expect(page.getByText(/回答送信の上限は400文字です/)).toBeVisible();
+  await page.getByRole("button", { name: "回答欄へ反映して短く編集" }).click();
+  await expect(page.getByLabel("あなたの回答")).toHaveValue("あ".repeat(410));
+  await expect(page.getByRole("button", { name: "回答を送信", exact: true })).toBeDisabled();
+  await page.getByLabel("あなたの回答").fill("あ".repeat(400));
+  await expect(page.getByRole("button", { name: "回答を送信", exact: true })).toBeEnabled();
+});
