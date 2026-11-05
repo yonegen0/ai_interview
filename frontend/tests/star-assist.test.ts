@@ -3,6 +3,7 @@ import { beforeEach, afterEach, describe, expect, it } from "vitest";
 import fixture from "../../contracts/star-v14-fixtures.json";
 import characterCases from "../../contracts/assist-character-fixtures.json";
 import { generationFailureMessage } from "@/features/starAssist/hooks/useStarWorkspace";
+import { assistModes, starSteps } from "@/features/starAssist/model/steps";
 import { setupServer } from "msw/node";
 import { createHandlers } from "@/mocks/handlers";
 import { createRepository } from "@/mocks/store";
@@ -393,5 +394,21 @@ describe("answer assist failure messaging", () => {
     const failed = generationFailureMessage("FAILED_AFTER_START");
     expect(failed).toContain("生成を完了できませんでした");
     expect(failed).not.toContain("利用枠を消費");
+  });
+});
+
+
+describe("answer-assist reference tips", () => {
+  it("preserves STAR examples and provides 48 ordered cross-step examples", () => {
+    expect(starSteps.map((step) => step.tips.length)).toEqual([2, 2, 2, 2]);
+    const modes = ["prep", "motivation", "career_change", "career_plan"] as const;
+    expect(modes.flatMap((mode) => assistModes[mode].steps.flatMap((step) => step.tips))).toHaveLength(48);
+    for (const mode of modes) {
+      expect(assistModes[mode].steps.map((step) => step.tips.length)).toEqual([3, 3, 3, 3]);
+    }
+    expect(assistModes.prep.steps[0].tips[0]).toBe("私の強みは、課題に気づいたら自分から行動できること");
+    expect(assistModes.motivation.steps[1].tips[2]).toBe("公式サイトで紹介されている〇〇の取り組みに関心を持った");
+    expect(assistModes.career_change.steps[3].tips[2]).toBe("腰を据えて働きながら、継続的に成長し成果を出したい");
+    expect(assistModes.career_plan.steps[3].tips[2]).toBe("まず担当業務を理解し、気づいた課題を周囲に相談して改善に取り組む");
   });
 });
