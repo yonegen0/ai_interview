@@ -43,7 +43,7 @@ export function usePracticeSession() {
       assertActive();
       return getPreviousAnswer(questionId!, signal);
     },
-    enabled: isActive() && valid && !retryFrom && !!questionId,
+    enabled: isActive() && !!scope && valid && !retryFrom && !!questionId,
     retry: false,
   });
   if (!valid)
@@ -119,6 +119,6 @@ export function usePracticeSession() {
           ? (previous.data.answer ?? undefined)
           : undefined
       : undefined,
-    contextKey: `${id}:${query.data.questionNumber}:${retryFrom}:${query.data.activeAttempt?.evaluationId ?? "new"}`,
+    contextKey: `${id}:${query.data.question.id}:${query.data.questionNumber}:${retryFrom}:${query.data.activeAttempt?.evaluationId ?? "new"}`,
   };
 }
