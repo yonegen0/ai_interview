@@ -13,7 +13,6 @@ import {
   type Answer,
   type CreateInput,
   practiceOptionsSchema,
-  previousAnswerSchema,
 } from "./schemas";
 const checkedId = (id: string) => {
   if (!idSchema.safeParse(id).success)
