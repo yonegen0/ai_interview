@@ -9,6 +9,7 @@ import { QuestionEditorList } from "@/features/admin/components/organisms/Questi
 import { QuestionManagementTemplate } from "@/features/admin/components/templates/QuestionManagementTemplate";
 import {
   changeSummary,
+  defaultAssistType,
   type Stage,
   type ManagementActions,
 } from "@/features/admin/model/editor";
@@ -75,6 +76,9 @@ export function AdminPresentation({
   };
   const onMove = (index: number, direction: -1 | 1) =>
     move(index, index + direction);
+  const onCategoryChange = (index: number, category: BankSave["questions"][number]["category"]) => {
+    form.setValue(`questions.${index}.assistType`, defaultAssistType(category));
+  };
   if (kind === "card") {
     const index = last ? Math.max(0, fields.length - 1) : 0;
     return (
@@ -86,6 +90,7 @@ export function AdminPresentation({
         last={index === fields.length - 1}
         disabled={disabled}
         onMove={(direction) => onMove(index, direction)}
+        onCategoryChange={(category) => onCategoryChange(index, category)}
         onRemove={() => remove(index)}
       />
     );
@@ -96,6 +101,7 @@ export function AdminPresentation({
         {...editor}
         disabled={disabled}
         onMove={onMove}
+        onCategoryChange={onCategoryChange}
         onRemove={remove}
       />
     );
@@ -111,6 +117,11 @@ export function AdminPresentation({
     appendQuestion: () => append(createBankFixture(1).questions[0]),
     removeQuestion: remove,
     moveQuestion: onMove,
+    updateCategoryAssist: onCategoryChange,
+    applyCategoryAssistDefaults: () =>
+      form.getValues("questions").forEach((question, index) =>
+        onCategoryChange(index, question.category),
+      ),
   };
   return (
     <QuestionManagementTemplate

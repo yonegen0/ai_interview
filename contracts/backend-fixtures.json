@@ -25,7 +25,8 @@
           "id": "f1500000-0000-4000-8000-000000000007",
           "category": "job_change",
           "difficulty": "standard",
-          "question": "1\u793e\u76ee\u306e\u4f1a\u793e\u304b\u3089\u8ee2\u8077\u3092\u8003\u3048\u305f\u7406\u7531\u3092\u6559\u3048\u3066\u304f\u3060\u3055\u3044\u3002"
+          "question": "1\u793e\u76ee\u306e\u4f1a\u793e\u304b\u3089\u8ee2\u8077\u3092\u8003\u3048\u305f\u7406\u7531\u3092\u6559\u3048\u3066\u304f\u3060\u3055\u3044\u3002",
+          "assistType": "career_change"
         },
         "questionNumber": 1,
         "activeAttempt": null,
@@ -61,7 +62,8 @@
           "id": "f1500000-0000-4000-8000-000000000007",
           "category": "job_change",
           "difficulty": "standard",
-          "question": "1\u793e\u76ee\u306e\u4f1a\u793e\u304b\u3089\u8ee2\u8077\u3092\u8003\u3048\u305f\u7406\u7531\u3092\u6559\u3048\u3066\u304f\u3060\u3055\u3044\u3002"
+          "question": "1\u793e\u76ee\u306e\u4f1a\u793e\u304b\u3089\u8ee2\u8077\u3092\u8003\u3048\u305f\u7406\u7531\u3092\u6559\u3048\u3066\u304f\u3060\u3055\u3044\u3002",
+          "assistType": "career_change"
         },
         "questionNumber": 1,
         "activeAttempt": {
@@ -129,7 +131,8 @@
           "id": "f1500000-0000-4000-8000-000000000007",
           "category": "job_change",
           "difficulty": "standard",
-          "question": "1\u793e\u76ee\u306e\u4f1a\u793e\u304b\u3089\u8ee2\u8077\u3092\u8003\u3048\u305f\u7406\u7531\u3092\u6559\u3048\u3066\u304f\u3060\u3055\u3044\u3002"
+          "question": "1\u793e\u76ee\u306e\u4f1a\u793e\u304b\u3089\u8ee2\u8077\u3092\u8003\u3048\u305f\u7406\u7531\u3092\u6559\u3048\u3066\u304f\u3060\u3055\u3044\u3002",
+          "assistType": "career_change"
         },
         "questionNumber": 1,
         "answer": "\u7d4c\u9a13\u3092\u6d3b\u304b\u3057\u3001\u65b0\u3057\u3044\u696d\u52d9\u306b\u6311\u6226\u3057\u305f\u3044\u3067\u3059\u3002",
@@ -167,7 +170,8 @@
           "id": "f1500000-0000-4000-8000-000000000008",
           "category": "job_change",
           "difficulty": "standard",
-          "question": "\u8ee2\u8077\u6d3b\u52d5\u3092\u3059\u308b\u306b\u3042\u305f\u3063\u3066\u3001\u3069\u306e\u3088\u3046\u306a\u8ef8\u3067\u8ee2\u8077\u5148\u3092\u9078\u3093\u3067\u3044\u307e\u3059\u304b\uff1f"
+          "question": "\u8ee2\u8077\u6d3b\u52d5\u3092\u3059\u308b\u306b\u3042\u305f\u3063\u3066\u3001\u3069\u306e\u3088\u3046\u306a\u8ef8\u3067\u8ee2\u8077\u5148\u3092\u9078\u3093\u3067\u3044\u307e\u3059\u304b\uff1f",
+          "assistType": "career_change"
         },
         "questionNumber": 2,
         "activeAttempt": null,
@@ -222,7 +226,8 @@
           "id": "f1500000-0000-4000-8000-000000000008",
           "category": "job_change",
           "difficulty": "standard",
-          "question": "\u8ee2\u8077\u6d3b\u52d5\u3092\u3059\u308b\u306b\u3042\u305f\u3063\u3066\u3001\u3069\u306e\u3088\u3046\u306a\u8ef8\u3067\u8ee2\u8077\u5148\u3092\u9078\u3093\u3067\u3044\u307e\u3059\u304b\uff1f"
+          "question": "\u8ee2\u8077\u6d3b\u52d5\u3092\u3059\u308b\u306b\u3042\u305f\u3063\u3066\u3001\u3069\u306e\u3088\u3046\u306a\u8ef8\u3067\u8ee2\u8077\u5148\u3092\u9078\u3093\u3067\u3044\u307e\u3059\u304b\uff1f",
+          "assistType": "career_change"
         },
         "questionNumber": 2,
         "activeAttempt": {

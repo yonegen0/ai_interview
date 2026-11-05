@@ -24,6 +24,7 @@ FULL = {"mode": "full", "difficulty": "standard"}
 
 def bank(last_length):
     question = load_questions()[0].wire()
+    question.pop("assistType", None)  # Preserve legacy synthetic size boundary.
     return [
         {**question, "id": uid(2000 + i), "question": "あ" * (1000 if i < 50 else last_length)}
         for i in range(51)

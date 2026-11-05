@@ -219,7 +219,7 @@ def star_flow(a, b, run, *, wait=poll_star, evaluate=poll):
 
     session = post(
         "/sessions",
-        {"mode": "full", "difficulty": "standard"},
+        {"mode": "category", "category": "experience", "difficulty": "standard"},
         "session",
         201,
     )

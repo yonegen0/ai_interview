@@ -28,6 +28,7 @@ MESSAGES = {
     "DRAFT_VERSION_CONFLICT": "Draft changed.",
     "DRAFT_CLOSED": "Draft closed.",
     "STAR_GENERATION_IN_PROGRESS": "Generation in progress.",
+    "ASSIST_MODE_FORBIDDEN": "Answer assist mode is not available for this question.",
     "STAR_QUOTA_EXCEEDED": "Generation quota exceeded.",
     "VALIDATION_ERROR": "Invalid request.",
     "FORBIDDEN": "Access denied.",

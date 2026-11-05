@@ -57,7 +57,7 @@ def star():
         return response["statusCode"], json.loads(response["body"])
 
     sid = runtime.application.create(
-        "owner", str(uuid4()), {"category": "job_change", "difficulty": "standard"}
+        "owner", str(uuid4()), {"category": "experience", "difficulty": "standard"}
     ).body["sessionId"]
     qid = runtime.application.question("owner", sid).body["question"]["id"]
     status, context = request(
@@ -88,6 +88,28 @@ def star():
     )
     _, draft = request("POST", f"/answer-contexts/{context_id}/star-drafts", value)
     return runtime, now, request, sid, qid, context_id, value, answer, draft, numbers
+
+
+def test_mismatched_assist_returns_403_instead_of_server_error(star):
+    runtime, _, request, _, _, _, value, _, _, _ = star
+    sid = runtime.application.create(
+        "owner", str(uuid4()), {"category": "job_change", "difficulty": "standard"}
+    ).body["sessionId"]
+    qid = runtime.application.question("owner", sid).body["question"]["id"]
+    context = request(
+        "POST",
+        f"/sessions/{sid}/answer-contexts",
+        {"operationKind": "initial_answer", "questionId": qid},
+    )[1]
+    draft = request(
+        "POST", f"/answer-contexts/{context['contextId']}/star-drafts", value
+    )[1]
+    status, body = request(
+        "POST",
+        "/star-assist/generations",
+        {"starDraftId": draft["id"], "expectedVersion": 1},
+    )
+    assert status == 403 and body["code"] == "ASSIST_MODE_FORBIDDEN"
 
 
 def generated(star):
