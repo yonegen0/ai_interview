@@ -553,8 +553,8 @@ for (const [mode, label, firstStep] of [
     await expect(page.getByText(/文章にまとめる必要はありません。要点を箇条書きで入力してください/)).toBeVisible();
     const notes = page.getByLabel(firstStep, { exact: true });
     await expect(notes).toHaveValue("");
-    await notes.fill("・自分の経験\\n・考えたこと".replace("\\n", "\n"));
-    await expect(notes).toHaveValue("・自分の経験\\n・考えたこと".replace("\\n", "\n"));
+    await notes.fill("・自分の経験\n・考えたこと");
+    await expect(notes).toHaveValue("・自分の経験\n・考えたこと");
     await notes.fill("顧客の課題を聞き、対応してきました。");
     for (let i = 0; i < 3; i++)
       await page.getByRole("button", { name: "次へ", exact: true }).click();
