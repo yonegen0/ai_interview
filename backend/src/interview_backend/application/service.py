@@ -118,6 +118,11 @@ class Application:
         validate_id(question_id)
         return self.repository.previous_answer(owner, question_id)
 
+    def previous_answer(self, owner: str, question_id: str) -> Reply:
+        self._owner(owner)
+        validate_id(question_id)
+        return self.repository.previous_answer(owner, question_id)
+
     def evaluation(self, owner: str, evaluation_id: str) -> Reply:
         self._owner(owner)
         validate_id(evaluation_id)
