@@ -3,7 +3,8 @@ import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 import { PracticeSessionContent } from "@/features/interview/components/pages/PracticeSessionContent";
 import { createSessionFixture, createStoryState } from "../../fixtures";
-const session = createSessionFixture();
+import { questions } from "@/mocks/data/questions";
+const session = createSessionFixture({ question: questions[3] });
 const meta = {
   title: "Pages/Interview/StarAssist",
   component: PracticeSessionContent,
