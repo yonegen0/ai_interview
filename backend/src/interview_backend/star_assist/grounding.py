@@ -213,6 +213,7 @@ def validate_prose(plan, value):
         candidates.append(Candidate(id=c.id, style=c.style, text=text))
     return StarResult(status="ready", candidates=candidates, missingInformation=[])
 
+
 # prose-v4 uses expression identifiers, never LLM-copied natural language.
 # The original prose-v3 wire types remain for persisted-version compatibility.
 class ExpressionChoice(Strict):
@@ -234,17 +235,39 @@ class ProseV4Plan(Strict):
 
 ORDERS = {"A": "RSTA", "B": "ASTR", "C": "STAR"}
 ACTION_EVIDENCE = (
-    "提案", "共有", "確認", "調査", "分析", "比較", "記録", "担当",
-    "対応", "実施", "着目", "整理", "連絡", "交渉", "検討", "作成",
-    "説明", "相談", "訪問", "工夫", "選定", "ヒアリング", "働きかけ",
+    "提案",
+    "共有",
+    "確認",
+    "調査",
+    "分析",
+    "比較",
+    "記録",
+    "担当",
+    "対応",
+    "実施",
+    "着目",
+    "整理",
+    "連絡",
+    "交渉",
+    "検討",
+    "作成",
+    "説明",
+    "相談",
+    "訪問",
+    "工夫",
+    "選定",
+    "ヒアリング",
+    "働きかけ",
 )
 
 
 def has_action_evidence(notes):
     """Conservative surface evidence, not an inference of an unmentioned action."""
     value = notes.get("A", "").strip()
-    return bool(value) and any(verb in value for verb in ACTION_EVIDENCE) and not any(
-        negation in value for negation in ("一切行っていない", "何もしていない")
+    return (
+        bool(value)
+        and any(verb in value for verb in ACTION_EVIDENCE)
+        and not any(negation in value for negation in ("一切行っていない", "何もしていない"))
     )
 
 
@@ -310,8 +333,10 @@ def validate_prose_v4(plan, value):
     if not realizations:
         return clarify("action"), "INPUT_ACTION_MISSING", False
     if plan.status == "needs_information":
-        if plan.candidates or not 1 <= len(plan.missingInformation) <= 4 or any(
-            not item.strip() or len(item) > 200 for item in plan.missingInformation
+        if (
+            plan.candidates
+            or not 1 <= len(plan.missingInformation) <= 4
+            or any(not item.strip() or len(item) > 200 for item in plan.missingInformation)
         ):
             raise ValueError("StarPlan")
         selections = None
