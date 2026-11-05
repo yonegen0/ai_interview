@@ -1190,7 +1190,6 @@ def test_live_worker_pins_provider_once_shares_quota_and_never_replays(
             self.calls += 1
             if uncertain:
                 raise ReadTimeoutError(endpoint_url="https://synthetic")
-            data = json.loads(kwargs["messages"][0]["content"][0]["text"])
             body = {
                 "status": "ready",
                 "candidates": [
