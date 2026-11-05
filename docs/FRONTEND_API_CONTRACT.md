@@ -65,7 +65,8 @@ expectedVersionはJSONの有限な整数値として判定し、`0`・`0.0`・`0
 
 実接続はCognito USER_AUTH／EMAIL_OTP。OTP送信・再送は手動で、SDK送信を自動Retryしない。
 access／refresh tokenをタブ内に保持し、期限30秒前に更新、同時更新は1件とする。
-401で1回更新・同じ要求を再送し、再度401なら再ログインへ移る。403では更新しない。
+401時のToken強制更新とリクエスト再送はGETのみ最大1回。POSTなどの変更操作は自動再送しない。401が継続した場合は保護された操作を停止して再確認を求める。403では更新しない。
+有効な認証済みSessionのToken更新中は画面を維持し、復元中・本人情報未確認・一時障害中は保護画面を隠す。一時障害ではRefresh Tokenを残し、接続復帰時または画面の「認証を再確認する」操作で再確認する。
 OTP・challengeはメモリだけに保持し、ID tokenは永続保存しない。
 ログアウト後に遅れて返る認証応答で再ログイン状態へ戻さない。
 復旧データはClient ID＋subで分離し、同じ利用者だけ復旧する。元の練習へ戻れるようにする。
@@ -94,10 +95,13 @@ FrontendはPOSTのIdempotency-Keyを生成し、BackendはsessionId・attemptId�
 |---|---|---|
 | POST /sessions | category, difficulty="standard" | 201: sessionId |
 | GET /sessions/:sessionId/question | なし | 200: sessionId, question, questionNumber, activeAttempt |
+| GET /questions/:questionId/previous-answer | なし（認証必須） | 200: {questionId, answer: string &#124; null} |
 | POST /sessions/:sessionId/answers | questionId, answer | 202: attemptId, evaluationId, status |
 | GET /evaluations/:evaluationId | なし | 200: evaluationId, attemptId, status; failedの場合error |
 | GET /attempts/:attemptId/feedback | なし | 200: Feedback |
 | POST /sessions/:sessionId/questions/next | fromAttemptId | 200: 更新後の質問取得Response |
+
+前回回答取得はJWTの本人の送信済み履歴から同一questionIdの最新回答を返す読み取り専用APIです。見つからない場合のみ `answer:null`。過去履歴の探索上限（2,000件）や取得障害で最新回答を確定できない場合は503とし、Frontendはコピー操作だけを非表示にして通常の回答入力・送信を継続します。ユーザーIDはリクエストパラメータに渡さず、応答は `Cache-Control: no-store` を付与します。
 
 Question: `id`, `category`, `difficulty`, `question`。
 activeAttempt: 未送信はnull、それ以外は `attemptId`, `evaluationId`, `status`。
@@ -128,6 +132,7 @@ scoreは78.0・7.8e1など有限の整数値も受理し、Backendは整数78と
 | 409 | SESSION_STATE_CONFLICT / IDEMPOTENCY_CONFLICT / EVALUATION_NOT_COMPLETED |
 | 429 | RATE_LIMITED |
 | 500 | INTERNAL_SERVER_ERROR |
+| 503 | PREVIOUS_ANSWER_UNAVAILABLE（前回回答の検索不可） |
 | 502 | AI_UPSTREAM_ERROR |
 | 504 | AI_TIMEOUT |
 
