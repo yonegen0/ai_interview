@@ -64,6 +64,11 @@ export function StarAssistStepForm({
         </Text>
       </Heading>
       <Text variant="body2" color="text.secondary">{current.description}</Text>
+      {mode !== "star" && (
+        <Text variant="body2" color="text.secondary">
+          文章にまとめる必要はありません。要点を箇条書きで入力してください。入力した要点をもとにAIが自然な面接回答にまとめます。
+        </Text>
+      )}
       <Controller
         key={current.key}
         name={`notes.${current.key}`}
