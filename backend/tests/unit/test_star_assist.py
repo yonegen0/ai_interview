@@ -101,9 +101,7 @@ def test_mismatched_assist_returns_403_instead_of_server_error(star):
         f"/sessions/{sid}/answer-contexts",
         {"operationKind": "initial_answer", "questionId": qid},
     )[1]
-    draft = request(
-        "POST", f"/answer-contexts/{context['contextId']}/star-drafts", value
-    )[1]
+    draft = request("POST", f"/answer-contexts/{context['contextId']}/star-drafts", value)[1]
     status, body = request(
         "POST",
         "/star-assist/generations",
