@@ -1,6 +1,11 @@
 /** @file textLimits.ts @description Versioned, non-mutating Unicode text counters. */
 export const QUESTION_MAX_LENGTH = 200;
 export const COACHING_ANSWER_MAX_LENGTH = 400;
+export const ANSWER_RECOMMENDATIONS = {
+  initial: { min: 250, max: 350 },
+  followUp: { min: 150, max: 220 },
+} as const;
+export type AnswerKind = keyof typeof ANSWER_RECOMMENDATIONS;
 export const countCodePoints = (value: string) => Array.from(value).length;
 export const countLegacyAnswerUnits = (value: string) => value.length;
 export function scoreValues(

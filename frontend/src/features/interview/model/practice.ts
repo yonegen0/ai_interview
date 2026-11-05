@@ -2,6 +2,7 @@
 import type { FormEventHandler } from "react";
 import type { UseFormRegisterReturn } from "react-hook-form";
 import type { Session } from "@/lib/api/schemas";
+import type { AnswerKind } from "@/lib/textLimits";
 import type { Phase } from "./machine";
 /** Explain the existing exit behavior without changing storage or navigation. */
 export function exitNotice(phase: Phase): string {
@@ -23,6 +24,7 @@ export type AnswerSubmissionProps = {
   onRestorePrevious?: () => void;
   field: UseFormRegisterReturn;
   count: number;
+  answerKind: AnswerKind;
   phase: Phase;
   valid: boolean;
   inputError?: string;

@@ -12,6 +12,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 export const Empty: Story = {};
+export const FollowUp: Story = { args: { answerKind: "followUp" } };
 export const Answering: Story = { args: { text: "回答です。" } };
 export const MaximumLength: Story = { args: { text: storyTexts.text400 } };
 export const Invalid: Story = {

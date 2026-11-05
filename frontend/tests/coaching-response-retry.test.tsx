@@ -106,6 +106,7 @@ it("shows a safe error and retries follow-up question retrieval with the keyboar
     await screen.findByRole("heading", { name: "深掘り質問 1 / 3" }),
   ).toBeInTheDocument();
   expect(screen.getByText(followUpQuestion)).toBeInTheDocument();
+  expect(screen.getByText("150〜220文字がおすすめです")).toBeInTheDocument();
   expect(screen.getByRole("textbox", { name: "あなたの回答" })).toBeEnabled();
   expect(screen.getByRole("button", { name: "回答を送信" })).toBeDisabled();
   view.unmount();

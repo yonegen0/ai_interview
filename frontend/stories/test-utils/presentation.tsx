@@ -175,6 +175,7 @@ export function LoginPresentation({
   return template ? <LoginTemplate {...props} /> : <EmailOtpForm {...props} />;
 }
 export type AnswerPresentationProps = {
+  answerKind?: import("@/lib/textLimits").AnswerKind;
   template?: boolean;
   text?: string;
   phase?: Phase;
@@ -185,6 +186,7 @@ export type AnswerPresentationProps = {
 export function AnswerPresentation({
   template = false,
   text = "",
+  answerKind = "initial",
   phase = "answering",
   inputError,
   confirm = false,
@@ -198,6 +200,7 @@ export function AnswerPresentation({
   const bindings = {
     field: form.register("answer"),
     count: Array.from(answer).length,
+    answerKind,
     phase,
     valid: !!answer.trim() && Array.from(answer).length <= 400 && !inputError,
     inputError,

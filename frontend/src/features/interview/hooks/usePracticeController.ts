@@ -74,6 +74,7 @@ export function usePracticeController(
       onRestorePrevious: state.restorePrevious,
       field: state.form.register("answer"),
       count: countCodePoints(state.answer),
+      answerKind: "initial",
       phase: state.phase,
       valid: state.form.formState.isValid,
       inputError: state.form.formState.errors.answer?.message,
