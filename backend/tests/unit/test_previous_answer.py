@@ -9,7 +9,7 @@ from interview_backend.application.service import Application
 from interview_backend.assets import load_questions
 from interview_backend.api.handler import Handler
 from interview_backend.demo import demo_event
-from interview_backend.models.internal import Attempt, BusinessError
+from interview_backend.models.internal import BusinessError, Attempt
 from interview_backend.repositories.codec import encode, to_wire
 from interview_backend.repositories.dynamodb import DynamoDBRepository
 from interview_backend.repositories.memory import MemoryRepository
@@ -119,7 +119,7 @@ def test_dynamo_query_paginated_by_owner_and_latest_timestamp():
     assert len(client.calls) == 2
     assert all(call["Limit"] == PREVIOUS_ANSWER_PAGE_SIZE for call in client.calls)
     assert all(call["ConsistentRead"] is True for call in client.calls)
-    assert all(call["KeyConditionExpression"] == "PK = :owner AND begins_with(SK, :attempt)" for call in client.calls)
+    assert all(\n        call["KeyConditionExpression"] == "PK = :owner AND begins_with(SK, :attempt)"\n        for call in client.calls\n    )
 
 
 def test_dynamo_cap_and_repeated_cursor_never_claim_absence(monkeypatch):
