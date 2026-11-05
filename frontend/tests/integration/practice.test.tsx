@@ -3,6 +3,7 @@ import { afterAll, afterEach, beforeAll, expect, it, vi } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { setupServer } from "msw/node";
+import { http, HttpResponse } from "msw";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "@mui/material/styles";
 import { createRepository } from "@/mocks/store";
@@ -13,7 +14,7 @@ import { InterviewPractice } from "@/features/interview/components/pages/Intervi
 import { auth } from "@/lib/auth/session";
 import { theme } from "@/theme/theme";
 import type { Session } from "@/lib/api/schemas";
-import { save } from "@/lib/storage/recovery";
+import { save, readSaved, answerRecoverySchema } from "@/lib/storage/recovery";
 const { push, practiceLocation } = vi.hoisted(() => ({
   push: vi.fn(),
   practiceLocation: { search: "" },
@@ -300,7 +301,19 @@ it("offers previous accepted answer across normal sessions, only copies on click
   await userEvent.click(screen.getByRole("button", { name: "前回の回答に置き換える" }));
   expect(input).toHaveValue(previous);
   await screen.findByText(`${Array.from(previous).length} / 400文字`);
-  expect(answerRequests).toBe(1); // The historical POST only; copying never calls AI or submits.
+  expect(answerRequests).toBe(1); // Only the historical POST; copy never sends.
+  await waitFor(() =>
+    expect(readSaved(`pocket:answer:${session.sessionId}`, answerRecoverySchema)?.draft)
+      .toBe(previous),
+  );
+  fireEvent.change(input, { target: { value: "コピーを編集して送信します。" } });
+  await userEvent.click(screen.getByRole("button", { name: "回答を送信" }));
+  await waitFor(() =>
+    expect(Object.values(repository.read().attempts).some(
+      (entry) => entry.feedback.answer === "コピーを編集して送信します。",
+    )).toBe(true),
+  );
+  expect(answerRequests).toBe(2);
   view.unmount();
 });
 
@@ -326,4 +339,23 @@ it("does not show answers from other questions or other authenticated owners", a
   expect(screen.queryByRole("button", { name: "前回の回答をコピー" })).not.toBeInTheDocument();
   expect(screen.getByLabelText("あなたの回答")).toHaveValue("");
   second.view.unmount();
+});
+
+it("history fetch failures never block normal typing or submitting", async () => {
+  server.use(http.get("http://localhost/api/questions/:id/previous-answer", () =>
+    HttpResponse.json({ code: "INTERNAL_SERVER_ERROR", message: "unavailable" }, { status: 500 }),
+  ));
+  const created = await createSession("career", crypto.randomUUID());
+  const session = await getQuestion(created.sessionId);
+  const { view } = await mountNormalSession(session);
+  const input = await screen.findByLabelText("あなたの回答");
+  expect(screen.queryByRole("button", { name: "前回の回答をコピー" })).not.toBeInTheDocument();
+  await userEvent.type(input, "履歴が見られなくても入力可能です。");
+  await userEvent.click(screen.getByRole("button", { name: "回答を送信" }));
+  await waitFor(() =>
+    expect(Object.values(repository.read().attempts).some(
+      (entry) => entry.feedback.answer === "履歴が見られなくても入力可能です。",
+    )).toBe(true),
+  );
+  view.unmount();
 });
