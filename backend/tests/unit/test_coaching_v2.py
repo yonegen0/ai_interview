@@ -250,6 +250,8 @@ def test_question_guards_and_prompt_trust(runtime):
 
     prompt = build_coaching_prompt(context)
     assert context.initial_answer not in prompt.instructions
+    assert "完成回答例は250〜350コードポイント" in prompt.instructions
+    assert "上限400コードポイント" in prompt.instructions
     for word in ["訂正", "撤回", "矛盾", "肯定", "否定", "untrusted"]:
         assert word in prompt.instructions
 

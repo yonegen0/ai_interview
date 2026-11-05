@@ -81,6 +81,7 @@ def test_bedrock_sdk_shape_grounding_styles_and_independent_token_cap():
     }
     data = json.loads(request["messages"][0]["content"][0]["text"])
     assert data["industry"] == "製造" and data["targetCategory"] == "corporate_sales"
+    assert data["lengthTarget"] == [250, 350]
     # Actual installed botocore service model; construction uses only synthetic keys.
     sdk = boto3.client(
         "bedrock-runtime",
@@ -261,14 +262,22 @@ def test_manual_openai_reuses_transport_schema_and_star_cap():
 
 
 @pytest.mark.parametrize("mode", ["prep", "motivation", "career_change", "career_plan"])
-def test_four_assist_modes_one_response_one_provider_call(mode):
+@pytest.mark.parametrize(
+    "operation_kind, target",
+    [
+        ("initial_answer", [250, 350]),
+        ("retry_attempt", [250, 350]),
+        ("coaching_answer", [150, 220]),
+    ],
+)
+def test_four_assist_modes_one_response_one_provider_call(mode, operation_kind, target):
     client = Client(body={"answer": "本人の事実に基づく回答です。", "missingInformation": []})
     transport = BedrockProvider(client_factory=lambda *a, **k: client)
     live = LiveStarProvider(transport)
     input_value = value()
     input_value.assistType = mode
     input_value.targetCategory = None
-    result = live.generate("強みを教えてください。", input_value)
+    result = live.generate("強みを教えてください。", input_value, operation_kind=operation_kind)
     assert result.status == "ready"
     assert [(c.id, c.style) for c in result.candidates] == [("A", "conclusion")]
     assert result.candidates[0].text == "本人の事実に基づく回答です。"
@@ -277,6 +286,7 @@ def test_four_assist_modes_one_response_one_provider_call(mode):
     data = json.loads(client.kwargs["messages"][0]["content"][0]["text"])
     assert data["mode"] == mode
     assert data["notes"]["A"] == "課題を共有した。"
+    assert data["lengthTarget"] == target
 
 
 def test_assist_output_over_500_is_not_truncated_or_retried():

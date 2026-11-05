@@ -770,6 +770,8 @@ class StarRepositoryMixin:
             tx.window = CommitWindow(upper=min(job.deadline_at, draft.expires_at * 1000))
             tx.put(ref("StarGeneration", owner, identifier), job)
             tx.put(ref("Dispatch", owner, identifier), dispatch)
+            # Pass validated context to this execution only; never persist a new schema field.
+            job.operation_kind = context.operation_kind
             return job
 
         return self._atomic(run, temporal=True)

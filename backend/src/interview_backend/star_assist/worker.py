@@ -77,7 +77,9 @@ class StarWorker:
                 )
                 deadline = Deadline(began + seconds, self.monotonic)
                 result = StarResult.model_validate(
-                    self.provider.generate_with_deadline(lease.question, lease.input, deadline)
+                    self.provider.generate_with_deadline(
+                        lease.question, lease.input, deadline, operation_kind=lease.operation_kind
+                    )
                 )
             if self.monotonic() - began >= 40:
                 raise TimeoutError
