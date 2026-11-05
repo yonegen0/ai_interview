@@ -35,9 +35,7 @@ def response(data):
                 "id": i,
                 "style": style,
                 "fields": [
-                    {"source": k, "expressionId": f"{k}:{i}"}
-                    for k in order[i]
-                    if k in available
+                    {"source": k, "expressionId": f"{k}:{i}"} for k in order[i] if k in available
                 ],
             }
             for i, style in (("A", "conclusion"), ("B", "action"), ("C", "conversational"))
@@ -243,9 +241,7 @@ def test_citing_input_does_not_authorize_new_or_changed_claims(replace):
     "change",
     [
         lambda p: p["candidates"][0]["fields"].pop(),
-        lambda p: p["candidates"][0]["fields"].append(
-            deepcopy(p["candidates"][0]["fields"][0])
-        ),
+        lambda p: p["candidates"][0]["fields"].append(deepcopy(p["candidates"][0]["fields"][0])),
         lambda p: p["candidates"][0]["fields"].reverse(),
     ],
 )
@@ -466,9 +462,15 @@ def test_v4_provider_recognizes_persisted_versions_without_replaying_them():
     # Storage still validates the persisted legacy identifiers without migration.
     for identifier in old_ids:
         generation = StarGeneration(
-            owner="user", id="gen", context_id="ctx", star_draft_id="draft",
-            input=value(A="記録を確認した。"), question="経験は？",
-            month="2026-11", created_at=0, deadline_at=100000,
+            owner="user",
+            id="gen",
+            context_id="ctx",
+            star_draft_id="draft",
+            input=value(A="記録を確認した。"),
+            question="経験は？",
+            month="2026-11",
+            created_at=0,
+            deadline_at=100000,
             provider_id=identifier,
         )
         validate_star(generation)
