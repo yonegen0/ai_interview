@@ -62,6 +62,7 @@ POLITE_ENDINGS = (
     ("だった", "でした"),
     ("である", "です"),
     ("していた", "していました"),
+    ("ていた", "ていました"),
 )
 
 
@@ -99,9 +100,10 @@ def rewrite_field(source, identifier):
     """Produce a verifiable natural realization; no extraction across clauses.
 
     Quotes, newlines, numbers, names, conditions and unresolved prose stay intact.
-    Conversation uses a softer explanatory ending only for an unquoted past
-    sentence; it never invents an emotion, a reason or an inferred first-person actor.
+    Keep an interview-friendly polite ending without conversational exaggeration.
     """
+    source = re.sub(r"(?m)^\\s*(?:[-*•]\\s+|・(?=\\S))", "", source.strip())
+    source = re.sub(r"。?\\n+", "。", source)
     if any(c in source for c in '「」『』"“”‘’?!！？') or any(
         marker in source for marker in ("社名", "氏名", "名前", "名称", "という名", "と呼ぶ")
     ):
@@ -123,27 +125,10 @@ def rewrite_field(source, identifier):
             and not compact.endswith(("ました", "でした"))
         ):
             polite = compact[:-2] + "しました"
-        if identifier == "B":
-            # Only reviewed サ変 nouns take いたしました. Applying this to
-            # godan 話しました/貸しました would corrupt the verb stem.
-            polite = _ending(
-                polite, tuple((n + "しました", n + "いたしました") for n in VERBAL_NOUNS)
-            )
-        if identifier == "C" and (
-            not polite.endswith("ませんでした")
-            or polite.endswith(("しませんでした", "できませんでした"))
-        ):
-            # Preserve negation: e.g. しませんでした -> しなかったんです.
-            polite = _ending(
-                polite,
-                (
-                    ("しませんでした", "しなかったんです"),
-                    ("できませんでした", "できなかったんです"),
-                    ("しました", "したんです"),
-                    ("できました", "できたんです"),
-                    ("でした", "だったんです"),
-                ),
-            )
+        # Sentence-final nominal actions are safely made polite; inner clauses,
+        # subjects and results are not paraphrased.
+        if polite == compact and polite.endswith(("提案", "確認", "共有", "担当", "着目", "分析", "整理", "削減")):
+            polite += "しました"
         result.append(polite)
     rendered = "".join(result)
     return rendered if rendered.endswith(("。", "！", "？", "!", "?")) else rendered + "。"
@@ -225,3 +210,116 @@ def validate_prose(plan, value):
             return clarify("length")
         candidates.append(Candidate(id=c.id, style=c.style, text=text))
     return StarResult(status="ready", candidates=candidates, missingInformation=[])
+
+# prose-v4 uses expression identifiers, never LLM-copied natural language.
+# The original prose-v3 wire types remain for persisted-version compatibility.
+class ExpressionChoice(Strict):
+    source: Literal["S", "T", "A", "R"]
+    expressionId: str
+
+
+class ProseV4Candidate(Strict):
+    id: Literal["A", "B", "C"]
+    style: Literal["conclusion", "action", "conversational"]
+    fields: list[ExpressionChoice]
+
+
+class ProseV4Plan(Strict):
+    status: Literal["ready", "needs_information"]
+    candidates: list[ProseV4Candidate]
+    missingInformation: list[str]
+
+
+ORDERS = {"A": "RSTA", "B": "ASTR", "C": "STAR"}
+ACTION_EVIDENCE = (
+    "提案", "共有", "確認", "調査", "分析", "比較", "記録", "担当",
+    "対応", "実施", "着目", "整理", "連絡", "交渉", "検討", "作成",
+    "説明", "相談", "訪問", "工夫", "選定", "ヒアリング", "働きかけ",
+)
+
+
+def has_action_evidence(notes):
+    """Conservative surface evidence, not an inference of an unmentioned action."""
+    value = notes.get("A", "").strip()
+    return bool(value) and any(verb in value for verb in ACTION_EVIDENCE) and not any(
+        negation in value for negation in ("一切行っていない", "何もしていない")
+    )
+
+
+def expression_catalog(realizations):
+    return {
+        field: {f"{field}:{variant}": surface for variant, surface in variants.items()}
+        for field, variants in realizations.items()
+    }
+
+
+def safe_v4_candidates(realizations, selections=None):
+    """Assemble complete input-backed facts in fixed styles and safe fixed orders."""
+    catalog = expression_catalog(realizations)
+    candidates = []
+    fallback = selections is None or len(selections) != len(STYLES)
+    selected = {}
+    if selections is not None:
+        for candidate in selections:
+            if candidate.id in selected:
+                fallback = True
+            selected[candidate.id] = candidate
+    for identifier, style in STYLES:
+        order = [field for field in ORDERS[identifier] if field in catalog]
+        choice = selected.get(identifier)
+        chosen_ids = {}
+        if choice is None or choice.style != style:
+            fallback = True
+        else:
+            fields = [entry.source for entry in choice.fields]
+            if fields != order:
+                fallback = True
+            else:
+                chosen_ids = {entry.source: entry.expressionId for entry in choice.fields}
+                if any(chosen_ids[field] not in catalog[field] for field in order):
+                    chosen_ids = {}
+                    fallback = True
+        text = OPENINGS[identifier] + "".join(
+            catalog[field].get(chosen_ids.get(field), catalog[field][f"{field}:{identifier}"])
+            for field in order
+        )
+        if len(text) > STAR_CANDIDATE_MAX_LENGTH:
+            return None, fallback
+        candidates.append(Candidate(id=identifier, style=style, text=text))
+    return candidates, fallback
+
+
+def validate_prose_v4(plan, value):
+    """Return verified public result plus private diagnostics, without a second AI call."""
+    notes = value.notes.model_dump()
+    if not has_action_evidence(notes):
+        return clarify("action"), "INPUT_ACTION_MISSING", False
+    if contradictory(notes):
+        return clarify("conflict"), "INPUT_CONFLICT", False
+    realizations = source_realizations(notes)
+    if not realizations:
+        return clarify("action"), "INPUT_ACTION_MISSING", False
+    if plan.status == "needs_information":
+        if plan.candidates or not 1 <= len(plan.missingInformation) <= 4 or any(
+            not item.strip() or len(item) > 200 for item in plan.missingInformation
+        ):
+            raise ValueError("StarPlan")
+        selections = None
+        reason = "MODEL_REQUESTED_INFORMATION"
+    else:
+        if plan.missingInformation:
+            raise ValueError("StarPlan")
+        selections = plan.candidates
+        reason = None
+    candidates, fallback = safe_v4_candidates(realizations, selections)
+    if candidates is None:
+        return clarify("length"), "INPUT_LENGTH_EXCEEDED", False
+    if plan.status == "needs_information":
+        fallback = True
+    elif fallback:
+        reason = "MODEL_STRUCTURE_MISMATCH"
+    return (
+        StarResult(status="ready", candidates=candidates, missingInformation=[]),
+        reason,
+        fallback,
+    )
