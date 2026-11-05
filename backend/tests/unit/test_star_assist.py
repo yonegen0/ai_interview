@@ -1140,7 +1140,7 @@ def test_audit_star_worker_timeout_emits_existing_outcome_alarm_once(star):
     metrics = Metrics("worker", sink=output.append)
     # Production composition must pass the existing classification callback through.
     worker = Worker(runtime.repository, runtime.provider, metric=metrics.classification).star_worker
-    clock = iter([0, 40])
+    clock = iter([0, 40, 40])
     worker.monotonic = lambda: next(clock)
     assert worker.run("owner", accepted["generationId"])
     assert not worker.run("owner", accepted["generationId"])
@@ -1197,7 +1197,7 @@ def test_live_worker_pins_provider_once_shares_quota_and_never_replays(
                         "id": i,
                         "style": s,
                         "fields": [
-                            {"source": field, "expressionId": f"{field}:{i}"} for field in fields
+                            {"source": field, "expressionId": f"{field}:A"} for field in fields
                         ],
                     }
                     for i, s, fields in (
