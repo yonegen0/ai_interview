@@ -259,9 +259,9 @@ for (const width of [390, 1440]) {
     expect(bounds).not.toBeNull();
     expect(bounds!.x).toBeGreaterThanOrEqual(-1);
     expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width + 1);
-    await page.getByRole("option", { name: /^転職理由（\\d+問）$/ }).click();
+    await page.getByRole("option", { name: /^転職理由（\d+問）$/ }).click();
     await expect(select).toContainText("転職理由");
-    await expect(select).toContainText(/（\\d+問）/);
+    await expect(select).toContainText(/（\d+問）/);
     await expect(listbox).toBeHidden();
   });
 }
