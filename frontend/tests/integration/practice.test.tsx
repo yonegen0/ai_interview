@@ -308,6 +308,9 @@ it("offers previous accepted answer across normal sessions, only copies on click
   );
   await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   fireEvent.change(input, { target: { value: "コピーを編集して送信します。" } });
+  await waitFor(() =>
+    expect(screen.queryByText("入力中の回答を上書きしますか？")).not.toBeInTheDocument(),
+  );
   await userEvent.click(screen.getByRole("button", { name: "回答を送信" }));
   await waitFor(() =>
     expect(Object.values(repository.read().attempts).some(
