@@ -403,3 +403,66 @@ def test_output_length_is_defensively_clarified_not_marked_invalid_schema():
         ],
     )
     assert validate_prose(plan, notes).status == "needs_information"
+
+
+def test_yamazaki_bakery_bullets_generate_three_grounded_answers():
+    example = value(
+        S="・山崎製パンでスーパー向けの法人営業を担当\n・取引先ではパンの売上が伸び悩んでいた",
+        T="・売上改善と販管費削減の両立が課題だった",
+        A="・販売実績の低い商品が売場を占めていることにも着目\n・販売実績の低い商品の削減を提案",
+        R="・取扱商品を120品から95品に削減\n・取引先のパン全体の販売金額が前年比98％から103％に改善",
+    )
+    client = Client()
+    provider = live(client)
+    result = provider.generate("仕事で成果を出した経験を教えてください。", example)
+    assert result.status == "ready" and client.calls == 1
+    assert not provider.last_fallback_used
+    assert len(result.candidates) == 3
+    assert len({c.text for c in result.candidates}) == 3
+    for candidate in result.candidates:
+        assert len(candidate.text) <= 600
+        assert all(
+            fragment in candidate.text
+            for fragment in ("120品から95品", "前年比98％から103％", "削減を提案")
+        )
+        assert "販管費削減を達成" not in candidate.text
+        assert "山崎製パン" in candidate.text
+        assert "・" not in candidate.text
+    assert result.candidates[0].text.index("120品から95品") < result.candidates[0].text.index("山崎製パン")
+    assert result.candidates[1].text.index("削減を提案") < result.candidates[1].text.index("山崎製パン")
+    assert result.candidates[2].text.index("山崎製パン") < result.candidates[2].text.index("削減を提案")
+
+
+def test_model_clarification_can_safely_fallback_without_reinference():
+    def request_missing(p):
+        p.update(status="needs_information", candidates=[], missingInformation=["行動の詳細は？"])
+
+    client = Client(request_missing)
+    provider = live(client)
+    result = provider.generate("経験は？", value(A="顧客に商品の削減を提案した。"))
+    assert result.status == "ready" and client.calls == 1
+    assert provider.last_reason_code == "MODEL_REQUESTED_INFORMATION"
+    assert provider.last_fallback_used
+
+
+def test_v4_provider_recognizes_persisted_versions_without_replaying_them():
+    from interview_backend.star_assist.live_provider import PROVIDER_IDS
+    from interview_backend.star_assist.storage import validate_star
+    from interview_backend.star_assist.models import StarGeneration
+
+    provider = live(Client())
+    assert ":prose-v4:" in provider.provider_id
+    old_ids = [
+        provider.provider_id.replace(":prose-v4:", f":{version}:")
+        for version in ("grounded-v1", "prose-v2", "prose-v3")
+    ]
+    assert all(identifier in PROVIDER_IDS for identifier in old_ids)
+    # Storage still validates the persisted legacy identifiers without migration.
+    for identifier in old_ids:
+        generation = StarGeneration(
+            owner="user", id="gen", context_id="ctx", star_draft_id="draft",
+            input=value(A="記録を確認した。"), question="経験は？",
+            month="2026-11", created_at=0, deadline_at=100000,
+            provider_id=identifier,
+        )
+        validate_star(generation)
