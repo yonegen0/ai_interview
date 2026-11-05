@@ -108,6 +108,7 @@ export const createSchema = z.union([
   }),
 ]);
 export const createdSchema = z.object({ sessionId: idSchema });
+export const previousAnswerSchema = z.object({ questionId: idSchema, answer: z.string().nullable() }).strict();
 /** null represents confirmed absence; query errors must not masquerade as absence. */
 export const previousAnswerSchema = z.object({
   questionId: idSchema,
