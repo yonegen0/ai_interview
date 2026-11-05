@@ -193,7 +193,7 @@ def test_model_clarification_uses_safe_fallback_once():
 
 @pytest.mark.parametrize("notes", [
     {"A": "", "S": "状況があった。"},
-    {"A": "売場の配置を変えた。", "R": "売場の配置を変えなかった。"},
+    {"A": "記録を共有した。", "R": "記録を共有しなかった。"},
     {"A": "あ" * 601},
 ])
 def test_empty_action_contradiction_and_input_limit_no_paid_send(notes):
