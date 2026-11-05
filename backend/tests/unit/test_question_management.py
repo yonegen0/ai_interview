@@ -33,9 +33,21 @@ def test_defaults_and_snapshot_publication(runtime):
     defaults = [q.wire() for q in load_questions()]
     assert len(defaults) == 15
     assert [q["assistType"] for q in defaults] == [
-        "prep", "prep", "prep", "star", "star", "star",
-        "career_change", "career_change", "motivation", "motivation",
-        "career_plan", "star", "prep", "prep", "none",
+        "prep",
+        "prep",
+        "prep",
+        "star",
+        "star",
+        "star",
+        "career_change",
+        "career_change",
+        "motivation",
+        "motivation",
+        "career_plan",
+        "star",
+        "prep",
+        "prep",
+        "none",
     ]
     assert defaults[0]["id"] == "f1500000-0000-4000-8000-000000000001"
     assert defaults[-1]["id"] == "f1500000-0000-4000-8000-000000000015"
