@@ -143,7 +143,11 @@ function renew(): Promise<string> {
   const before = tokens;
   const epoch = generation;
   const previouslyVerified = state.phase === "authenticated";
-  emit({ phase: "refreshing", sub: null, groups: [] });
+  emit({
+    phase: "refreshing",
+    sub: previouslyVerified && before.expiresAt > Date.now() ? before.sub : null,
+    groups: previouslyVerified && before.expiresAt > Date.now() ? before.groups : [],
+  });
   refreshTask = (async () => {
     try {
       const result = await (await identity()).refresh(before.refresh);
