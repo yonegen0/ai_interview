@@ -306,7 +306,7 @@ class LiveStarProvider:
                 result = validate_plan(plan, value)
                 if result.status == "needs_information":
                     self.last_reason_code = "MODEL_REQUESTED_INFORMATION"
-        except (ValidationError, ValueError, TypeError):
+        except ValidationError, ValueError, TypeError:
             self.last_reason_code = "INVALID_SCHEMA"
             raise ProviderFailure("INVALID_SCHEMA") from None
         deadline.seconds()
@@ -364,7 +364,7 @@ class LiveStarProvider:
                 candidates=[Candidate(id="A", style="conclusion", text=parsed.answer)],
                 missingInformation=[],
             )
-        except (ValidationError, ValueError, TypeError):
+        except ValidationError, ValueError, TypeError:
             self.last_reason_code = "INVALID_SCHEMA"
             raise ProviderFailure("INVALID_SCHEMA") from None
         finally:
