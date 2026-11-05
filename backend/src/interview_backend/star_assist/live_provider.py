@@ -317,7 +317,6 @@ class LiveStarProvider:
             self.last_reason_code = "USAGE_LIMIT"
             raise ProviderFailure("USAGE_LIMIT")
         if not any(text.strip() for text in facts.values()):
-            self.last_reason_code = "MODEL_REQUESTED_INFORMATION"
             return StarResult(
                 status="needs_information",
                 candidates=[],
