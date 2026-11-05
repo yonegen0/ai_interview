@@ -15,12 +15,13 @@ export function useAuthBoundary(admin = false) {
         ? ("restoring" as const)
         : state.phase === "temporarily_unavailable"
           ? ("temporarily_unavailable" as const)
-        : state.phase !== "authenticated" || !state.sub
+        : (state.phase !== "authenticated" && state.phase !== "refreshing") || !state.sub
           ? ("anonymous" as const)
           : admin && !state.groups.includes("ADMIN")
             ? ("forbidden" as const)
             : ("allowed" as const),
     error: state.error,
+    onRetry: () => { void auth.access(true).catch(() => undefined); },
     loginUrl: `/login/?returnTo=${encodeURIComponent(pathname + (params.size ? `?${params}` : ""))}`,
   };
 }
