@@ -93,6 +93,7 @@ export const AnswerField = ({
           {...registration}
           inputRef={ref}
           label="あなたの回答"
+          slotProps={{ inputLabel: { shrink: true } }}
           multiline
           minRows={6}
           disabled={disabled}
