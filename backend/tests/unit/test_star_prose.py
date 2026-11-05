@@ -428,9 +428,15 @@ def test_yamazaki_bakery_bullets_generate_three_grounded_answers():
         assert "販管費削減を達成" not in candidate.text
         assert "山崎製パン" in candidate.text
         assert "・" not in candidate.text
-    assert result.candidates[0].text.index("120品から95品") < result.candidates[0].text.index("山崎製パン")
-    assert result.candidates[1].text.index("削減を提案") < result.candidates[1].text.index("山崎製パン")
-    assert result.candidates[2].text.index("山崎製パン") < result.candidates[2].text.index("削減を提案")
+    assert result.candidates[0].text.index("120品から95品") < result.candidates[0].text.index(
+        "山崎製パン"
+    )
+    assert result.candidates[1].text.index("削減を提案") < result.candidates[1].text.index(
+        "山崎製パン"
+    )
+    assert result.candidates[2].text.index("山崎製パン") < result.candidates[2].text.index(
+        "削減を提案"
+    )
 
 
 def test_model_clarification_can_safely_fallback_without_reinference():
@@ -447,8 +453,8 @@ def test_model_clarification_can_safely_fallback_without_reinference():
 
 def test_v4_provider_recognizes_persisted_versions_without_replaying_them():
     from interview_backend.star_assist.live_provider import PROVIDER_IDS
-    from interview_backend.star_assist.storage import validate_star
     from interview_backend.star_assist.models import StarGeneration
+    from interview_backend.star_assist.storage import validate_star
 
     provider = live(Client())
     assert ":prose-v4:" in provider.provider_id
