@@ -30,9 +30,11 @@ export const PracticeCategorySelector = ({
       value={selected ?? ""}
       disabled={disabled || categories.length === 0}
       fullWidth
+      variant="category"
       options={categories.map(({ id, label, questionCount }) => ({
         value: id,
-        label: `${label}（${questionCount}問）`,
+        label,
+        secondaryLabel: `（${questionCount}問）`,
       }))}
       onChange={(value) => {
         if (value) onSelect(value);
