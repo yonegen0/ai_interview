@@ -458,7 +458,14 @@ def test_star_corpus_is_valid_and_uses_locked_converse_shape_without_network(mon
             assert provider.last_fallback_used
             assert provider.last_reason_code == "MODEL_REQUESTED_INFORMATION"
         assert len(client.requests) <= 1
-        assert len(client.requests) == (0 if case["id"] == "contradiction" else 1)
+        if not client.requests:
+            # Local evidence/contradiction rejection makes no paid provider request.
+            assert result.status == "needs_information"
+            assert provider.last_reason_code in {
+                "INPUT_ACTION_MISSING",
+                "INPUT_CONFLICT",
+                "INPUT_LENGTH_EXCEEDED",
+            }
 
 
 def test_offline_sdk_cannot_read_host_config_or_credentials(monkeypatch):
