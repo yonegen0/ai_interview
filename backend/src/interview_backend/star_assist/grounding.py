@@ -127,7 +127,9 @@ def rewrite_field(source, identifier):
             polite = compact[:-2] + "しました"
         # Sentence-final nominal actions are safely made polite; inner clauses,
         # subjects and results are not paraphrased.
-        if polite == compact and polite.endswith(("提案", "確認", "共有", "担当", "着目", "分析", "整理", "削減")):
+        if polite == compact and polite.endswith(
+            ("提案", "確認", "共有", "担当", "着目", "分析", "整理", "削減")
+        ):
             polite += "しました"
         result.append(polite)
     rendered = "".join(result)
