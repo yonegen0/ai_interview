@@ -1197,8 +1197,7 @@ def test_live_worker_pins_provider_once_shares_quota_and_never_replays(
                         "id": i,
                         "style": s,
                         "fields": [
-                            {"source": field, "expressionId": f"{field}:{i}"}
-                            for field in fields
+                            {"source": field, "expressionId": f"{field}:{i}"} for field in fields
                         ],
                     }
                     for i, s, fields in (
@@ -1250,9 +1249,7 @@ def test_live_worker_pins_provider_once_shares_quota_and_never_replays(
         assert usage["inputTokens"] == 123 and usage["outputTokens"] == 45
         assert "owner" not in str(logs) and "answer" not in str(logs)
     result = request("GET", "/star-assist/generations/" + identifier)[1]
-    assert result["status"] == (
-        "OUTCOME_UNKNOWN" if uncertain else "SUCCEEDED"
-    )
+    assert result["status"] == ("OUTCOME_UNKNOWN" if uncertain else "SUCCEEDED")
     job = runtime.repository._read(ref("StarGeneration", "owner", identifier))
     assert job.provider_id == provider.provider_id and job.call_started
     assert decode(encode("StarGeneration", job, 1))[0].provider_id == provider.provider_id
