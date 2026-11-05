@@ -4,9 +4,8 @@ import json
 from copy import deepcopy
 from types import SimpleNamespace
 
-from botocore.exceptions import ReadTimeoutError
-
 import pytest
+from botocore.exceptions import ReadTimeoutError
 
 from interview_backend.evaluation.bedrock_provider import BedrockProvider
 from interview_backend.evaluation.openai_provider import Deadline, OpenAIProvider, ProviderFailure
@@ -16,7 +15,6 @@ from interview_backend.star_assist.live_provider import (
     LiveStarProvider,
 )
 from interview_backend.star_assist.models import StarInput
-
 
 STYLES = (("A", "conclusion"), ("B", "action"), ("C", "conversational"))
 
