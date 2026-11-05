@@ -102,11 +102,14 @@ def test_natural_prose_v5_preserves_direct_model_text_with_unlisted_action():
     assert "なぜその行動" in PROSE_V5_INSTRUCTIONS
 
 
-@pytest.mark.parametrize("operation_kind, expected", [
-    ("initial_answer", [250, 330]),
-    ("retry_attempt", [250, 330]),
-    ("coaching_answer", [150, 220]),
-])
+@pytest.mark.parametrize(
+    "operation_kind, expected",
+    [
+        ("initial_answer", [250, 330]),
+        ("retry_attempt", [250, 330]),
+        ("coaching_answer", [150, 220]),
+    ],
+)
 def test_operation_length_targets_are_guidance_only(operation_kind, expected):
     client = Client()
     result = live(client).generate("経験は？", sample(), operation_kind=operation_kind)
@@ -119,6 +122,7 @@ def test_partial_candidate_is_preserved_and_only_missing_one_is_restored():
         body["candidates"][0]["text"] = "私は売場の配置を変えた。"
         body["candidates"][1]["text"] = "売場の配置を変えたことで課題に向き合った。"
         body["candidates"].pop()
+
     provider = live(Client(mutate))
     result = provider.generate("経験は？", sample())
     assert result.status == "ready"
@@ -134,6 +138,7 @@ def test_partial_candidate_is_preserved_and_only_missing_one_is_restored():
 def test_out_of_order_candidates_are_reordered_not_discarded():
     def mutate(body):
         body["candidates"] = list(reversed(body["candidates"]))
+
     provider = live(Client(mutate))
     result = provider.generate("経験は？", sample())
     assert [c.text for c in result.candidates] == [
@@ -146,6 +151,7 @@ def test_out_of_order_candidates_are_reordered_not_discarded():
 def test_unique_style_mismatch_is_corrected_without_rewriting_prose():
     def mutate(body):
         body["candidates"][1]["style"] = "conclusion"
+
     provider = live(Client(mutate))
     result = provider.generate("経験は？", sample())
     assert result.candidates[1].style == "action"
@@ -157,6 +163,7 @@ def test_unique_style_mismatch_is_corrected_without_rewriting_prose():
 def test_duplicated_id_does_not_adopt_ambiguous_candidates():
     def mutate(body):
         body["candidates"].insert(1, deepcopy(body["candidates"][0]))
+
     provider = live(Client(mutate))
     result = provider.generate("経験は？", sample())
     assert result.status == "ready" and provider.last_fallback_used
@@ -164,13 +171,16 @@ def test_duplicated_id_does_not_adopt_ambiguous_candidates():
     assert result.candidates[1].text.startswith("売場の配置を変えた")
 
 
-@pytest.mark.parametrize("mutate", [
-    lambda r: r.pop("missingInformation"),
-    lambda r: r["candidates"][0].update(text=""),
-    lambda r: r["candidates"][0].update(text="あ" * 601),
-    lambda r: r["candidates"][0].update(text="売上を200%改善しました。"),
-    lambda r: r["candidates"][0].update(extra="untrusted"),
-])
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda r: r.pop("missingInformation"),
+        lambda r: r["candidates"][0].update(text=""),
+        lambda r: r["candidates"][0].update(text="あ" * 601),
+        lambda r: r["candidates"][0].update(text="売上を200%改善しました。"),
+        lambda r: r["candidates"][0].update(extra="untrusted"),
+    ],
+)
 def test_invalid_candidate_or_schema_never_becomes_unchecked_answer(mutate):
     provider = live(Client(mutate))
     result = provider.generate("経験は？", sample())
@@ -186,6 +196,7 @@ def test_model_clarification_uses_safe_fallback_once():
             candidates=[],
             missingInformation=["売上が200%伸びた理由は？"],
         )
+
     client = Client(mutate)
     provider = live(client)
     result = provider.generate("経験は？", sample())
@@ -195,11 +206,14 @@ def test_model_clarification_uses_safe_fallback_once():
     assert provider.last_fallback_used and client.calls == 1
 
 
-@pytest.mark.parametrize("notes", [
-    {"A": "", "S": "状況があった。"},
-    {"A": "記録を共有した。", "R": "記録を共有しなかった。"},
-    {"A": "あ" * 601},
-])
+@pytest.mark.parametrize(
+    "notes",
+    [
+        {"A": "", "S": "状況があった。"},
+        {"A": "記録を共有した。", "R": "記録を共有しなかった。"},
+        {"A": "あ" * 601},
+    ],
+)
 def test_empty_action_contradiction_and_input_limit_no_paid_send(notes):
     client = Client()
     result = live(client).generate("経験は？", value(**notes))
@@ -214,12 +228,14 @@ def test_new_or_reversed_numbers_are_rejected_without_changing_safe_candidates()
         A="販売実績の低い商品の削減を提案した。",
         R="取扱商品を120品から95品に削減し、前年比98％から103％に改善した。",
     )
+
     def mutate(body):
         body["candidates"][0]["text"] = "取扱商品を95品から120品に変更しました。"
         body["candidates"][1]["text"] = "取扱商品を120品から94品に削減しました。"
         body["candidates"][2]["text"] = (
             "取扱商品を120品から95品に削減し、前年比98％から103％になりました。"
         )
+
     provider = live(Client(mutate))
     result = provider.generate("経験は？", sample_input)
     assert result.status == "ready" and provider.last_fallback_used
@@ -232,6 +248,7 @@ def test_new_or_reversed_numbers_are_rejected_without_changing_safe_candidates()
 def test_obvious_negation_flip_is_rejected():
     def mutate(body):
         body["candidates"][0]["text"] = "売上が改善しました。"
+
     provider = live(Client(mutate))
     result = provider.generate("経験は？", value(A="記録を確認した。", R="売上が改善しなかった。"))
     assert provider.last_fallback_used
@@ -250,9 +267,11 @@ def test_yamazaki_bakery_three_meaningfully_distinct_structured_prose():
         "売上改善に向けて私が着目したのは、販売実績の低い商品が売場を占めていたことです。山崎製パンで法人営業を担当し、売上と販管費の両立が求められる中、取扱商品の削減を提案しました。その結果、120品から95品になり、販売金額の前年比も98％から103％に改善しました。",
         "山崎製パンでスーパー向けの営業をしていたとき、取引先のパンの売上が伸び悩んでいました。売上と販管費の両立が課題だったため、実績の低い商品に注目して削減を提案しました。取扱商品は120品から95品となり、パン全体の前年比は98％から103％に改善しました。",
     ]
+
     def mutate(body):
         for item, text in zip(body["candidates"], texts, strict=True):
             item["text"] = text
+
     provider = live(Client(mutate))
     result = provider.generate("工夫と成果を教えてください", case)
     assert result.status == "ready" and not provider.last_fallback_used
@@ -277,9 +296,7 @@ def test_result_after_deadline_does_not_get_persisted_as_success():
         live(client, clock=clock).generate("経験は？", sample())
     assert client.calls == 1
     with pytest.raises(ProviderFailure, match="TIMEOUT"):
-        live(Client()).generate_with_deadline(
-            "経験は？", sample(), Deadline(0, lambda: 1)
-        )
+        live(Client()).generate_with_deadline("経験は？", sample(), Deadline(0, lambda: 1))
 
 
 def test_source_mode_remains_available_and_legacy_provider_ids_are_recognized():
@@ -292,9 +309,16 @@ def test_source_mode_remains_available_and_legacy_provider_ids_are_recognized():
         legacy = provider.provider_id.replace(":prose-v5:", f":{version}:")
         assert legacy in PROVIDER_IDS
         record = StarGeneration(
-            owner="owner", id="gen", context_id="ctx", star_draft_id="draft",
-            input=sample(), question="経験は？", month="2026-11",
-            created_at=0, deadline_at=100000, provider_id=legacy,
+            owner="owner",
+            id="gen",
+            context_id="ctx",
+            star_draft_id="draft",
+            input=sample(),
+            question="経験は？",
+            month="2026-11",
+            created_at=0,
+            deadline_at=100000,
+            provider_id=legacy,
         )
         validate_star(record)
     assert ":grounded-v1:" in LiveStarProvider(BedrockProvider(), mode="source").provider_id
@@ -303,18 +327,31 @@ def test_source_mode_remains_available_and_legacy_provider_ids_are_recognized():
 def test_manual_openai_natural_transport_stays_strict_and_single_call():
     class Transport:
         calls = 0
+
         def post(self, host, path, payload, headers, deadline):
             self.calls += 1
             self.payload = payload
-            return 200, json.dumps({
-                "status": "completed",
-                "output": [{
-                    "type": "message", "role": "assistant", "status": "completed",
-                    "content": [{"type": "output_text", "text": json.dumps(reply(
-                        json.loads(payload["input"][1]["content"])
-                    ))}],
-                }],
-            })
+            return 200, json.dumps(
+                {
+                    "status": "completed",
+                    "output": [
+                        {
+                            "type": "message",
+                            "role": "assistant",
+                            "status": "completed",
+                            "content": [
+                                {
+                                    "type": "output_text",
+                                    "text": json.dumps(
+                                        reply(json.loads(payload["input"][1]["content"]))
+                                    ),
+                                }
+                            ],
+                        }
+                    ],
+                }
+            )
+
     transport = Transport()
     provider = LiveStarProvider(
         OpenAIProvider(SimpleNamespace(token=lambda _: "synthetic"), transport=transport)
