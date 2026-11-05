@@ -3,6 +3,7 @@ import { request, ApiError } from "./client";
 import {
   createSchema,
   createdSchema,
+  previousAnswerSchema,
   idSchema,
   sessionSchema,
   submitSchema,
