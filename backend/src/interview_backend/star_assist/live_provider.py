@@ -20,6 +20,7 @@ from interview_backend.star_assist.grounding import (
 from interview_backend.star_assist.models import (
     OTHER_CANDIDATE_MAX_LENGTH,
     OTHER_NOTES_MAX_LENGTH,
+    STAR_CANDIDATE_MAX_LENGTH,
     STAR_NOTES_MAX_LENGTH,
     Candidate,
     StarResult,
