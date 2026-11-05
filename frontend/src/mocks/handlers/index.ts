@@ -388,6 +388,24 @@ export function createHandlers(
         return { status: 201, body: { sessionId } };
       }),
     ),
+    http.get(`${base}/questions/:id/previous-answer`, ({ params, request }) => {
+      const identity = actor(request);
+      if (!identity) return error("UNAUTHORIZED", 401);
+      const parsed = idSchema.safeParse(String(params.id));
+      if (!parsed.success) return error("VALIDATION_ERROR", 400);
+      const state = activeRepository.read();
+      const matches = Object.values(state.attempts)
+        .filter((entry) =>
+          entry.feedback.question.id === parsed.data &&
+          sessionOwner(state, entry.feedback.sessionId) === identity.sub)
+        .sort((a, b) =>
+          b.feedback.createdAt.localeCompare(a.feedback.createdAt) ||
+          b.feedback.attemptId.localeCompare(a.feedback.attemptId));
+      return HttpResponse.json({
+        questionId: parsed.data,
+        answer: matches[0]?.feedback.answer ?? null,
+      }, { headers: { "Cache-Control": "no-store" } });
+    }),
     http.get(`${base}/sessions/:id/question`, ({ params, request }) => {
       const identity = actor(request);
       if (!identity) return error("UNAUTHORIZED", 401);
