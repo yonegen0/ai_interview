@@ -3,13 +3,13 @@
 from itertools import count
 
 import pytest
-
 from conftest import uid
+
+from interview_backend.api.handler import Handler
 from interview_backend.application.service import Application
 from interview_backend.assets import load_questions
-from interview_backend.api.handler import Handler
 from interview_backend.demo import demo_event
-from interview_backend.models.internal import BusinessError, Attempt
+from interview_backend.models.internal import Attempt, BusinessError
 from interview_backend.repositories.codec import encode, to_wire
 from interview_backend.repositories.dynamodb import DynamoDBRepository
 from interview_backend.repositories.memory import MemoryRepository
