@@ -437,18 +437,13 @@ def test_anthropic_star_natural_result_is_grounded_before_return(tamper):
         selectedCandidateId=None,
         generationId=None,
     )
-    orders = {
-        "A": ["R", "S", "T", "A"],
-        "B": ["A", "S", "T", "R"],
-        "C": ["S", "T", "A", "R"],
-    }
+    orders = {"A": "RSTA", "B": "ASTR", "C": "STAR"}
+    source = value.notes.model_dump()
     candidates = [
         {
             "id": identifier,
             "style": style,
-            "fields": [
-                {"source": field, "expressionId": f"{field}:A"} for field in orders[identifier]
-            ],
+            "text": "".join(source[field] for field in orders[identifier]),
         }
         for identifier, style in (
             ("A", "conclusion"),
@@ -457,9 +452,9 @@ def test_anthropic_star_natural_result_is_grounded_before_return(tamper):
         )
     ]
     if tamper == "invented_result":
-        candidates[1]["fields"][0]["expressionId"] = "未許可:売上を200%改善しました。"
+        candidates[1]["text"] = "売上を200%改善しました。"
     elif tamper == "reversed_negation":
-        candidates[0]["fields"][0]["expressionId"] = "未許可:成果を確認できました。"
+        candidates[0]["text"] = "成果は確認できました。"
     transport = Transport(
         response({"status": "ready", "candidates": candidates, "missingInformation": []})
     )
