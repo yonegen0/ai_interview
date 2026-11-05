@@ -119,7 +119,10 @@ def test_dynamo_query_paginated_by_owner_and_latest_timestamp():
     assert len(client.calls) == 2
     assert all(call["Limit"] == PREVIOUS_ANSWER_PAGE_SIZE for call in client.calls)
     assert all(call["ConsistentRead"] is True for call in client.calls)
-    assert all(\n        call["KeyConditionExpression"] == "PK = :owner AND begins_with(SK, :attempt)"\n        for call in client.calls\n    )
+    assert all(
+        call["KeyConditionExpression"] == "PK = :owner AND begins_with(SK, :attempt)"
+        for call in client.calls
+    )
 
 
 def test_dynamo_cap_and_repeated_cursor_never_claim_absence(monkeypatch):
