@@ -102,8 +102,8 @@ def rewrite_field(source, identifier):
     Quotes, newlines, numbers, names, conditions and unresolved prose stay intact.
     Keep an interview-friendly polite ending without conversational exaggeration.
     """
-    source = re.sub(r"(?m)^\\s*(?:[-*•]\\s+|・(?=\\S))", "", source.strip())
-    source = re.sub(r"。?\\n+", "。", source)
+    source = re.sub(r"(?m)^[ \t]*(?:[-*•][ \t]*|・(?=\S))", "", source.strip())
+    source = re.sub(r"。?\n+", "。", source)
     if any(c in source for c in '「」『』"“”‘’?!！？') or any(
         marker in source for marker in ("社名", "氏名", "名前", "名称", "という名", "と呼ぶ")
     ):
@@ -272,10 +272,15 @@ def has_action_evidence(notes):
 
 
 def expression_catalog(realizations):
-    return {
-        field: {f"{field}:{variant}": surface for variant, surface in variants.items()}
-        for field, variants in realizations.items()
-    }
+    """Avoid repeated large surfaces while preserving field provenance."""
+    catalog = {}
+    for field, variants in realizations.items():
+        choices = {}
+        for variant, surface in variants.items():
+            if surface not in choices.values():
+                choices[f"{field}:{variant}"] = surface
+        catalog[field] = choices
+    return catalog
 
 
 def safe_v4_candidates(realizations, selections=None):
@@ -305,7 +310,10 @@ def safe_v4_candidates(realizations, selections=None):
                     chosen_ids = {}
                     fallback = True
         parts = [
-            catalog[field].get(chosen_ids.get(field), catalog[field][f"{field}:{identifier}"])
+            catalog[field].get(
+                chosen_ids.get(field),
+                catalog[field].get(f"{field}:{identifier}", next(iter(catalog[field].values()))),
+            )
             for field in order
         ]
         text = OPENINGS[identifier] + "".join(parts)
