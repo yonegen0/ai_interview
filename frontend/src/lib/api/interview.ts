@@ -38,8 +38,6 @@ export const getPreviousAnswer = (questionId: string, signal?: AbortSignal) =>
 
 export const getQuestion = (id: string, signal?: AbortSignal) =>
   request(`/sessions/${checkedId(id)}/question`, sessionSchema, { signal });
-export const getPreviousAnswer = (questionId: string, signal?: AbortSignal) =>
-  request(`/questions/${checkedId(questionId)}/previous-answer`, previousAnswerSchema, { signal });
 export const submitAnswer = (
   id: string,
   body: Answer,
