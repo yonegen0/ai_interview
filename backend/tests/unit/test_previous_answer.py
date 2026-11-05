@@ -40,23 +40,17 @@ def test_latest_answer_across_sessions_with_owner_isolation():
     submit_in_new_session(app, "user-b", "career", "other-user", 202)
     time[0] += 1000
     submit_in_new_session(app, "user-a", "motivation", "other-question", 203)
-    assert app.previous_answer("user-a", qid).body == {
-        "questionId": qid, "answer": "second"
-    }
-    assert app.previous_answer("user-b", qid).body == {
-        "questionId": qid, "answer": "other-user"
-    }
-    assert app.previous_answer("user-c", qid).body == {
-        "questionId": qid, "answer": None
-    }
+    assert app.previous_answer("user-a", qid).body == {"questionId": qid, "answer": "second"}
+    assert app.previous_answer("user-b", qid).body == {"questionId": qid, "answer": "other-user"}
+    assert app.previous_answer("user-c", qid).body == {"questionId": qid, "answer": None}
     assert len(repo.snapshot().attempts) == 4
 
 
 def test_unsubmitted_draft_is_not_an_attempt():
     app, _, _ = make_app()
-    session_id = app.create("user-a", uid(210), {
-        "category": "career", "difficulty": "standard"
-    }).body["sessionId"]
+    session_id = app.create(
+        "user-a", uid(210), {"category": "career", "difficulty": "standard"}
+    ).body["sessionId"]
     qid = app.question("user-a", session_id).body["question"]["id"]
     assert app.previous_answer("user-a", qid).body["answer"] is None
 
@@ -78,6 +72,7 @@ def test_http_auth_validation_and_no_owner_override():
 
 def test_memory_search_cap_fails_closed(monkeypatch):
     import interview_backend.repositories.memory as memory
+
     monkeypatch.setattr(memory, "PREVIOUS_ANSWER_MAX_ATTEMPTS", 1)
     app, _, _ = make_app()
     qid = submit_in_new_session(app, "user-a", "career", "old", 220)
@@ -89,6 +84,7 @@ def test_memory_search_cap_fails_closed(monkeypatch):
 
 def test_dynamo_query_paginated_by_owner_and_latest_timestamp():
     from interview_backend.repositories.dynamodb import PREVIOUS_ANSWER_PAGE_SIZE
+
     question = load_questions()[0]
     other = next(q for q in load_questions() if q.id != question.id)
     owner = "user-a"
@@ -127,12 +123,13 @@ def test_dynamo_query_paginated_by_owner_and_latest_timestamp():
 
 def test_dynamo_cap_and_repeated_cursor_never_claim_absence(monkeypatch):
     import interview_backend.repositories.dynamodb as dynamodb
+
     monkeypatch.setattr(dynamodb, "PREVIOUS_ANSWER_MAX_ATTEMPTS", 1)
     question = load_questions()[0]
     cursor = {"PK": "USER#user-a", "SK": "ATTEMPT#" + uid(2)}
-    item = to_wire(encode(
-        "Attempt", Attempt("user-a", uid(2), uid(22), uid(32), question, 1, "x", 100), 0
-    ))
+    item = to_wire(
+        encode("Attempt", Attempt("user-a", uid(2), uid(22), uid(32), question, 1, "x", 100), 0)
+    )
 
     class Forever:
         def query(self, **kwargs):
