@@ -322,6 +322,11 @@ export const auth = {
   },
   /** A backend 401 does not, by itself, prove refresh-token revocation. */
   suspend() {
+    // Mock authentication has no refresh credential to reconfirm.
+    if (mockAuth()) {
+      auth.invalidate();
+      return;
+    }
     if (!tokens) return;
     emit({
       phase: "temporarily_unavailable",
