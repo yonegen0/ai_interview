@@ -415,7 +415,7 @@ def test_T12_two_owners_race_for_last_global_slot(star):
     runtime, _, request, _, _, _, value, _, first, _ = star
     owner = "second-owner"
     sid = runtime.application.create(
-        owner, str(uuid4()), {"category": "job_change", "difficulty": "standard"}
+        owner, str(uuid4()), {"category": "experience", "difficulty": "standard"}
     ).body["sessionId"]
     qid = runtime.application.question(owner, sid).body["question"]["id"]
     context = request(
