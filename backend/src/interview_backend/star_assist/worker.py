@@ -112,19 +112,31 @@ class StarWorker:
             try:
                 finished = self.repository.star_finish(lease, status, result)
                 if finished:
-                    if status == "FAILED_AFTER_START":
-                        log_event(
-                            "assist_generation_terminal",
-                            generationId=identifier,
-                            assistType=lease.input.assistType,
-                            terminalStatus=status,
-                            failureKind=failure_kind,
-                            stopReason=getattr(
-                                getattr(self.provider, "transport", None), "last_stop_reason", None
-                            ),
-                            maxTokens=4096 if lease.input.assistType == "star" else 2048,
-                            elapsedMs=int((self.monotonic() - began) * 1000),
-                        )
+                    provider_version = (
+                        self.provider.provider_id.split(":")[-3]
+                        if self.provider.provider_id.startswith("star:")
+                        else "fake"
+                    )
+                    reason = getattr(self.provider, "last_reason_code", None) or failure_kind
+                    if status == "OUTCOME_UNKNOWN":
+                        reason = "OUTCOME_UNKNOWN"
+                    log_event(
+                        "assist_generation_terminal",
+                        generationId=identifier,
+                        assistType=lease.input.assistType,
+                        providerVersion=provider_version,
+                        promptVersion=getattr(self.provider, "last_prompt_version", None)
+                        or ("fake" if provider_version == "fake" else None),
+                        terminalStatus=status,
+                        reasonCode=reason,
+                        fallbackUsed=bool(getattr(self.provider, "last_fallback_used", False)),
+                        failureKind=failure_kind,
+                        stopReason=getattr(
+                            getattr(self.provider, "transport", None), "last_stop_reason", None
+                        ),
+                        maxTokens=4096 if lease.input.assistType == "star" else 2048,
+                        elapsedMs=int((self.monotonic() - began) * 1000),
+                    )
                     if status == "OUTCOME_UNKNOWN":
                         self.metric("OutcomeUnknown")
                 return finished

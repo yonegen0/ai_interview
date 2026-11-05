@@ -310,3 +310,34 @@ def test_assist_prompt_uses_the_same_utf16_limit_as_the_validator():
     assert AssistReply(answer="😀" * 250, missingInformation=[]).answer == "😀" * 250
     with pytest.raises(ValueError, match="AssistOutputTooLong"):
         AssistReply(answer="😀" * 251, missingInformation=[])
+
+
+@pytest.mark.parametrize("mode", ["prep", "motivation", "career_change", "career_plan"])
+def test_other_assist_model_missing_information_is_diagnostic_only(mode):
+    client = Client(body={"answer": "", "missingInformation": ["経験をもっと教えてください。"]})
+    provider = LiveStarProvider(BedrockProvider(client_factory=lambda *a, **k: client))
+    input_value = value()
+    input_value.assistType = mode
+    result = provider.generate("どのように考えていますか？", input_value)
+    assert client.calls == 1
+    assert result.status == "needs_information"
+    assert provider.last_reason_code == "MODEL_REQUESTED_INFORMATION"
+    assert provider.last_fallback_used is False
+    assert provider.last_prompt_version == "answer_assist_v2"
+    assert "具体例" in result.missingInformation[0]
+    assert "経験" not in result.missingInformation[0]
+
+
+@pytest.mark.parametrize("mode", ["prep", "motivation", "career_change", "career_plan"])
+def test_other_assist_prompt_requires_direct_factual_answer(mode):
+    from interview_backend.star_assist.live_provider import ASSIST_COMMON_INSTRUCTIONS
+
+    assert "短い箇条書きでも" in ASSIST_COMMON_INSTRUCTIONS
+    assert "不可欠な情報が明確に不足" in ASSIST_COMMON_INSTRUCTIONS
+    client = Client(body={"answer": "入力の事実に基づく回答です。", "missingInformation": []})
+    provider = LiveStarProvider(BedrockProvider(client_factory=lambda *a, **k: client))
+    input_value = value()
+    input_value.assistType = mode
+    assert provider.generate("経験は？", input_value).status == "ready"
+    assert provider.last_reason_code is None
+    assert provider.last_fallback_used is False

@@ -89,6 +89,49 @@ def log_event(event, *, sink=None, **fields):
                 "FAILED_AFTER_START",
                 "OUTCOME_UNKNOWN",
             }
+        elif key == "providerVersion":
+            valid = isinstance(value, str) and value in {
+                "fake",
+                "grounded-v1",
+                "prose-v2",
+                "prose-v3",
+                "prose-v4",
+            }
+        elif key == "promptVersion":
+            valid = isinstance(value, str) and value in {
+                "fake",
+                "star_grounded_v1",
+                "star_prose_v2",
+                "star_prose_v3",
+                "star_prose_v4",
+                "answer_assist_v2",
+            }
+        elif key == "fallbackUsed":
+            valid = type(value) is bool
+        elif key == "reasonCode":
+            valid = isinstance(value, str) and value in {
+                "INPUT_ACTION_MISSING",
+                "INPUT_CONFLICT",
+                "INPUT_LENGTH_EXCEEDED",
+                "MODEL_REQUESTED_INFORMATION",
+                "MODEL_STRUCTURE_MISMATCH",
+                "INVALID_SCHEMA",
+                "OUTCOME_UNKNOWN",
+                "USAGE_LIMIT",
+                "AUTHENTICATION",
+                "BILLING",
+                "RATE_LIMIT",
+                "SERVER_ERROR",
+                "HTTP_ERROR",
+                "REFUSAL",
+                "INCOMPLETE",
+                "OUTPUT_MISSING",
+                "INVALID_JSON",
+                "TIMEOUT",
+                "NETWORK",
+                "CONFIGURATION",
+                "UNEXPECTED",
+            }
         elif key == "failureKind":
             valid = isinstance(value, str) and value in {
                 "AUTHENTICATION",

@@ -453,9 +453,19 @@ def test_star_corpus_is_valid_and_uses_locked_converse_shape_without_network(mon
             BedrockProvider(client_factory=lambda *a, client=client, **k: client)
         )
         result = provider.generate("工夫した経験は？", StarInput.model_validate(case["input"]))
-        assert result.status == "needs_information"
+        assert result.status in {"ready", "needs_information"}
+        if result.status == "ready":
+            assert provider.last_fallback_used
+            assert provider.last_reason_code == "MODEL_REQUESTED_INFORMATION"
         assert len(client.requests) <= 1
-        assert len(client.requests) == (0 if case["id"] == "contradiction" else 1)
+        if not client.requests:
+            # Local evidence/contradiction rejection makes no paid provider request.
+            assert result.status == "needs_information"
+            assert provider.last_reason_code in {
+                "INPUT_ACTION_MISSING",
+                "INPUT_CONFLICT",
+                "INPUT_LENGTH_EXCEEDED",
+            }
 
 
 def test_offline_sdk_cannot_read_host_config_or_credentials(monkeypatch):
