@@ -3,19 +3,25 @@ import { afterAll, afterEach, beforeAll, expect, it, vi } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { setupServer } from "msw/node";
+import { http, HttpResponse } from "msw";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "@mui/material/styles";
 import { createRepository } from "@/mocks/store";
 import { createHandlers, type Scenario } from "@/mocks/handlers";
-import { createSession, getQuestion } from "@/lib/api/interview";
+import { createSession, getQuestion, submitAnswer } from "@/lib/api/interview";
 import { PracticeSessionContent } from "@/features/interview/components/pages/PracticeSessionContent";
+import { InterviewPractice } from "@/features/interview/components/pages/InterviewPractice";
+import { auth } from "@/lib/auth/session";
 import { theme } from "@/theme/theme";
 import type { Session } from "@/lib/api/schemas";
-import { save } from "@/lib/storage/recovery";
-const { push } = vi.hoisted(() => ({ push: vi.fn() }));
+import { save, readSaved, answerRecoverySchema } from "@/lib/storage/recovery";
+const { push, practiceLocation } = vi.hoisted(() => ({
+  push: vi.fn(),
+  practiceLocation: { search: "" },
+}));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push }),
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => new URLSearchParams(practiceLocation.search),
 }));
 const repository = createRepository();
 let scenario: Scenario = "success";
@@ -38,6 +44,7 @@ beforeAll(() => {
 afterEach(() => {
   repository.reset();
   scenario = "success";
+  practiceLocation.search = "";
   sessionStorage.clear();
   push.mockClear();
   answerRequests = 0;
@@ -247,5 +254,112 @@ it("shows the previous-answer copy only for a retry and preserves edited text on
 it("does not show a previous-answer copy for an initial answer", async () => {
   const view = await mount();
   expect(screen.queryByRole("button", { name: "前回の回答をコピー" })).not.toBeInTheDocument();
+  view.unmount();
+});
+
+/** Exercise usePracticeSession as well as the existing PR #123 copy UI. */
+async function mountNormalSession(session: Session) {
+  practiceLocation.search = `sessionId=${session.sessionId}`;
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  const view = render(
+    <ThemeProvider theme={theme}>
+      <QueryClientProvider client={client}>
+        <InterviewPractice />
+      </QueryClientProvider>
+    </ThemeProvider>,
+  );
+  return { view, client };
+}
+
+it("offers previous accepted answer across normal sessions, only copies on click and preserves draft choices", async () => {
+  const historic = await createSession("career", crypto.randomUUID());
+  const historicSession = await getQuestion(historic.sessionId);
+  const previous = "前回の正式回答です。";
+  await submitAnswer(historic.sessionId, {
+    questionId: historicSession.question.id,
+    answer: previous,
+  }, crypto.randomUUID());
+  const current = await createSession("career", crypto.randomUUID());
+  const session = await getQuestion(current.sessionId);
+  expect(session.question.id).toBe(historicSession.question.id);
+  const { view } = await mountNormalSession(session);
+  const input = await screen.findByLabelText("あなたの回答");
+  expect(input).toHaveValue("");
+  const copy = await screen.findByRole("button", { name: "前回の回答をコピー" });
+  expect(input).toHaveValue("");
+  await userEvent.click(copy);
+  expect(input).toHaveValue(previous);
+  expect(answerRequests).toBe(1);
+  fireEvent.change(input, { target: { value: "編集中の下書きです。" } });
+  await userEvent.click(copy);
+  await screen.findByText("入力中の回答を上書きしますか？");
+  await userEvent.click(screen.getByRole("button", { name: "キャンセル" }));
+  expect(input).toHaveValue("編集中の下書きです。");
+  await userEvent.click(copy);
+  await userEvent.click(screen.getByRole("button", { name: "前回の回答に置き換える" }));
+  expect(input).toHaveValue(previous);
+  await screen.findByText(`${Array.from(previous).length} / 400文字`);
+  expect(answerRequests).toBe(1); // Only the historical POST; copy never sends.
+  await waitFor(() =>
+    expect(readSaved(`pocket:answer:${session.sessionId}`, answerRecoverySchema)?.draft)
+      .toBe(previous),
+  );
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  fireEvent.change(input, { target: { value: "コピーを編集して送信します。" } });
+  await waitFor(() =>
+    expect(screen.queryByText("入力中の回答を上書きしますか？")).not.toBeInTheDocument(),
+  );
+  await userEvent.click(screen.getByRole("button", { name: "回答を送信" }));
+  await waitFor(() =>
+    expect(Object.values(repository.read().attempts).some(
+      (entry) => entry.feedback.answer === "コピーを編集して送信します。",
+    )).toBe(true),
+  );
+  expect(answerRequests).toBe(2);
+  view.unmount();
+});
+
+it("does not show answers from other questions or other authenticated owners", async () => {
+  const historical = await createSession("career", crypto.randomUUID());
+  const previousSession = await getQuestion(historical.sessionId);
+  await submitAnswer(historical.sessionId, {
+    questionId: previousSession.question.id, answer: "秘密の本人回答です。",
+  }, crypto.randomUUID());
+  const otherCategory = await createSession("motivation", crypto.randomUUID());
+  const otherSession = await getQuestion(otherCategory.sessionId);
+  expect(otherSession.question.id).not.toBe(previousSession.question.id);
+  const first = await mountNormalSession(otherSession);
+  await screen.findByLabelText("あなたの回答");
+  expect(screen.queryByRole("button", { name: "前回の回答をコピー" })).not.toBeInTheDocument();
+  first.view.unmount();
+
+  auth.setMockActor("mock-admin", ["ADMIN"]);
+  const adminSessionId = await createSession("career", crypto.randomUUID());
+  const adminSession = await getQuestion(adminSessionId.sessionId);
+  const second = await mountNormalSession(adminSession);
+  await screen.findByLabelText("あなたの回答");
+  expect(screen.queryByRole("button", { name: "前回の回答をコピー" })).not.toBeInTheDocument();
+  expect(screen.getByLabelText("あなたの回答")).toHaveValue("");
+  second.view.unmount();
+});
+
+it("history fetch failures never block normal typing or submitting", async () => {
+  server.use(http.get("http://localhost/api/questions/:id/previous-answer", () =>
+    HttpResponse.json({ code: "INTERNAL_SERVER_ERROR", message: "unavailable" }, { status: 500 }),
+  ));
+  const created = await createSession("career", crypto.randomUUID());
+  const session = await getQuestion(created.sessionId);
+  const { view } = await mountNormalSession(session);
+  const input = await screen.findByLabelText("あなたの回答");
+  expect(screen.queryByRole("button", { name: "前回の回答をコピー" })).not.toBeInTheDocument();
+  await userEvent.type(input, "履歴が見られなくても入力可能です。");
+  await userEvent.click(screen.getByRole("button", { name: "回答を送信" }));
+  await waitFor(() =>
+    expect(Object.values(repository.read().attempts).some(
+      (entry) => entry.feedback.answer === "履歴が見られなくても入力可能です。",
+    )).toBe(true),
+  );
   view.unmount();
 });

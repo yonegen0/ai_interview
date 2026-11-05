@@ -19,7 +19,9 @@ locals {
       { Effect = "Allow", Action = ["dynamodb:PutItem", "dynamodb:ConditionCheckItem"], Resource = [local.table_arn], Condition = merge({ StringEquals = { "dynamodb:EnclosingOperation" = "TransactWriteItems" } }, { for k, v in local.user_keys : k => v if role == "api" }) }
       ] : s if role != "admin"], [for s in [
       { Effect = "Allow", Action = ["dynamodb:ConditionCheckItem"], Resource = [local.table_arn], Condition = merge(local.bank_keys, { StringEquals = { "dynamodb:EnclosingOperation" = "TransactWriteItems" } }) },
-      { Effect = "Allow", Action = ["dynamodb:PutItem", "dynamodb:ConditionCheckItem"], Resource = [local.table_arn], Condition = { "ForAllValues:StringEquals" = { "dynamodb:LeadingKeys" = ["SYSTEM#STAR_QUOTA"] }, Null = { "dynamodb:LeadingKeys" = "false" }, StringEquals = { "dynamodb:EnclosingOperation" = "TransactWriteItems" } } }
+      { Effect = "Allow", Action = ["dynamodb:PutItem", "dynamodb:ConditionCheckItem"], Resource = [local.table_arn], Condition = { "ForAllValues:StringEquals" = { "dynamodb:LeadingKeys" = ["SYSTEM#STAR_QUOTA"] }, Null = { "dynamodb:LeadingKeys" = "false" }, StringEquals = { "dynamodb:EnclosingOperation" = "TransactWriteItems" } } },
+      # Previous accepted answers require Query on the table's owner partition; no Scan or index permission.
+      { Effect = "Allow", Action = ["dynamodb:Query"], Resource = [local.table_arn], Condition = local.user_keys }
   ] : s if role == "api"]) }
   worker_statements = [{ Effect = "Allow", Action = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"], Resource = [aws_sqs_queue.main.arn] }]
   dispatcher_statements = [

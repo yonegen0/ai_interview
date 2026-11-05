@@ -290,6 +290,9 @@ export const useAnswerOperation = (
       void client.invalidateQueries({
         queryKey: [scope, "session", session.sessionId],
       });
+      void client.invalidateQueries({
+        queryKey: [scope, "previousAnswer", session.question.id],
+      });
       removeOwnedRecovery();
       pending.current = undefined;
       dispatch("ACCEPT");

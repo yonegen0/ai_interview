@@ -32,6 +32,17 @@ run "admin_question_management" {
   }
   assert {
     condition = (
+      length([for s in local.base_statements["api"] : s if contains(s.Action, "dynamodb:Query")]) == 1 &&
+      local.base_statements["api"][5].Action == ["dynamodb:Query"] &&
+      local.base_statements["api"][5].Resource == [local.table_arn] &&
+      local.base_statements["api"][5].Condition["ForAllValues:StringLike"]["dynamodb:LeadingKeys"] == ["USER#*"] &&
+      local.base_statements["api"][5].Condition.Null["dynamodb:LeadingKeys"] == "false" &&
+      length([for s in local.base_statements["admin"] : s if contains(s.Action, "dynamodb:Query")]) == 0
+    )
+    error_message = "Only the general API can Query owner partitions for accepted answer history."
+  }
+  assert {
+    condition = (
       local.base_statements["admin"][3].Action == ["dynamodb:GetItem"] &&
       local.base_statements["admin"][4].Action == ["dynamodb:ConditionCheckItem"] &&
       alltrue([for s in slice(local.base_statements["admin"], 3, 5) :

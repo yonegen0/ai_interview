@@ -10,10 +10,12 @@ from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
 
 from interview_backend.models.internal import (
+    BusinessError,
     Candidate,
     CandidatePage,
     CorruptCandidate,
     IntegrityError,
+    Reply,
     RetryExhausted,
     StorageFormatError,
     StorageUnavailable,
@@ -30,7 +32,13 @@ from interview_backend.repositories.codec import (
     validate_cursor_key,
     validate_key,
 )
-from interview_backend.repositories.domain import DomainRepository, utc_ms
+from interview_backend.repositories.domain import (
+    PREVIOUS_ANSWER_MAX_ATTEMPTS,
+    DomainRepository,
+    utc_ms,
+)
+
+PREVIOUS_ANSWER_PAGE_SIZE = 100
 
 
 class ConditionalConflict(Exception):
@@ -299,6 +307,57 @@ class DynamoDBRepository(DomainRepository):
         if isinstance(last_error, StorageUnavailable):
             raise last_error
         raise RetryExhausted("storage_retry")
+
+    def previous_answer(self, owner: str, question_id: str) -> Reply:
+        """Read only this owner's attempts, and never treat truncated history as absence."""
+        deadline = self.monotonic() + 4.5
+        request = {
+            "TableName": self.table,
+            "KeyConditionExpression": "PK = :owner AND begins_with(SK, :attempt)",
+            "ExpressionAttributeValues": to_wire(
+                {":owner": f"USER#{owner}", ":attempt": "ATTEMPT#"}
+            ),
+            "ConsistentRead": True,
+            "Limit": PREVIOUS_ANSWER_PAGE_SIZE,
+        }
+        latest = None
+        evaluated = 0
+        previous_sort_key = ""
+        while evaluated < PREVIOUS_ANSWER_MAX_ATTEMPTS:
+            page = self._call("query", deadline, **request)
+            items = page.get("Items", [])
+            if not isinstance(items, list) or len(items) > PREVIOUS_ANSWER_PAGE_SIZE:
+                raise StorageFormatError("previous_answer_page")
+            evaluated += len(items)
+            if evaluated > PREVIOUS_ANSWER_MAX_ATTEMPTS:
+                raise BusinessError(503, "PREVIOUS_ANSWER_UNAVAILABLE")
+            for raw in items:
+                item = from_wire(raw)
+                record, _ = decode(item)
+                if item.get("kind") != "Attempt" or record.owner != owner:
+                    raise StorageFormatError("previous_answer_owner")
+                if record.question.id == question_id and (
+                    latest is None
+                    or (record.created_at, record.id) > (latest.created_at, latest.id)
+                ):
+                    latest = record
+            cursor = page.get("LastEvaluatedKey")
+            if not cursor:
+                return Reply(
+                    200, {"questionId": question_id, "answer": latest.answer if latest else None}
+                )
+            native_cursor = from_wire(cursor)
+            sort_key = native_cursor.get("SK")
+            if (
+                native_cursor.get("PK") != f"USER#{owner}"
+                or not isinstance(sort_key, str)
+                or not sort_key.startswith("ATTEMPT#")
+                or sort_key <= previous_sort_key
+            ):
+                raise StorageFormatError("previous_answer_cursor")
+            previous_sort_key = sort_key
+            request["ExclusiveStartKey"] = cursor
+        raise BusinessError(503, "PREVIOUS_ANSWER_UNAVAILABLE")
 
     def due_candidates(self, partition, cutoff, cursor=None, limit=100):
         if partition not in PARTITIONS or limit != 100:

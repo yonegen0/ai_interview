@@ -44,6 +44,8 @@ from interview_backend.repositories.codec import FAILURE, PARTITIONS, encode, va
 from interview_backend.star_assist.repository import StarRepositoryMixin
 from interview_backend.text_limits import code_point_length
 
+# Bound owner-scoped history reads; an incomplete search must not masquerade as no answer.
+PREVIOUS_ANSWER_MAX_ATTEMPTS = 2000
 SESSION_UPDATE_RESERVE_BYTES = 1024
 # Maximum new Sessions per authenticated owner and UTC calendar month.
 SESSION_CREATION_MONTHLY_LIMIT = 60

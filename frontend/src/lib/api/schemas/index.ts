@@ -108,6 +108,11 @@ export const createSchema = z.union([
   }),
 ]);
 export const createdSchema = z.object({ sessionId: idSchema });
+/** null represents confirmed absence; query errors must not masquerade as absence. */
+export const previousAnswerSchema = z.object({
+  questionId: idSchema,
+  answer: z.string().nullable(),
+}).strict();
 export const assistTypeSchema = z.enum(["star", "prep", "motivation", "career_change", "career_plan", "none"]);
 export type AssistType = z.infer<typeof assistTypeSchema>;
 export const questionSchema = z.object({
