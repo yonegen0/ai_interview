@@ -5,6 +5,7 @@
 "use client";
 
 import { useId } from "react";
+import CheckRoundedIcon from "@mui/icons-material/CheckRounded";
 import FormControl from "@mui/material/FormControl";
 import FormHelperText from "@mui/material/FormHelperText";
 import InputLabel from "@mui/material/InputLabel";
@@ -23,6 +24,8 @@ export type SelectOption<T extends string | number> = {
   value: T;
   /** 表示ラベル */
   label: ReactNode;
+  /** メニュー右側の補助ラベル（category 表示時のみ使用） */
+  secondaryLabel?: string;
 };
 
 /** 共通 Select の Props */
@@ -50,6 +53,8 @@ export type SelectProps<T extends string | number> = {
   fullWidth?: boolean;
   /** 最小幅 px（fullWidth と排他運用） */
   minWidth?: number;
+  /** category のみ装飾付きメニューを使用（省略時は従来の表示） */
+  variant?: "default" | "category";
 };
 
 /** styled 用の prop */
@@ -125,6 +130,112 @@ const StyledMenuPaper = styled(Paper)(({ theme }) => ({
   },
 }));
 
+/** カテゴリ練習でのみ使用するメニューパネル。通常の Select の見た目は変えない。 */
+const StyledCategoryMenuPaper = styled(StyledMenuPaper)(({ theme }) => ({
+  maxWidth: `calc(100vw - ${theme.spacing(4)})`,
+  borderRadius: scaledRadius(theme, 1),
+  "& .MuiList-root": {
+    paddingBlock: theme.spacing(0.75),
+  },
+  "& .MuiMenuItem-root": {
+    position: "relative",
+    minHeight: theme.spacing(7),
+    marginInline: theme.spacing(0.75),
+    padding: theme.spacing(1, 1.5),
+    borderRadius: scaledRadius(theme, 1.25),
+    color: theme.palette.text.primary,
+    "&:not(.Mui-selected):not(:last-child)::after": {
+      content: '""',
+      position: "absolute",
+      left: theme.spacing(4),
+      right: theme.spacing(1),
+      bottom: 0,
+      borderBottom: `1px solid ${alpha(theme.palette.text.secondary, 0.12)}`,
+      pointerEvents: "none",
+    },
+    "&:hover": {
+      backgroundColor: alpha(theme.palette.primary.main, 0.08),
+    },
+    "&.Mui-selected": {
+      backgroundColor: alpha(theme.palette.primary.main, 0.12),
+      color: theme.palette.text.primary,
+      fontWeight: 600,
+      "&:hover": {
+        backgroundColor: alpha(theme.palette.primary.main, 0.18),
+      },
+    },
+    "&.Mui-focusVisible": {
+      outline: `2px solid ${theme.palette.primary.main}`,
+      outlineOffset: "-2px",
+    },
+  },
+}));
+
+const StyledCategoryOption = styled("span")(({ theme }) => ({
+  display: "flex",
+  alignItems: "center",
+  gap: theme.spacing(1.25),
+  width: "100%",
+  minWidth: 0,
+  "&::before": {
+    content: '""',
+    display: "block",
+    flex: "0 0 auto",
+    width: theme.spacing(1),
+    height: theme.spacing(1),
+    borderRadius: "50%",
+    backgroundColor: alpha(theme.palette.primary.main, 0.3),
+    transition: theme.transitions.create(["height", "width", "background-color"], {
+      duration: theme.transitions.duration.shortest,
+    }),
+  },
+  ".Mui-selected &::before": {
+    width: theme.spacing(0.5),
+    height: theme.spacing(3),
+    borderRadius: theme.spacing(1),
+    backgroundColor: theme.palette.primary.main,
+  },
+}));
+
+const StyledCategoryLabel = styled("span")({
+  flex: "1 1 auto",
+  minWidth: 0,
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+});
+
+const StyledCategoryCount = styled("span")(({ theme }) => ({
+  flex: "0 0 auto",
+  whiteSpace: "nowrap",
+  color: theme.palette.text.secondary,
+  fontSize: theme.typography.body2.fontSize,
+  fontWeight: 400,
+}));
+
+const StyledCategoryCheck = styled("span")(({ theme }) => ({
+  display: "inline-flex",
+  flex: "0 0 auto",
+  alignItems: "center",
+  justifyContent: "center",
+  width: theme.spacing(3),
+  height: theme.spacing(3),
+  borderRadius: "50%",
+  backgroundColor: theme.palette.primary.main,
+  color: theme.palette.primary.contrastText,
+  "& .MuiSvgIcon-root": {
+    fontSize: theme.spacing(2),
+  },
+}));
+
+const StyledClosedCategoryValue = styled("span")(({ theme }) => ({
+  display: "flex",
+  alignItems: "center",
+  minWidth: 0,
+  width: "100%",
+  gap: theme.spacing(1),
+}));
+
 /**
  * 共通セレクトコンポーネントを表示する
  * @param props 表示に必要なプロパティ
@@ -162,11 +273,62 @@ export const Select = <T extends string | number>(props: SelectProps<T>) => {
         label={props.label}
         value={props.value}
         onChange={handleChange}
-        MenuProps={{ slots: { paper: StyledMenuPaper } }}
+        MenuProps={{
+          slots: {
+            paper:
+              props.variant === "category"
+                ? StyledCategoryMenuPaper
+                : StyledMenuPaper,
+          },
+        }}
+        renderValue={
+          props.variant === "category"
+            ? (selectedValue) => {
+                const option = props.options.find(
+                  (candidate) =>
+                    String(candidate.value) === String(selectedValue),
+                );
+                return option ? (
+                  <StyledClosedCategoryValue>
+                    <StyledCategoryLabel>{option.label}</StyledCategoryLabel>
+                    {option.secondaryLabel ? (
+                      <StyledCategoryCount>
+                        {option.secondaryLabel}
+                      </StyledCategoryCount>
+                    ) : null}
+                  </StyledClosedCategoryValue>
+                ) : null;
+              }
+            : undefined
+        }
       >
         {props.options.map((o) => (
-          <MenuItem key={String(o.value)} value={o.value}>
-            {o.label}
+          <MenuItem
+            key={String(o.value)}
+            value={o.value}
+            aria-label={
+              props.variant === "category" && typeof o.label === "string"
+                ? `${o.label}${o.secondaryLabel ?? ""}`
+                : undefined
+            }
+          >
+            {props.variant === "category" ? (
+              <StyledCategoryOption>
+                <StyledCategoryLabel>{o.label}</StyledCategoryLabel>
+                {o.secondaryLabel ? (
+                  <StyledCategoryCount>
+                    {o.secondaryLabel}
+                  </StyledCategoryCount>
+                ) : null}
+                {String(props.value) === String(o.value) ? (
+                  <StyledCategoryCheck aria-hidden="true">
+                    <CheckRoundedIcon />
+                  </StyledCategoryCheck>
+                ) : null}
+              </StyledCategoryOption>
+            ) : (
+              o.label
+            )}
           </MenuItem>
         ))}
       </MuiSelect>

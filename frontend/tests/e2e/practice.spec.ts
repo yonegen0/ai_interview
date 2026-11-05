@@ -241,3 +241,27 @@ for (const width of [375, 390, 768, 1440])
     await expect(page.locator("main").getByRole("alert")).toBeVisible();
     await expectContentWithinViewport(page);
   });
+
+for (const width of [390, 1440]) {
+  test(`category menu remains usable within ${width}px viewport`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 800 });
+    await page.goto("/practice/");
+    await page
+      .getByRole("button", { name: "カテゴリ練習", exact: true })
+      .click();
+    const select = page.getByRole("combobox", { name: "練習するカテゴリ" });
+    await select.click();
+    const listbox = page.getByRole("listbox");
+    await expect(listbox).toBeVisible();
+    const bounds = await listbox.boundingBox();
+    expect(bounds).not.toBeNull();
+    expect(bounds!.x).toBeGreaterThanOrEqual(-1);
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width + 1);
+    await page.getByRole("option", { name: /^転職理由（\d+問）$/ }).click();
+    await expect(select).toContainText("転職理由");
+    await expect(select).toContainText(/（\d+問）/);
+    await expect(listbox).toBeHidden();
+  });
+}
