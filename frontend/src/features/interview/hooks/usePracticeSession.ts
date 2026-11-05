@@ -116,7 +116,7 @@ export function usePracticeSession() {
       ? retryFrom
         ? origin.data?.answer
         : previous.data?.questionId === questionId
-          ? (previous.data.answer ?? undefined)
+          ? (previous.data?.answer ?? undefined)
           : undefined
       : undefined,
     contextKey: `${id}:${query.data.question.id}:${query.data.questionNumber}:${retryFrom}:${query.data.activeAttempt?.evaluationId ?? "new"}`,
