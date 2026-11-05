@@ -33,7 +33,7 @@ it("does not reveal restored identity until the refresh succeeds", async () => {
   let finish: ((value: Awaited<ReturnType<IdentityAdapter["refresh"]>>) => void) | undefined;
   const adapter: IdentityAdapter = {
     begin: vi.fn(), complete: vi.fn(),
-    refresh: vi.fn(() => new Promise((resolve) => { finish = resolve; })),
+    refresh: vi.fn((_token: string) => new Promise<Awaited<ReturnType<IdentityAdapter["refresh"]>>>((resolve) => { finish = resolve; })),
     revoke: vi.fn(async () => undefined),
   };
   setIdentityAdapterForTests(adapter);
