@@ -11,7 +11,6 @@ from interview_backend.star_assist.grounding import (
     clarify,
     contradictory,
 )
-from interview_backend.star_assist.prose_v5 import ProseV5Reply, validate_prose_v5
 from interview_backend.star_assist.models import (
     OTHER_CANDIDATE_MAX_LENGTH,
     OTHER_NOTES_MAX_LENGTH,
@@ -22,6 +21,7 @@ from interview_backend.star_assist.models import (
     Strict,
     star_notes_length,
 )
+from interview_backend.star_assist.prose_v5 import ProseV5Reply, validate_prose_v5
 from interview_backend.text_limits import utf16_length
 
 MAX_OUTPUT_TOKENS = 4096
