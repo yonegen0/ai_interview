@@ -399,7 +399,7 @@ export function createHandlers(
           entry.feedback.question.id === parsed.data &&
           sessionOwner(state, entry.feedback.sessionId) === identity.sub)
         .sort((a, b) =>
-          b.feedback.createdAt.localeCompare(a.feedback.createdAt) ||
+          b.startedAt - a.startedAt ||
           b.feedback.attemptId.localeCompare(a.feedback.attemptId));
       return HttpResponse.json({
         questionId: parsed.data,
