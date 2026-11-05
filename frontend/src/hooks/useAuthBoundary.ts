@@ -10,9 +10,11 @@ export function useAuthBoundary(admin = false) {
   return {
     ownerKey: `${auth.scope() ?? "anonymous"}:${auth.generation()}`,
     status:
-      state.phase === "restoring"
+      state.phase === "restoring" || state.phase === "refreshing"
         ? ("restoring" as const)
-        : !state.sub
+        : state.phase === "temporarily_unavailable"
+          ? ("temporarily_unavailable" as const)
+        : state.phase !== "authenticated" || !state.sub
           ? ("anonymous" as const)
           : admin && !state.groups.includes("ADMIN")
             ? ("forbidden" as const)

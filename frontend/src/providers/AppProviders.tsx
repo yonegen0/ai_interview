@@ -13,6 +13,7 @@ import Alert from "@mui/material/Alert";
 import { theme } from "@/theme/theme";
 import { Text } from "@/components/atoms/Text";
 import { retryGet } from "@/lib/api/client";
+import { auth } from "@/lib/auth/session";
 import { storageAvailable, subscribeStorage } from "@/lib/storage/recovery";
 export const mockEnabled = process.env.NEXT_PUBLIC_MSW_ENABLED === "true";
 export const createAppQueryClient = () =>
@@ -42,6 +43,16 @@ export const AppProviders = ({ children }: { children: ReactNode }) => {
   const [client] = useState(createAppQueryClient);
   const [ready, setReady] = useState(!mockEnabled);
   const [error, setError] = useState(false);
+  useEffect(() => {
+    let epoch = auth.generation();
+    return auth.subscribe(() => {
+      const next = auth.generation();
+      if (next !== epoch) {
+        epoch = next;
+        client.clear();
+      }
+    });
+  }, [client]);
   useEffect(() => {
     if (mockEnabled) {
       let active = true;

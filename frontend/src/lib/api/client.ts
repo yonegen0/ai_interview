@@ -1,7 +1,7 @@
 /** @file client.ts @description 検証・Timeout・Abortを統一したAPI Client */
 import { z } from "zod";
 import { errorSchema } from "./schemas";
-import { auth } from "@/lib/auth/session";
+import { auth, AuthUnavailableError } from "@/lib/auth/session";
 
 const messages: Record<string, string> = {
   DRAFT_VERSION_CONFLICT: "別のタブで保存されています。入力は保持しています。",
@@ -26,6 +26,7 @@ const messages: Record<string, string> = {
   SESSION_CREATION_LIMIT:
     "今月の面接練習の新規作成上限に達しました。翌月から再び作成できます。",
   UNAUTHORIZED: "この操作には認証が必要です。",
+  AUTH_TEMPORARILY_UNAVAILABLE: "認証を確認できません。接続を確認して再度お試しください。",
   FORBIDDEN: "この操作を行う権限がありません。",
   RATE_LIMITED: "利用が制限されています。時間をおいて再度お試しください。",
   AI_TIMEOUT: "評価処理に時間がかかっています。結果を再確認してください。",
@@ -103,7 +104,9 @@ export async function request<T>(
     let token: string;
     try {
       token = await auth.access();
-    } catch {
+    } catch (error) {
+      if (error instanceof AuthUnavailableError)
+        throw new ApiError("AUTH_TEMPORARILY_UNAVAILABLE", 503);
       throw new ApiError("UNAUTHORIZED", 401);
     }
     assertOwner();
@@ -130,7 +133,9 @@ export async function request<T>(
     if (response.status === 401 && (options.method ?? "GET") === "GET") {
       try {
         token = await auth.access(true);
-      } catch {
+      } catch (error) {
+        if (error instanceof AuthUnavailableError)
+          throw new ApiError("AUTH_TEMPORARILY_UNAVAILABLE", 503);
         throw new ApiError("UNAUTHORIZED", 401);
       }
       assertOwner();
@@ -138,7 +143,8 @@ export async function request<T>(
       assertOwner();
     }
     if (response.status === 401) {
-      auth.invalidate();
+      // Keep the refresh credential, but block protected UI/API until verified.
+      auth.suspend();
       throw new ApiError("UNAUTHORIZED", 401);
     }
     if (response.status === 403) throw new ApiError("FORBIDDEN", 403);
