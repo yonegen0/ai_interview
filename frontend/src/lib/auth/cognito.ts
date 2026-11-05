@@ -4,6 +4,9 @@ import {
   InitiateAuthCommand,
   RespondToAuthChallengeCommand,
   RevokeTokenCommand,
+  NotAuthorizedException,
+  UserNotFoundException,
+  InvalidParameterException,
   type AuthenticationResultType,
 } from "@aws-sdk/client-cognito-identity-provider";
 
@@ -16,6 +19,12 @@ export interface IdentityAdapter {
   ): Promise<AuthenticationResultType>;
   refresh(token: string): Promise<AuthenticationResultType>;
   revoke(token: string): Promise<void>;
+}
+/** Cognito's generated exception classes identify definite refresh rejection. */
+export function isRefreshCredentialRejected(error: unknown): boolean {
+  return error instanceof NotAuthorizedException ||
+    error instanceof UserNotFoundException ||
+    error instanceof InvalidParameterException;
 }
 export function cognitoAdapter(): IdentityAdapter {
   const region = process.env.NEXT_PUBLIC_COGNITO_REGION;

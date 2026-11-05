@@ -2,6 +2,7 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { auth, setIdentityAdapterForTests } from "@/lib/auth/session";
 import type { IdentityAdapter } from "@/lib/auth/cognito";
+import { NotAuthorizedException } from "@aws-sdk/client-cognito-identity-provider";
 function configure() {
   vi.stubEnv("NEXT_PUBLIC_MSW_ENABLED", "false");
   vi.stubEnv("NEXT_PUBLIC_COGNITO_REGION", "ap-northeast-1");
@@ -46,7 +47,7 @@ it("does not send OTP during initialization and persists access identity only", 
   expect(stored).not.toContain("123456");
   expect(stored).not.toContain("idToken");
 });
-it("deduplicates simultaneous refresh and clears authentication on failure", async () => {
+it("deduplicates simultaneous refresh and preserves credentials on a transient failure", async () => {
   configure();
   const value = adapter();
   setIdentityAdapterForTests(value);
@@ -56,8 +57,20 @@ it("deduplicates simultaneous refresh and clears authentication on failure", asy
   vi.mocked(value.refresh).mockRejectedValue(
     new Error("private service payload"),
   );
+  await expect(auth.access(true)).rejects.toThrow("認証を確認できません");
+  expect(auth.snapshot()).toMatchObject({ phase: "authenticated", sub: "user" });
+  expect(sessionStorage.getItem("pocket:auth:synthetic-client")).toContain("synthetic-refresh");
+});
+it("invalidates a revoked refresh token using the typed Cognito error", async () => {
+  configure();
+  const value = adapter();
+  setIdentityAdapterForTests(value);
+  await auth.complete("user@example.invalid", "s", "123456");
+  vi.mocked(value.refresh).mockRejectedValueOnce(
+    new NotAuthorizedException({ $metadata: { httpStatusCode: 400 }, message: "invalid refresh" }),
+  );
   await expect(auth.access(true)).rejects.toThrow("ログインし直してください");
-  expect(auth.snapshot().sub).toBeNull();
+  expect(auth.snapshot().phase).toBe("anonymous");
   expect(sessionStorage.getItem("pocket:auth:synthetic-client")).toBeNull();
 });
 it("rejects another client and another subject during refresh", async () => {

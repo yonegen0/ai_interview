@@ -27,8 +27,8 @@ run "cognito_first_auth_factors" {
     error_message = "Keep the existing email OTP and administrator-created user requirements."
   }
   assert {
-    condition     = toset(aws_cognito_user_pool_client.web.explicit_auth_flows) == toset(["ALLOW_USER_AUTH", "ALLOW_REFRESH_TOKEN_AUTH"]) && !aws_cognito_user_pool_client.web.generate_secret && aws_cognito_user_pool_client.web.access_token_validity == 5 && aws_cognito_user_pool_client.web.enable_token_revocation && aws_cognito_user_pool_client.web.prevent_user_existence_errors == "ENABLED"
-    error_message = "Keep choice-based OTP authentication, public client, short tokens and revocation."
+    condition     = toset(aws_cognito_user_pool_client.web.explicit_auth_flows) == toset(["ALLOW_USER_AUTH", "ALLOW_REFRESH_TOKEN_AUTH"]) && !aws_cognito_user_pool_client.web.generate_secret && aws_cognito_user_pool_client.web.access_token_validity == 15 && aws_cognito_user_pool_client.web.id_token_validity == 15 && aws_cognito_user_pool_client.web.refresh_token_validity == 7 && aws_cognito_user_pool_client.web.enable_token_revocation && aws_cognito_user_pool_client.web.prevent_user_existence_errors == "ENABLED"
+    error_message = "Keep choice-based OTP authentication, public client, 15m/15m/7d tokens and revocation."
   }
 }
 

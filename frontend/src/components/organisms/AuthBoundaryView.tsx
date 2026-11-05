@@ -5,7 +5,7 @@ import { Text } from "@/components/atoms/Text";
 import { Link } from "@/components/atoms/Link";
 export type AuthBoundaryViewProps = {
   children: ReactNode;
-  status: "restoring" | "anonymous" | "forbidden" | "allowed";
+  status: "restoring" | "temporarily_unavailable" | "anonymous" | "forbidden" | "allowed";
   error?: string;
   loginUrl: string;
 };
@@ -17,6 +17,8 @@ export function AuthBoundaryView({
 }: AuthBoundaryViewProps) {
   if (status === "restoring")
     return <Text role="status">ログイン状態を確認しています…</Text>;
+  if (status === "temporarily_unavailable")
+    return <Text role="status">{error || "通信の問題で認証状態を確認できません。再接続後に確認します。"}</Text>;
   if (status === "anonymous")
     return (
       <>
