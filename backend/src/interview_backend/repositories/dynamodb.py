@@ -314,9 +314,9 @@ class DynamoDBRepository(DomainRepository):
         request = {
             "TableName": self.table,
             "KeyConditionExpression": "PK = :owner AND begins_with(SK, :attempt)",
-            "ExpressionAttributeValues": to_wire({
-                ":owner": f"USER#{owner}", ":attempt": "ATTEMPT#"
-            }),
+            "ExpressionAttributeValues": to_wire(
+                {":owner": f"USER#{owner}", ":attempt": "ATTEMPT#"}
+            ),
             "ConsistentRead": True,
             "Limit": PREVIOUS_ANSWER_PAGE_SIZE,
         }
