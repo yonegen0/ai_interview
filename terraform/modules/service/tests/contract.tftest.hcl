@@ -101,8 +101,8 @@ run "p2_fixed_configuration" {
     error_message = "First deployment is closed and business routes require JWT."
   }
   assert {
-    condition     = aws_cognito_user_pool_client.web.access_token_validity == 5 && !aws_cognito_user_pool_client.web.generate_secret && aws_cognito_user_pool.main.user_pool_tier == "ESSENTIALS"
-    error_message = "Passwordless public client and five-minute tokens are required."
+    condition     = aws_cognito_user_pool_client.web.access_token_validity == 15 && aws_cognito_user_pool_client.web.id_token_validity == 15 && aws_cognito_user_pool_client.web.refresh_token_validity == 7 && !aws_cognito_user_pool_client.web.generate_secret && aws_cognito_user_pool.main.user_pool_tier == "ESSENTIALS"
+    error_message = "Passwordless public client and 15-minute access/ID plus seven-day refresh tokens are required."
   }
   assert {
     condition     = alltrue([for f in aws_lambda_function.main : f.runtime == "python3.14" && f.memory_size == 512 && f.s3_object_version == "synthetic-version"])
