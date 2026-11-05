@@ -67,7 +67,7 @@ export function usePracticeController(
       workspace: state.workspace,
       previousAnswer: retryFrom
         ? (previousAnswer ?? session.activeCoaching?.initialAnswer)
-        : undefined,
+        : previousAnswer,
       currentAnswer: state.answer,
       draftStatus: state.draftStatus,
       onClear: state.clearInput,
