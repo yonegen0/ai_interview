@@ -89,7 +89,12 @@ def test_live_flows_accept_question_bank_without_career(runtime, flow, question_
     run = live.Run(f"bank-{flow}-{question_count}")
     a, b = LocalApi(runtime, "user-a"), LocalApi(runtime, "user-b")
     admin = LocalApi(runtime, "admin", True)
-    questions = [q.wire() for q in load_questions() if q.category != "career"][:question_count]
+    source = (
+        [q for q in load_questions() if q.category == "experience"]
+        if flow == "star"
+        else [q for q in load_questions() if q.category != "career"]
+    )
+    questions = [q.wire() for q in source[:question_count]]
     assert len(questions) == question_count
     assert (
         admin.call(
@@ -118,7 +123,7 @@ def test_live_flows_accept_question_bank_without_career(runtime, flow, question_
     assert all(row["status"] == "passed" for row in run.rows)
     assert admin.call("GET", "/admin/question-bank")[1] == original
     session = next(iter(runtime.repository.snapshot().sessions.values()))
-    assert session.practice_mode == "full"
+    assert session.practice_mode == ("category" if flow == "star" else "full")
     assert [q.wire() for q in session.questions] == questions
     assert all(e.status == "completed" for e in runtime.repository.snapshot().evaluations.values())
 

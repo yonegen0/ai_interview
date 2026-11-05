@@ -51,7 +51,7 @@ function operation(
 }
 async function setup(saved: boolean) {
   const created = await createSession(
-    { mode: "category", category: "job_change", difficulty: "standard" },
+    { mode: "category", category: "experience", difficulty: "standard" },
     crypto.randomUUID(),
   );
   const session = await getQuestion(created.sessionId);

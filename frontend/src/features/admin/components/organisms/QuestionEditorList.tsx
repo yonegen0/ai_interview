@@ -7,6 +7,7 @@ export type QuestionEditorListProps = EditorBindings & {
   disabled: boolean;
   onMove: (index: number, direction: -1 | 1) => void;
   onRemove: (index: number) => void;
+  onCategoryChange: (index: number, category: EditorBindings["fields"][number]["category"]) => void;
 };
 export const QuestionEditorList = ({
   fields,
@@ -14,6 +15,7 @@ export const QuestionEditorList = ({
   errors,
   disabled,
   onMove,
+  onCategoryChange,
   onRemove,
 }: QuestionEditorListProps) => (
   <>
@@ -28,6 +30,7 @@ export const QuestionEditorList = ({
         first={index === 0}
         last={index === fields.length - 1}
         onMove={(direction) => onMove(index, direction)}
+        onCategoryChange={(category) => onCategoryChange(index, category)}
         onRemove={() => onRemove(index)}
       />
     ))}

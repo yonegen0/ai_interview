@@ -170,7 +170,7 @@ async function begin(page: Page) {
   await page.goto("/practice/");
   await page.getByRole("button", { name: "カテゴリ練習", exact: true }).click();
   await page.getByRole("combobox", { name: "練習するカテゴリ" }).click();
-  await page.getByRole("option", { name: /^転職理由（\d+問）$/ }).click();
+  await page.getByRole("option", { name: /^仕事経験（\d+問）$/ }).click();
   await page.getByRole("button", { name: "練習を始める", exact: true }).click();
   await expect(page.getByLabel("あなたの回答")).toBeVisible();
   await expect(
@@ -533,12 +533,15 @@ for (const [mode, label, firstStep] of [
 ] as const) {
   test(`${label} generates one answer and applies it without additional editing`, async ({ page }) => {
     await page.addInitScript(() => sessionStorage.setItem("pocket:mock:role", "ADMIN"));
-    await page.goto("/admin/questions/");
-    await page.getByRole("combobox", { name: "回答アシスト" }).first().click();
-    await page.getByRole("option", { name: label, exact: true }).click();
-    await page.getByRole("button", { name: "保存内容を確認", exact: true }).click();
-    await page.getByRole("button", { name: "保存して反映", exact: true }).click();
-    await expect(page.getByRole("status")).toContainText("質問一覧を保存しました");
+    // PREP is now the default for self-introduction; no redundant bank write.
+    if (mode !== "prep") {
+      await page.goto("/admin/questions/");
+      await page.getByRole("combobox", { name: "回答アシスト" }).first().click();
+      await page.getByRole("option", { name: label, exact: true }).click();
+      await page.getByRole("button", { name: "保存内容を確認", exact: true }).click();
+      await page.getByRole("button", { name: "保存して反映", exact: true }).click();
+      await expect(page.getByRole("status")).toContainText("質問一覧を保存しました");
+    }
     await page.goto("/practice/");
     await page.getByRole("button", { name: "カテゴリ練習", exact: true }).click();
     await page.getByRole("combobox", { name: "練習するカテゴリ" }).click();

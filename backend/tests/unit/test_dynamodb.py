@@ -380,7 +380,7 @@ def test_star_generation_stubber_atomic_quota_dispatch_and_context(sdk):
     memory = MemoryRepository(lambda: NOW)
     ids = count(1100)
     app = Application(memory, load_questions(), lambda: uid(next(ids)))
-    sid = app.create(OWNER, uid(990), {"category": "job_change", "difficulty": "standard"}).body[
+    sid = app.create(OWNER, uid(990), {"category": "experience", "difficulty": "standard"}).body[
         "sessionId"
     ]
     qid = app.question(OWNER, sid).body["question"]["id"]

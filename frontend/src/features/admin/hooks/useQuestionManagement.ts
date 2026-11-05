@@ -17,6 +17,7 @@ import {
   storageKey,
   stageReducer,
   changeSummary,
+  defaultAssistType,
   type ManagementView,
   type ManagementActions,
 } from "../model/editor";
@@ -223,6 +224,25 @@ export function useQuestionManagement() {
       setComparison(null);
       mutation.reset();
       transition("editable");
+    },
+    updateCategoryAssist: (index, category) => {
+      if (!isActive() || busy || stage === "confirm") return;
+      form.setValue(
+        `questions.${index}.assistType`,
+        defaultAssistType(category),
+        { shouldDirty: true, shouldValidate: true },
+      );
+    },
+    applyCategoryAssistDefaults: () => {
+      if (!isActive() || busy || stage === "confirm") return;
+      form.getValues("questions").forEach((question, index) => {
+        const recommended = defaultAssistType(question.category);
+        if (question.assistType !== recommended)
+          form.setValue(`questions.${index}.assistType`, recommended, {
+            shouldDirty: true,
+            shouldValidate: true,
+          });
+      });
     },
     appendQuestion: () => {
       if (isActive() && !busy && stage !== "confirm" && fields.length < 100)
