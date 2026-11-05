@@ -130,7 +130,6 @@ const StyledMenuPaper = styled(Paper)(({ theme }) => ({
   },
 }));
 
-
 /** カテゴリ練習でのみ使用するメニューパネル。通常の Select の見た目は変えない。 */
 const StyledCategoryMenuPaper = styled(StyledMenuPaper)(({ theme }) => ({
   maxWidth: `calc(100vw - ${theme.spacing(4)})`,
@@ -304,7 +303,15 @@ export const Select = <T extends string | number>(props: SelectProps<T>) => {
         }
       >
         {props.options.map((o) => (
-          <MenuItem key={String(o.value)} value={o.value}>
+          <MenuItem
+            key={String(o.value)}
+            value={o.value}
+            aria-label={
+              props.variant === "category" && typeof o.label === "string"
+                ? `${o.label}${o.secondaryLabel ?? ""}`
+                : undefined
+            }
+          >
             {props.variant === "category" ? (
               <StyledCategoryOption>
                 <StyledCategoryLabel>{o.label}</StyledCategoryLabel>
