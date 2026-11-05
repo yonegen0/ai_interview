@@ -35,6 +35,8 @@ Provider結果は8項目がrequiredで追加項目禁止:
 3軸は各0〜10整数。coachingは質問必須・example=null、completedは質問=null・example必須。
 Backendが`baseScore=3軸の和`、`totalScore=max(0,baseScore-lengthPenalty)`を計算する。
 初回回答300以下は減点0、301〜350は1、351〜400は2。helperの401以上減点3はV2受付では到達せず、V1へ適用しない。
+回答時の推奨は初回・再挑戦250〜350、深掘り150〜220（送信上限400は共通）。completed時の完成回答例は250〜350目標・400上限とし、事実不足なら短文可。推奨値は採点・送信可否と独立する。
+既存の`interview-coaching-v2` Prompt Versionは進行中評価の互換性保持のため変更しない。
 rankはS=26〜30、A=21〜25、B=15〜20、C=0〜14。追加回答の長さで減点を変更しない。
 
 ## 保存・状態・非同期

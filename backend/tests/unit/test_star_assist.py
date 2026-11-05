@@ -143,6 +143,9 @@ def test_star_claim_fences_unconfirmed_sender(star):
     delivery = runtime.repository.acquire_delivery("owner", identifier, 1, str(uuid4())).delivery
     lease = runtime.repository.star_claim("owner", identifier, 1, str(uuid4()))
     assert lease is not None
+    assert lease.operation_kind == "initial_answer"
+    saved = runtime.repository._read(ref("StarGeneration", "owner", identifier))
+    assert not hasattr(saved, "operation_kind")
     dispatch = runtime.repository.snapshot().dispatches[identifier]
     assert dispatch.status == "CLAIMED"
     assert dispatch.send_owner is None and dispatch.send_expires_at is None

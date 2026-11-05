@@ -146,14 +146,31 @@ def test_numbers_names_periods_negation_modality_and_quoted_scope(note, retained
         )
 
 
-def test_150_to_220_target_on_sufficient_notes_not_a_minimum():
+@pytest.mark.parametrize(
+    "operation_kind, target",
+    [
+        ("initial_answer", [250, 350]),
+        ("retry_attempt", [250, 350]),
+        ("coaching_answer", [150, 220]),
+    ],
+)
+def test_natural_prompt_uses_operation_kind_target_without_padding(operation_kind, target):
+    client = Client()
+    result = live(client).generate(
+        "経験は？", value(A="記録を共有した。"), operation_kind=operation_kind
+    )
+    assert result.status == "ready" and client.calls == 1
+    assert client.data["lengthTarget"] == target
+
+
+def test_follow_up_150_to_220_target_on_sufficient_notes_not_a_minimum():
     v = value(
         S="社内の引継ぎでは、案件ごとの確認事項が担当者によって異なるという状況にありました。",
         T="私は既存の資料と確認手順を整理する役割を担当した。",
         A="各担当者が使っていた資料を比較した。確認項目を一覧にして、担当者全員への共有を行いました。",
         R="試行した部署に限り、引継ぎ時の確認漏れを減らすことができました。他部署での効果は未確認です。",
     )
-    result = live(Client()).generate("工夫した経験は？", v)
+    result = live(Client()).generate("工夫した経験は？", v, operation_kind="coaching_answer")
     assert result.status == "ready"
     assert all(150 <= len(c.text) <= 220 for c in result.candidates)
     assert all(
@@ -270,7 +287,7 @@ def test_prompt_injection_and_unverified_question_premise_cannot_enter_result():
 
 def test_new_version_pin_expired_before_send_and_after_response():
     client = Client()
-    assert ":prose-v2:" in live(client).provider_id
+    assert ":prose-v3:" in live(client).provider_id
     with pytest.raises(ProviderFailure, match="TIMEOUT"):
         live(client).generate_with_deadline(
             "経験は？", value(A="記録を共有した。"), Deadline(0, lambda: 0)
@@ -338,7 +355,7 @@ def test_natural_openai_manual_path_and_schema_no_network():
     result = provider.generate("経験は？", value(A="記録を共有した。"))
     assert result.status == "ready" and transport.calls == 1
     assert transport.payload["max_output_tokens"] == 4096
-    assert transport.payload["text"]["format"]["name"] == "star_prose_v2"
+    assert transport.payload["text"]["format"]["name"] == "star_prose_v3"
     assert transport.payload["text"]["format"]["strict"] is True
     assert transport.payload["text"]["format"]["schema"]["additionalProperties"] is False
 
