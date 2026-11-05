@@ -85,7 +85,7 @@ def validate_prose_v5(raw: object, value) -> tuple[StarResult, str | None, bool]
     try:
         ProseV5Reply.model_validate(raw)
         schema_valid = True
-    except (ValidationError, ValueError, TypeError):
+    except ValidationError, ValueError, TypeError:
         schema_valid = False
 
     if raw.get("status") == "needs_information":
@@ -120,7 +120,7 @@ def validate_prose_v5(raw: object, value) -> tuple[StarResult, str | None, bool]
                 repaired = True
             try:
                 parsed = Candidate.model_validate(candidate)
-            except (ValidationError, ValueError, TypeError):
+            except ValidationError, ValueError, TypeError:
                 continue
             if parsed.text.strip() and not _unsafe_claim(parsed.text, notes):
                 safe[identifier] = parsed
