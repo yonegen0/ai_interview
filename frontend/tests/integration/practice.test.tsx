@@ -306,6 +306,7 @@ it("offers previous accepted answer across normal sessions, only copies on click
     expect(readSaved(`pocket:answer:${session.sessionId}`, answerRecoverySchema)?.draft)
       .toBe(previous),
   );
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   fireEvent.change(input, { target: { value: "コピーを編集して送信します。" } });
   await userEvent.click(screen.getByRole("button", { name: "回答を送信" }));
   await waitFor(() =>
