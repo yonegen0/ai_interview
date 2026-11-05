@@ -1199,10 +1199,9 @@ def test_live_worker_pins_provider_once_shares_quota_and_never_replays(
                         "id": identifier,
                         "style": style,
                         "text": "。".join(
-                            facts[field].strip("。")
-                            for field in order
-                            if facts[field].strip()
-                        ) + "。",
+                            facts[field].strip("。") for field in order if facts[field].strip()
+                        )
+                        + "。",
                     }
                     for identifier, style, order in (
                         ("A", "conclusion", "RSTA"),
