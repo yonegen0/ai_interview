@@ -4,8 +4,9 @@ import json
 from copy import deepcopy
 from types import SimpleNamespace
 
-import pytest
 from botocore.exceptions import ReadTimeoutError
+
+import pytest
 
 from interview_backend.evaluation.bedrock_provider import BedrockProvider
 from interview_backend.evaluation.openai_provider import Deadline, OpenAIProvider, ProviderFailure
@@ -110,7 +111,8 @@ def test_natural_prose_v5_preserves_direct_model_text_with_unlisted_action():
 ])
 def test_operation_length_targets_are_guidance_only(operation_kind, expected):
     client = Client()
-    assert live(client).generate("経験は？", sample(), operation_kind=operation_kind).status == "ready"
+    result = live(client).generate("経験は？", sample(), operation_kind=operation_kind)
+    assert result.status == "ready"
     assert client.data["lengthTarget"] == expected
 
 
@@ -181,7 +183,11 @@ def test_invalid_candidate_or_schema_never_becomes_unchecked_answer(mutate):
 
 def test_model_clarification_uses_safe_fallback_once():
     def mutate(body):
-        body.update(status="needs_information", candidates=[], missingInformation=["売上が200%伸びた理由は？"])
+        body.update(
+            status="needs_information",
+            candidates=[],
+            missingInformation=["売上が200%伸びた理由は？"],
+        )
     client = Client(mutate)
     provider = live(client)
     result = provider.generate("経験は？", sample())
@@ -213,14 +219,16 @@ def test_new_or_reversed_numbers_are_rejected_without_changing_safe_candidates()
     def mutate(body):
         body["candidates"][0]["text"] = "取扱商品を95品から120品に変更しました。"
         body["candidates"][1]["text"] = "取扱商品を120品から94品に削減しました。"
-        body["candidates"][2]["text"] = "取扱商品を120品から95品に削減し、前年比98％から103％になりました。"
+        body["candidates"][2]["text"] = (
+            "取扱商品を120品から95品に削減し、前年比98％から103％になりました。"
+        )
     provider = live(Client(mutate))
     result = provider.generate("経験は？", sample_input)
     assert result.status == "ready" and provider.last_fallback_used
     assert result.candidates[0].text != "取扱商品を95品から120品に変更しました。"
     assert "94品" not in str(result.model_dump())
     assert result.candidates[2].text.startswith("取扱商品を120品")
-    assert provider.last_reason_code is None or provider.last_reason_code == "MODEL_STRUCTURE_MISMATCH"
+    assert provider.last_reason_code == "MODEL_STRUCTURE_MISMATCH"
 
 
 def test_obvious_negation_flip_is_rejected():
