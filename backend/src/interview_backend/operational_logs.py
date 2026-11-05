@@ -96,6 +96,7 @@ def log_event(event, *, sink=None, **fields):
                 "prose-v2",
                 "prose-v3",
                 "prose-v4",
+                "prose-v5",
             }
         elif key == "promptVersion":
             valid = isinstance(value, str) and value in {
@@ -104,6 +105,7 @@ def log_event(event, *, sink=None, **fields):
                 "star_prose_v2",
                 "star_prose_v3",
                 "star_prose_v4",
+                "star_prose_v5",
                 "answer_assist_v2",
             }
         elif key == "fallbackUsed":
