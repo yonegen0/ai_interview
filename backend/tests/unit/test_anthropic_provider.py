@@ -414,7 +414,9 @@ def test_star_live_generation_uses_existing_validation():
         generationId=None,
     )
     result = live.generate_with_deadline("工夫を教えて", value, Deadline(1000, lambda: 0))
-    assert result.status == "needs_information"
+    assert result.status == "ready"
+    assert live.last_reason_code == "MODEL_REQUESTED_INFORMATION"
+    assert live.last_fallback_used
     assert len(transport.requests) == 1
     assert transport.requests[0][2]["max_tokens"] == 4096
     assert live.last_observation["output_tokens"] == 120
@@ -446,9 +448,8 @@ def test_anthropic_star_natural_result_is_grounded_before_return(tamper):
         {
             "id": identifier,
             "style": style,
-            "passages": [
-                {"source": field, "text": realizations[field][identifier]}
-                for field in orders[identifier]
+            "fields": [
+                {"source": field, "expressionId": f"{field}:A"} for field in orders[identifier]
             ],
         }
         for identifier, style in (
@@ -458,9 +459,9 @@ def test_anthropic_star_natural_result_is_grounded_before_return(tamper):
         )
     ]
     if tamper == "invented_result":
-        candidates[1]["passages"][0]["text"] = "売上を200%改善しました。"
+        candidates[1]["fields"][0]["expressionId"] = "未許可:売上を200%改善しました。"
     elif tamper == "reversed_negation":
-        candidates[0]["passages"][0]["text"] = "成果を確認できました。"
+        candidates[0]["fields"][0]["expressionId"] = "未許可:成果を確認できました。"
     transport = Transport(
         response({"status": "ready", "candidates": candidates, "missingInformation": []})
     )
@@ -469,15 +470,12 @@ def test_anthropic_star_natural_result_is_grounded_before_return(tamper):
     assert len(transport.requests) == 1
     assert transport.requests[0][2]["max_tokens"] == 4096
     assert live.last_observation["output_tokens"] == 120
-    if tamper is None:
-        assert result.status == "ready"
-        assert [candidate.id for candidate in result.candidates] == ["A", "B", "C"]
-        assert all(
-            realizations["R"][candidate.id] in candidate.text for candidate in result.candidates
-        )
-    else:
-        assert result.status == "needs_information"
-        assert not result.candidates
+    assert result.status == "ready"
+    assert [candidate.id for candidate in result.candidates] == ["A", "B", "C"]
+    assert all("成果は確認できませんでした。" in c.text for c in result.candidates)
+    assert all("200%" not in c.text for c in result.candidates)
+    assert live.last_fallback_used is (tamper is not None)
+    assert live.last_reason_code == ("MODEL_STRUCTURE_MISMATCH" if tamper else None)
 
 
 def test_selection_requires_explicit_secret_and_no_fallback():
