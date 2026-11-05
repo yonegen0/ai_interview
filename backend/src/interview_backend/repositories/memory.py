@@ -5,11 +5,11 @@ from threading import RLock
 from time import monotonic
 
 from interview_backend.models.internal import (
+    BusinessError,
     Candidate,
     CandidatePage,
     CorruptCandidate,
     IntegrityError,
-    BusinessError,
     Reply,
     RetryExhausted,
     State,
@@ -24,8 +24,8 @@ from interview_backend.repositories.codec import (
     work,
 )
 from interview_backend.repositories.domain import (
-    DomainRepository,
     PREVIOUS_ANSWER_MAX_ATTEMPTS,
+    DomainRepository,
     utc_ms,
 )
 from interview_backend.star_assist.models import RECORDS
