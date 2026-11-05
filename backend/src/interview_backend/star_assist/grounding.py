@@ -279,12 +279,20 @@ def safe_v4_candidates(realizations, selections=None):
                 if any(chosen_ids[field] not in catalog[field] for field in order):
                     chosen_ids = {}
                     fallback = True
-        text = OPENINGS[identifier] + "".join(
+        parts = [
             catalog[field].get(chosen_ids.get(field), catalog[field][f"{field}:{identifier}"])
             for field in order
-        )
+        ]
+        text = OPENINGS[identifier] + "".join(parts)
         if len(text) > STAR_CANDIDATE_MAX_LENGTH:
-            return None, fallback
+            # Prefer an intact shorter realization over discarding any source.
+            shorter = OPENINGS[identifier] + "".join(
+                min(catalog[field].values(), key=len) for field in order
+            )
+            if len(shorter) > STAR_CANDIDATE_MAX_LENGTH:
+                return None, fallback
+            text = shorter
+            fallback = True
         candidates.append(Candidate(id=identifier, style=style, text=text))
     return candidates, fallback
 
