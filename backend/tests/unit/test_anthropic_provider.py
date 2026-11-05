@@ -17,7 +17,6 @@ from interview_backend.evaluation.provider import build_coaching_prompt, build_p
 from interview_backend.evaluation.selection import select_provider
 from interview_backend.evaluation.worker import Worker
 from interview_backend.models.public import CoachingInput
-from interview_backend.star_assist.grounding import source_realizations
 from interview_backend.star_assist.live_provider import LiveStarProvider, select_star_provider
 from interview_backend.star_assist.models import Notes, StarInput
 
@@ -438,7 +437,6 @@ def test_anthropic_star_natural_result_is_grounded_before_return(tamper):
         selectedCandidateId=None,
         generationId=None,
     )
-    realizations = source_realizations(value.notes.model_dump())
     orders = {
         "A": ["R", "S", "T", "A"],
         "B": ["A", "S", "T", "R"],
