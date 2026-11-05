@@ -35,7 +35,9 @@ def response(data):
                 "id": i,
                 "style": style,
                 "fields": [
-                    {"source": k, "expressionId": f"{k}:{i}"} for k in order[i] if k in available
+                    {"source": k, "expressionId": next(iter(available[k]))}
+                    for k in order[i]
+                    if k in available
                 ],
             }
             for i, style in (("A", "conclusion"), ("B", "action"), ("C", "conversational"))
@@ -130,7 +132,7 @@ def test_one_field_without_action_attempts_once_then_clarifies(field):
     ],
 )
 def test_numbers_names_periods_negation_modality_and_quoted_scope(note, retained):
-    result = live(Client()).generate("経験は？", value(A=note))
+    result = live(Client()).generate("経験は？", value(S=note, A="記録を確認した。"))
     assert result.status == "ready"
     assert all(retained in c.text for c in result.candidates)
     if "しなかった" in note:
@@ -361,7 +363,7 @@ def test_natural_openai_manual_path_and_schema_no_network():
 def test_600_input_with_unavoidable_render_expansion_clarifies_before_ai():
     # The input is within 600 code points, but punctuation / openings / separators
     # make the complete A/B/C output longer than 600.
-    notes = value(S="い" * 2, A="あ" * 598)
+    notes = value(S="い" * 2, A="記録を確認した。" + "あ" * 590)
     for mode in ("natural", "source"):
         client = Client()
         provider = LiveStarProvider(
