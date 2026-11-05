@@ -105,6 +105,7 @@ PROSE_V5_INSTRUCTIONS = (
     "needs_informationとし、candidatesを空にして短い質問を1〜4件返す。"
 )
 
+
 class AssistReply(Strict):
     answer: str
     missingInformation: list[str]
@@ -136,6 +137,8 @@ INSTRUCTIONS = (
     "lengthTargetは推奨値であり、本人メモ全文の保持と600コードポイント上限を優先する。"
     "ready時はA/B/Cの順で3案、missingInformationは空。needs_information時はcandidatesは空。"
 )
+
+
 class PlannedCandidate(Strict):
     id: Literal["A", "B", "C"]
     style: Literal["conclusion", "action", "conversational"]
