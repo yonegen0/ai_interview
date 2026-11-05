@@ -9,7 +9,27 @@ import {
   managedQuestionSchema,
   type BankSave,
   type QuestionBank,
+  type Category,
+  type AssistType,
 } from "@/lib/api/schemas";
+/** The historical difficulty category is read-only; preserve its STAR default. */
+export const categoryAssistDefaults: Record<Category, AssistType> = {
+  self_introduction: "prep",
+  company_selection: "prep",
+  experience: "star",
+  job_change: "career_change",
+  motivation: "motivation",
+  career: "career_plan",
+  strengths: "star",
+  weaknesses: "prep",
+  conditions: "prep",
+  questions: "none",
+  difficulty: "star",
+};
+
+export const defaultAssistType = (category: Category): AssistType =>
+  categoryAssistDefaults[category];
+
 const draftQuestion = managedQuestionSchema
   .extend({ question: z.string() })
   .strip();
@@ -82,6 +102,8 @@ export type ManagementActions = {
   fetchLatest: () => Promise<void>;
   adoptLatest: () => void;
   appendQuestion: () => void;
+  updateCategoryAssist: (index: number, category: BankSave["questions"][number]["category"]) => void;
+  applyCategoryAssistDefaults: () => void;
   removeQuestion: (index: number) => void;
   moveQuestion: (index: number, direction: -1 | 1) => void;
 };

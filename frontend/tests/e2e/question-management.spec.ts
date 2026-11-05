@@ -76,6 +76,43 @@ test("ADMIN login edits, publishes, adds/removes/reorders, and keeps an existing
     "これまでの業務経験と学びについて回答します。",
   );
 });
+test("category defaults, manual overrides and explicit bulk apply are saved safely", async ({ page }) => {
+  await page.addInitScript(() =>
+    sessionStorage.setItem("pocket:mock:role", "ADMIN"),
+  );
+  await page.goto("/admin/questions/");
+  const category = page.getByRole("combobox", { name: "カテゴリ", exact: true }).first();
+  const assist = page.getByRole("combobox", { name: "回答アシスト", exact: true }).first();
+  await expect(assist).toContainText("PREP");
+  await assist.click();
+  await page.getByRole("option", { name: "アシストなし", exact: true }).click();
+  await expect(assist).toContainText("アシストなし");
+  await category.click();
+  await page.getByRole("option", { name: "転職理由", exact: true }).click();
+  await expect(assist).toContainText("転職理由");
+  await assist.click();
+  await page.getByRole("option", { name: "STAR", exact: true }).click();
+  await expect(assist).toContainText("STAR");
+  await page.getByRole("button", { name: "カテゴリ別の初期設定を一括適用" }).click();
+  await expect(assist).toContainText("転職理由");
+
+  await page.getByRole("button", { name: "質問を追加", exact: true }).click();
+  const lastCategory = page.getByRole("combobox", { name: "カテゴリ", exact: true }).last();
+  const lastAssist = page.getByRole("combobox", { name: "回答アシスト", exact: true }).last();
+  await expect(lastAssist).toContainText("PREP");
+  await lastCategory.click();
+  await page.getByRole("option", { name: "逆質問", exact: true }).click();
+  await expect(lastAssist).toContainText("アシストなし");
+  await page.getByLabel("質問本文", { exact: true }).last().fill("確認したい点を教えてください。");
+  await page.getByRole("button", { name: "保存内容を確認", exact: true }).click();
+  await page.getByRole("button", { name: "保存して反映", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText("質問一覧を保存しました");
+  await page.reload();
+  await expect(page.getByRole("combobox", { name: "回答アシスト", exact: true }).first())
+    .toContainText("転職理由");
+  await expect(page.getByRole("combobox", { name: "回答アシスト", exact: true }).last())
+    .toContainText("アシストなし");
+});
 test("USER cannot open question management", async ({ page }) => {
   await page.goto("/admin/questions/");
   await expect(

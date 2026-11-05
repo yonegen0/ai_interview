@@ -62,9 +62,22 @@ export function QuestionManagementTemplate({
               {...editor}
               disabled={view.disabled}
               onMove={actions.moveQuestion}
+              onCategoryChange={actions.updateCategoryAssist}
               onRemove={actions.removeQuestion}
             />
+            <Text variant="caption" color="text.secondary">
+              一括適用では手動設定もカテゴリ別の推奨値に更新します。保存前に変更内容を確認できます。
+            </Text>
             <Actions>
+              <Button
+                variant="outlined"
+                color="primary"
+                type="button"
+                disabled={view.disabled}
+                onClick={actions.applyCategoryAssistDefaults}
+              >
+                カテゴリ別の初期設定を一括適用
+              </Button>
               <Button
                 variant="outlined"
                 color="primary"

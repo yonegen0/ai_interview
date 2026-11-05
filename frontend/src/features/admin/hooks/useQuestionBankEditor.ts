@@ -2,6 +2,7 @@
 "use client";
 import { useForm, useWatch, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { defaultAssistType } from "../model/editor";
 import {
   bankSaveSchemaForBaseline,
   type BankSave,
@@ -29,7 +30,7 @@ export function useQuestionBankEditor(baseline: BankSave["questions"] = []) {
         category: "self_introduction",
         difficulty: "standard",
         question: "",
-        assistType: "none",
+        assistType: defaultAssistType("self_introduction"),
       }),
     removeQuestion: remove,
     moveQuestion: (index: number, direction: -1 | 1) => {

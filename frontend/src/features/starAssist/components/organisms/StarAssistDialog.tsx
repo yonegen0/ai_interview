@@ -173,7 +173,7 @@ export function StarAssistDialog({ open, onClose, workspace: w, onApply, onDisca
       <StarAssistStepper activeStep={step} steps={steps} label={meta.label} />
       <Columns>
         <StarAssistStepForm step={step} steps={steps} mode={mode} form={w.form} input={w.input} disabled={false} />
-        <StarAssistTips step={step} steps={steps} mode={mode} />
+        <StarAssistTips step={step} steps={steps} />
       </Columns>
       {last && mode === "star" && (
         <Settings aria-label="応募先の設定">

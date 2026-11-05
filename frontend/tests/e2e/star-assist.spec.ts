@@ -170,7 +170,7 @@ async function begin(page: Page) {
   await page.goto("/practice/");
   await page.getByRole("button", { name: "カテゴリ練習", exact: true }).click();
   await page.getByRole("combobox", { name: "練習するカテゴリ" }).click();
-  await page.getByRole("option", { name: /^転職理由（\d+問）$/ }).click();
+  await page.getByRole("option", { name: /^仕事経験（\d+問）$/ }).click();
   await page.getByRole("button", { name: "練習を始める", exact: true }).click();
   await expect(page.getByLabel("あなたの回答")).toBeVisible();
   await expect(

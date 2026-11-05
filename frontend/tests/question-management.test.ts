@@ -14,7 +14,8 @@ import {
   nextQuestion,
   getPracticeOptions,
 } from "@/lib/api/interview";
-import { bankSaveSchema, createSchema } from "@/lib/api/schemas";
+import { activeCategoryIds, bankSaveSchema, createSchema } from "@/lib/api/schemas";
+import { defaultAssistType } from "@/features/admin/model/editor";
 import { save, readSaved, operationSchema } from "@/lib/storage/recovery";
 import versionCases from "../../contracts/question-bank-version-fixtures.json";
 const repository = createRepository();
@@ -64,6 +65,16 @@ it("shares 15 defaults and keeps legacy IDs separate", () => {
   expect(
     bankSaveSchema.safeParse({ expectedVersion: 0, questions: [] }).success,
   ).toBe(false);
+});
+it("seeds explicit category assist defaults for all 15 questions", () => {
+  expect(questions.map((q) => q.assistType)).toEqual(
+    questions.map((q) => defaultAssistType(q.category)),
+  );
+  expect(activeCategoryIds.map((category) => defaultAssistType(category))).toEqual([
+    "prep", "prep", "star", "career_change", "motivation",
+    "career_plan", "star", "prep", "prep", "none",
+  ]);
+  expect(defaultAssistType("difficulty")).toBe("star");
 });
 it("denies USER writes and requires ADMIN", async () => {
   await expect(getQuestionBank()).rejects.toMatchObject({ status: 403 });

@@ -40,6 +40,7 @@ export type QuestionEditorCardProps = {
   first: boolean;
   last: boolean;
   onMove: (direction: -1 | 1) => void;
+  onCategoryChange: (category: BankSave["questions"][number]["category"]) => void;
   onRemove: () => void;
 };
 export function QuestionEditorCard({
@@ -51,6 +52,7 @@ export function QuestionEditorCard({
   first,
   last,
   onMove,
+  onCategoryChange,
   onRemove,
 }: QuestionEditorCardProps) {
   const error = errors.questions?.[index];
@@ -98,6 +100,11 @@ export function QuestionEditorCard({
               id={`category-${fieldKey}`}
               label="カテゴリ"
               options={options}
+              onChange={(value) => {
+                if (value === field.value) return;
+                field.onChange(value);
+                onCategoryChange(value);
+              }}
               disabled={disabled}
               fullWidth
               error={error?.category?.message}
