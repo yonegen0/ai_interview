@@ -13,6 +13,7 @@ import {
   type Answer,
   type CreateInput,
   practiceOptionsSchema,
+  previousAnswerSchema,
 } from "./schemas";
 const checkedId = (id: string) => {
   if (!idSchema.safeParse(id).success)
@@ -31,6 +32,9 @@ export const createSession = (input: Category | CreateInput, key: string) =>
   });
 export const getPracticeOptions = (signal?: AbortSignal) =>
   request("/practice-options", practiceOptionsSchema, { signal });
+export const getPreviousAnswer = (questionId: string, signal?: AbortSignal) =>
+  request(`/questions/${checkedId(questionId)}/previous-answer`, previousAnswerSchema, { signal });
+
 export const getQuestion = (id: string, signal?: AbortSignal) =>
   request(`/sessions/${checkedId(id)}/question`, sessionSchema, { signal });
 export const submitAnswer = (
