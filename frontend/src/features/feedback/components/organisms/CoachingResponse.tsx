@@ -58,6 +58,7 @@ function CurrentResponse({
         onClear={state.clearInput}
         field={state.form.register("answer")}
         count={countCodePoints(state.answer)}
+        answerKind="followUp"
         phase={state.phase}
         valid={state.form.formState.isValid}
         inputError={state.form.formState.errors.answer?.message}

@@ -6,7 +6,8 @@ import { alpha, styled } from "@mui/material/styles";
 import type { UseFormRegisterReturn } from "react-hook-form";
 import { Input } from "@/components/atoms/Input";
 import { Text } from "@/components/atoms/Text";
-import { COACHING_ANSWER_MAX_LENGTH } from "@/lib/textLimits";
+import { ANSWER_RECOMMENDATIONS, COACHING_ANSWER_MAX_LENGTH } from "@/lib/textLimits";
+import type { AnswerKind } from "@/lib/textLimits";
 import { scaledRadius } from "@/theme/tokens";
 
 const FieldArea = styled("div")(({ theme }) => ({
@@ -73,6 +74,7 @@ const FieldError = styled(Text)(({ theme }) => ({
 export const AnswerField = ({
   field,
   count,
+  answerKind,
   disabled,
   error,
   canCopyPrevious = false,
@@ -80,12 +82,14 @@ export const AnswerField = ({
 }: {
   field: UseFormRegisterReturn;
   count: number;
+  answerKind: AnswerKind;
   disabled?: boolean;
   error?: string;
   canCopyPrevious?: boolean;
   onCopyPrevious?: () => void;
 }) => {
   const { ref, ...registration } = field;
+  const recommended = ANSWER_RECOMMENDATIONS[answerKind];
   return (
     <div>
       <FieldArea>
@@ -122,7 +126,7 @@ export const AnswerField = ({
           {count} / {COACHING_ANSWER_MAX_LENGTH}文字
         </Text>
         <Text component="span" variant="body2">
-          150〜220文字がおすすめです
+          {recommended.min}〜{recommended.max}文字がおすすめです
         </Text>
       </CountRow>
       {error && (

@@ -75,6 +75,7 @@ export function AnswerSubmission({
   onRestorePrevious,
   field,
   count,
+  answerKind,
   phase,
   valid,
   inputError,
@@ -140,6 +141,7 @@ export function AnswerSubmission({
             <AnswerField
               field={field}
               count={count}
+              answerKind={answerKind}
               disabled={phase !== "answering"}
               error={inputError}
               canCopyPrevious={canCopyPrevious}

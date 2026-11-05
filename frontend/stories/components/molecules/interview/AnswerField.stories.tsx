@@ -5,11 +5,13 @@ import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { expect, userEvent, within } from "storybook/test";
 import { AnswerField } from "@/features/interview/components/molecules/AnswerField";
 import { formSchema } from "@/lib/api/schemas";
+import type { AnswerKind } from "@/lib/textLimits";
 import { storyTexts } from "../../../fixtures";
 import { assertNoHorizontalOverflow } from "../../../test-utils/storyEnvironment";
 
 const AnswerFieldHarness = (props: {
   initialValue?: string;
+  answerKind?: AnswerKind;
   disabled?: boolean;
   submitAttempted?: boolean;
 }) => {
@@ -24,6 +26,7 @@ const AnswerFieldHarness = (props: {
       <AnswerField
         field={form.register("answer")}
         count={Array.from(answer).length}
+        answerKind={props.answerKind ?? "initial"}
         disabled={props.disabled}
         error={form.formState.errors.answer?.message}
       />
@@ -39,6 +42,9 @@ const meta = {
 export default meta;
 type Story = StoryObj;
 export const Empty: Story = { render: () => <AnswerFieldHarness /> };
+export const FollowUp: Story = {
+  render: () => <AnswerFieldHarness answerKind="followUp" />,
+};
 export const OneCharacter: Story = {
   render: () => <AnswerFieldHarness initialValue="あ" />,
 };
