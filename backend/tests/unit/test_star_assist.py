@@ -1190,26 +1190,30 @@ def test_live_worker_pins_provider_once_shares_quota_and_never_replays(
             self.calls += 1
             if uncertain:
                 raise ReadTimeoutError(endpoint_url="https://synthetic")
+            data = json.loads(kwargs["messages"][0]["content"][0]["text"])
+            facts = data["notes"]
             body = {
                 "status": "ready",
                 "candidates": [
                     {
-                        "id": i,
-                        "style": s,
-                        "fields": [
-                            {"source": field, "expressionId": f"{field}:A"} for field in fields
-                        ],
+                        "id": identifier,
+                        "style": style,
+                        "text": "。".join(
+                            facts[field].strip("。")
+                            for field in order
+                            if facts[field].strip()
+                        ) + "。",
                     }
-                    for i, s, fields in (
-                        ("A", "conclusion", ["R", "S", "T", "A"]),
-                        ("B", "action", ["A", "S", "T", "R"]),
-                        ("C", "conversational", ["S", "T", "A", "R"]),
+                    for identifier, style, order in (
+                        ("A", "conclusion", "RSTA"),
+                        ("B", "action", "ASTR"),
+                        ("C", "conversational", "STAR"),
                     )
                 ],
                 "missingInformation": [],
             }
             if untrusted:
-                body["candidates"][0]["fields"][0]["expressionId"] = "未許可の文章"
+                body["candidates"][0]["text"] = "売上を200%改善しました。"
             return {
                 "stopReason": "end_turn",
                 "usage": {"inputTokens": 123, "outputTokens": 45},
@@ -1237,7 +1241,7 @@ def test_live_worker_pins_provider_once_shares_quota_and_never_replays(
     assert len(logs) == (1 if uncertain else 2)
     terminal = next(log for log in logs if log["event"] == "assist_generation_terminal")
     assert terminal["generationId"] == identifier
-    assert terminal["promptVersion"] == "star_prose_v4"
+    assert terminal["promptVersion"] == "star_prose_v5"
     assert terminal["terminalStatus"] == ("OUTCOME_UNKNOWN" if uncertain else "SUCCEEDED")
     assert terminal["fallbackUsed"] is bool(untrusted)
     if untrusted:
