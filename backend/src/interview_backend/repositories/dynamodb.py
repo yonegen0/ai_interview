@@ -10,11 +10,11 @@ from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
 
 from interview_backend.models.internal import (
+    BusinessError,
     Candidate,
     CandidatePage,
     CorruptCandidate,
     IntegrityError,
-    BusinessError,
     Reply,
     RetryExhausted,
     StorageFormatError,
@@ -33,8 +33,8 @@ from interview_backend.repositories.codec import (
     validate_key,
 )
 from interview_backend.repositories.domain import (
-    DomainRepository,
     PREVIOUS_ANSWER_MAX_ATTEMPTS,
+    DomainRepository,
     utc_ms,
 )
 
