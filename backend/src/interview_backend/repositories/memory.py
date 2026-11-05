@@ -11,6 +11,8 @@ from interview_backend.models.internal import (
     IntegrityError,
     BusinessError,
     Reply,
+    BusinessError,
+    Reply,
     RetryExhausted,
     State,
     StorageError,
@@ -23,7 +25,11 @@ from interview_backend.repositories.codec import (
     validate_cursor_key,
     work,
 )
-from interview_backend.repositories.domain import DomainRepository, utc_ms
+from interview_backend.repositories.domain import (
+    DomainRepository,
+    PREVIOUS_ANSWER_MAX_ATTEMPTS,
+    utc_ms,
+)
 from interview_backend.star_assist.models import RECORDS
 
 COLLECTIONS = {
@@ -107,6 +113,25 @@ class MemoryRepository(DomainRepository):
         self._revisions = {}
         self._lock = RLock()
         self.monotonic = monotonic_clock
+
+    def previous_answer(self, owner: str, question_id: str) -> Reply:
+        with self._lock:
+            latest = None
+            count = 0
+            for attempt in self._state.attempts.values():
+                if attempt.owner != owner:
+                    continue
+                count += 1
+                if count > PREVIOUS_ANSWER_MAX_ATTEMPTS:
+                    raise BusinessError(503, "PREVIOUS_ANSWER_UNAVAILABLE")
+                if attempt.question.id == question_id and (
+                    latest is None
+                    or (attempt.created_at, attempt.id) > (latest.created_at, latest.id)
+                ):
+                    latest = attempt
+            return Reply(
+                200, {"questionId": question_id, "answer": latest.answer if latest else None}
+            )
 
     def previous_answer(self, owner: str, question_id: str) -> Reply:
         with self._lock:
