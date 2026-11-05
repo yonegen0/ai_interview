@@ -9,21 +9,17 @@ from interview_backend.evaluation.openai_provider import Deadline, ProviderFailu
 from interview_backend.evaluation.structured import StructuredPrompt
 from interview_backend.star_assist.grounding import (
     OPENINGS,
-    ProsePlan,
     ProseV4Plan,
-    has_action_evidence,
-    expression_catalog,
-    validate_prose_v4,
     clarify,
     contradictory,
-    prompt_realizations,
+    expression_catalog,
+    has_action_evidence,
     source_realizations,
-    validate_prose,
+    validate_prose_v4,
 )
 from interview_backend.star_assist.models import (
     OTHER_CANDIDATE_MAX_LENGTH,
     OTHER_NOTES_MAX_LENGTH,
-    STAR_CANDIDATE_MAX_LENGTH,
     STAR_NOTES_MAX_LENGTH,
     Candidate,
     StarResult,
