@@ -68,6 +68,19 @@ async function mount(seed?: (session: Session) => void) {
     </ThemeProvider>,
   );
 }
+it("keeps the answer label floated when empty and after entering text and blurring", async () => {
+  const view = await mount();
+  const user = userEvent.setup();
+  const input = screen.getByLabelText("あなたの回答");
+  const label = input.closest(".MuiFormControl-root")?.querySelector("label");
+  expect(label).toHaveClass("MuiInputLabel-shrink");
+  await user.type(input, "営業に挑戦したいです。");
+  await user.tab();
+  expect(input).toHaveValue("営業に挑戦したいです。");
+  expect(label).toHaveClass("MuiInputLabel-shrink");
+  view.unmount();
+});
+
 it("submits once on rapid form submission and reaches feedback", async () => {
   const view = await mount();
   const user = userEvent.setup();
@@ -247,6 +260,9 @@ it("shows the previous-answer copy only for a retry and preserves edited text on
   await userEvent.click(screen.getByRole("button", { name: "前回の回答に置き換える" }));
   expect(input).toHaveValue(previous);
   await screen.findByText(`${Array.from(previous).length} / 400文字`);
+  expect(input.closest(".MuiFormControl-root")?.querySelector("label")).toHaveClass(
+    "MuiInputLabel-shrink",
+  );
   expect(answerRequests).toBe(0);
   view.unmount();
 });
