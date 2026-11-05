@@ -480,3 +480,39 @@ def test_star_terminal_logs_only_explicit_diagnostics_and_no_body():
     assert value["maxTokens"] == 4096
     assert value["elapsedMs"] == 1200
     assert "private" not in entries[0]
+
+
+@pytest.mark.parametrize(
+    "status,reason,fallback",
+    [
+        ("SUCCEEDED", "MODEL_STRUCTURE_MISMATCH", True),
+        ("NEEDS_INFORMATION", "MODEL_REQUESTED_INFORMATION", False),
+        ("FAILED_AFTER_START", "INVALID_SCHEMA", False),
+        ("OUTCOME_UNKNOWN", "OUTCOME_UNKNOWN", False),
+    ],
+)
+def test_assist_terminal_reason_allowlist_and_private_payload(status, reason, fallback):
+    entries = []
+    with invocation("worker"):
+        log_event(
+            "assist_generation_terminal",
+            sink=entries.append,
+            generationId=uid(8888),
+            assistType="career_plan",
+            providerVersion="prose-v4",
+            promptVersion="answer_assist_v2",
+            terminalStatus=status,
+            reasonCode=reason,
+            fallbackUsed=fallback,
+            elapsedMs=100,
+            notes="private notes",
+            answer="private answer",
+            token="private-token",
+        )
+    parsed = json.loads(entries[0])
+    assert parsed["terminalStatus"] == status
+    assert parsed["reasonCode"] == reason
+    assert parsed["fallbackUsed"] is fallback
+    assert parsed["providerVersion"] == "prose-v4"
+    assert parsed["promptVersion"] == "answer_assist_v2"
+    assert "private" not in entries[0]
