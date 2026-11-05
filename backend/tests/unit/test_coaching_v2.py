@@ -250,7 +250,7 @@ def test_question_guards_and_prompt_trust(runtime):
 
     prompt = build_coaching_prompt(context)
     assert context.initial_answer not in prompt.instructions
-    assert "完成回答例は250〜350コードポイント" in prompt.instructions
+    assert "完成回答例は250〜330コードポイント" in prompt.instructions
     assert "上限400コードポイント" in prompt.instructions
     for word in ["訂正", "撤回", "矛盾", "肯定", "否定", "untrusted"]:
         assert word in prompt.instructions
@@ -343,7 +343,17 @@ def test_dynamodb_v2_actions_do_not_require_new_api_iam(runtime):
 
 
 @pytest.mark.parametrize(
-    "length,penalty", [(300, 0), (301, 1), (350, 1), (351, 2), (400, 2), (401, 3)]
+    "length,penalty",
+    [
+        (300, 0),
+        (301, 0),
+        (330, 0),
+        (331, 1),
+        (350, 1),
+        (351, 2),
+        (400, 2),
+        (401, 3),
+    ],
 )
 def test_score_boundaries(length, penalty):
     assert score_values("字" * length, 8, 8, 8)["lengthPenalty"] == penalty

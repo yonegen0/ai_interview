@@ -19,7 +19,7 @@ def code_point_length(value: str) -> int:
 
 def score_values(answer: str, conclusion: int, specificity: int, reasoning: int) -> dict:
     length = code_point_length(answer)
-    penalty = 0 if length <= 300 else 1 if length <= 350 else 2 if length <= 400 else 3
+    penalty = 0 if length <= 330 else 1 if length <= 350 else 2 if length <= 400 else 3
     base = conclusion + specificity + reasoning
     total = max(0, base - penalty)
     return dict(

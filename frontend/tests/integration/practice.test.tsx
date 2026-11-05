@@ -247,7 +247,7 @@ it("shows the previous-answer copy only for a retry and preserves edited text on
     </ThemeProvider>,
   );
   const input = screen.getByLabelText("あなたの回答");
-  expect(screen.getByText("250〜350文字がおすすめです")).toBeInTheDocument();
+  expect(screen.getByText("250〜330文字がおすすめです")).toBeInTheDocument();
   expect(input).toHaveValue(previous);
   const copy = screen.getByRole("button", { name: "前回の回答をコピー" });
   await userEvent.click(copy);
@@ -270,7 +270,7 @@ it("shows the previous-answer copy only for a retry and preserves edited text on
 
 it("does not show a previous-answer copy for an initial answer", async () => {
   const view = await mount();
-  expect(screen.getByText("250〜350文字がおすすめです")).toBeInTheDocument();
+  expect(screen.getByText("250〜330文字がおすすめです")).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "前回の回答をコピー" })).not.toBeInTheDocument();
   view.unmount();
 });

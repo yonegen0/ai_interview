@@ -2,7 +2,7 @@
 export const QUESTION_MAX_LENGTH = 200;
 export const COACHING_ANSWER_MAX_LENGTH = 400;
 export const ANSWER_RECOMMENDATIONS = {
-  initial: { min: 250, max: 350 },
+  initial: { min: 250, max: 330 },
   followUp: { min: 150, max: 220 },
 } as const;
 export type AnswerKind = keyof typeof ANSWER_RECOMMENDATIONS;
@@ -16,7 +16,7 @@ export function scoreValues(
 ) {
   const answerLength = countCodePoints(answer);
   const lengthPenalty =
-    answerLength <= 300
+    answerLength <= 330
       ? 0
       : answerLength <= 350
         ? 1

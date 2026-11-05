@@ -49,8 +49,8 @@ PROVIDER_IDS = frozenset(
 )
 STYLES = (("A", "conclusion"), ("B", "action"), ("C", "conversational"))
 LENGTH_TARGETS = {
-    "initial_answer": (250, 350),
-    "retry_attempt": (250, 350),
+    "initial_answer": (250, 330),
+    "retry_attempt": (250, 330),
     "coaching_answer": (150, 220),
 }
 ASSIST_INSTRUCTIONS = {

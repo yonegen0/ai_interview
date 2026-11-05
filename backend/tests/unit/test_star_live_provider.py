@@ -81,7 +81,7 @@ def test_bedrock_sdk_shape_grounding_styles_and_independent_token_cap():
     }
     data = json.loads(request["messages"][0]["content"][0]["text"])
     assert data["industry"] == "製造" and data["targetCategory"] == "corporate_sales"
-    assert data["lengthTarget"] == [250, 350]
+    assert data["lengthTarget"] == [250, 330]
     # Actual installed botocore service model; construction uses only synthetic keys.
     sdk = boto3.client(
         "bedrock-runtime",
@@ -265,8 +265,8 @@ def test_manual_openai_reuses_transport_schema_and_star_cap():
 @pytest.mark.parametrize(
     "operation_kind, target",
     [
-        ("initial_answer", [250, 350]),
-        ("retry_attempt", [250, 350]),
+        ("initial_answer", [250, 330]),
+        ("retry_attempt", [250, 330]),
         ("coaching_answer", [150, 220]),
     ],
 )

@@ -97,6 +97,18 @@ it.each([null, "", "unknown", false])(
 it.each([399, 400, 401])("validates V2 code point boundary %i", (n) => {
   expect(coachingAnswerSchema.safeParse("🙂".repeat(n)).success).toBe(n <= 400);
 });
+it.each([
+  [300, 0],
+  [301, 0],
+  [330, 0],
+  [331, 1],
+  [350, 1],
+  [351, 2],
+  [400, 2],
+  [401, 3],
+])("scores an initial answer of %i code points with penalty %i", (length, penalty) => {
+  expect(scoreValues("字".repeat(length), 8, 8, 8).lengthPenalty).toBe(penalty);
+});
 it("retains all discriminator fields and rejects answer on evaluation retry", () => {
   const id = crypto.randomUUID();
   for (const body of [

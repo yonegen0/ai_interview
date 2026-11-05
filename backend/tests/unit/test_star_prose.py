@@ -149,8 +149,8 @@ def test_numbers_names_periods_negation_modality_and_quoted_scope(note, retained
 @pytest.mark.parametrize(
     "operation_kind, target",
     [
-        ("initial_answer", [250, 350]),
-        ("retry_attempt", [250, 350]),
+        ("initial_answer", [250, 330]),
+        ("retry_attempt", [250, 330]),
         ("coaching_answer", [150, 220]),
     ],
 )
