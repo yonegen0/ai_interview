@@ -204,7 +204,9 @@ class LiveStarProvider:
 
     def generate(self, question, value, operation_kind="initial_answer"):
         return self.generate_with_deadline(
-            question, value, Deadline(self.transport.clock() + 40, self.transport.clock),
+            question,
+            value,
+            Deadline(self.transport.clock() + 40, self.transport.clock),
             operation_kind=operation_kind,
         )
 
