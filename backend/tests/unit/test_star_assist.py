@@ -1197,15 +1197,8 @@ def test_live_worker_pins_provider_once_shares_quota_and_never_replays(
                     {
                         "id": i,
                         "style": s,
-                        "passages": [
-                            {
-                                "source": field,
-                                "text": next(
-                                    text
-                                    for ids, text in data["realizations"][field].items()
-                                    if i in ids
-                                ),
-                            }
+                        "fields": [
+                            {"source": field, "expressionId": f"{field}:{i}"}
                             for field in fields
                         ],
                     }
@@ -1218,7 +1211,7 @@ def test_live_worker_pins_provider_once_shares_quota_and_never_replays(
                 "missingInformation": [],
             }
             if untrusted:
-                body["candidates"][0]["passages"][0]["text"] = "売上を200%改善しました。"
+                body["candidates"][0]["fields"][0]["expressionId"] = "未許可の文章"
             return {
                 "stopReason": "end_turn",
                 "usage": {"inputTokens": 123, "outputTokens": 45},
@@ -1243,16 +1236,23 @@ def test_live_worker_pins_provider_once_shares_quota_and_never_replays(
         assert worker.run("owner", identifier)
         assert not worker.run("owner", identifier)
     logs = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
-    assert len(logs) == (0 if uncertain else 1)
+    assert len(logs) == (1 if uncertain else 2)
+    terminal = next(log for log in logs if log["event"] == "assist_generation_terminal")
+    assert terminal["generationId"] == identifier
+    assert terminal["promptVersion"] == "star_prose_v4"
+    assert terminal["terminalStatus"] == ("OUTCOME_UNKNOWN" if uncertain else "SUCCEEDED")
+    assert terminal["fallbackUsed"] is bool(untrusted)
+    if untrusted:
+        assert terminal["reasonCode"] == "MODEL_STRUCTURE_MISMATCH"
     if not uncertain:
-        assert logs[0]["event"] == "provider_usage"
-        assert logs[0]["workload"] == "star" and logs[0]["provider"] == "bedrock"
-        assert logs[0]["generationId"] == identifier
-        assert logs[0]["inputTokens"] == 123 and logs[0]["outputTokens"] == 45
-        assert "owner" not in logs[0] and "answer" not in logs[0]
+        usage = next(log for log in logs if log["event"] == "provider_usage")
+        assert usage["workload"] == "star" and usage["provider"] == "bedrock"
+        assert usage["generationId"] == identifier
+        assert usage["inputTokens"] == 123 and usage["outputTokens"] == 45
+        assert "owner" not in str(logs) and "answer" not in str(logs)
     result = request("GET", "/star-assist/generations/" + identifier)[1]
     assert result["status"] == (
-        "OUTCOME_UNKNOWN" if uncertain else "NEEDS_INFORMATION" if untrusted else "SUCCEEDED"
+        "OUTCOME_UNKNOWN" if uncertain else "SUCCEEDED"
     )
     job = runtime.repository._read(ref("StarGeneration", "owner", identifier))
     assert job.provider_id == provider.provider_id and job.call_started
