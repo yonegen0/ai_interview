@@ -17,7 +17,6 @@ ROUTES = (
     ("GET", re.compile(r"^/evaluations/([^/]+)$"), "evaluation"),
     ("GET", re.compile(r"^/attempts/([^/]+)/feedback$"), "feedback"),
     ("GET", re.compile(r"^/questions/([^/]+)/previous-answer$"), "previous_answer"),
-    ("GET", re.compile(r"^/questions/([^/]+)/previous-answer$"), "previous_answer"),
     ("POST", re.compile(r"^/sessions/([^/]+)/questions/next$"), "next_question"),
 )
 MESSAGES = {
@@ -41,7 +40,6 @@ MESSAGES = {
     "UNAUTHORIZED": "Authentication required.",
     "SESSION_NOT_FOUND": "Session not found.",
     "ATTEMPT_NOT_FOUND": "Attempt not found.",
-    "PREVIOUS_ANSWER_UNAVAILABLE": "Previous answer search is temporarily unavailable.",
     "PREVIOUS_ANSWER_UNAVAILABLE": "Previous answer search is temporarily unavailable.",
     "SESSION_STATE_CONFLICT": "Session state conflicts with this operation.",
     "IDEMPOTENCY_CONFLICT": "Idempotency key conflicts with this request.",
