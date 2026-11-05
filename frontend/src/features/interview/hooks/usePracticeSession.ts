@@ -4,7 +4,7 @@ import { useOperationScope } from "@/hooks/useOperationScope";
 import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { idSchema } from "@/lib/api/schemas";
-import { getQuestion } from "@/lib/api/interview";
+import { getQuestion, getPreviousAnswer } from "@/lib/api/interview";
 import { getFeedback } from "@/lib/api/feedback";
 export function usePracticeSession() {
   const { scope, isActive, assertActive } = useOperationScope();
@@ -35,6 +35,16 @@ export function usePracticeSession() {
       return getQuestion(id, signal);
     },
     enabled: isActive() && valid,
+  });
+  const questionId = query.data?.question.id;
+  const previous = useQuery({
+    queryKey: [scope, "previousAnswer", questionId],
+    queryFn: ({ signal }) => {
+      assertActive();
+      return getPreviousAnswer(questionId!, signal);
+    },
+    enabled: isActive() && valid && !retryFrom && !!questionId,
+    retry: false,
   });
   if (!valid)
     return { view: { error: new Error("練習IDを確認してください。") } };
@@ -102,7 +112,13 @@ export function usePracticeSession() {
     view: {},
     session: query.data,
     retryFrom,
-    previousAnswer: retryFrom ? origin.data?.answer : undefined,
+    previousAnswer: isActive()
+      ? retryFrom
+        ? origin.data?.answer
+        : previous.data?.questionId === questionId
+          ? (previous.data.answer ?? undefined)
+          : undefined
+      : undefined,
     contextKey: `${id}:${query.data.questionNumber}:${retryFrom}:${query.data.activeAttempt?.evaluationId ?? "new"}`,
   };
 }
