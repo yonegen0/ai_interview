@@ -22,6 +22,7 @@ function saved() {
   }));
 }
 afterEach(() => {
+  vi.useRealTimers();
   sessionStorage.clear();
   vi.unstubAllEnvs();
 });
@@ -62,4 +63,28 @@ it("preserves the refresh credential but protects cached identity during restore
   expect(sessionStorage.getItem("pocket:auth:synthetic-client")).toContain("synthetic-refresh");
   await expect(auth.access()).rejects.toBeInstanceOf(AuthUnavailableError);
   await auth.logout();
+});
+
+it.each([16, 60, 180])("renews without OTP after a tab resumes from %i minutes", async minutes => {
+  configure();
+  saved();
+  vi.resetModules();
+  const { auth, setIdentityAdapterForTests } = await import("@/lib/auth/session");
+  const adapter: IdentityAdapter = {
+    begin: vi.fn(), complete: vi.fn(),
+    refresh: vi.fn(async () => ({ AccessToken: jwt(), ExpiresIn: 900 })),
+    revoke: vi.fn(async () => undefined),
+  };
+  setIdentityAdapterForTests(adapter);
+  await auth.initialize();
+  expect(adapter.refresh).toHaveBeenCalledTimes(1);
+  vi.useFakeTimers();
+  vi.setSystemTime(Date.now() + minutes * 60_000);
+  window.dispatchEvent(new Event("focus"));
+  document.dispatchEvent(new Event("visibilitychange"));
+  for (let i = 0; i < 12; i++) await Promise.resolve();
+  expect(adapter.refresh).toHaveBeenCalledTimes(2);
+  expect(auth.snapshot()).toMatchObject({ phase: "authenticated", sub: "user" });
+  await auth.logout();
+  vi.useRealTimers();
 });

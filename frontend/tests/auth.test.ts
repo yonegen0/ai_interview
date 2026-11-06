@@ -1,8 +1,8 @@
 /** @file auth.test.ts @description 実認証adapter境界をstubし、期限更新と本人確認を検証。 */
 import { afterEach, expect, it, vi } from "vitest";
-import { auth, setIdentityAdapterForTests } from "@/lib/auth/session";
+import { auth, AuthUnavailableError, setIdentityAdapterForTests } from "@/lib/auth/session";
 import type { IdentityAdapter } from "@/lib/auth/cognito";
-import { NotAuthorizedException } from "@aws-sdk/client-cognito-identity-provider";
+import { InvalidParameterException, NotAuthorizedException } from "@aws-sdk/client-cognito-identity-provider";
 function configure() {
   vi.stubEnv("NEXT_PUBLIC_MSW_ENABLED", "false");
   vi.stubEnv("NEXT_PUBLIC_COGNITO_REGION", "ap-northeast-1");
@@ -29,6 +29,7 @@ afterEach(async () => {
   setIdentityAdapterForTests(null);
   sessionStorage.clear();
   vi.unstubAllEnvs();
+  vi.useRealTimers();
 });
 it("does not send OTP during initialization and persists access identity only", async () => {
   configure();
@@ -58,7 +59,7 @@ it("deduplicates simultaneous refresh and preserves credentials on a transient f
     new Error("private service payload"),
   );
   await expect(auth.access(true)).rejects.toThrow("認証を確認できません");
-  expect(auth.snapshot()).toMatchObject({ phase: "authenticated", sub: "user" });
+  expect(auth.snapshot()).toMatchObject({ phase: "temporarily_unavailable", sub: null });
   expect(sessionStorage.getItem("pocket:auth:synthetic-client")).toContain("synthetic-refresh");
 });
 it("invalidates a revoked refresh token using the typed Cognito error", async () => {
@@ -112,4 +113,90 @@ it("does not restore login from a challenge completion after logout",async()=>{
   await Promise.resolve();await auth.logout();
   resolve!({AccessToken:token(),RefreshToken:"synthetic-refresh",ExpiresIn:300});
   await expect(pending).rejects.toThrow("ログイン状態が変わりました");expect(auth.snapshot().sub).toBeNull();
+});
+
+it("recovers after one timed-out refresh using the 2-second retry", async () => {
+  configure();
+  const value = adapter();
+  setIdentityAdapterForTests(value);
+  await auth.complete("user@example.invalid", "s", "123456");
+  vi.useFakeTimers();
+  vi.mocked(value.refresh).mockRejectedValueOnce(
+    Object.assign(new Error("timeout"), { name: "TimeoutError" }),
+  );
+  await expect(auth.access(true)).rejects.toBeInstanceOf(AuthUnavailableError);
+  expect(auth.snapshot()).toMatchObject({ phase: "temporarily_unavailable", sub: null });
+  expect(sessionStorage.getItem("pocket:auth:synthetic-client")).toContain("synthetic-refresh");
+  await vi.advanceTimersByTimeAsync(1999);
+  expect(value.refresh).toHaveBeenCalledTimes(1);
+  await vi.advanceTimersByTimeAsync(1);
+  expect(value.refresh).toHaveBeenCalledTimes(2);
+  expect(auth.snapshot()).toMatchObject({ phase: "authenticated", sub: "user" });
+});
+
+it("caps automatic retries at 2, 5 and 15 seconds and permits manual recheck", async () => {
+  configure();
+  const value = adapter();
+  setIdentityAdapterForTests(value);
+  await auth.complete("user@example.invalid", "s", "123456");
+  vi.useFakeTimers();
+  vi.mocked(value.refresh).mockRejectedValue(
+    Object.assign(new Error("offline"), { name: "NetworkError" }),
+  );
+  await expect(auth.access(true)).rejects.toBeInstanceOf(AuthUnavailableError);
+  await vi.advanceTimersByTimeAsync(22_000);
+  expect(value.refresh).toHaveBeenCalledTimes(4);
+  expect(auth.snapshot().phase).toBe("temporarily_unavailable");
+  await vi.advanceTimersByTimeAsync(30_000);
+  await expect(auth.access(true)).rejects.toBeInstanceOf(AuthUnavailableError);
+  expect(value.refresh).toHaveBeenCalledTimes(4);
+  vi.mocked(value.refresh).mockResolvedValue({ AccessToken: token(), ExpiresIn: 300 });
+  await auth.recheck();
+  expect(value.refresh).toHaveBeenCalledTimes(5);
+  expect(auth.snapshot()).toMatchObject({ phase: "authenticated", sub: "user" });
+});
+
+it("retains refresh credentials on InvalidParameterException without automatic retry", async () => {
+  configure();
+  const value = adapter();
+  setIdentityAdapterForTests(value);
+  await auth.complete("user@example.invalid", "s", "123456");
+  vi.useFakeTimers();
+  vi.mocked(value.refresh).mockRejectedValueOnce(
+    new InvalidParameterException({ $metadata: { httpStatusCode: 400 }, message: "invalid parameter" }),
+  );
+  await expect(auth.access(true)).rejects.toBeInstanceOf(AuthUnavailableError);
+  await vi.advanceTimersByTimeAsync(30_000);
+  expect(value.refresh).toHaveBeenCalledTimes(1);
+  expect(sessionStorage.getItem("pocket:auth:synthetic-client")).toContain("synthetic-refresh");
+  expect(auth.snapshot()).toMatchObject({ phase: "temporarily_unavailable", sub: null });
+});
+
+it("does not accept a delayed renewal after logout or user switching", async () => {
+  configure();
+  const value = adapter();
+  setIdentityAdapterForTests(value);
+  await auth.complete("user@example.invalid", "s", "123456");
+  const pendingResults: Array<(result: Awaited<ReturnType<IdentityAdapter["refresh"]>>) => void> = [];
+  vi.mocked(value.refresh).mockImplementation(() => new Promise(resolve => { pendingResults.push(resolve); }));
+  const pendingLogout = auth.access(true);
+  for (let i = 0; i < 8 && !pendingResults.length; i++) await Promise.resolve();
+  expect(pendingResults).toHaveLength(1);
+  await auth.logout();
+  pendingResults.shift()!({ AccessToken: token(), ExpiresIn: 300 });
+  await expect(pendingLogout).rejects.toThrow("ログイン状態が変わりました");
+  expect(auth.snapshot().phase).toBe("anonymous");
+
+  await auth.complete("user@example.invalid", "s", "123456");
+  const pendingSwitch = auth.access(true);
+  for (let i = 0; i < 8 && !pendingResults.length; i++) await Promise.resolve();
+  expect(pendingResults).toHaveLength(1);
+  await auth.begin("other@example.invalid");
+  vi.mocked(value.complete).mockResolvedValueOnce({
+    AccessToken: token("other", ["USER"]), RefreshToken: "other-refresh", ExpiresIn: 300,
+  });
+  await auth.complete("other@example.invalid", "s", "123456");
+  pendingResults.shift()!({ AccessToken: token(), ExpiresIn: 300 });
+  await expect(pendingSwitch).rejects.toThrow("ログイン状態が変わりました");
+  expect(auth.snapshot()).toMatchObject({ phase: "authenticated", sub: "other" });
 });

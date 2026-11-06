@@ -216,6 +216,7 @@ it("opens history after account dialog exit and retains admin navigation", async
   const onLogout = vi.fn();
   vi.mocked(useAccountActions).mockReturnValue({
     authenticated: true, admin: true, sub: id, phase: "authenticated", onLogout,
+    onRetry: vi.fn(),
   });
   render(<AccountActions onHistory={onHistory} />, { wrapper });
   expect(screen.getByRole("link", { name: "質問管理" })).toBeInTheDocument();

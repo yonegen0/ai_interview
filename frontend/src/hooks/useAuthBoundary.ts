@@ -21,7 +21,7 @@ export function useAuthBoundary(admin = false) {
             ? ("forbidden" as const)
             : ("allowed" as const),
     error: state.error,
-    onRetry: () => { void auth.access(true).catch(() => undefined); },
+    onRetry: () => { void auth.recheck().catch(() => undefined); },
     loginUrl: `/login/?returnTo=${encodeURIComponent(pathname + (params.size ? `?${params}` : ""))}`,
   };
 }

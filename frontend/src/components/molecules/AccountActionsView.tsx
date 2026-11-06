@@ -9,7 +9,7 @@ import HistoryRoundedIcon from "@mui/icons-material/HistoryRounded";
 import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
 import LayersOutlinedIcon from "@mui/icons-material/LayersOutlined";
 import {
-  Avatar, Divider, IconButton, ListItemIcon, ListItemText, Menu, MenuItem,
+  Avatar, Button, Divider, IconButton, ListItemIcon, ListItemText, Menu, MenuItem,
   Typography,
 } from "@mui/material";
 import { alpha, styled } from "@mui/material/styles";
@@ -64,12 +64,13 @@ export type AccountActionsViewProps = {
   sub?: string | null;
   phase?: string;
   onLogout: () => void;
+  onRetry?: () => void;
   onHistory?: () => void;
   onManage?: () => void;
 };
 
 export const AccountActionsView = ({
-  authenticated, admin, onLogout, onHistory, onManage,
+  authenticated, admin, phase, onLogout, onRetry, onHistory, onManage,
 }: AccountActionsViewProps) => {
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const close = () => setAnchor(null);
@@ -132,6 +133,10 @@ export const AccountActionsView = ({
             </MenuAction>
           </AccountMenu>
         </>
+      ) : phase === "temporarily_unavailable" ? (
+        <Button variant="text" onClick={onRetry}>認証を再確認する</Button>
+      ) : phase === "restoring" || phase === "refreshing" ? (
+        <Typography role="status" variant="body2">ログイン状態を確認しています…</Typography>
       ) : (
         <Link href="/login/" variant="text">ログイン</Link>
       )}
