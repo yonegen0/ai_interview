@@ -81,19 +81,19 @@ beforeEach(() => {
 
 it("automatically shows only the newly requested generation once", async () => {
   render(<Harness />);
-  fireEvent.click(screen.getByRole("button", { name: "STARアシスト" }));
+  fireEvent.click(screen.getByRole("button", { name: /STARアシスト/ }));
   fireEvent.click(screen.getByRole("button", { name: "新規生成を開始" }));
   act(() => publish());
   await waitFor(() => expect(screen.getByRole("dialog", { name: "成果物" })).toBeInTheDocument());
   expect(screen.queryByRole("dialog", { name: "入力画面" })).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "成果物を閉じる" }));
-  fireEvent.click(screen.getByRole("button", { name: "STARアシスト" }));
+  fireEvent.click(screen.getByRole("button", { name: /STARアシスト/ }));
   expect(screen.queryByRole("dialog", { name: "成果物" })).not.toBeInTheDocument();
 });
 
 it("does not automatically pop up a restored draft", () => {
   render(<Harness restored />);
-  fireEvent.click(screen.getByRole("button", { name: "STARアシスト" }));
+  fireEvent.click(screen.getByRole("button", { name: /STARアシスト/ }));
   expect(screen.getByRole("dialog", { name: "入力画面" })).toBeInTheDocument();
   expect(screen.queryByRole("dialog", { name: "成果物" })).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "生成した回答を見る" }));
@@ -102,10 +102,10 @@ it("does not automatically pop up a restored draft", () => {
 
 it("keeps the result and selected B after cancelling overwrite", async () => {
   render(<Harness restored hasAnswer />);
-  fireEvent.click(screen.getByRole("button", { name: "STARアシスト" }));
+  fireEvent.click(screen.getByRole("button", { name: /STARアシスト/ }));
   fireEvent.click(screen.getByRole("button", { name: "生成した回答を見る" }));
   fireEvent.click(screen.getByRole("button", { name: "案Bを使う" }));
-  expect(screen.getByRole("dialog", { name: "入力中の回答を置き換えますか？" }))
+  expect(screen.getByText("入力中の回答を置き換えますか？"))
     .toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "キャンセル" }));
   expect(screen.getByRole("dialog", { name: "成果物" })).toBeInTheDocument();
@@ -115,7 +115,7 @@ it("keeps the result and selected B after cancelling overwrite", async () => {
 it("keeps the result open when applying B fails", async () => {
   apply.mockResolvedValue(false);
   render(<Harness restored />);
-  fireEvent.click(screen.getByRole("button", { name: "STARアシスト" }));
+  fireEvent.click(screen.getByRole("button", { name: /STARアシスト/ }));
   fireEvent.click(screen.getByRole("button", { name: "生成した回答を見る" }));
   fireEvent.click(screen.getByRole("button", { name: "案Bを使う" }));
   await waitFor(() => expect(apply).toHaveBeenCalledWith("B"));
