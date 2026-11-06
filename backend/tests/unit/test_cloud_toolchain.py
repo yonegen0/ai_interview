@@ -1,5 +1,6 @@
 """Pre-OIDC toolchain failures never enter the cloud authentication path."""
 
+import json
 import subprocess
 from types import SimpleNamespace
 
@@ -7,8 +8,15 @@ import pytest
 from test_p4_tools import tool
 
 
-def _fake_tools(monkeypatch, *, uv=b"uv 0.13.5 (test)", tf=b'{"terraform_version":"1.14.9"}'):
+def _fake_tools(monkeypatch, *, uv=b"uv 0.13.5 (test)", tf=None):
     m = tool("cloud_toolchain")
+    if tf is None:
+        tf = json.dumps(
+            {
+                "terraform_version": m.NEW_EXECUTION_TERRAFORM_VERSION,
+                "platform": m.NEW_EXECUTION_TERRAFORM_PLATFORM,
+            }
+        ).encode()
     calls = []
     monkeypatch.setattr(m.shutil, "which", lambda name: name)
 
@@ -79,7 +87,16 @@ def test_uv_version_boundary(monkeypatch, output, accepted):
     assert calls == ["terraform", "uv"]
 
 
-@pytest.mark.parametrize("output", [b'{"terraform_version":"1.14.8"}', b"{}", b"garbage", b"[]"])
+@pytest.mark.parametrize(
+    "output",
+    [
+        b'{"terraform_version":"1.14.9"}',
+        b'{"terraform_version":"1.14.8"}',
+        b"{}",
+        b"garbage",
+        b"[]",
+    ],
+)
 def test_terraform_version_and_format_are_rejected(monkeypatch, output):
     m, calls = _fake_tools(monkeypatch, tf=output)
     with pytest.raises(ValueError, match="CloudTerraformVersionMismatch"):

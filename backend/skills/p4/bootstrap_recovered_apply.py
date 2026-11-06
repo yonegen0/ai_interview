@@ -139,6 +139,7 @@ def runtime_gate(value, original):
         provider_inventory(original) == value["provider_files"],
         "RecoveredApplyProviderCacheChanged",
     )
+    normal.qualify_legacy_terraform(str(binary))
 
 
 def apply_permissions(reader, request, bundle):

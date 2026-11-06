@@ -64,7 +64,7 @@ jobs:
           python-version: '3.14.9'
       - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
         with:
-          terraform_version: 1.14.9
+          terraform_version: 1.16.7
           terraform_wrapper: false
       - name: Install locked dependencies
         working-directory: backend

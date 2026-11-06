@@ -422,6 +422,7 @@ def harness(tools, fixture, tmp_path, monkeypatch):
     monkeypatch.setattr(runner, "read_local_settings", lambda root: {"AWS_PROFILE": "synthetic"})
     monkeypatch.setattr(runner, "source_files", lambda *a, **kw: files)
     monkeypatch.setattr(runner, "checked_session", lambda *a, **kw: SimpleNamespace())
+    monkeypatch.setattr(runner, "qualify_legacy_terraform", lambda *a, **kw: None)
     monkeypatch.setattr(runner, "BootstrapAWS", lambda *args: reader)
     monkeypatch.setattr(runner, "credential_environment", lambda session, env: dict(env))
     # ACL behavior has its own tests. Synthetic orchestration does not run OS permission tools.
@@ -523,6 +524,38 @@ def test_full_plan_apply_and_replay_is_blocked(harness):
     with pytest.raises(ValueError):
         apply(h, path)
     assert len([args for _, args in h.calls if args[0] == "apply"]) == 1
+
+
+@pytest.mark.parametrize("operation", ["plan", "apply"])
+@pytest.mark.parametrize("mismatch", [True, False])
+def test_legacy_toolchain_precedes_authentication_and_attempt_writes(
+    harness, monkeypatch, operation, mismatch
+):
+    h = harness
+    path = None
+    if operation == "apply":
+        plan(h)
+        path = apply_request(h)
+    before = {p: p.read_bytes() for p in h.private.rglob("*") if p.is_file()}
+    calls = []
+
+    def qualify(**kwargs):
+        calls.append("qualify")
+        assert kwargs == {"environment": h.env}
+        if mismatch:
+            raise ValueError("MaintenanceTerraformVersion")
+
+    def session(*args, **kwargs):
+        calls.append("session")
+        raise ValueError("SyntheticStopBeforeAws")
+
+    monkeypatch.setattr(h.runner, "qualify_legacy_terraform", qualify)
+    monkeypatch.setattr(h.runner, "checked_session", session)
+    error = "MaintenanceTerraformVersion" if mismatch else "SyntheticStopBeforeAws"
+    with pytest.raises(ValueError, match=error):
+        plan(h) if operation == "plan" else apply(h, path)
+    assert calls == (["qualify"] if mismatch else ["qualify", "session"])
+    assert {p: p.read_bytes() for p in h.private.rglob("*") if p.is_file()} == before
 
 
 @pytest.mark.parametrize("stage", ["snapshot", "journal", "descriptor"])

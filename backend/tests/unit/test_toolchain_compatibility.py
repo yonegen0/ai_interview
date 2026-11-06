@@ -119,6 +119,76 @@ def test_nested_noop_synthetic_plan_pair(version):
     }
 
 
+@pytest.mark.parametrize("side", ["before", "after"])
+@pytest.mark.parametrize(
+    "value",
+    [
+        False,
+        [],
+        [False],
+        None,
+        {"root_module": []},
+        {"root_module": {"resources": False}},
+        {"root_module": {"resources": [False]}},
+        {"root_module": {"child_modules": [False]}},
+        {"outputs": []},
+        {"outputs": {"flag": False}},
+        {"unexpected": False},
+        {"root_module": {"resources": [{"values": False}]}},
+        {"root_module": {"resources": [{"values": {}, "address": False}]}},
+        {"outputs": {"flag": {"value": None}}},
+    ],
+)
+def test_proposed_unknown_rejects_malformed_containers(side, value):
+    before, after = noop(), noop("1.16.7")
+    (before if side == "before" else after)["proposed_unknown"] = value
+    with pytest.raises(ValueError, match="MigrationIncompleteOrUnsupportedPlan"):
+        tool("toolchain_compatibility").assert_noop_plan_pair(before, after, "1.16.7")
+
+
+@pytest.mark.parametrize("version", ["1.16.7", "1.17.0"])
+@pytest.mark.parametrize("sensitive", [{}, {"id": True, "nested": [{"flag": False}]}])
+def test_proposed_unknown_accepts_known_masks_with_resource_metadata(version, sensitive):
+    before, after = noop(), noop(version)
+    for document in (before, after):
+        document["proposed_unknown"] = {
+            "outputs": {"flag": {"value": False, "type": "bool", "sensitive": False}},
+            "root_module": {
+                "child_modules": [
+                    {
+                        "address": "module.synthetic",
+                        "resources": [
+                            {
+                                "address": "module.synthetic.aws_sns_topic.alarms",
+                                "mode": "managed",
+                                "type": "aws_sns_topic",
+                                "name": "alarms",
+                                "provider_name": "registry.terraform.io/hashicorp/aws",
+                                "schema_version": 0,
+                                "sensitive_values": sensitive,
+                                "values": {"id": False, "tags": {}, "nested": [{"flag": False}]},
+                            }
+                        ],
+                    }
+                ],
+            },
+        }
+    assert (
+        tool("toolchain_compatibility").assert_noop_plan_pair(before, after, version)["status"]
+        == "SYNTHETIC_NOOP_COMPATIBLE_NOT_APPLY_APPROVAL"
+    )
+
+
+@pytest.mark.parametrize("sensitive", [None, "true", {"id": 1}, [None]])
+def test_proposed_unknown_rejects_invalid_sensitivity_metadata(sensitive):
+    before, after = noop(), noop("1.16.7")
+    after["proposed_unknown"] = {
+        "root_module": {"resources": [{"values": {}, "sensitive_values": sensitive}]}
+    }
+    with pytest.raises(ValueError, match="MigrationIncompleteOrUnsupportedPlan"):
+        tool("toolchain_compatibility").assert_noop_plan_pair(before, after, "1.16.7")
+
+
 @pytest.mark.parametrize(
     "failure",
     [
@@ -151,6 +221,8 @@ def test_nested_noop_synthetic_plan_pair(version):
         "input",
         "empty",
         "missing-errored",
+        "proposed-unknown",
+        "malformed-proposed-unknown",
     ],
 )
 def test_plan_pair_fails_closed_on_defaults_state_changes_and_incomplete_evidence(failure):
@@ -219,6 +291,12 @@ def test_plan_pair_fails_closed_on_defaults_state_changes_and_incomplete_evidenc
         after["variables"]["flag"]["value"] = 0
     elif failure == "missing-errored":
         del after["errored"]
+    elif failure in {"proposed-unknown", "malformed-proposed-unknown"}:
+        after["proposed_unknown"] = {
+            "root_module": {
+                "resources": [{"values": {"id": True if failure == "proposed-unknown" else None}}]
+            }
+        }
     else:
         before = noop("1.14.9")
         after = noop("1.16.7")

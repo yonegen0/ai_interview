@@ -96,6 +96,7 @@ def harness(tools, recovery_tools, fixture, monkeypatch, tmp_path):
     envelope_path = h.private / "controller.json"
     envelope_path.write_bytes(h.contract.encoded(envelope))
     monkeypatch.setattr(c, "controller_identity", lambda *a: None)
+    monkeypatch.setattr(h.normal, "qualify_legacy_terraform", lambda *a, **kw: None)
     commands = []
     events = []
     after = copy.deepcopy(h.snapshot)
@@ -222,6 +223,23 @@ def test_one_saved_plan_apply_preserves_old_evidence_and_claims(harness):
     with pytest.raises(Exception, match="AlreadyAttempted"):
         execute(h)
     assert len([x for x in h.commands if x[0] == "apply"]) == 1
+
+
+def test_legacy_runtime_mismatch_stops_before_reader_or_attempt(harness, monkeypatch):
+    h = harness
+    before = {p: p.read_bytes() for p in h.h.private.rglob("*") if p.is_file()}
+    calls = []
+
+    def qualify(binary):
+        calls.append(binary)
+        raise ValueError("MaintenanceTerraformVersion")
+
+    monkeypatch.setattr(h.h.normal, "qualify_legacy_terraform", qualify)
+    with pytest.raises(ValueError, match="MaintenanceTerraformVersion"):
+        execute(h)
+    assert calls == [h.envelope["terraform_path"]]
+    assert h.events == h.commands == []
+    assert {p: p.read_bytes() for p in h.h.private.rglob("*") if p.is_file()} == before
 
 
 @pytest.mark.parametrize(
