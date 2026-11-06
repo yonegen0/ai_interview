@@ -179,7 +179,10 @@ def build_history(owner, params, now, attempts, evaluations, coachings, summarie
     next_cursor = None
     if len(rows) > limit:
         position = [page[-1]["createdAt"], page[-1]["id"]]
-        packed = {"owner": owner, "mode": mode, "period": period, "anchor": anchor, "after": position}
+        packed = {
+            "owner": owner, "mode": mode, "period": period,
+            "anchor": anchor, "after": position,
+        }
         next_cursor = base64.urlsafe_b64encode(
             json.dumps(packed, separators=(",", ":")).encode()
         ).decode().rstrip("=")
