@@ -6,7 +6,7 @@ import SpaOutlinedIcon from "@mui/icons-material/SpaOutlined";
 import { alpha, styled } from "@mui/material/styles";
 import { Link } from "@/components/atoms/Link";
 import { Text } from "@/components/atoms/Text";
-import { AccountActions } from "@/components/molecules/AccountActions";
+import { AccountActions } from "@/components/organisms/AccountActions";
 import { scaledRadius } from "@/theme/tokens";
 
 const PageContainer = styled("main")(({ theme }) => ({
