@@ -107,6 +107,7 @@ def log_event(event, *, sink=None, **fields):
                 "star_prose_v4",
                 "star_prose_v5",
                 "answer_assist_v2",
+                "answer_assist_v3",
             }
         elif key == "fallbackUsed":
             valid = type(value) is bool
