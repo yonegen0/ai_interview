@@ -422,17 +422,25 @@ export function useStarWorkspace(
     form.formState.isDirty,
     isActive,
   ]);
-  const adopt = useCallback(() => {
+  const adopt = useCallback((): boolean => {
     const result = generation.data?.result;
     if (!result || result.status !== "ready" || !generationId || !isActive())
-      return;
-    // Validate only after all interdependent fields describe one consistent draft.
+      return false;
+    const candidateDraft = {
+      ...form.getValues(),
+      candidates: result.candidates,
+      generationId,
+      selectedCandidateId: mode === "star" ? null : "A",
+    };
+    if (!starInputSchema.safeParse(candidateDraft).success) return false;
+    // Preserve RHF dirtiness/autosave and adopt all interdependent fields together.
     form.setValue("candidates", result.candidates, { shouldDirty: true });
     form.setValue("generationId", generationId, { shouldDirty: true });
     form.setValue("selectedCandidateId", mode === "star" ? null : "A", { shouldDirty: true });
     void form.trigger();
     setGenerationCategory(generation.data!.generationTargetCategory);
     setResultWaiting(false);
+    return true;
   }, [generation.data, generationId, form, isActive, mode]);
   useEffect(() => {
     if (
@@ -462,7 +470,7 @@ export function useStarWorkspace(
       setError(generationFailureMessage(generation.data.status));
   }, [generation.data, generationId, adopt, isActive, quota]);
 
-  const generate = async () => {
+  const generate = async (): Promise<string | null> => {
     const sourceInput = JSON.stringify(latest.current.input);
     try {
       const row =
@@ -478,17 +486,25 @@ export function useStarWorkspace(
       );
       rememberGeneration(result.generationId);
       void quota.refetch();
+      return result.generationId;
     } catch {
       /* run preserves input and exposes its error. */
+      return null;
     }
   };
-  const apply = async () => {
+  const apply = async (candidateId?: "A" | "B" | "C"): Promise<boolean> => {
+    if (locked.current || pending || !isActive() || !active.current) return false;
     try {
-      const snapshot = latest.current.input,
-        selected = snapshot.candidates.find(
-          (c) => c.id === snapshot.selectedCandidateId,
-        );
-      if (!selected) return;
+      const current = form.getValues();
+      const id = candidateId ?? current.selectedCandidateId;
+      const selected = current.candidates.find((c) => c.id === id);
+      if (!selected || !id) return false;
+      const snapshot = { ...current, selectedCandidateId: id };
+      if (!starInputSchema.safeParse(snapshot).success || !selected.text.trim()) return false;
+      // Synchronize the explicit candidate before saveStar takes its serial snapshot.
+      form.setValue("selectedCandidateId", id, { shouldDirty: true, shouldValidate: true });
+      latest.current = { ...latest.current, input: snapshot };
+
       const epoch = editGeneration.current;
       const star =
         starMeta.current && JSON.stringify(snapshot) === starBaseline.current
@@ -516,13 +532,15 @@ export function useStarWorkspace(
       if (editGeneration.current === epoch && isActive() && active.current) {
         restoreAnswer(selected.text);
         setApplicationId(result.applicationId);
-      } else {
-        setStatus("未保存");
-        setApplicationId(null);
-        setError("編集中の本文を保持しました。反映結果で上書きしていません。");
+        return true;
       }
+      setStatus("未保存");
+      setApplicationId(null);
+      setError("編集中の本文を保持しました。反映結果で上書きしていません。");
+      return false;
     } catch {
-      /* Fixed visible error; applicant input remains. */
+      /* run exposes the error; applicant input remains. */
+      return false;
     }
   };
   const loadSaved = async () => {
