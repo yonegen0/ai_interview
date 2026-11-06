@@ -174,7 +174,6 @@ def test_duplicated_id_does_not_adopt_ambiguous_candidates():
 @pytest.mark.parametrize(
     "mutate",
     [
-        lambda r: r.pop("missingInformation"),
         lambda r: r["candidates"][0].update(text=""),
         lambda r: r["candidates"][0].update(text="あ" * 601),
         lambda r: r["candidates"][0].update(text="売上を200%改善しました。"),
@@ -187,6 +186,38 @@ def test_invalid_candidate_or_schema_never_becomes_unchecked_answer(mutate):
     assert result.status == "ready" and provider.last_fallback_used
     assert all(c.text.strip() and len(c.text) <= 600 for c in result.candidates)
     assert all("200%" not in c.text for c in result.candidates)
+
+
+def test_missing_information_key_does_not_discard_safe_ready_candidates():
+    def mutate(body):
+        body.pop("missingInformation")
+
+    provider = live(Client(mutate))
+    result = provider.generate("経験は？", sample())
+    assert result.status == "ready"
+    assert [c.text for c in result.candidates] == [
+        entry["text"] for entry in reply({"notes": sample().notes.model_dump()})["candidates"]
+    ]
+    assert provider.last_fallback_used is False
+    assert provider.last_reason_code == "INVALID_SCHEMA"
+
+
+def test_missing_information_key_keeps_only_safe_candidates():
+    def mutate(body):
+        body.pop("missingInformation")
+        body["candidates"][0]["text"] = "私は売場の配置を変えた。"
+        body["candidates"][1]["text"] = "売場の配置を見直した。"
+        body["candidates"][2]["text"] = "売上を200%改善しました。"
+
+    provider = live(Client(mutate))
+    result = provider.generate("経験は？", sample())
+    assert [c.text for c in result.candidates[:2]] == [
+        "私は売場の配置を変えた。",
+        "売場の配置を見直した。",
+    ]
+    assert provider.last_fallback_used
+    assert provider.last_reason_code == "INVALID_SCHEMA"
+    assert "200%" not in result.candidates[2].text
 
 
 def test_model_clarification_uses_safe_fallback_once():
@@ -243,6 +274,70 @@ def test_new_or_reversed_numbers_are_rejected_without_changing_safe_candidates()
     assert "94品" not in str(result.model_dump())
     assert result.candidates[2].text.startswith("取扱商品を120品")
     assert provider.last_reason_code == "MODEL_STRUCTURE_MISMATCH"
+
+
+@pytest.mark.parametrize(
+    "text, rejected",
+    [
+        ("取扱商品を120品から95品に削減しました。", False),
+        ("取扱商品を120品→95品に削減しました。", False),
+        ("取扱商品を120品から98品に変更しました。", True),
+        ("前年比98％から103％に改善しました。", False),
+        ("前年比95％から103％に改善しました。", True),
+        ("取扱商品を1,200件から950件に削減しました。", False),
+        ("120品に絞り、前年比103％でした。", False),
+    ],
+)
+def test_explicit_numeric_relationships_only_reject_clear_mispairing(text, rejected):
+    from interview_backend.star_assist.prose_v5 import _unsafe_claim
+
+    facts = {
+        "S": "",
+        "T": "",
+        "A": "商品の配置を変えた。",
+        "R": "取扱商品120品から95品、前年比98％から103％。"
+        "件数1,200件から950件。",
+    }
+    assert _unsafe_claim(text, facts) is rejected
+
+
+@pytest.mark.parametrize(
+    "action,missing",
+    [
+        ("", True),
+        ("　 ", True),
+        ("特になし。", True),
+        ("何もしていない", True),
+        ("一切行っていない", True),
+        ("行動は不明", True),
+        ("売場を見直した。", False),
+        ("顧客の希望を聞いた。", False),
+        ("最初は何もしていない状態でしたが、その後売場を見直しました。", False),
+    ],
+)
+def test_action_checks_reject_only_unambiguous_whole_field_non_action(action, missing):
+    from interview_backend.star_assist.prose_v5 import missing_action
+
+    assert missing_action({"A": action}) is missing
+
+
+def test_non_action_clarification_does_not_call_paid_transport():
+    client = Client()
+    provider = live(client)
+    result = provider.generate("経験は？", value(A="特になし", R="改善した。"))
+    assert result.status == "needs_information"
+    assert provider.last_reason_code == "INPUT_ACTION_MISSING"
+    assert client.calls == 0
+
+
+def test_action_with_negative_intro_is_not_preemptively_blocked():
+    client = Client()
+    provider = live(client)
+    result = provider.generate(
+        "経験は？", value(A="最初は何もしていない状態でしたが、その後売場を見直しました。")
+    )
+    assert result.status == "ready"
+    assert client.calls == 1
 
 
 def test_obvious_negation_flip_is_rejected():
@@ -361,6 +456,49 @@ def test_manual_openai_natural_transport_stays_strict_and_single_call():
     assert transport.payload["text"]["format"]["name"] == "star_prose_v5"
     assert transport.payload["text"]["format"]["strict"] is True
     assert transport.payload["max_output_tokens"] == 4096
+
+
+@pytest.mark.parametrize("mode", ["prep", "motivation", "career_change", "career_plan"])
+def test_other_assist_prompt_version_v3_is_reported(mode):
+    from interview_backend.operational_logs import invocation_context, log_event
+
+    class AssistClient(Client):
+        def converse(self, **kwargs):
+            self.calls += 1
+            self.kwargs = kwargs
+            return {
+                "stopReason": "end_turn",
+                "output": {
+                    "message": {
+                        "role": "assistant",
+                        "content": [
+                            {"text": json.dumps({"answer": "確認しました。", "missingInformation": []})}
+                        ],
+                    }
+                },
+            }
+
+    client = AssistClient()
+    provider = live(client)
+    data = StarInput.model_validate({**value(S="確認した。").model_dump(), "assistType": mode})
+    result = provider.generate("経験は？", data)
+    assert result.status == "ready" and len(result.candidates) == 1
+    assert provider.last_prompt_version == "answer_assist_v3"
+    assert client.kwargs["inferenceConfig"] == {"maxTokens": 2048}
+    output = []
+    with invocation_context("worker", "test", {}, None):
+        log_event(
+            "assist_generation_terminal",
+            sink=output.append,
+            promptVersion=provider.last_prompt_version,
+        )
+        log_event(
+            "assist_generation_terminal", sink=output.append, promptVersion="answer_assist_v2"
+        )
+    assert [json.loads(record)["promptVersion"] for record in output] == [
+        "answer_assist_v3",
+        "answer_assist_v2",
+    ]
 
 
 def test_other_assist_prompts_keep_contract_and_editing_goals():
