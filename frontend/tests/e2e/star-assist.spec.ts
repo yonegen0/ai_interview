@@ -115,8 +115,7 @@ test("T15 application response cannot replace typing during apply", async ({
 }) => {
   await begin(page);
   await generate(page);
-  await page.getByRole("radio", { name: "案Aを選択" }).check();
-  await page.getByRole("button", { name: "キャンセル", exact: true }).click();
+  await page.getByRole("button", { name: "成果物を閉じる" }).click();
   await page.getByLabel("あなたの回答").fill("確認前の既存入力です。");
   await page.waitForTimeout(1200);
   await expect(
@@ -126,23 +125,30 @@ test("T15 application response cannot replace typing during apply", async ({
     sessionStorage.setItem("pocket:scenario", "star_apply_delayed"),
   );
   await page.getByRole("button", { name: /STARアシスト/ }).click();
-  await page.getByRole("button", { name: "この回答を反映" }).click();
+  await page.getByRole("button", { name: "生成した回答を見る" }).click();
+  await page.getByRole("button", { name: "この回答を使う" }).click();
   await expect(page.getByRole("dialog", { name: "入力中の回答を置き換えますか？" })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.getByLabel("あなたの回答")).toHaveValue(
     "確認前の既存入力です。",
   );
-  await page.getByRole("button", { name: "この回答を反映" }).click();
+  await page.getByRole("button", { name: "この回答を使う" }).click();
+  // Listen for the actual application request instead of racing an ephemeral "保存中" label.
+  const applicationRequest = page.waitForRequest(
+    (request) => request.method() === "POST" && request.url().includes("/applications"),
+  );
   await page.getByRole("button", { name: "置き換える", exact: true }).click();
-  await expect(
-    page.getByRole("status").filter({ hasText: "下書き：" }),
-  ).toContainText("保存中");
+  await applicationRequest;
   await page
     .getByLabel("あなたの回答")
-    .fill("反映の通信中に本人が入力した内容です。");
+    .fill("反映の通信中に本人が入力した内容です。", { force: true });
   await expect(page.getByLabel("あなたの回答")).toHaveValue(
     "反映の通信中に本人が入力した内容です。",
   );
+  // When a concurrent edit wins, the result popup stays open; its backdrop hides
+  // background status announcements from the accessibility tree by design.
+  await expect(page.getByRole("dialog", { name: "生成した3案の回答" })).toBeVisible();
+  await page.getByRole("button", { name: "入力画面に戻る" }).click();
   await expect(
     page.getByRole("status").filter({ hasText: "下書き：" }),
   ).toContainText("保存済");
@@ -189,7 +195,7 @@ async function generate(page: Page) {
     page.getByRole("status").filter({ hasText: "下書き：" }),
   ).toContainText("保存済");
   await page.getByRole("button", { name: "3案を生成（1回）" }).click();
-  await expect(page.getByLabel("案Aの回答")).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "生成した3案の回答" })).toBeVisible();
 }
 for (const width of [375, 390, 768, 1280, 1440])
   test(`T15/T21/T22 ${width}px three editable choices and apply without evaluation`, async ({
@@ -198,27 +204,35 @@ for (const width of [375, 390, 768, 1280, 1440])
     await page.setViewportSize({ width, height: 900 });
     await begin(page);
     await generate(page);
-    await page
-      .getByLabel("案Aの回答")
+    await page.getByRole("button", { name: "編集する" }).click();
+    await page.getByLabel("案Aの回答を編集")
       .fill("本人が選択前に編集した回答Aです。");
-    await page
-      .getByLabel("案Bの回答")
+    await page.getByRole("tab", { name: "B 行動重視" }).click();
+    await page.getByRole("button", { name: "編集する" }).click();
+    await page.getByLabel("案Bの回答を編集")
       .fill("本人が選択前に編集した回答Bです。");
-    await page
-      .getByLabel("案Cの回答")
+    await page.getByRole("tab", { name: "C 会話重視" }).click();
+    await page.getByRole("button", { name: "編集する" }).click();
+    await page.getByLabel("案Cの回答を編集")
       .fill("本人が選択前に編集した回答Cです。");
-    await page.getByRole("radio", { name: "案Bを選択" }).check();
-    await page.getByRole("radio", { name: "案Aを選択" }).check();
-    await expect(page.getByLabel("案Bの回答")).toHaveValue(
-      "本人が選択前に編集した回答Bです。",
-    );
-    await page.getByLabel("案Aの回答").focus();
-    await page.keyboard.press("Tab");
-    await expect(page.getByLabel("案Bの回答")).toBeFocused();
+    await page.getByRole("tab", { name: "B 行動重視" }).click();
+    await expect(page.getByText("本人が選択前に編集した回答Bです。")).toBeVisible();
+    await page.getByRole("tab", { name: "A 結論重視" }).click();
+    await expect(page.getByText("本人が選択前に編集した回答Aです。")).toBeVisible();
+    await page.getByRole("tab", { name: "B 行動重視" }).focus();
+    await page.keyboard.press("ArrowRight");
+    await expect(page.getByRole("tab", { name: "C 会話重視" })).toBeFocused();
+    await page.getByRole("tab", { name: "A 結論重視" }).click();
     await page.screenshot({ path: testInfo.outputPath(`star-dialog-${width}.png`) });
-    await page.getByRole("button", { name: "この回答を反映" }).click();
+    // 390pxでは案Bを選択し、表示中の候補が実際の通常回答欄へ反映されることも検証。
+    if (width === 390) {
+      await page.getByRole("tab", { name: "B 行動重視" }).click();
+    }
+    await page.getByRole("button", { name: "この回答を使う" }).click();
     await expect(page.getByLabel("あなたの回答")).toHaveValue(
-      "本人が選択前に編集した回答Aです。",
+      width === 390
+        ? "本人が選択前に編集した回答Bです。"
+        : "本人が選択前に編集した回答Aです。",
     );
     await expect(
       page.getByRole("button", { name: "回答を送信", exact: true }),
@@ -297,8 +311,10 @@ test("T20 close tab restores server draft and STAR edits", async ({
 }) => {
   await begin(page);
   await generate(page);
-  await page.getByLabel("案Cの回答").fill("閉タブから復元する回答Cです。");
-  await page.getByRole("button", { name: "キャンセル", exact: true }).click();
+  await page.getByRole("tab", { name: "C 会話重視" }).click();
+  await page.getByRole("button", { name: "編集する" }).click();
+  await page.getByLabel("案Cの回答を編集").fill("閉タブから復元する回答Cです。");
+  await page.getByRole("button", { name: "成果物を閉じる" }).click();
   await page.getByLabel("あなたの回答").fill("通常下書きも復元します。");
   await expect(
     page.getByRole("status").filter({ hasText: "下書き：" }),
@@ -315,9 +331,9 @@ test("T20 close tab restores server draft and STAR edits", async ({
   for (let i = 0; i < 3; i++) {
     await next.getByRole("button", { name: "次へ", exact: true }).click();
   }
-  await expect(next.getByLabel("案Cの回答")).toHaveValue(
-    "閉タブから復元する回答Cです。",
-  );
+  await next.getByRole("button", { name: "生成した回答を見る" }).click();
+  await next.getByRole("tab", { name: "C 会話重視" }).click();
+  await expect(next.getByText("閉タブから復元する回答Cです。")).toBeVisible();
 });
 test("T05/T08 two tabs conflict and formal send rejects stale save", async ({
   page,
@@ -565,8 +581,8 @@ for (const [mode, label, firstStep] of [
       page.getByRole("status").filter({ hasText: "下書き：" }),
     ).toContainText("保存済");
     await page.getByRole("button", { name: "回答案を生成（1回）" }).click();
-    await expect(page.getByLabel("案Aの回答")).toBeVisible();
-    const apply = page.getByRole("button", { name: "この回答を反映", exact: true });
+    await expect(page.getByRole("button", { name: "この回答を使う" })).toBeVisible();
+    const apply = page.getByRole("button", { name: "この回答を使う", exact: true });
     await expect(apply).toBeEnabled();
     await apply.click();
     await expect(page.getByLabel("あなたの回答")).toHaveValue(
@@ -581,10 +597,10 @@ test("STAR long generated answer is preserved until explicitly shortened for sub
 }) => {
   await begin(page);
   await generate(page);
-  await page.getByLabel("案Aの回答").fill("あ".repeat(410));
-  await page.getByRole("radio", { name: "案Aを選択" }).check();
-  await expect(page.getByText(/回答送信の上限は400文字です/)).toBeVisible();
-  await page.getByRole("button", { name: "回答欄へ反映して短く編集" }).click();
+  await page.getByRole("button", { name: "編集する" }).click();
+  await page.getByLabel("案Aの回答を編集").fill("あ".repeat(410));
+  await expect(page.getByText(/正式な回答の上限は400文字です/)).toBeVisible();
+  await page.getByRole("button", { name: "この回答を使う" }).click();
   await expect(page.getByLabel("あなたの回答")).toHaveValue("あ".repeat(410));
   await expect(page.getByRole("button", { name: "回答を送信", exact: true })).toBeDisabled();
   await page.getByLabel("あなたの回答").fill("あ".repeat(400));

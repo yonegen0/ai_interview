@@ -196,7 +196,7 @@ it("does not auto-adopt a generation when input changes during the preceding sav
       return original(operation, schema);
     },
   );
-  let generating!: Promise<void>;
+  let generating!: Promise<string | null>;
   act(() => {
     generating = hook.result.current.generate();
   });
