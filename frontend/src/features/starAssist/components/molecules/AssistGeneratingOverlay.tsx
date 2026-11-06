@@ -68,6 +68,18 @@ const Heading = styled("h2")(({ theme }) => ({
   fontWeight: 700,
 }));
 
+const ScreenReaderHeading = styled("h2")({
+  position: "absolute",
+  width: 1,
+  height: 1,
+  padding: 0,
+  margin: -1,
+  overflow: "hidden",
+  clip: "rect(0, 0, 0, 0)",
+  whiteSpace: "nowrap",
+  border: 0,
+});
+
 const ReturnButton = styled(Button)(({ theme }) => ({
   color: theme.palette.text.secondary,
 }));
@@ -94,12 +106,13 @@ export function AssistGeneratingOverlay({
       aria-describedby="assist-generating-description">
       <Panel role="dialog" aria-modal="true" tabIndex={-1}>
         <ModeTag>{assistModes[mode].label}</ModeTag>
-        <Heading id="assist-generating-title" style={reducedMotion ? undefined : {
-          position: "absolute", width: 1, height: 1, padding: 0, margin: -1,
-          overflow: "hidden", clip: "rect(0, 0, 0, 0)", whiteSpace: "nowrap", border: 0,
-        }}>
-          回答を生成しています
-        </Heading>
+        {reducedMotion ? (
+          <Heading id="assist-generating-title">回答を生成しています</Heading>
+        ) : (
+          <ScreenReaderHeading id="assist-generating-title">
+            回答を生成しています
+          </ScreenReaderHeading>
+        )}
         <ThinkingImage
           src={reducedMotion
             ? "/images/mascot/mascot-thinking.webp"
