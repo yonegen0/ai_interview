@@ -16,13 +16,8 @@ const HeroPanel = styled(Panel)(({ theme }) => ({
   borderRadius: scaledRadius(theme, 1.5),
   border: "1px solid " + alpha(theme.palette.primary.main, 0.14),
   backgroundColor: theme.palette.background.paper,
-  backgroundImage:
-    "linear-gradient(135deg, " +
-    theme.palette.background.paper +
-    " 50%, " +
-    alpha(theme.palette.primary.light, 0.15) +
-    " 100%)",
-  boxShadow: theme.shadows[1],
+  backgroundImage: "none",
+  boxShadow: theme.shadows[2],
   [theme.breakpoints.up("md")]: {
     padding: theme.spacing(5, 5, 5.5),
   },
@@ -46,7 +41,7 @@ const HeroTitle = styled(Text)(({ theme }) => ({
 }));
 
 const HeroAccent = styled("span")(({ theme }) => ({
-  color: theme.palette.primary.dark,
+  color: theme.palette.text.primary,
 }));
 
 const LeadText = styled(Text)(({ theme }) => ({
@@ -64,7 +59,7 @@ const StartLink = styled(Link)(({ theme }) => ({
   justifyItems: "center",
   gap: theme.spacing(1),
   width: "100%",
-  minHeight: theme.spacing(7),
+  minHeight: theme.spacing(9),
   marginTop: theme.spacing(3),
   padding: theme.spacing(1.5, 2),
   borderRadius: scaledRadius(theme, 1),
@@ -90,11 +85,7 @@ const StartLink = styled(Link)(({ theme }) => ({
     textDecoration: "none",
   },
   "@media (prefers-reduced-motion: reduce)": { transition: "none" },
-  [theme.breakpoints.up("sm")]: {
-    width: "fit-content",
-    minWidth: theme.spacing(38),
-    paddingInline: theme.spacing(3),
-  },
+  [theme.breakpoints.up("sm")]: { paddingInline: theme.spacing(3) },
 }));
 
 export function HomeHero() {

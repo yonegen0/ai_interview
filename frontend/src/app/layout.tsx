@@ -7,6 +7,7 @@ import type { ReactNode } from "react";
 import { AppRouterCacheProvider } from "@mui/material-nextjs/v15-appRouter";
 import { AppProviders } from "@/providers/AppProviders";
 import { AppShell } from "@/components/templates/AppShell";
+import { HistoryAccountControls } from "@/features/history/components/HistoryAccountControls";
 import { backgroundDefaultColor } from "@/theme/tokens";
 
 export const metadata: Metadata = {
@@ -36,7 +37,7 @@ export default function RootLayout(props: RootLayoutProps) {
       <body>
         <AppRouterCacheProvider>
           <AppProviders>
-            <AppShell>{props.children}</AppShell>
+            <AppShell headerActions={<HistoryAccountControls />}>{props.children}</AppShell>
           </AppProviders>
         </AppRouterCacheProvider>
       </body>
