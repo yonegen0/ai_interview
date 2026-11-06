@@ -21,6 +21,7 @@ import { StarCandidateFields } from "../molecules/StarFields";
 import { StarAssistStepper } from "../molecules/StarAssistStepper";
 import { StarAssistTips } from "../molecules/StarAssistTips";
 import { StarAssistStepForm } from "../molecules/StarAssistStepForm";
+import { AssistGeneratingOverlay } from "../molecules/AssistGeneratingOverlay";
 
 const Header = styled("div")(({ theme }) => ({
   display: "grid",
@@ -108,6 +109,8 @@ type Props = {
 
 export function StarAssistDialog({ open, onClose, workspace: w, onApply, onDiscard }: Props) {
   const [step, setStep] = useState(0);
+  const [requestingGeneration, setRequestingGeneration] = useState(false);
+  const [overlayDismissed, setOverlayDismissed] = useState(false);
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
   const mode = w.mode;
@@ -129,6 +132,16 @@ export function StarAssistDialog({ open, onClose, workspace: w, onApply, onDisca
     (mode !== "star" || !!w.input.targetCategory) && notesValid && inputValid &&
     steps.some(({ key }) => w.input.notes[key].trim()) &&
     w.quota?.user.remaining !== 0 && w.quota?.global.remaining !== 0;
+
+  const startGenerate = async () => {
+    setOverlayDismissed(false);
+    setRequestingGeneration(true);
+    try {
+      await w.generate();
+    } finally {
+      setRequestingGeneration(false);
+    }
+  };
 
   const title = (
     <Header>
@@ -303,7 +316,7 @@ export function StarAssistDialog({ open, onClose, workspace: w, onApply, onDisca
         {last ? (
           <Button type="button" variant="contained" endIcon={<AutoAwesomeOutlinedIcon />}
             disabled={!canGenerate}
-            onClick={() => void w.generate()}>
+            onClick={() => void startGenerate()}>
             {w.generating ? "回答を生成しています…" :
               w.input.candidates.length ? "新しい入力で再生成（1回）" :
               mode === "star" ? "3案を生成（1回）" : "回答案を生成（1回）"}
@@ -320,6 +333,7 @@ export function StarAssistDialog({ open, onClose, workspace: w, onApply, onDisca
   );
 
   return (
+    <>
     <Dialog
       open={open}
       onClose={onClose}
@@ -330,5 +344,11 @@ export function StarAssistDialog({ open, onClose, workspace: w, onApply, onDisca
       fullScreen={fullScreen}
       scrollContent
     />
+    <AssistGeneratingOverlay
+      open={open && !overlayDismissed && (requestingGeneration || w.generating)}
+      mode={mode}
+      onDismiss={() => setOverlayDismissed(true)}
+    />
+    </>
   );
 }
