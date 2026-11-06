@@ -59,9 +59,28 @@ export function mockHistory(
       generationId: null, assistType: null,
     });
   }
+  const assistRows = new Map<string, HistoryItem>();
+  for (const [id, summary] of Object.entries(state.star.historySummaries)) {
+    if (summary.owner !== owner) continue;
+    assistRows.set(id, {
+      id: `assist:${id}`, kind: "assist",
+      label: summary.question, category: null,
+      createdAt: summary.createdAt, status: summary.status,
+      score: null, scoreMax: null,
+      attemptId: null, evaluationId: null, generationId: id,
+      assistType: summary.assistType,
+    });
+  }
   for (const [id, generation] of Object.entries(state.star.generations)) {
     if (generation.owner !== owner) continue;
-    rows.push({
+    const summary = assistRows.get(id);
+    const live = generation.expiresAt === null || generation.expiresAt * 1000 > now;
+    // An expired generation contributes metadata only; its result is not viewable.
+    // Legacy persisted V3 generations without a summary still retain their history row.
+    if (!live && summary) continue;
+    if (live && summary && !["QUEUED", "PREPARED", "STARTED"].includes(generation.status))
+      continue;
+    assistRows.set(id, {
       id: `assist:${id}`, kind: "assist",
       label: generation.question, category: null,
       createdAt: generation.deadlineAt - 900000,
@@ -71,6 +90,7 @@ export function mockHistory(
       assistType: generation.input.assistType ?? "star",
     });
   }
+  rows.push(...assistRows.values());
   const filtered = rows.filter((row) => {
     if (mode !== "all" && row.kind !== mode &&
       !(row.kind === "assist" && (mode === "assist" || row.assistType === mode)))
