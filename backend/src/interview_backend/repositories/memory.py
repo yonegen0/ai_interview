@@ -133,10 +133,13 @@ class MemoryRepository(DomainRepository):
 
         with self._lock:
             kinds = (
-                self._state.attempts.values(), self._state.evaluations.values(),
-                self._state.coachings.values(), self._state.assist_histories.values(),
+                self._state.attempts.values(),
+                self._state.evaluations.values(),
+                self._state.coachings.values(),
+                self._state.assist_histories.values(),
                 (
-                    v for v in self._state.star_records.values()
+                    v
+                    for v in self._state.star_records.values()
                     if type(v).__name__ == "StarGeneration"
                 ),
             )

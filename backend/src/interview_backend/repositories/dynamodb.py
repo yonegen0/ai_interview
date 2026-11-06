@@ -371,8 +371,10 @@ class DynamoDBRepository(DomainRepository):
         now = self.clock()
         mode, _, _, _, _ = parse_history_query(owner, params, now)
         prefixes = (
-            ("ATTEMPT#", "Attempt"), ("EVALUATION#", "Evaluation"),
-            ("COACHING#", "AttemptCoaching"), ("ASSIST_HISTORY#", "AssistHistory"),
+            ("ATTEMPT#", "Attempt"),
+            ("EVALUATION#", "Evaluation"),
+            ("COACHING#", "AttemptCoaching"),
+            ("ASSIST_HISTORY#", "AssistHistory"),
             ("STAR_GENERATION#", "StarGeneration"),
         )
         if mode in {"normal", "coaching"}:
@@ -385,9 +387,12 @@ class DynamoDBRepository(DomainRepository):
             request = {
                 "TableName": self.table,
                 "KeyConditionExpression": "PK = :owner AND begins_with(SK, :prefix)",
-                "ExpressionAttributeValues": to_wire({
-                    ":owner": f"USER#{owner}", ":prefix": prefix,
-                }),
+                "ExpressionAttributeValues": to_wire(
+                    {
+                        ":owner": f"USER#{owner}",
+                        ":prefix": prefix,
+                    }
+                ),
                 "ConsistentRead": True,
                 "Limit": HISTORY_PAGE_SIZE,
             }
@@ -420,10 +425,19 @@ class DynamoDBRepository(DomainRepository):
                 previous = position
                 request["ExclusiveStartKey"] = cursor
         return build_history(
-            owner, params, now,
-            *(selected.get(kind, []) for kind in (
-                "Attempt", "Evaluation", "AttemptCoaching", "AssistHistory", "StarGeneration"
-            )),
+            owner,
+            params,
+            now,
+            *(
+                selected.get(kind, [])
+                for kind in (
+                    "Attempt",
+                    "Evaluation",
+                    "AttemptCoaching",
+                    "AssistHistory",
+                    "StarGeneration",
+                )
+            ),
         )
 
     def due_candidates(self, partition, cutoff, cursor=None, limit=100):

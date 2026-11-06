@@ -1,4 +1,5 @@
 """Bounded owner-scoped history tests; no real AWS or AI calls."""
+
 from types import SimpleNamespace
 from uuid import UUID
 
@@ -20,24 +21,36 @@ def uid(index):
 
 def attempt(index, created=NOW - 1000, owner=OWNER, v2=False):
     return Attempt(
-        owner=owner, id=uid(index), session_id=uid(100),
+        owner=owner,
+        id=uid(index),
+        session_id=uid(100),
         evaluation_id=uid(index + 1000),
         question=Question(
-            id=uid(200), category="strengths", difficulty="standard",
+            id=uid(200),
+            category="strengths",
+            difficulty="standard",
             question="あなたの強みを教えてください。",
         ),
-        question_number=1, answer="丁寧に確認した",
-        created_at=created, coaching_contract_version=2 if v2 else None,
+        question_number=1,
+        answer="丁寧に確認した",
+        created_at=created,
+        coaching_contract_version=2 if v2 else None,
     )
 
 
 def evaluation(a, score=80, status="completed"):
     return SimpleNamespace(
-        id=a.evaluation_id, owner=a.owner, attempt_id=a.id,
-        status=status, coaching_contract_version=a.coaching_contract_version,
+        id=a.evaluation_id,
+        owner=a.owner,
+        attempt_id=a.id,
+        status=status,
+        coaching_contract_version=a.coaching_contract_version,
         feedback=SimpleNamespace(
-            score=score, totalScore=score,
-        ) if status == "completed" else None,
+            score=score,
+            totalScore=score,
+        )
+        if status == "completed"
+        else None,
     )
 
 
@@ -48,11 +61,16 @@ def test_stable_pagination_null_scores_and_coaching_scale():
     all_attempts = attempts + [coaching, pending]
     evaluations = [evaluation(a) for a in attempts]
     evaluations += [evaluation(coaching, score=21), evaluation(pending, status="processing")]
-    coachings = [AttemptCoaching(
-        owner=OWNER, id=coaching.id, session_id=coaching.session_id,
-        current_evaluation_id=coaching.evaluation_id, created_at=coaching.created_at,
-        updated_at=coaching.created_at,
-    )]
+    coachings = [
+        AttemptCoaching(
+            owner=OWNER,
+            id=coaching.id,
+            session_id=coaching.session_id,
+            current_evaluation_id=coaching.evaluation_id,
+            created_at=coaching.created_at,
+            updated_at=coaching.created_at,
+        )
+    ]
     first = build_history(
         OWNER, {"limit": "5"}, NOW, all_attempts, evaluations, coachings, [], []
     ).body
@@ -62,8 +80,14 @@ def test_stable_pagination_null_scores_and_coaching_scale():
     assert first["items"][0]["score"] is None
     assert first["items"][0]["status"] == "processing"
     later = build_history(
-        OWNER, {"limit": "5", "cursor": first["nextCursor"]},
-        NOW, all_attempts, evaluations, coachings, [], []
+        OWNER,
+        {"limit": "5", "cursor": first["nextCursor"]},
+        NOW,
+        all_attempts,
+        evaluations,
+        coachings,
+        [],
+        [],
     ).body
     ids = [x["id"] for x in first["items"] + later["items"]]
     assert len(ids) == len(set(ids)) == 8
@@ -75,25 +99,32 @@ def test_stable_pagination_null_scores_and_coaching_scale():
 
 def test_summary_remains_after_generation_ttl_and_mode_is_real():
     record = AssistHistory(
-        owner=OWNER, id=uid(10), question_id=uid(200),
-        question="自己PR", assist_type="prep",
-        created_at=NOW - 5000, status="SUCCEEDED", finished_at=NOW - 4000,
+        owner=OWNER,
+        id=uid(10),
+        question_id=uid(200),
+        question="自己PR",
+        assist_type="prep",
+        created_at=NOW - 5000,
+        status="SUCCEEDED",
+        finished_at=NOW - 4000,
     )
-    reply = build_history(
-        OWNER, {"mode": "assist"}, NOW, [], [], [], [record], []
-    ).body
+    reply = build_history(OWNER, {"mode": "assist"}, NOW, [], [], [], [record], []).body
     assert reply["items"][0]["assistType"] == "prep"
     assert reply["items"][0]["score"] is None
     assert reply["items"][0]["generationId"] == uid(10)
-    assert build_history(
-        OWNER, {"mode": "star"}, NOW, [], [], [], [record], []
-    ).body["items"] == []
+    assert build_history(OWNER, {"mode": "star"}, NOW, [], [], [], [record], []).body["items"] == []
 
 
 def test_cursor_must_match_owner_and_filters():
     page = build_history(
-        OWNER, {"limit": "1"}, NOW, [attempt(1), attempt(2)],
-        [evaluation(attempt(1)), evaluation(attempt(2))], [], [], [],
+        OWNER,
+        {"limit": "1"},
+        NOW,
+        [attempt(1), attempt(2)],
+        [evaluation(attempt(1)), evaluation(attempt(2))],
+        [],
+        [],
+        [],
     ).body
     cursor = page["nextCursor"]
     with pytest.raises(BusinessError) as owner_error:

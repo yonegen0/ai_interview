@@ -131,6 +131,7 @@ class Evaluation:
 @dataclass
 class AssistHistory:
     """Minimal durable generation history; no notes, generated answer or TTL."""
+
     owner: str
     id: str
     question_id: str

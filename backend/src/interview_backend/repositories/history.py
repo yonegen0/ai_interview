@@ -1,4 +1,5 @@
 """Bounded, owner-scoped history projection with stable snapshot pagination."""
+
 import base64
 import json
 from datetime import UTC, datetime, timedelta, timezone
@@ -40,25 +41,37 @@ def parse_history_query(owner, params, now):
             padded = cursor + "=" * (-len(cursor) % 4)
             value = json.loads(base64.urlsafe_b64decode(padded).decode("utf-8"))
             if not isinstance(value, dict) or set(value) != {
-                "owner", "mode", "period", "anchor", "after"
+                "owner",
+                "mode",
+                "period",
+                "anchor",
+                "after",
             }:
                 raise ValueError("cursor_shape")
             anchor, after = value["anchor"], value["after"]
             if value["owner"] != owner or value["mode"] != mode or value["period"] != period:
                 raise ValueError("cursor_scope")
             if (
-                type(anchor) is not int or not 0 < anchor <= now
-                or not isinstance(after, list) or len(after) != 2
+                type(anchor) is not int
+                or not 0 < anchor <= now
+                or not isinstance(after, list)
+                or len(after) != 2
             ):
                 raise ValueError("cursor_anchor")
             if (
-                type(after[0]) is not int or not 0 <= after[0] <= anchor
-                or not isinstance(after[1], str) or not 0 < len(after[1]) <= 100
+                type(after[0]) is not int
+                or not 0 <= after[0] <= anchor
+                or not isinstance(after[1], str)
+                or not 0 < len(after[1]) <= 100
             ):
                 raise ValueError("cursor_position")
             after = tuple(after)
         except (
-            ValueError, UnicodeError, TypeError, KeyError, OverflowError,
+            ValueError,
+            UnicodeError,
+            TypeError,
+            KeyError,
+            OverflowError,
             base64.binascii.Error,
         ):
             raise BusinessError(400, "VALIDATION_ERROR") from None
@@ -68,8 +81,10 @@ def parse_history_query(owner, params, now):
 def _period_start(period, anchor):
     if period == "all":
         return 0
-    day = datetime.fromtimestamp(anchor / 1000, UTC).astimezone(JST).replace(
-        hour=0, minute=0, second=0, microsecond=0
+    day = (
+        datetime.fromtimestamp(anchor / 1000, UTC)
+        .astimezone(JST)
+        .replace(hour=0, minute=0, second=0, microsecond=0)
     )
     days = {"today": 1, "7d": 7, "30d": 30}[period]
     return int((day - timedelta(days=days - 1)).timestamp() * 1000)
@@ -83,7 +98,8 @@ def _row_for_attempt(attempt, evaluations, coachings):
     evaluation_id = current.current_evaluation_id if current else attempt.evaluation_id
     evaluation = evaluations.get(evaluation_id)
     if (
-        evaluation is None or evaluation.attempt_id != attempt.id
+        evaluation is None
+        or evaluation.attempt_id != attempt.id
         or evaluation.owner != attempt.owner
     ):
         raise IntegrityError("history_evaluation_relation")
@@ -138,7 +154,8 @@ def build_history(owner, params, now, attempts, evaluations, coachings, summarie
     if mode in {"all", "assist"} | ASSIST_MODES:
         # Live generation details win for pending states; the durable summary wins after TTL.
         by_id = {
-            v.id: _row_for_assist(v) for v in generations
+            v.id: _row_for_assist(v)
+            for v in generations
             if v.expires_at is None or v.expires_at * 1000 > now
         }
         for v in summaries:
@@ -151,20 +168,20 @@ def build_history(owner, params, now, attempts, evaluations, coachings, summarie
             by_id[v.id] = row
         rows.extend(by_id.values())
     if mode != "all":
-        rows = [r for r in rows if r["kind"] == mode or
-                (r["kind"] == "assist" and (mode == "assist" or r["assistType"] == mode))]
+        rows = [
+            r
+            for r in rows
+            if r["kind"] == mode
+            or (r["kind"] == "assist" and (mode == "assist" or r["assistType"] == mode))
+        ]
     lower = _period_start(period, anchor)
     rows = [r for r in rows if lower <= r["createdAt"] <= anchor]
     rows.sort(key=lambda r: (r["createdAt"], r["id"]), reverse=True)
     usage = None
     if mode == "all" and period == "all":
-        normal = [
-            r["score"] for r in rows
-            if r["kind"] == "normal" and r["status"] == "completed"
-        ]
+        normal = [r["score"] for r in rows if r["kind"] == "normal" and r["status"] == "completed"]
         coaching = [
-            r["score"] for r in rows
-            if r["kind"] == "coaching" and r["status"] == "completed"
+            r["score"] for r in rows if r["kind"] == "coaching" and r["status"] == "completed"
         ]
         usage = {
             "practiceAttempts": sum(r["kind"] != "assist" for r in rows),
@@ -180,10 +197,15 @@ def build_history(owner, params, now, attempts, evaluations, coachings, summarie
     if len(rows) > limit:
         position = [page[-1]["createdAt"], page[-1]["id"]]
         packed = {
-            "owner": owner, "mode": mode, "period": period,
-            "anchor": anchor, "after": position,
+            "owner": owner,
+            "mode": mode,
+            "period": period,
+            "anchor": anchor,
+            "after": position,
         }
-        next_cursor = base64.urlsafe_b64encode(
-            json.dumps(packed, separators=(",", ":")).encode()
-        ).decode().rstrip("=")
+        next_cursor = (
+            base64.urlsafe_b64encode(json.dumps(packed, separators=(",", ":")).encode())
+            .decode()
+            .rstrip("=")
+        )
     return Reply(200, {"items": page, "nextCursor": next_cursor, "usage": usage})

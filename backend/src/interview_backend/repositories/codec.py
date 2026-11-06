@@ -188,13 +188,27 @@ def validate(record):
     if isinstance(record, AssistHistory):
         from interview_backend.star_assist.models import ASSIST_TYPES
 
-        if record.assist_type not in ASSIST_TYPES or record.status not in {
-            "QUEUED", "PREPARED", "STARTED", "SUCCEEDED", "NEEDS_INFORMATION",
-            "CANCELLED", "FAILED_BEFORE_START", "FAILED_AFTER_START", "OUTCOME_UNKNOWN",
-        } or not record.question.strip() or len(record.question) > 1000 or (
-            (record.finished_at is None) !=
-            (record.status in {"QUEUED", "PREPARED", "STARTED"})
-        ) or (record.finished_at is not None and record.finished_at < record.created_at):
+        if (
+            record.assist_type not in ASSIST_TYPES
+            or record.status
+            not in {
+                "QUEUED",
+                "PREPARED",
+                "STARTED",
+                "SUCCEEDED",
+                "NEEDS_INFORMATION",
+                "CANCELLED",
+                "FAILED_BEFORE_START",
+                "FAILED_AFTER_START",
+                "OUTCOME_UNKNOWN",
+            }
+            or not record.question.strip()
+            or len(record.question) > 1000
+            or (
+                (record.finished_at is None) != (record.status in {"QUEUED", "PREPARED", "STARTED"})
+            )
+            or (record.finished_at is not None and record.finished_at < record.created_at)
+        ):
             raise StorageFormatError("assist_history")
     if isinstance(record, ProviderUsage) and not re.fullmatch(
         r"\d{4}-(?:0[1-9]|1[0-2])", record.month
