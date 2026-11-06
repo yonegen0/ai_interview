@@ -472,7 +472,11 @@ def test_other_assist_prompt_version_v3_is_reported(mode):
                     "message": {
                         "role": "assistant",
                         "content": [
-                            {"text": json.dumps({"answer": "確認しました。", "missingInformation": []})}
+                            {
+                                "text": json.dumps(
+                                    {"answer": "確認しました。", "missingInformation": []}
+                                )
+                            }
                         ],
                     }
                 },
