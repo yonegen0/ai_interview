@@ -16,6 +16,7 @@ import { alpha, styled } from "@mui/material/styles";
 import { Button } from "@/components/atoms/Button";
 import { Link } from "@/components/atoms/Link";
 import { Dialog } from "@/components/organisms/Dialog";
+import { scaledRadius } from "@/theme/tokens";
 
 const Navigation = styled("nav")(({ theme }) => ({
   display: "flex", alignItems: "center", gap: theme.spacing(2),
@@ -38,7 +39,7 @@ const AccountTrigger = styled(IconButton)(({ theme }) => ({
 const AccountMenu = styled(Menu)(({ theme }) => ({
   "& .MuiPaper-root": {
     minWidth: 250, maxWidth: "calc(100vw - 32px)",
-    borderRadius: theme.shape.borderRadius * 1.3,
+    borderRadius: scaledRadius(theme, 1.3),
     boxShadow: theme.shadows[5],
     padding: theme.spacing(1),
     border: "1px solid " + alpha(theme.palette.primary.main, 0.1),
@@ -117,7 +118,7 @@ export const AccountActionsView = ({
             <RoleHeader>
               <RoleAvatar><AccountCircleOutlinedIcon /></RoleAvatar>
               <div>
-                <Typography fontWeight={700}>{admin ? "管理者" : "一般ユーザー"}</Typography>
+                <Typography variant="body1"><strong>{admin ? "管理者" : "一般ユーザー"}</strong></Typography>
                 <Typography variant="caption" color="text.secondary">ログイン済み</Typography>
               </div>
             </RoleHeader>

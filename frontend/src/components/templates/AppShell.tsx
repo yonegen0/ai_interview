@@ -7,6 +7,7 @@ import { alpha, styled } from "@mui/material/styles";
 import { Link } from "@/components/atoms/Link";
 import { Text } from "@/components/atoms/Text";
 import { AccountActions } from "@/components/molecules/AccountActions";
+import { scaledRadius } from "@/theme/tokens";
 
 const PageContainer = styled("main")(({ theme }) => ({
   width: "min(1040px, calc(100% - 32px))",
@@ -31,7 +32,7 @@ const Frame = styled("div")(({ theme }) => ({
 
 const Bar = styled("header")(({ theme }) => ({
   margin: theme.spacing(2, 2, 0),
-  borderRadius: theme.shape.borderRadius * 1.25,
+  borderRadius: scaledRadius(theme, 1.25),
   background: theme.palette.background.paper,
   boxShadow: theme.shadows[2],
   border: "1px solid " + alpha(theme.palette.primary.main, 0.09),

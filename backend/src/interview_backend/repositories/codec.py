@@ -13,8 +13,8 @@ from boto3.dynamodb.types import TypeDeserializer, TypeSerializer
 from pydantic import BaseModel
 
 from interview_backend.models.internal import (
-    Attempt,
     AssistHistory,
+    Attempt,
     AttemptCoaching,
     CoachingTurn,
     Dispatch,

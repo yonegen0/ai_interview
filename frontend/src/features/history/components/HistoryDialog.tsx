@@ -147,7 +147,7 @@ export function HistoryDialog({ open, onClose, owner }: {
                   </Select>
                 </FormControl>
               </Filters>
-              <Typography fontWeight={700}>最近の練習</Typography>
+              <Typography variant="body1"><strong>最近の練習</strong></Typography>
               <HistoryList
                 items={items}
                 loading={records.isPending}
@@ -176,7 +176,7 @@ export function HistoryDialog({ open, onClose, owner }: {
         scrollContent
         title="履歴の詳細"
         content={selected ? <Details>
-          <Typography fontWeight={700}>{selected.label}</Typography>
+          <Typography variant="body1"><strong>{selected.label}</strong></Typography>
           <Typography variant="caption" color="text.secondary">
             {formatHistoryDate(selected.createdAt)} ・ {historyStatus(selected)}
           </Typography>

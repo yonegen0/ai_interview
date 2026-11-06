@@ -362,7 +362,10 @@ class DynamoDBRepository(DomainRepository):
     def history(self, owner: str, params: dict) -> Reply:
         """Read complete bounded key-prefix ranges; a truncated range is never 'latest'."""
         from interview_backend.repositories.history import (
-            HISTORY_MAX_RECORDS, HISTORY_PAGE_SIZE, build_history, parse_history_query,
+            HISTORY_MAX_RECORDS,
+            HISTORY_PAGE_SIZE,
+            build_history,
+            parse_history_query,
         )
 
         now = self.clock()

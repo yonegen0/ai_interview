@@ -8,17 +8,25 @@ from interview_backend.models.internal import BusinessError, IntegrityError, Rep
 JST = timezone(timedelta(hours=9))
 HISTORY_MAX_RECORDS = 2000
 HISTORY_PAGE_SIZE = 100
-MODES = {"all", "normal", "coaching", "assist", "star", "prep", "motivation", "career_change", "career_plan"}
-PERIODS = {"all", "today", "7d", "30d"}
 ASSIST_MODES = {"star", "prep", "motivation", "career_change", "career_plan"}
+MODES = {"all", "normal", "coaching", "assist"} | ASSIST_MODES
+PERIODS = {"all", "today", "7d", "30d"}
 
 
 def parse_history_query(owner, params, now):
     """A cursor is a position hint, not authorization; owner always comes from JWT."""
     if not isinstance(params, dict) or set(params) - {"mode", "period", "limit", "cursor"}:
         raise BusinessError(400, "VALIDATION_ERROR")
-    mode, period, limit = params.get("mode", "all"), params.get("period", "all"), params.get("limit", "5")
-    if mode not in MODES or period not in PERIODS or not isinstance(limit, str) or not limit.isascii() or not limit.isdecimal():
+    mode = params.get("mode", "all")
+    period = params.get("period", "all")
+    limit = params.get("limit", "5")
+    if (
+        mode not in MODES
+        or period not in PERIODS
+        or not isinstance(limit, str)
+        or not limit.isascii()
+        or not limit.isdecimal()
+    ):
         raise BusinessError(400, "VALIDATION_ERROR")
     count = int(limit)
     if not 1 <= count <= 100:
@@ -31,17 +39,28 @@ def parse_history_query(owner, params, now):
         try:
             padded = cursor + "=" * (-len(cursor) % 4)
             value = json.loads(base64.urlsafe_b64decode(padded).decode("utf-8"))
-            if not isinstance(value, dict) or set(value) != {"owner", "mode", "period", "anchor", "after"}:
+            if not isinstance(value, dict) or set(value) != {
+                "owner", "mode", "period", "anchor", "after"
+            }:
                 raise ValueError("cursor_shape")
             anchor, after = value["anchor"], value["after"]
             if value["owner"] != owner or value["mode"] != mode or value["period"] != period:
                 raise ValueError("cursor_scope")
-            if type(anchor) is not int or not 0 < anchor <= now or not isinstance(after, list) or len(after) != 2:
+            if (
+                type(anchor) is not int or not 0 < anchor <= now
+                or not isinstance(after, list) or len(after) != 2
+            ):
                 raise ValueError("cursor_anchor")
-            if type(after[0]) is not int or not 0 <= after[0] <= anchor or not isinstance(after[1], str) or len(after[1]) > 100 or not after[1]:
+            if (
+                type(after[0]) is not int or not 0 <= after[0] <= anchor
+                or not isinstance(after[1], str) or not 0 < len(after[1]) <= 100
+            ):
                 raise ValueError("cursor_position")
             after = tuple(after)
-        except (ValueError, UnicodeError, TypeError, KeyError, OverflowError, base64.binascii.Error):
+        except (
+            ValueError, UnicodeError, TypeError, KeyError, OverflowError,
+            base64.binascii.Error,
+        ):
             raise BusinessError(400, "VALIDATION_ERROR") from None
     return mode, period, count, anchor, after
 
@@ -63,7 +82,10 @@ def _row_for_attempt(attempt, evaluations, coachings):
         raise IntegrityError("history_missing_coaching")
     evaluation_id = current.current_evaluation_id if current else attempt.evaluation_id
     evaluation = evaluations.get(evaluation_id)
-    if evaluation is None or evaluation.attempt_id != attempt.id or evaluation.owner != attempt.owner:
+    if (
+        evaluation is None or evaluation.attempt_id != attempt.id
+        or evaluation.owner != attempt.owner
+    ):
         raise IntegrityError("history_evaluation_relation")
     if (evaluation.coaching_contract_version == 2) != coaching:
         raise IntegrityError("history_evaluation_version")
@@ -115,8 +137,10 @@ def build_history(owner, params, now, attempts, evaluations, coachings, summarie
         rows.extend(_row_for_attempt(v, evaluation_by_id, coaching_by_id) for v in attempts)
     if mode in {"all", "assist"} | ASSIST_MODES:
         # Live generation details win for pending states; the durable summary wins after TTL.
-        by_id = {v.id: _row_for_assist(v) for v in generations
-                 if v.expires_at is None or v.expires_at * 1000 > now}
+        by_id = {
+            v.id: _row_for_assist(v) for v in generations
+            if v.expires_at is None or v.expires_at * 1000 > now
+        }
         for v in summaries:
             if v.id in by_id and by_id[v.id]["status"] in {"QUEUED", "PREPARED", "STARTED"}:
                 live_status = by_id[v.id]["status"]
@@ -134,8 +158,14 @@ def build_history(owner, params, now, attempts, evaluations, coachings, summarie
     rows.sort(key=lambda r: (r["createdAt"], r["id"]), reverse=True)
     usage = None
     if mode == "all" and period == "all":
-        normal = [r["score"] for r in rows if r["kind"] == "normal" and r["status"] == "completed"]
-        coaching = [r["score"] for r in rows if r["kind"] == "coaching" and r["status"] == "completed"]
+        normal = [
+            r["score"] for r in rows
+            if r["kind"] == "normal" and r["status"] == "completed"
+        ]
+        coaching = [
+            r["score"] for r in rows
+            if r["kind"] == "coaching" and r["status"] == "completed"
+        ]
         usage = {
             "practiceAttempts": sum(r["kind"] != "assist" for r in rows),
             "evaluatedAttempts": len(normal) + len(coaching),
@@ -150,5 +180,7 @@ def build_history(owner, params, now, attempts, evaluations, coachings, summarie
     if len(rows) > limit:
         position = [page[-1]["createdAt"], page[-1]["id"]]
         packed = {"owner": owner, "mode": mode, "period": period, "anchor": anchor, "after": position}
-        next_cursor = base64.urlsafe_b64encode(json.dumps(packed, separators=(",", ":")).encode()).decode().rstrip("=")
+        next_cursor = base64.urlsafe_b64encode(
+            json.dumps(packed, separators=(",", ":")).encode()
+        ).decode().rstrip("=")
     return Reply(200, {"items": page, "nextCursor": next_cursor, "usage": usage})
