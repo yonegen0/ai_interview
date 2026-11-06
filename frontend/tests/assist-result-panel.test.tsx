@@ -107,7 +107,9 @@ it("keeps the result and selected B after cancelling overwrite", async () => {
   expect(screen.getByText("入力中の回答を置き換えますか？"))
     .toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "キャンセル" }));
-  expect(screen.getByRole("dialog", { name: "成果物" })).toBeInTheDocument();
+  await waitFor(() =>
+    expect(screen.getByRole("dialog", { name: "成果物" })).toBeInTheDocument(),
+  );
   expect(apply).not.toHaveBeenCalled();
 });
 
