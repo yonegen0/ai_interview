@@ -1,5 +1,5 @@
 /** @file assist-result-panel.test.tsx @description 新規生成だけの自動表示、確認キャンセルと反映失敗時の成果物保持。 */
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ThemeProvider } from "@mui/material/styles";
 import { useForm, useWatch } from "react-hook-form";
 import { beforeEach, expect, it, vi } from "vitest";
@@ -45,7 +45,6 @@ vi.mock("@/features/starAssist/components/organisms/AssistResultDialog", () => (
   ) : null,
 }));
 
-let publish!: () => void;
 function Harness({ restored = false, hasAnswer = false, waiting = false }: {
   restored?: boolean;
   hasAnswer?: boolean;
@@ -57,10 +56,6 @@ function Harness({ restored = false, hasAnswer = false, waiting = false }: {
       : emptyStarInput(),
   });
   const input = useWatch({ control: form.control }) as StarInput;
-  publish = () => {
-    form.setValue("generationId", generatedId, { shouldDirty: true });
-    form.setValue("candidates", candidates, { shouldDirty: true });
-  };
   const workspace = {
     input, form, mode: "star", loading: false, busy: false, pending: false,
     status: "保存済", error: null, migrationWarning: null, savedPreview: null,
@@ -69,6 +64,10 @@ function Harness({ restored = false, hasAnswer = false, waiting = false }: {
   } as unknown as StarWorkspace;
   return (
     <ThemeProvider theme={theme}>
+      <button type="button" data-testid="publish-result" onClick={() => {
+        form.setValue("generationId", generatedId, { shouldDirty: true });
+        form.setValue("candidates", candidates, { shouldDirty: true });
+      }}>モック生成完了</button>
       <StarAssistPanel workspace={workspace} hasAnswer={hasAnswer} />
     </ThemeProvider>
   );
@@ -83,7 +82,7 @@ it("automatically shows only the newly requested generation once", async () => {
   render(<Harness />);
   fireEvent.click(screen.getByRole("button", { name: /STARアシスト/ }));
   fireEvent.click(screen.getByRole("button", { name: "新規生成を開始" }));
-  act(() => publish());
+  fireEvent.click(screen.getByTestId("publish-result"));
   await waitFor(() => expect(screen.getByRole("dialog", { name: "成果物" })).toBeInTheDocument());
   expect(screen.queryByRole("dialog", { name: "入力画面" })).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "成果物を閉じる" }));
