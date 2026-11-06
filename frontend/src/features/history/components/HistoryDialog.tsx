@@ -99,7 +99,8 @@ export function HistoryDialog({ open, onClose, owner }: {
   const [period, setPeriod] = useState<HistoryPeriod>("all");
   const [selected, setSelected] = useState<HistoryItem | null>(null);
   useEffect(() => { if (!open) setSelected(null); }, [open, owner]);
-  const { records, usage, quota } = useHistory(owner, open, mode, period);
+  const { records, usage, quota } = useHistory(owner, open, mode, period, tab);
+  const reuseRecords = mode === "all" && period === "all";
   const items = records.data?.pages.flatMap((page) => page.items) ?? [];
   const detail = useQuery({
     queryKey: [owner, "history-feedback", selected?.attemptId, selected?.evaluationId],
@@ -161,9 +162,11 @@ export function HistoryDialog({ open, onClose, owner }: {
             </>
           ) : (
             <UsagePanel owner={owner} open={open}
-              data={usage.data} loading={usage.isPending} error={usage.error}
+              data={reuseRecords ? records.data?.pages[0] : usage.data}
+              loading={reuseRecords ? records.isPending : usage.isPending}
+              error={reuseRecords ? records.error : usage.error}
               quota={quota.data} quotaLoading={quota.isPending} quotaError={quota.error}
-              retry={() => { void usage.refetch(); }}
+              retry={() => { void (reuseRecords ? records.refetch() : usage.refetch()); }}
               retryQuota={() => { void quota.refetch(); }} />
           )}
         </Container>}
@@ -182,7 +185,8 @@ export function HistoryDialog({ open, onClose, owner }: {
           </Typography>
           {selected.kind === "assist" ?
             <Alert severity="info">
-              {assistLabels[selected.assistType!]}アシストの生成履歴です。生成候補本文は7日間の保存期間終了後に閲覧できなくなります。
+              利用したモード：{assistLabels[selected.assistType!]}アシスト。
+              この画面では、回答アシストの利用履歴と生成状態を確認できます。生成した回答候補の本文は表示されません。
               この生成に評価点は付きません。
             </Alert> :
             selected.status !== "completed" ?

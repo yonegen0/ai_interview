@@ -1078,3 +1078,88 @@ def test_session_budget_retry_keeps_request_start_month_across_midnight(monkeypa
         "2026-09",
         "2026-10",
     }
+
+
+class HistoryPagesClient:
+    """Offline DynamoDB Query pages over an owner-keyed snapshot."""
+
+    def __init__(self, items, page_size=1):
+        self.items = items
+        self.page_size = page_size
+        self.queries = []
+
+    def query(self, **request):
+        self.queries.append(request)
+        assert request["ConsistentRead"] is True
+        values = from_wire(request["ExpressionAttributeValues"])
+        owner, prefix = values[":owner"], values[":prefix"]
+        after = (
+            from_wire(request["ExclusiveStartKey"])["SK"] if "ExclusiveStartKey" in request else ""
+        )
+        matches = sorted(
+            (item_key, data)
+            for item_key, data in self.items.items()
+            if item_key[0] == owner and item_key[1].startswith(prefix) and item_key[1] > after
+        )
+        page = matches[: min(self.page_size, request["Limit"])]
+        response = {"Items": [data for _, data in page]}
+        if len(matches) > len(page):
+            response["LastEvaluatedKey"] = to_wire({"PK": page[-1][0][0], "SK": page[-1][0][1]})
+        return response
+
+
+def history_snapshot_with_equal_timestamps():
+    memory, *_ = prepared()
+    records = memory.snapshot()
+    first = next(iter(records.attempts.values()))
+    evaluation = next(iter(records.evaluations.values()))
+    other_attempt = replace(first, id=uid(881), evaluation_id=uid(882))
+    other_evaluation = replace(evaluation, id=uid(882), attempt_id=uid(881))
+    foreign_attempt = replace(first, owner="other-user", id=uid(883), evaluation_id=uid(884))
+    foreign_evaluation = replace(evaluation, owner="other-user", id=uid(884), attempt_id=uid(883))
+    items = snapshot(memory)
+    for kind, record in (
+        ("Attempt", other_attempt),
+        ("Evaluation", other_evaluation),
+        ("Attempt", foreign_attempt),
+        ("Evaluation", foreign_evaluation),
+    ):
+        item = encode(kind, record, 0)
+        items[(item["PK"], item["SK"])] = to_wire(item)
+    return items, first.id, other_attempt.id
+
+
+def test_history_query_paginates_with_stable_timestamp_ties_and_owner_scope():
+    items, first_id, other_id = history_snapshot_with_equal_timestamps()
+    client = HistoryPagesClient(items)
+    repository = db(client)
+    first = repository.history(OWNER, {"limit": "1"}).body
+    second = repository.history(OWNER, {"limit": "1", "cursor": first["nextCursor"]}).body
+    assert [row["attemptId"] for row in first["items"] + second["items"]] == sorted(
+        [first_id, other_id], reverse=True
+    )
+    assert second["nextCursor"] is None
+    assert (
+        len(
+            [
+                q
+                for q in client.queries
+                if from_wire(q["ExpressionAttributeValues"])[":prefix"] == "ATTEMPT#"
+            ]
+        )
+        >= 4
+    )
+    assert all(
+        from_wire(q["ExpressionAttributeValues"])[":owner"] == f"USER#{OWNER}"
+        for q in client.queries
+    )
+    assert first["usage"]["practiceAttempts"] == 2
+
+
+def test_history_query_rejects_truncated_search(monkeypatch):
+    monkeypatch.setattr("interview_backend.repositories.history.HISTORY_MAX_RECORDS", 1)
+    items, _, _ = history_snapshot_with_equal_timestamps()
+    with pytest.raises(BusinessError) as limit:
+        db(HistoryPagesClient(items)).history(OWNER, {})
+    assert limit.value.status == 503
+    assert limit.value.code == "HISTORY_SEARCH_LIMIT"
