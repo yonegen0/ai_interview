@@ -15,6 +15,7 @@ import {
   starDraftSchema,
   starResultSchema,
   generationSchema,
+  assistModeSchema,
   starReceiptSchema,
   starValue,
   countStarNotes,
@@ -89,6 +90,15 @@ export const starStateSchema = z.object({
     }),
   ),
   generations: z.record(z.string(), generationRecord),
+  // Durable history metadata survives generation-body expiry and older V3 snapshots.
+  historySummaries: z.record(z.string(), z.object({
+    owner: z.string(),
+    generationId: idSchema,
+    question: z.string(),
+    assistType: assistModeSchema,
+    createdAt: z.number(),
+    status: generationSchema.shape.status,
+  })).default({}),
   applications: z.record(z.string(), applicationSchema),
   requests: z.record(
     z.string(),
@@ -126,6 +136,7 @@ export const emptyStarState = (): StarState => ({
   answers: {},
   drafts: {},
   generations: {},
+  historySummaries: {},
   applications: {},
   requests: {},
   quotas: {},
@@ -276,6 +287,8 @@ function terminal(
     job.quotaState = "released";
   }
   job.status = status;
+  if (state.star.historySummaries[job.generationId])
+    state.star.historySummaries[job.generationId].status = status;
   job.leaseUntil = null;
   job.executionId = null;
   job.expiresAt = Math.floor(now / 1000) + 7 * DAY;
@@ -411,6 +424,8 @@ export function startStarJob(
   job.callStarted = true;
   job.quotaState = "consumed";
   job.status = "STARTED";
+  if (state.star.historySummaries[job.generationId])
+    state.star.historySummaries[job.generationId].status = "STARTED";
   job.executionId = crypto.randomUUID();
   job.leaseUntil = now + 60000;
   return structuredClone(job);
@@ -782,6 +797,10 @@ export function starRoute(
         leaseUntil: null,
         executionId: null,
         expiresAt: null,
+      };
+      state.star.historySummaries[generationId] = {
+        owner, generationId, question: context.question,
+        assistType: draftMode, createdAt: now, status: "QUEUED",
       };
       return { status: 202, body: { generationId, status: "QUEUED" } };
     }
