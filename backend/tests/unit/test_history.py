@@ -1,7 +1,6 @@
 """Bounded owner-scoped history tests; no real AWS or AI calls."""
 
 from types import SimpleNamespace
-from uuid import UUID
 
 import pytest
 
@@ -16,7 +15,7 @@ NOW = 1789084800000
 
 
 def uid(index):
-    return str(UUID(int=index))
+    return f"10000000-0000-4000-8000-{index:012d}"
 
 
 def attempt(index, created=NOW - 1000, owner=OWNER, v2=False):
