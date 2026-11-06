@@ -1,5 +1,9 @@
 /** @file history-ui.test.tsx @description 履歴の型・0点・JST表示とメニュー操作。 */
 import { fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
+import { AccountManagementDialog, maskAccountId } from "@/components/organisms/AccountManagementDialog";
+import { AccountActions } from "@/components/organisms/AccountActions";
+import { HistoryDialog } from "@/features/history/components/HistoryDialog";
+import { useAccountActions } from "@/hooks/useAccountActions";
 import { ThemeProvider } from "@mui/material/styles";
 import { expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -14,6 +18,7 @@ import type { HistoryMode, HistoryPeriod } from "@/lib/api/schemas/history";
 
 vi.mock("@/lib/api/history", () => ({ getHistory: vi.fn() }));
 vi.mock("@/lib/api/star", () => ({ getQuota: vi.fn() }));
+vi.mock("@/hooks/useAccountActions", () => ({ useAccountActions: vi.fn() }));
 import { AccountActionsView } from "@/components/molecules/AccountActionsView";
 import { HistoryList, formatHistoryDate } from "@/features/history/components/HistoryList";
 import { historyResponseSchema, type HistoryItem } from "@/lib/api/schemas/history";
@@ -151,4 +156,92 @@ it("retains mock assist history after TTL but refuses expired generation details
   expect(mockHistory(state, "owner-b", { mode: "assist" }, now).items).toHaveLength(0);
   expect(() => starRoute(state, "owner-a", "GET",
     `/star-assist/generations/${id}`, null, null, now)).toThrow();
+});
+
+
+it("masks user IDs without revealing short identifiers", () => {
+  expect(maskAccountId(null)).toBe("未取得");
+  expect(maskAccountId("abc")).toBe("••••••");
+  expect(maskAccountId("1234567890")).toBe("12••••••90");
+  expect(maskAccountId(id)).toBe("1000••••••••0001");
+});
+
+it("shows account identity, accurate phase and actions in the glass dialog", () => {
+  const onLogout = vi.fn();
+  const onHistory = vi.fn();
+  const { rerender } = render(
+    <AccountManagementDialog open admin sub={id} phase="refreshing"
+      onClose={vi.fn()} onHistory={onHistory} onLogout={onLogout} />, { wrapper },
+  );
+  expect(screen.getByRole("dialog", { name: "アカウント管理" })).toBeInTheDocument();
+  expect(screen.getByText("管理者アカウント")).toBeInTheDocument();
+  expect(screen.getByText("確認中")).toBeInTheDocument();
+  expect(screen.queryByText("認証済み")).not.toBeInTheDocument();
+  expect(screen.queryByText(id)).not.toBeInTheDocument();
+  rerender(<ThemeProvider theme={theme}><AccountManagementDialog open admin={false}
+    sub={id} phase="authenticated" onClose={vi.fn()}
+    onHistory={onHistory} onLogout={onLogout} /></ThemeProvider>);
+  expect(screen.getByText("一般ユーザー")).toBeInTheDocument();
+  expect(screen.getByText("認証済み")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "利用履歴" }));
+  fireEvent.click(screen.getByRole("button", { name: "利用状況" }));
+  expect(onHistory).toHaveBeenNthCalledWith(1, 0);
+  expect(onHistory).toHaveBeenNthCalledWith(2, 1);
+  fireEvent.click(screen.getByRole("button", { name: "ログアウト" }));
+  expect(onLogout).toHaveBeenCalledTimes(1);
+});
+
+it("reports copy success only after clipboard resolves and errors on failure", async () => {
+  const writeText = vi.fn().mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error("denied"));
+  Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+  render(<AccountManagementDialog open admin={false} sub={id} phase="authenticated"
+    onClose={vi.fn()} onHistory={vi.fn()} onLogout={vi.fn()} />, { wrapper });
+  const copy = screen.getByRole("button", { name: "ユーザーIDをコピー" });
+  fireEvent.click(copy);
+  await waitFor(() => expect(screen.getByText("ユーザーIDをコピーしました。")).toBeInTheDocument());
+  expect(writeText).toHaveBeenCalledWith(id);
+  fireEvent.click(copy);
+  await waitFor(() => expect(screen.getByText("ユーザーIDをコピーできませんでした。")).toBeInTheDocument());
+});
+
+it("disables copying when an ID is unavailable", () => {
+  render(<AccountManagementDialog open admin={false} sub={null} phase="restoring"
+    onClose={vi.fn()} onHistory={vi.fn()} onLogout={vi.fn()} />, { wrapper });
+  expect(screen.getByRole("button", { name: "ユーザーIDをコピー" })).toBeDisabled();
+  expect(screen.getByText("未取得")).toBeInTheDocument();
+});
+
+it("opens history after account dialog exit and retains admin navigation", async () => {
+  const onHistory = vi.fn();
+  const onLogout = vi.fn();
+  vi.mocked(useAccountActions).mockReturnValue({
+    authenticated: true, admin: true, sub: id, phase: "authenticated", onLogout,
+  });
+  render(<AccountActions onHistory={onHistory} />, { wrapper });
+  expect(screen.getByRole("link", { name: "質問管理" })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "アカウントメニュー" }));
+  fireEvent.click(screen.getByRole("menuitem", { name: "アカウント管理" }));
+  expect(screen.getByRole("dialog", { name: "アカウント管理" })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "利用状況" }));
+  await waitFor(() => expect(onHistory).toHaveBeenCalledWith(1));
+  expect(screen.queryByRole("dialog", { name: "アカウント管理" })).not.toBeInTheDocument();
+  expect(onLogout).not.toHaveBeenCalled();
+});
+
+it("opens the requested history tab and keeps manual tab switching", async () => {
+  vi.mocked(getHistory).mockResolvedValue({ items: [], nextCursor: null, usage: completeUsage });
+  vi.mocked(getQuota).mockResolvedValue(quotaSnapshot);
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const allProviders = ({ children }: { children: React.ReactNode }) => (
+    <ThemeProvider theme={theme}><QueryClientProvider client={client}>
+      {children}
+    </QueryClientProvider></ThemeProvider>
+  );
+  const { unmount } = render(<HistoryDialog open owner="owner-a" initialTab={1}
+    onClose={vi.fn()} />, { wrapper: allProviders });
+  expect(screen.getByRole("tab", { name: "利用状況" })).toHaveAttribute("aria-selected", "true");
+  fireEvent.click(screen.getByRole("tab", { name: "練習履歴" }));
+  expect(screen.getByRole("tab", { name: "練習履歴" })).toHaveAttribute("aria-selected", "true");
+  unmount();
+  client.clear();
 });
