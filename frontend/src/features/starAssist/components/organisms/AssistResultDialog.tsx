@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import AutoAwesomeOutlinedIcon from "@mui/icons-material/AutoAwesomeOutlined";
 import ArrowBackIosNewIcon from "@mui/icons-material/ArrowBackIosNew";
 import ArrowForwardIosIcon from "@mui/icons-material/ArrowForwardIos";
-import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
+import CheckIcon from "@mui/icons-material/Check";
 import CloseIcon from "@mui/icons-material/Close";
 import ContentCopyOutlinedIcon from "@mui/icons-material/ContentCopyOutlined";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
@@ -277,7 +277,7 @@ export function AssistResultDialog({ open, workspace: w, applying, onClose, onBa
                 disabled={applying || w.busy || w.pending}>
                 {editingId === candidate.id ? "編集を終える" : "編集する"}
               </Button>
-              <Button type="button" variant="contained" startIcon={<CheckCircleOutlineIcon />}
+              <Button type="button" variant="contained" startIcon={<CheckIcon />}
                 disabled={disabled} onClick={() => onApply(candidate.id)}>
                 この回答を使う
               </Button>
