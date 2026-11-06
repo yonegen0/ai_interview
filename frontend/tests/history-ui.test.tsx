@@ -74,8 +74,9 @@ const quotaSnapshot = {
   global: { consumed: 1, reserved: 0, remaining: 599 },
 };
 const queryWrapper = (client: QueryClient) =>
-  ({ children }: { children: React.ReactNode }) =>
-    <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  function QueryWrapper({ children }: { children: React.ReactNode }) {
+    return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  };
 
 it("reuses complete all-period history usage without a duplicate API request", async () => {
   vi.clearAllMocks();
