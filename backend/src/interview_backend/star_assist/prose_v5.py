@@ -29,9 +29,11 @@ class ProseV5Reply(Strict):
 
 _NUMBER = re.compile(r"\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?")
 _CHANGE = re.compile(
-    r"(\d+(?:\.\d+)?)\s*(?:品|件|人|社|個|円|点|%|％)?\s*"
-    r"(?:から|→|⇒)\s*(\d+(?:\.\d+)?)"
+    r"(?<![\d,])(?P<start>\d[\d,]*(?:\.\d+)?)\s*"
+    r"(?P<start_unit>品|件|人|社|個|円|点|%)?\s*(?:から|→|⇒)\s*"
+    r"(?P<end>\d[\d,]*(?:\.\d+)?)\s*(?P<end_unit>品|件|人|社|個|円|点|%)?"
 )
+_NO_ACTION = frozenset({"特になし", "何もしていない", "一切行っていない", "行動は不明"})
 _OPPOSITES = (
     ("しなかった", "しました"),
     ("しませんでした", "しました"),
@@ -50,15 +52,65 @@ def _numbers(value: str) -> set[str]:
     return {m.group().replace(",", "") for m in _NUMBER.finditer(_normalized(value))}
 
 
+def missing_action(notes: dict[str, str]) -> bool:
+    """Reject only an empty A field or an unambiguous whole-field non-action."""
+    action = _normalized(notes.get("A", "")).strip().strip("・-*。.!?？ \t\r\n")
+    return not action or action in _NO_ACTION
+
+
+def _changes(value: str) -> list[tuple[str, str, str, str]]:
+    return [
+        (
+            match["start"].replace(",", ""),
+            match["start_unit"] or "",
+            match["end"].replace(",", ""),
+            match["end_unit"] or "",
+        )
+        for match in _CHANGE.finditer(value)
+    ]
+
+
+def _compatible(unit: str, original_unit: str) -> bool:
+    return not unit or not original_unit or unit == original_unit
+
+
 def _unsafe_claim(text: str, notes: dict[str, str]) -> bool:
-    """Reject new numbers, explicit reversed changes and clear negation flips."""
+    """Reject new numbers, unambiguous incorrect change pairs and negation flips."""
     original = _normalized("\n".join(notes.values()))
     normalized = _normalized(text)
     if _numbers(normalized) - _numbers(original):
         return True
-    original_pairs = {(a, b) for a, b in _CHANGE.findall(original) if a != b}
-    if any((b, a) in original_pairs for a, b in _CHANGE.findall(normalized)):
-        return True
+    original_pairs = _changes(original)
+    for start, start_unit, end, end_unit in _changes(normalized):
+        if any(
+            start == ref_start
+            and end == ref_end
+            and _compatible(start_unit, ref_start_unit)
+            and _compatible(end_unit, ref_end_unit)
+            for ref_start, ref_start_unit, ref_end, ref_end_unit in original_pairs
+        ):
+            continue
+        # Do not infer relationships from number order or unspecified units.
+        # A unique explicit source anchor is needed to identify a wrong pairing.
+        from_matches = [
+            pair
+            for pair in original_pairs
+            if (pair[1] or pair[3])
+            and pair[0] == start
+            and _compatible(start_unit, pair[1])
+        ]
+        to_matches = [
+            pair
+            for pair in original_pairs
+            if (pair[1] or pair[3])
+            and pair[2] == end
+            and _compatible(end_unit, pair[3])
+        ]
+        if len(from_matches) == 1 or len(to_matches) == 1:
+            return True
+        # Retain the previous exact reversed-change protection.
+        if any(start == b and end == a and a != b for a, _, b, _ in original_pairs):
+            return True
     for sentence in re.split(r"[。\n]", original):
         trimmed = sentence.strip().lstrip("・-* ").strip()
         for negative, positive in _OPPOSITES:
@@ -72,9 +124,7 @@ def _unsafe_claim(text: str, notes: dict[str, str]) -> bool:
 def validate_prose_v5(raw: object, value) -> tuple[StarResult, str | None, bool]:
     """Salvage only independently validated candidates; never replay AI output."""
     notes = value.notes.model_dump()
-    if not notes["A"].strip() or any(
-        marker in notes["A"] for marker in ("一切行っていない", "何もしていない")
-    ):
+    if missing_action(notes):
         return clarify("action"), "INPUT_ACTION_MISSING", False
     if contradictory(notes):
         return clarify("conflict"), "INPUT_CONFLICT", False
@@ -106,7 +156,7 @@ def validate_prose_v5(raw: object, value) -> tuple[StarResult, str | None, bool]
     )
     safe: dict[str, Candidate] = {}
     repaired = False
-    if raw.get("status") == "ready" and raw.get("missingInformation") == []:
+    if raw.get("status") == "ready" and raw.get("missingInformation", []) == []:
         for entry in entries[:12]:
             if not isinstance(entry, dict):
                 continue
