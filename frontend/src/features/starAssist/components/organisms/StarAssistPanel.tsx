@@ -1,7 +1,7 @@
-/** @file StarAssistPanel.tsx @description STAR起動カードと保存・競合復旧操作をまとめる。 */
+/** @file StarAssistPanel.tsx @description アシスト入力・成果物・上書き確認を排他的に管理する。 */
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import AutoAwesomeOutlinedIcon from "@mui/icons-material/AutoAwesomeOutlined";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import { Alert } from "@mui/material";
@@ -13,6 +13,12 @@ import { Dialog } from "@/components/organisms/Dialog";
 import type { StarWorkspace } from "../../hooks/useStarWorkspace";
 import { assistModes } from "../../model/steps";
 import { StarAssistDialog } from "./StarAssistDialog";
+import { AssistResultDialog } from "./AssistResultDialog";
+
+type View = "closed" | "input" | "result" | "confirm";
+type ReturnView = Exclude<View, "confirm">;
+type Confirmation = "apply" | "load" | "mine" | "discardStar";
+type CandidateId = "A" | "B" | "C";
 
 const Area = styled("section")(({ theme }) => ({
   display: "grid",
@@ -70,24 +76,93 @@ export function StarAssistPanel({
   workspace: StarWorkspace;
   hasAnswer: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const [view, setView] = useState<View>("closed");
+  const viewRef = useRef<View>("closed");
+  const setScreen = (next: View) => {
+    viewRef.current = next;
+    setView(next);
+  };
+  const [confirm, setConfirm] = useState<Confirmation | null>(null);
+  const returnView = useRef<ReturnView>("closed");
+  const candidateToApply = useRef<CandidateId | null>(null);
+  const [requestedGenerationId, setRequestedGenerationId] = useState<string | null>(null);
+  const [applying, setApplying] = useState(false);
+  const applyLock = useRef(false);
   const meta = assistModes[w.mode];
-  const [confirm, setConfirm] = useState<
-    "apply" | "load" | "mine" | "discardStar" | null
-  >(null);
 
-  const apply = () => {
-    if (hasAnswer) setConfirm("apply");
-    else {
-      setOpen(false);
-      void w.apply();
+  useEffect(() => {
+    if (view !== "input" || !requestedGenerationId ||
+      w.input.generationId !== requestedGenerationId || w.resultWaiting ||
+      w.input.candidates.length !== (w.mode === "star" ? 3 : 1)) return;
+    setRequestedGenerationId(null);
+    setScreen("result");
+  }, [view, requestedGenerationId, w.input.generationId, w.input.candidates.length, w.resultWaiting, w.mode]);
+
+  const close = () => {
+    if (applyLock.current) return;
+    setRequestedGenerationId(null);
+    setScreen("closed");
+  };
+  const startConfirmation = (kind: Confirmation, candidateId?: CandidateId) => {
+    returnView.current = viewRef.current === "confirm" ? "closed" : viewRef.current;
+    candidateToApply.current = candidateId ?? null;
+    setConfirm(kind);
+    setScreen("confirm");
+  };
+  const cancelConfirmation = () => {
+    setConfirm(null);
+    candidateToApply.current = null;
+    setScreen(returnView.current);
+  };
+  const commitApply = async (id: CandidateId) => {
+    if (applyLock.current) return;
+    applyLock.current = true;
+    setApplying(true);
+    let applied = false;
+    try {
+      applied = await w.apply(id);
+    } finally {
+      applyLock.current = false;
+      setApplying(false);
+      setRequestedGenerationId(null);
+      setScreen(applied ? "closed" : "result");
     }
+  };
+  const requestApply = (id: CandidateId) => {
+    if (!w.input.candidates.some((candidate) => candidate.id === id) || applyLock.current) return;
+    if (hasAnswer) startConfirmation("apply", id);
+    else void commitApply(id);
+  };
+  const acceptWaiting = () => {
+    if (w.adopt()) {
+      setRequestedGenerationId(null);
+      setScreen("result");
+    }
+  };
+  const submitConfirmation = async () => {
+    const kind = confirm;
+    const id = candidateToApply.current;
+    if (!kind) return;
+    setConfirm(null);
+    candidateToApply.current = null;
+    if (kind === "apply") {
+      if (!id) {
+        setScreen("result");
+        return;
+      }
+      await commitApply(id);
+      return;
+    }
+    setScreen(returnView.current);
+    if (kind === "mine") void w.saveMine();
+    else if (kind === "discardStar") void w.discardStar();
+    else void w.loadSaved();
   };
 
   return (
     <Area aria-label={"回答の保存と" + meta.label}>
-      <Trigger type="button" onClick={() => setOpen(true)}
-        aria-haspopup="dialog" aria-expanded={open}>
+      <Trigger type="button" onClick={() => setScreen("input")}
+        aria-haspopup="dialog" aria-expanded={view !== "closed"}>
         <Icon aria-hidden="true" />
         <TriggerCopy>
           <TriggerTitle>{meta.label}</TriggerTitle>
@@ -114,10 +189,10 @@ export function StarAssistPanel({
               <Button type="button" onClick={() => void w.inspectSaved()}>
                 保存版を確認
               </Button>
-              <Button type="button" onClick={() => setConfirm("load")}>
+              <Button type="button" onClick={() => startConfirmation("load")}>
                 保存版を読み込む
               </Button>
-              <Button type="button" onClick={() => setConfirm("mine")}
+              <Button type="button" onClick={() => startConfirmation("mine")}
                 disabled={w.pending || w.busy}>
                 自分の内容を保存
               </Button>
@@ -130,15 +205,30 @@ export function StarAssistPanel({
         </Actions>
       )}
       <StarAssistDialog
-        open={open}
-        onClose={() => setOpen(false)}
+        open={view === "input"}
+        onClose={close}
         workspace={w}
-        onApply={apply}
-        onDiscard={() => setConfirm("discardStar")}
+        onGenerationQueued={(id) => {
+          if (viewRef.current === "input") setRequestedGenerationId(id);
+        }}
+        onAdopt={acceptWaiting}
+        onViewResult={() => {
+          setRequestedGenerationId(null);
+          setScreen("result");
+        }}
+        onDiscard={() => startConfirmation("discardStar")}
+      />
+      <AssistResultDialog
+        open={view === "result"}
+        onClose={close}
+        onBack={() => setScreen("input")}
+        onApply={requestApply}
+        applying={applying}
+        workspace={w}
       />
       <Dialog
-        open={confirm !== null}
-        onClose={() => setConfirm(null)}
+        open={view === "confirm" && confirm !== null}
+        onClose={cancelConfirmation}
         title={
           confirm === "apply" ? "入力中の回答を置き換えますか？"
             : confirm === "discardStar" ? meta.label + "の下書きを破棄しますか？"
@@ -157,19 +247,8 @@ export function StarAssistPanel({
         }
         actions={
           <>
-            <Button type="button" onClick={() => setConfirm(null)}>
-              キャンセル
-            </Button>
-            <Button type="button" onClick={() => {
-              if (confirm === "apply") {
-                setOpen(false);
-                void w.apply();
-              }
-              else if (confirm === "mine") void w.saveMine();
-              else if (confirm === "discardStar") void w.discardStar();
-              else void w.loadSaved();
-              setConfirm(null);
-            }}>
+            <Button type="button" onClick={cancelConfirmation}>キャンセル</Button>
+            <Button type="button" onClick={() => void submitConfirmation()}>
               {confirm === "mine" ? "確認して保存"
                 : confirm === "discardStar" ? "破棄する" : "置き換える"}
             </Button>
