@@ -133,10 +133,12 @@ test("T15 application response cannot replace typing during apply", async ({
     "確認前の既存入力です。",
   );
   await page.getByRole("button", { name: "この回答を使う" }).click();
+  // Listen for the actual application request instead of racing an ephemeral "保存中" label.
+  const applicationRequest = page.waitForRequest(
+    (request) => request.method() === "POST" && request.url().includes("/applications"),
+  );
   await page.getByRole("button", { name: "置き換える", exact: true }).click();
-  await expect(
-    page.getByRole("status").filter({ hasText: "下書き：" }),
-  ).toContainText("保存中");
+  await applicationRequest;
   await page
     .getByLabel("あなたの回答")
     .fill("反映の通信中に本人が入力した内容です。", { force: true });
