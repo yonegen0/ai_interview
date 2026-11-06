@@ -129,13 +129,16 @@ class MemoryRepository(DomainRepository):
             )
 
     def history(self, owner: str, params: dict) -> Reply:
-        from interview_backend.repositories.history import build_history, HISTORY_MAX_RECORDS
+        from interview_backend.repositories.history import HISTORY_MAX_RECORDS, build_history
 
         with self._lock:
             kinds = (
                 self._state.attempts.values(), self._state.evaluations.values(),
                 self._state.coachings.values(), self._state.assist_histories.values(),
-                (v for v in self._state.star_records.values() if type(v).__name__ == "StarGeneration"),
+                (
+                    v for v in self._state.star_records.values()
+                    if type(v).__name__ == "StarGeneration"
+                ),
             )
             collected = []
             for values in kinds:
