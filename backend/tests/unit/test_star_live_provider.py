@@ -323,7 +323,7 @@ def test_other_assist_model_missing_information_is_diagnostic_only(mode):
     assert result.status == "needs_information"
     assert provider.last_reason_code == "MODEL_REQUESTED_INFORMATION"
     assert provider.last_fallback_used is False
-    assert provider.last_prompt_version == "answer_assist_v2"
+    assert provider.last_prompt_version == "answer_assist_v3"
     assert "具体例" in result.missingInformation[0]
     assert "経験" not in result.missingInformation[0]
 
