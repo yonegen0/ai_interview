@@ -295,8 +295,7 @@ def test_explicit_numeric_relationships_only_reject_clear_mispairing(text, rejec
         "S": "",
         "T": "",
         "A": "商品の配置を変えた。",
-        "R": "取扱商品120品から95品、前年比98％から103％。"
-        "件数1,200件から950件。",
+        "R": "取扱商品120品から95品、前年比98％から103％。件数1,200件から950件。",
     }
     assert _unsafe_claim(text, facts) is rejected
 
