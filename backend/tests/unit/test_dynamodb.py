@@ -424,6 +424,7 @@ def test_star_generation_stubber_atomic_quota_dispatch_and_context(sdk):
     ]
     assert {item["kind"] for item in put_records} == {
         "StarGeneration",
+        "AssistHistory",
         "StarRequest",
         "Dispatch",
         "AnswerContext",
