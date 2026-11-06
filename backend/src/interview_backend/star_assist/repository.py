@@ -7,6 +7,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from interview_backend.models.internal import (
+    AssistHistory,
     BusinessError,
     DeliveryClaim,
     DeliveryResult,
@@ -539,6 +540,17 @@ class StarRepositoryMixin:
         context.active_generation_id = job.id
         tx.put(ref("AnswerContext", owner, context.id), context)
         tx.new(ref("StarGeneration", owner, job.id), job)
+        tx.new(
+            ref("AssistHistory", owner, job.id),
+            AssistHistory(
+                owner,
+                job.id,
+                context.question_id,
+                context.question,
+                row.value.assistType,
+                now,
+            ),
+        )
         tx.new(ref("Dispatch", owner, job.id), dispatch)
         return Reply(202, {"generationId": job.id, "status": "QUEUED"})
 
@@ -575,6 +587,11 @@ class StarRepositoryMixin:
         if context and context.active_generation_id == job.id:
             context.active_generation_id = None
             tx.put(ref("AnswerContext", job.owner, context.id), context)
+        summary_ref = ref("AssistHistory", job.owner, job.id)
+        summary = tx.get(summary_ref)
+        if summary is not None:
+            summary.status, summary.finished_at = job.status, now
+            tx.put(summary_ref, summary)
         tx.put(ref("StarGeneration", job.owner, job.id), job)
         tx.put(ref("Dispatch", job.owner, job.id), dispatch)
 

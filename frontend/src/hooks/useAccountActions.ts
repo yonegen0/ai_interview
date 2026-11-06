@@ -23,6 +23,8 @@ export function useAccountActions() {
   return {
     authenticated: !!state.sub,
     admin: state.groups.includes("ADMIN"),
+    sub: state.sub,
+    phase: state.phase,
     onLogout: () => {
       void auth.logout();
     },

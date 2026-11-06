@@ -4,6 +4,7 @@ import { MockConflict as StarConflict } from "../coaching";
 import { starRoute, closeStarAnswer, closeStarSession } from "../star";
 import { pumpStarJobs } from "../transactions";
 import { attemptSchema } from "@/lib/api/schemas";
+import { mockHistory } from "../history";
 import { z } from "zod";
 import {
   createSchema,
@@ -312,6 +313,20 @@ export function createHandlers(
   );
   return [
     ...helperHandlers,
+    http.get(`${base}/me/history`, ({ request }) => {
+      const identity = actor(request);
+      if (!identity) return error("UNAUTHORIZED", 401);
+      const url = new URL(request.url);
+      try {
+        const result = mockHistory(
+          activeRepository.read(), identity.sub,
+          Object.fromEntries(url.searchParams), Date.now(),
+        );
+        return HttpResponse.json(result, { headers: { "Cache-Control": "no-store" } });
+      } catch {
+        return error("VALIDATION_ERROR", 400);
+      }
+    }),
     http.get(`${base}/practice-options`, ({ request }) => {
       if (!actor(request)) return error("UNAUTHORIZED", 401);
       const bank = activeRepository.read().bank;

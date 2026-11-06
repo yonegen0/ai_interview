@@ -359,6 +359,87 @@ class DynamoDBRepository(DomainRepository):
             request["ExclusiveStartKey"] = cursor
         raise BusinessError(503, "PREVIOUS_ANSWER_UNAVAILABLE")
 
+    def history(self, owner: str, params: dict) -> Reply:
+        """Read complete bounded key-prefix ranges; a truncated range is never 'latest'."""
+        from interview_backend.repositories.history import (
+            HISTORY_MAX_RECORDS,
+            HISTORY_PAGE_SIZE,
+            build_history,
+            parse_history_query,
+        )
+
+        now = self.clock()
+        mode, _, _, _, _ = parse_history_query(owner, params, now)
+        prefixes = (
+            ("ATTEMPT#", "Attempt"),
+            ("EVALUATION#", "Evaluation"),
+            ("COACHING#", "AttemptCoaching"),
+            ("ASSIST_HISTORY#", "AssistHistory"),
+            ("STAR_GENERATION#", "StarGeneration"),
+        )
+        if mode in {"normal", "coaching"}:
+            prefixes = prefixes[:3]
+        elif mode not in {"all"}:
+            prefixes = prefixes[3:]
+        deadline = self.monotonic() + 4.5
+        selected = {kind: [] for _, kind in prefixes}
+        for prefix, kind in prefixes:
+            request = {
+                "TableName": self.table,
+                "KeyConditionExpression": "PK = :owner AND begins_with(SK, :prefix)",
+                "ExpressionAttributeValues": to_wire(
+                    {
+                        ":owner": f"USER#{owner}",
+                        ":prefix": prefix,
+                    }
+                ),
+                "ConsistentRead": True,
+                "Limit": HISTORY_PAGE_SIZE,
+            }
+            previous = ""
+            while True:
+                page = self._call("query", deadline, **request)
+                items = page.get("Items", [])
+                if not isinstance(items, list) or len(items) > HISTORY_PAGE_SIZE:
+                    raise StorageFormatError("history_page")
+                for raw in items:
+                    item = from_wire(raw)
+                    record, _ = decode(item)
+                    if item.get("kind") != kind or record.owner != owner:
+                        raise StorageFormatError("history_owner")
+                    selected[kind].append(record)
+                cursor = page.get("LastEvaluatedKey")
+                if cursor and len(selected[kind]) >= HISTORY_MAX_RECORDS:
+                    raise BusinessError(503, "HISTORY_SEARCH_LIMIT")
+                if not cursor:
+                    break
+                native = from_wire(cursor)
+                position = native.get("SK")
+                if (
+                    native.get("PK") != f"USER#{owner}"
+                    or not isinstance(position, str)
+                    or not position.startswith(prefix)
+                    or position <= previous
+                ):
+                    raise StorageFormatError("history_cursor")
+                previous = position
+                request["ExclusiveStartKey"] = cursor
+        return build_history(
+            owner,
+            params,
+            now,
+            *(
+                selected.get(kind, [])
+                for kind in (
+                    "Attempt",
+                    "Evaluation",
+                    "AttemptCoaching",
+                    "AssistHistory",
+                    "StarGeneration",
+                )
+            ),
+        )
+
     def due_candidates(self, partition, cutoff, cursor=None, limit=100):
         if partition not in PARTITIONS or limit != 100:
             raise ValueError("query_parameters")

@@ -21,7 +21,7 @@ const SurfaceLink = styled(Link)(({ theme }) => ({
   borderRadius: scaledRadius(theme, 1.25),
   color: theme.palette.text.primary,
   backgroundColor: theme.palette.background.paper,
-  boxShadow: theme.shadows[1],
+  boxShadow: theme.shadows[2],
   textDecoration: "none",
   transition: theme.transitions.create(["border-color", "box-shadow"]),
   "&:visited": { color: theme.palette.text.primary },
@@ -45,7 +45,7 @@ const GuideLink = styled(SurfaceLink)(({ theme }) => ({
   gridTemplateColumns: "auto minmax(0, 1fr) auto",
   alignItems: "center",
   columnGap: theme.spacing(1.5),
-  minHeight: theme.spacing(13),
+  minHeight: theme.spacing(14),
   [theme.breakpoints.up("sm")]: { padding: theme.spacing(2.5, 3) },
 }));
 

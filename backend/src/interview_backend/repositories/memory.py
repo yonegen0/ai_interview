@@ -34,6 +34,7 @@ COLLECTIONS = {
     "ProviderUsage": "provider_usage",
     "SessionCreationBudget": "session_creation_budgets",
     "AttemptCoaching": "coachings",
+    "AssistHistory": "assist_histories",
     "Session": "sessions",
     "Attempt": "attempts",
     "Evaluation": "evaluations",
@@ -126,6 +127,29 @@ class MemoryRepository(DomainRepository):
             return Reply(
                 200, {"questionId": question_id, "answer": latest.answer if latest else None}
             )
+
+    def history(self, owner: str, params: dict) -> Reply:
+        from interview_backend.repositories.history import HISTORY_MAX_RECORDS, build_history
+
+        with self._lock:
+            kinds = (
+                self._state.attempts.values(),
+                self._state.evaluations.values(),
+                self._state.coachings.values(),
+                self._state.assist_histories.values(),
+                (
+                    v
+                    for v in self._state.star_records.values()
+                    if type(v).__name__ == "StarGeneration"
+                ),
+            )
+            collected = []
+            for values in kinds:
+                selected = [v for v in values if v.owner == owner]
+                if len(selected) > HISTORY_MAX_RECORDS:
+                    raise BusinessError(503, "HISTORY_SEARCH_LIMIT")
+                collected.append(selected)
+            return build_history(owner, params, self.clock(), *collected)
 
     def snapshot(self):
         with self._lock:

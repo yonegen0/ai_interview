@@ -11,6 +11,7 @@ from interview_backend.models.public import InvalidIdentifier
 
 ROUTES = (
     ("GET", re.compile(r"^/practice-options$"), "practice_options"),
+    ("GET", re.compile(r"^/me/history$"), "history"),
     ("POST", re.compile(r"^/sessions$"), "create"),
     ("GET", re.compile(r"^/sessions/([^/]+)/question$"), "question"),
     ("POST", re.compile(r"^/sessions/([^/]+)/answers$"), "submit"),
@@ -42,6 +43,7 @@ MESSAGES = {
     "SESSION_NOT_FOUND": "Session not found.",
     "ATTEMPT_NOT_FOUND": "Attempt not found.",
     "PREVIOUS_ANSWER_UNAVAILABLE": "Previous answer search is temporarily unavailable.",
+    "HISTORY_SEARCH_LIMIT": "History exceeds the supported search range.",
     "SESSION_STATE_CONFLICT": "Session state conflicts with this operation.",
     "IDEMPOTENCY_CONFLICT": "Idempotency key conflicts with this request.",
     "EVALUATION_NOT_COMPLETED": "Evaluation is not completed.",
@@ -148,6 +150,11 @@ class Handler:
                     headers = {k.lower(): v for k, v in (event.get("headers") or {}).items()}
                     args.append(headers.get("idempotency-key"))
                 args.extend(match.groups())
+                if action == "history":
+                    query = event.get("queryStringParameters") or {}
+                    if not isinstance(query, dict):
+                        raise BusinessError(400, "VALIDATION_ERROR")
+                    args.append(query)
                 if action == "feedback":
                     query = event.get("queryStringParameters") or {}
                     if "evaluationId" in query:

@@ -129,6 +129,20 @@ class Evaluation:
 
 
 @dataclass
+class AssistHistory:
+    """Minimal durable generation history; no notes, generated answer or TTL."""
+
+    owner: str
+    id: str
+    question_id: str
+    question: str
+    assist_type: str
+    created_at: int
+    status: str = "QUEUED"
+    finished_at: int | None = None
+
+
+@dataclass
 class ProviderUsage:
     owner: str
     id: str
@@ -329,3 +343,4 @@ class State:
     provider_usage: dict[str, ProviderUsage] = field(default_factory=dict)
     session_creation_budgets: dict[str, SessionCreationBudget] = field(default_factory=dict)
     star_records: dict = field(default_factory=dict)
+    assist_histories: dict[str, AssistHistory] = field(default_factory=dict)
