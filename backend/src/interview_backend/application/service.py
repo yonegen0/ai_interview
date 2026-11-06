@@ -113,6 +113,10 @@ class Application:
             application_id,
         )
 
+    def history(self, owner: str, params: dict) -> Reply:
+        self._owner(owner)
+        return self.repository.history(owner, params)
+
     def previous_answer(self, owner: str, question_id: str) -> Reply:
         self._owner(owner)
         validate_id(question_id)

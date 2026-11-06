@@ -14,6 +14,7 @@ from pydantic import BaseModel
 
 from interview_backend.models.internal import (
     Attempt,
+    AssistHistory,
     AttemptCoaching,
     CoachingTurn,
     Dispatch,
@@ -66,6 +67,8 @@ PREFIXES = dict(
 )
 KINDS.update(QuestionBank=QuestionBank, QuestionBankChange=QuestionBankChange)
 KINDS["AttemptCoaching"] = AttemptCoaching
+KINDS["AssistHistory"] = AssistHistory
+PREFIXES["AssistHistory"] = "ASSIST_HISTORY"
 PREFIXES["AttemptCoaching"] = "COACHING"
 KINDS["ProviderUsage"] = ProviderUsage
 PREFIXES["ProviderUsage"] = "PROVIDER_USAGE"
@@ -182,6 +185,17 @@ def validate(record):
                 validate_id(getattr(record, name))
             except ValueError:
                 raise StorageFormatError("invalid_id") from None
+    if isinstance(record, AssistHistory):
+        from interview_backend.star_assist.models import ASSIST_TYPES
+
+        if record.assist_type not in ASSIST_TYPES or record.status not in {
+            "QUEUED", "PREPARED", "STARTED", "SUCCEEDED", "NEEDS_INFORMATION",
+            "CANCELLED", "FAILED_BEFORE_START", "FAILED_AFTER_START", "OUTCOME_UNKNOWN",
+        } or not record.question.strip() or len(record.question) > 1000 or (
+            (record.finished_at is None) !=
+            (record.status in {"QUEUED", "PREPARED", "STARTED"})
+        ) or (record.finished_at is not None and record.finished_at < record.created_at):
+            raise StorageFormatError("assist_history")
     if isinstance(record, ProviderUsage) and not re.fullmatch(
         r"\d{4}-(?:0[1-9]|1[0-2])", record.month
     ):
