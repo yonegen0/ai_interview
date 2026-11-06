@@ -3,6 +3,7 @@ import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
 import { AuthBoundary } from "@/components/organisms/AuthBoundary";
+import { AccountActionsView } from "@/components/molecules/AccountActionsView";
 import { auth, setIdentityAdapterForTests } from "@/lib/auth/session";
 import type { IdentityAdapter } from "@/lib/auth/cognito";
 
@@ -87,4 +88,18 @@ it("blocks content during an auth outage and restores it through manual recheck"
     finish!({ AccessToken: token(), ExpiresIn: 300 });
   });
   await waitFor(() => expect(screen.getByRole("textbox", { name: "保護された回答欄" })).toBeInTheDocument());
+});
+
+it("shows the recheck action rather than a login link on transient outage", async () => {
+  const retry = vi.fn();
+  const { rerender } = render(
+    <AccountActionsView authenticated={false} phase="temporarily_unavailable"
+      onLogout={vi.fn()} onRetry={retry} />,
+  );
+  expect(screen.queryByText("ログイン")).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "認証を再確認する" }));
+  expect(retry).toHaveBeenCalledTimes(1);
+  rerender(<AccountActionsView authenticated={false} phase="restoring" onLogout={vi.fn()} />);
+  expect(screen.getByText("ログイン状態を確認しています…")).toBeInTheDocument();
+  expect(screen.queryByText("ログイン")).not.toBeInTheDocument();
 });
