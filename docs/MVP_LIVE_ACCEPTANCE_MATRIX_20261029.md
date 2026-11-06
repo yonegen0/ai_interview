@@ -1,51 +1,84 @@
-# MVP公開受入マトリクス（2026-10-29）
+# MVP公開受入マトリクス（2026-11-03更新）
 
-## 目的と証拠の区別
+## 状態と再利用する証拠
 
-この文書は、Gate B復旧と並行してFrontend/Backendの公開受入項目を一か所に整理した**実行前のチェックリスト**。AWS読取り、IAM変更、Terraform Plan/Apply、enablement、実モデル推論、配備の承認を与えるものではない。Mock/CI/ソースの正常性と、実Cognito・実DynamoDB・実Bedrock・実CloudFrontのPASSを混同しない。
+**C/D一括承認待ち / RELEASE_HOLD。Phase 5 CはNOT_RUN、B/Dは保存証跡での過去PASS、PR #43はDraft/HOLD。**
+本書は準備手順であり、AWS読取り、資格取得、Plan/Apply、OTP、有料AI、招待、公開を承認しない。
+Sourceと確認時のremote mainは `b9cf9733efda1a78129e1b1e8f21f10aa0977e9d`。実AWSの現在状態は今回未照会。
 
-確認したソース（作成時のmain `ec2e8f4daee1dfcd76a3a0119de5585ad99460cf`）：
-- [Frontend認証](../frontend/src/lib/auth/session.ts)、[API Client](../frontend/src/lib/api/client.ts)、[STAR Hook](../frontend/src/features/starAssist/hooks/useStarWorkspace.ts)、[API契約](FRONTEND_API_CONTRACT.md)
-- [API Lambda](../backend/src/interview_backend/aws_runtime.py)、[API Handler](../backend/src/interview_backend/api/handler.py)、[Cognito/API Gateway設定](../terraform/modules/service/auth.tf)
-- [Web root](../terraform/environments/web/main.tf)、[Frontend hosting module](../terraform/modules/frontend/main.tf)、[配備・アップロードRunbook](../terraform/environments/web/README.md)
-- [STAR実AIの品質ケース・上限](STAR_V14_LIVE_ADAPTER.md)、[正式性能解析](P4_DEV_PERFORMANCE_ANALYSIS_20261006.md)、[一時検証/Closure承認契約](P4_DEV_VALIDATION_APPROVAL_TEMPLATE.md)
+| 対象 | 同SHAで再利用する検証 | 限界 |
+| --- | --- | --- |
+| Frontend | [CI](https://github.com/yonegen0/ai_interview/actions/runs/41315403336)：701テスト、Mock E2E 38、lint/型、production export検査、Storybook、Mock build成功 | 実Cognito/API/CloudFrontの成功ではない |
+| Backend | [CI](https://github.com/yonegen0/ai_interview/actions/runs/41315403334)：3,702 PASS / 2 skipped / 57 deselected、契約102、Ed25519 9、Ruff成功 | 実AWS除外試験は未実施 |
+| Infrastructure | [CI](https://github.com/yonegen0/ai_interview/actions/runs/41315403377)：オフラインvalidate/Mockとpackage確認成功 | 実State/実効IAM/閉鎖の証明ではない |
+| C/D準備 | private revision003：46試験PASS、2,884 binding、保存C Plan監査 | revision003は履歴として保全。新方針のprospective C/D scopeへ切替 |
+| 依存 | [11月2日定期監査](https://github.com/yonegen0/ai_interview/actions/runs/41369378374)：production npm/Python成功、all npmは既知moderate 21件でFAIL | 期限付き例外適用CI成功と無例外audit成功は別 |
 
-2026-10-29時点で確認したGitHub差分は、[PR #78](https://github.com/yonegen0/ai_interview/pull/78)のState15復旧ソースmerge、[PR #61](https://github.com/yonegen0/ai_interview/pull/61)のSTAR入力競合修正候補。実AWSのStage復旧成功、実モデル品質、Web配備、公開可能性は本資料の作成では確認していない。後続の運用証拠で更新する。
+認証更新・失効・ログアウト・本人切替、APIエラー、二重送信/unknown mutation非再送、通常/Coaching/STAR、静的exportはFrontendの上記試験とソースを再利用する。
+Backendは直接Anthropic固定・fallback禁止、全有料経路共通UTC月20/600予約、競合/重複/結果不明、API認可と入力/時間制約を再利用する。
+再利用はsource、lock、fixture、設定、実行条件が一致する範囲のみ。資料変更だけでも実行用source/main/State/Planの整合を自動認定しない。
 
-## 実行順と受入基準
+## 阻害要因の分類
 
-| Gate | 担当 | 実施する検証 | 合格のための実証 |
-| --- | --- | --- | --- |
-| 0. Stage復旧 | Codex | 最新Sourceに一致する限定IAM/State15/Stage復旧（旧Apply010を再利用しない） | 正規Plan/Applyの正常終了、Stage6項目、State/実Stage整合、全77資源監査、lockなし、4入口閉鎖、readiness false、独立読戻し |
-| 1. Backend配備 | Codex | 採用commit/locked Linux Artifact/manifest/4 Lambda alias、必要なIAM・DDB・SQS・Cognitoの一致 | CIだけでなく実AWSへの配備とバージョン/alias/実効アクセスを証拠化 |
-| 2. 実認証 | Codex実行、ChatGPT解析 | 招待済みの別々の2利用者でEMAIL_OTP、期限切れ/更新、ログアウト、USER/ADMIN | 実JWT issuer/audience/client_id/token_use/subの整合、401は一度だけrefresh、403更新なし、前本人の表示・キャッシュ・操作が残らない |
-| 3. 実API・本人分離 | Codex実行、ChatGPT解析 | Session作成、質問、回答202、Evaluation GET、Feedback、再挑戦、次問、質問管理。成功後の同key照合、本文違い409、他本人の閲覧・変更拒否 | Response/HTTP/Zod/Backend契約一致。OWNER AのIDをOWNER Bから取得・更新できない。ADMIN書込みはADMINのみ |
-| 4. STAR・Coaching | Codex実行、ChatGPT解析 | 下書き保存/復元、STAR 3案・編集・明示反映、通常送信、Coaching V2 30点・最大3深掘り、結果不明・再送抑制 | 出典違反0、既存12品質ケースに基づく人手評価を記録。生成中編集で新しいメモが消えない。未確定推論の自動再実行0 |
-| 5. 非同期信頼性 | Codex実行、ChatGPT解析 | DDB Streams→Dispatcher→SQS→Worker、期限/重複配送/障害/Recovery、DLQ・Usage | 一つの処理権を維持し、同一回答の二重推論・重複使用量計上なし。異常時は停止/回復結果の分類が一致 |
-| 6. 30人性能 | Codex計測、ChatGPT解析 | 以前のScenario Cと同じ30人・1秒分散、cold/warm/POST/GETを分離し測定。実モデルの別バッチも計測 | 正式API p95が2,000ms以下、30評価が30秒以内。2026-10-06のp95=2,003.466msはFAILのまま。測定母集団や閾値を後から変更しない |
-| 7. Web配信 | Codex配備、ChatGPTレビュー | `frontend/out` のみを非公開S3/OACへ配置、CloudFront、CORS、実URLのリロード・404・MIME・cache・headers | `NEXT_PUBLIC_MSW_ENABLED=false`、公開環境変数だけがHTML/JSへ埋込、Mock worker・source map・token/秘密ファイルなし。ルート/深いURLが動作 |
-| 8. 公開・Closure | Codex実行、ChatGPT判定 | SNS/Alarm/予算・実AIトークン/費用、承認済み短時間検証、独立閉鎖。公開切替は別途承認対象 | 未解決の公開阻害P0/P1なし。別途指定した公開条件を満たす。dev一時検証後は成功/失敗にかかわらず許可範囲内で4入口を閉鎖し、実状態を読戻す |
+| 分類 | 項目 | 最小の解決条件 |
+| --- | --- | --- |
+| A：公開前必須 | 切替後の新規利用20/600・旧Worker隔離 | g1全有料経路の共通原子予約、切替baseline、未処理/結果不明の扱い、旧writer停止を確認。旧履歴はUNKNOWNのまま許容 |
+| A | 必要操作の権限・閉鎖 | 現Role/default policy/boundary、backend policy、閉鎖操作の限定simulationと過去D実成功を組み合わせる。SCP/RCP/発行元の網羅的証明は要求せず、未証明リスクを新承認に含める |
+| A | 実JWT/役割/本人分離・HTTPS/CORS・品質 | 実受入証拠。ADMIN/USER相互拒否からUSER/USER成功を推定しない |
+| A | セキュリティ・性能 | Issue #92の互換修正または新期限付き判断。Fake p95=2,003.466msはFAIL、実Claude性能NOT_RUN |
+| A | 公開後停止・監視・招待 | 隔離/閉鎖手順、担当、通知/heartbeat/queue/Alarm、公開Plan、対象/人数/送付文と別承認 |
+| B：公開後 | 過去履歴の復元 | 履歴を変更せずUNKNOWNを保持。完全復元や12月への月替わりを公開条件にしない |
+| B：証拠再利用 | 閉鎖権限／重複受入の削減 | 現policy＋限定simulation＋過去D＋同一資格の組合せ、同条件C証拠のPhase 6再利用。Mockで置換しない |
+| C：今回から除外 | 独自ドメイン、見た目追加、将来拡張、根拠のない大規模性能改修 | 公開後。必須性能基準を免除する意味ではない |
 
-## ChatGPT側がAWSなしで完了できるチェック
+## 11月中の招待MVP公開方針
 
-- **STAR競合**：PR #61の修正が入力の開始時snapshotを保存前に固定すること、保存中にユーザーが変更した文章が自動採用で上書きされないことを変更差分と回帰テストで確認する。最新mainへの統合と真正必須CIを経て通常mergeする。
-- **Frontend API/認証**：`request()` の401単回refresh、403非refresh、JSON/Zod応答、Abort/Timeout、POSTキー/本文維持、画面離脱/本人切替での遅延結果拒否を既存テストと照合する。未カバーの**再現可能な**不具合のみ最小PRで修正する。
-- **Backend契約/権限**：Lambda APIのJWT claims guardとOWNER/ADMIN分離、Session/Attempt/Evaluation/STARのAPI契約、409/429/5xx、冪等・Recovery・使用量制限の契約テストを確認する。MockによるPASSを実IAM/DDB保証と書かない。
-- **Frontendビルド**：GitHub Actionsでlint、typecheck、`npm test`、`npm run build`、`npm run build-storybook`、`npm run build:mock`、`npm run test:e2e` と依存auditを確認する。実ブラウザでのAPI接続は別。
-- **Hostingの事前監査**：`terraform/modules/frontend`には非公開S3/CloudFront OAC/CloudFront Function、`terraform/environments/web`には独立State rootがある。旧[インフラ概要](INFRASTRUCTURE_OVERVIEW.md)の「hosting未定義」は作成時点の記録なので、現在の未配備証拠として流用しない。
-- **性能調査**：`aws_runtime.build_entry`の初回設定・質問読込・DDB client構築と、APIに不要なimportを測定対象にする。不要な機能削除・閾値変更・PC常時課金を先行させない。
+2026-11-03のユーザー指示により、12月1日待ちと11月全期間の旧新通算20/600保証を必須条件から外す。
+旧履歴、削除/復元履歴、過去の結果不明はUNKNOWNのまま保存し、PASSや過去消費0へ変更しない。
+切替後は独立g1の通常・Coaching・STARを共通UTC月20/600の原子予約で制限する。既存g1利用分も残枠から控除し、counter resetや旧データ移行をしない。
+旧4関数concurrency0、旧5Role隔離、旧入口停止・native保全と新g1の閉鎖/未処理を実行直前に限定確認する。
+過去と切替後の11月合計が20/600を超え得る残余リスク、現在policy確認でも将来閉鎖を保証しないリスクを実AWS有効化前の一括承認に含める。
+SCP/RCP/発行元Session Policyの未証明をPASSとせず、過去D実成功＋現在の必要操作確認で実用上の閉鎖可能性を判定する。
 
-## Codex実行時に保存する最小結果
+## Phase 5 C/DとPhase 6の手順
 
-各Gateごとに **結果 (PASS/FAIL/NOT_RUN)**、対象source SHA、Artifact/Frontend build digest、Account/Region・AWS aliasまたはCloudFront distributionのprivate識別、実行した操作数、費用/usage、HTTP/HTTP APIとLambdaの相関、実測p95/30件時間、失敗reason、AWS閉鎖後のreadbackを記録する。個人の回答本文、JWT、OTP、秘密鍵、raw機密logは公開PR/Actions artifactへ保存しない。
+新C/D scopeも**既存ADMIN 1名＋USER 1名、OTP各1通、固定6有料ケース**。別USER追加は含まない。
+private証跡/hashは既存bundleに保持し、JWT/OTP/回答/State/Plan内容/利用者識別子を公開PRへ転記しない。
 
-**停止条件**：未知のState/lock、差分の逸脱、結果不明Apply、実モデルへの想定外送信、本人分離失敗、費用上限の不確実性、未承認AWS変更。失敗Apply/推論を新しいkeyで自動再試行しない。承認済みClosureが適用可能な正常Stateならその既存契約を優先する。
+| 順序 | 実施・判定 | 再利用と停止条件 |
+| --- | --- | --- |
+| 0. 開ける前 | 切替後20・600残枠/新g1未処理・unknown/旧writer隔離/限定権限/security/source・main・State・Plan・入力hash/新承認を照合 | 新scopeの一括承認後に確認。重大条件不成立ならenable前停止 |
+| 1. Preflight | 同一資格1回、実残90分以上、refresh0。必要操作11 SDKの権限確認と切替baseline | AccessDenied/部分一覧/上限超過/未知条件で停止。過去Dを現在PASSへ変換しない |
+| 2. Enable | 保存C Plan候補 `f2e29a931ab269bb0815b08c73defe300d52111dc813aa3cf87093a90e68c614`、入口5更新＋Alarm21追加 | source/main/State/入力変化なら流用せず新Planの準備・承認。正常enableと独立整合を確認 |
+| 3. C認証 | 各OTP1通、実JWT issuer/client_id/token_use/sub/期限、refresh、signout、役割拒否と相互owner拒否 | masked local console、unknown POST再送0。失敗時に別keyでやり直さない |
+| 4. C有料6ケース | 通常ADMIN/USER、Coaching ADMIN/USER、STAR ADMIN/USER。直接Anthropic claude-haiku-5-5 / API 2026-10-21、同時1、65秒間隔 | 固定合成入力、retry/fallback/Provider切替0。HTTP/Schema/Coaching30点・深掘り/STAR3案・根拠・入力保持を確認。品質未判定は残す |
+| 5. C会計・運用 | baseline差分ADMIN+3/USER+3/global+6、旧table不変（旧履歴はUNKNOWN）、usage/unknown、queue/heartbeat/Alarm、HTTPS/CORS | 絶対3/3/6や旧消費0を仮定しない。有料600送信やledger巻戻しで境界確認しない |
+| 6. D | 一貫したenabled StateからPlan1回、同じ入口5逆更新＋Alarm21削除、Apply1回。実AWSとState/lock/CloudFront Deployedを独立読戻し | D Plan SHAは実生成時に保全し旧SHA流用0。正常enable/整合があればC失敗でも承認内Dを優先。partial/lock/未知drift/不整合では再Applyを強行しない |
+| 7. Phase 6残差 | Cの同条件実証拠を再利用。実画面のログイン/失効/ログアウト、深いURL、APIエラー、通常/Coaching/STAR編集、二重送信と利用制限を確認 | B/D/Cを理由なく再実行しない。追加OTP/有料送信を伴うブラウザ操作は別scope/承認 |
+| 8. 公開前 | USER/USER実分離、品質/性能/securityの判断、通知到達・停止運用、最新closed Stateから公開Plan、招待対象/人数/送付文 | USER/USERは現2名でNOT_RUN。追加USER/OTP/招待/公開は別承認。未確認をPASSにしない |
 
-## 公式資料
+各ケースはPASS/FAIL/NOT_RUN、source/config/入力hash、HTTPと相関、送信試行数、usage、品質の人手判定、失敗理由をprivate保存。
+根拠違反/unknown/上限投影超過/本人分離失敗/Alarm異常で新規有料送信を停止する。
+旧Fake p95 **2,003.466ms > 2,000msはFAIL**。実Claude性能と利用者体験を測定した後、基準変更/例外が必要なら正式判断へ分ける。
+従来Scenario Cの基準とFAILは履歴として保持。少人数MVPは30人負荷試験を必須とせず、API応答最大5秒・各評価完了120秒以内を新しい公開基準案として一括承認で判断する。
+固定6ケースから30人性能PASSを推定しない。30人試験は現scopeに含めず、NOT_RUNとして公開後へ回す。基準案は承認前に勝手に適用しない。
+品質は既存[STARの12品質ケース](STAR_V14_LIVE_ADAPTER.md)を参照し、出典違反0と人手判定を保持。6有料ケースの成功だけで全品質ケースPASSへ変換しない。
+実画面は前本人のキャッシュ/下書き非表示、401はGETのみ単回refresh・mutation非再送、403非refresh、生成中編集の保持を確認する。
+Webは深いURL/404/MIME/cache/headers、HTTPS/許可・拒否CORS、MSW false、公開変数のみ、worker/source map/秘密ファイル非混入を確認する。
 
-- [Next.js Static Export](https://nextjs.org/docs/app/guides/static-exports)
-- [Next.js公開環境変数](https://nextjs.org/docs/app/guides/environment-variables)
-- [AWS CloudFront S3 OAC](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-restricting-access-to-s3.html)
-- [Amazon Cognito authentication](https://docs.aws.amazon.com/cognito/latest/developerguide/authentication-implement.html)
-- [AWS HTTP API throttling](https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-throttling.html)
-- [AWS Lambda lifecycle](https://docs.aws.amazon.com/lambda/latest/dg/lambda-runtime-environment.html)
+## セキュリティ期限と次の承認
+
+Issue #92の例外は**2026-11-15 09:00 JST**失効。古い成功CI/ビルドを12月の有効な判定へ転用しない。
+11月2日のnpm公式registry確認では、最新版ESLint 10.14.0はminimatch ^10.2.6、config-array 0.23.5は^10.2.4、typescript-estree 8.72.1は^10.2.2、docgen plugin 0.9.0はglob ^13.0.6。
+[minimatch advisory](https://github.com/advisories/GHSA-g3hv-75wg-m249)の修正版11.0.1と[glob advisory](https://github.com/advisories/GHSA-3g3m-2fjr-6pw4)の14.0.2をこれらの範囲は含まない。
+[ESLint公式リリース](https://eslint.org/blog/2026/10/eslint-v10.14.0-released/)も10.2.6採用を記載。確認したconsumerの単純更新では解消できず、lock/依存/監査条件/期限は変更しない。
+互換releaseが揃えば限定更新と全検証。未解消なら最新影響評価に基づく新期限・対象・受容者の明示判断が必要。
+現状dev tool graphの2 advisory由来21 moderate、production監査成功。例外は修正完了・公開承認・未知advisory受容ではない。
+
+新方針に対応するprivate revision004を一括承認へ提示する。旧revision003のscope/承認/証跡は変更しない。
+固定source/main `b9cf973`、保存C Plan、閉鎖State/入力を照合し、SDK追加最大135（累計520→最大735）、資格追加最大1（累計8→最大9）、開始時215のうち閉鎖専用reserve80を維持する。
+内訳は安全確認71、必要権限11、会計/C最大53、D reserve80。init0/enable Apply1/D Plan1/D Apply1、有料最大6、OTP最大2、HTTP最大500、AI見積枠$0.05/AWS追加見積枠$0.10。
+既知moderateはproductionへの影響を再確認し、現例外の11月15日09:00 JSTまでの限定受容を正式に再判断する。期限延長・未知advisory・production脆弱性は含めない。
+予算/Alarm/見積は請求hard capではない。承認後はPreflight→enable→C→条件付きD→独立読戻しを連続実行する。
+正常enable/独立整合があればC失敗でもDを実行。partial Apply/State不整合/lock/未知driftなら再Applyを強行せず承認内の診断で停止する。
+追加USER受入・初期招待・正式公開は対象/人数/送付文と最新closed Stateの公開Planが確定した時点でまとめる。PR #113は未merge、PR #43 HOLDを維持する。

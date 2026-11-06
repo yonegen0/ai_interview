@@ -5,6 +5,10 @@ devの停止・writer・過去ledgerが未確定で、同じtableの空counter�
 既存service/frontend moduleを再利用し、過去履歴の完全復元を待たずに配備準備を進める。
 **ソース実装は実AWS隔離・受入・公開の証明ではない。RELEASE_HOLDを維持する。**
 
+2026-11-03の新方針では11月中公開を優先。受入は新prospective scopeへ切り替え、revision003を履歴として保全する。対象は既存ADMIN 1名＋USER 1名、OTP最大2通、固定6有料ケース。
+最新の状態・切替後会計・Phase 6残差・承認境界は[MVP公開受入マトリクス](../../../docs/MVP_LIVE_ACCEPTANCE_MATRIX_20261029.md)を参照。
+Phase 5 CはNOT_RUN。過去D実成功と現在の必要操作の権限確認を組み合わせ、未証明リスクは新承認に含める。
+
 ## 構成
 
 - 固定世代`g1`、prefix `ai-interview-invite-g1`、専用S3 State key `invite/g1/terraform.tfstate`。
@@ -51,18 +55,22 @@ devの停止・writer・過去ledgerが未確定で、同じtableの空counter�
    quarantineは削除保護付きで、closure時もtrueを維持する。旧環境の再開は別承認。
 4. 新専用workspaceの支出制限/キーを確認し、Secretへ安全な手段で投入。
    実workspace制限の有効性と設定可能な最小額を確認する。APIキーはログ・コマンド引数へ出さない。
-   当月の旧新合計が不明なら、その残余リスクへの明示受容が必要。
-   11月公開はこの受容と停止実証が成立すれば可能であり、12月まで無条件延期しない。
+   旧履歴UNKNOWNと11月全期間の旧新合算20/600保証を外す方針を、新しい実AWS有効化承認に明記する。
+   12月1日を待たず、切替後のg1全有料経路を共通UTC月20/600で制限する。既存g1消費も控除する。
+   過去消費0とはせず、旧データ/counterは削除・補正・resetしない。旧Worker隔離と新g1の未処理/結果不明は切替直前に確認する。
 5. 隔離・停止・監視通知・支出制限の読戻し後、別enable Plan/Applyを承認する。
-   最初の受入は管理者1名＋USER2名、最大**6有料送信**（通常評価2、Coaching2、STAR2）、
+   現行の受入は既存管理者1名＋USER1名、最大**6有料送信**（通常評価2、Coaching2、STAR2）、
    provider/networkの自動retry 0。重複・上限超過・認可拒否は有料送信を増やさず検証する。
    HTTP transport/Worker timeout、結果不明、請求上限不明、本人分離失敗で有料試験停止。
    通常/Coachingは4096、STARは既存2048 output token上限。入力/価格を実行前に固定し、
    **推論見積枠$0.05**を超えるなら開始しない。請求hard capの保証ではない。
-   JWT、USER/ADMIN、他本人拒否、20/600境界、冪等、HTTPS/CORS、Alarm/停止を実AWSで確認。
-   上限試験は新tableの専用合成主体/予約を使い、有料600送信はしない。ledger巻戻しはしない。
-6. 受入結果・残余リスク・招待3名の範囲をまとめて公開承認を求める。公開前に人数を拡大しない。
-   UI/独自ドメイン、過去ledger完全復元、既存p95微超過改善は後続。PR #43 HOLDは維持する。
+   JWT、USER/ADMIN、ADMIN/USER間の他本人拒否、20/600境界、冪等、HTTPS/CORS、Alarm/停止を実AWSで確認。
+   USER/USER分離はこの2名では未実施。追加USERと必要なOTP等を別scopeで承認し、公開前に確認する。
+   20/600境界は既存オフライン原子予約試験を再利用。有料600送信やledger巻戻しはしない。
+   実tableへの合成予約による境界試験は現行6ケースscopeに含めず、必要ならcoverageを保つ別承認とする。
+6. 受入結果・残余リスク・初期招待の確定対象/人数/送付文をまとめ、最新公開Planと別の公開・送信承認を求める。
+   今回のC/Dは招待0・公開0。現行2名から無断で人数を拡大しない。
+   UI追加改善/独自ドメイン、過去ledger完全復元は後続。Fake p95=2,003.466msの従来FAILは保持。少人数MVPの性能基準案と既知moderateのproduction影響・期限付き例外はC/D一括承認で再判断する。PR #43 HOLDは維持する。
 
 ## 停止・復旧
 
