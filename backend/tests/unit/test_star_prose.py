@@ -549,7 +549,9 @@ def test_other_assist_prompt_version_v3_is_reported(mode):
     assert result.status == "ready" and len(result.candidates) == 1
     assert provider.last_prompt_version == "answer_assist_v3"
     assert client.kwargs["inferenceConfig"] == {"maxTokens": 2048}
-    assert client.data["lengthTarget"] == [250, 330]
+    assert json.loads(client.kwargs["messages"][0]["content"][0]["text"])[
+        "lengthTarget"
+    ] == [250, 330]
     output = []
     with invocation_context("worker", "test", {}, None):
         log_event(
