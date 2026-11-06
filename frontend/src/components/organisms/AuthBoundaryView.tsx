@@ -23,7 +23,7 @@ export function AuthBoundaryView({
   if (status === "temporarily_unavailable")
     return (
       <>
-        <Text role="status">{error || "通信の問題で認証状態を確認できません。再接続後に確認します。"}</Text>
+        <Text role="status">{error || "通信の問題で認証を確認できません。接続を確認して再度お試しください。"}</Text>
         {onRetry && <Button type="button" variant="outlined" onClick={onRetry}>認証を再確認する</Button>}
       </>
     );

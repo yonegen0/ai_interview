@@ -20,11 +20,14 @@ export function useAccountActions() {
       }
     });
   }, [client]);
+  const authenticated = state.phase === "authenticated" ||
+    (state.phase === "refreshing" && !!state.sub);
   return {
-    authenticated: !!state.sub,
-    admin: state.groups.includes("ADMIN"),
-    sub: state.sub,
+    authenticated,
+    admin: authenticated && state.groups.includes("ADMIN"),
+    sub: authenticated ? state.sub : null,
     phase: state.phase,
+    onRetry: () => { void auth.recheck().catch(() => undefined); },
     onLogout: () => {
       void auth.logout();
     },

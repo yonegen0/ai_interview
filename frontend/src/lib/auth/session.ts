@@ -29,6 +29,11 @@ let adapter: IdentityAdapter | null = null;
 let initialized = false;
 let initializeTask: Promise<void> | null = null;
 let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+let retryTimer: ReturnType<typeof setTimeout> | undefined;
+const retryDelaysMs = [2000, 5000, 15000] as const;
+let retryAttempts = 0;
+let retryPending = false;
+let retryStopped = false;
 let generation = 0;
 const listeners = new Set<() => void>();
 export const mockAuth = () => process.env.NEXT_PUBLIC_MSW_ENABLED === "true";
@@ -54,6 +59,31 @@ function persist() {
   } catch {
     markStorageUnavailable();
   }
+}
+function resetRetry() {
+  clearTimeout(retryTimer);
+  retryTimer = undefined;
+  retryAttempts = 0;
+  retryPending = false;
+  retryStopped = false;
+}
+/** One backoff sequence per credential; visibility changes never reset its budget. */
+function scheduleRetry() {
+  if (!tokens || mockAuth() || retryStopped || retryTimer !== undefined) return;
+  if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+  if (retryAttempts >= retryDelaysMs.length) {
+    retryStopped = true;
+    return;
+  }
+  const epoch = generation;
+  const credential = tokens.refresh;
+  retryTimer = setTimeout(() => {
+    retryTimer = undefined;
+    if (epoch !== generation || !tokens || tokens.refresh !== credential || retryStopped) return;
+    if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+    retryAttempts++;
+    void renew().catch(() => undefined);
+  }, retryDelaysMs[retryAttempts]);
 }
 function scheduleExpiryOnly() {
   clearTimeout(refreshTimer);
@@ -81,8 +111,12 @@ function schedule() {
 }
 function onResume() {
   if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
-  if (tokens && (state.phase === "temporarily_unavailable" ||
-    tokens.expiresAt - Date.now() <= 30000))
+  if (!tokens || refreshTask || retryTimer !== undefined || retryStopped) return;
+  if (retryPending) {
+    scheduleRetry();
+    return;
+  }
+  if (state.phase === "temporarily_unavailable" || tokens.expiresAt - Date.now() <= 30000)
     void auth.access(true).catch(() => undefined);
 }
 async function identity() {
@@ -126,6 +160,7 @@ function accept(result: AuthenticationResultType, previous?: Tokens) {
   const claims = parseToken(result.AccessToken);
   if (previous && claims.sub !== previous.sub)
     throw new InvalidAuthResponseError("ログイン利用者が変わりました。");
+  resetRetry();
   tokens = {
     access: result.AccessToken,
     refresh: result.RefreshToken || previous!.refresh,
@@ -148,6 +183,8 @@ function renew(): Promise<string> {
     sub: previouslyVerified && before.expiresAt > Date.now() ? before.sub : null,
     groups: previouslyVerified && before.expiresAt > Date.now() ? before.groups : [],
   });
+  // Hide protected content when a verified token expires during a pending refresh.
+  scheduleExpiryOnly();
   refreshTask = (async () => {
     try {
       const result = await (await identity()).refresh(before.refresh);
@@ -158,23 +195,28 @@ function renew(): Promise<string> {
     } catch (error) {
       if (epoch !== generation)
         throw new AuthRequiredError("ログイン状態が変わりました。");
-      const rejected = error instanceof InvalidAuthResponseError ||
-        (await import("./cognito")).isRefreshCredentialRejected(error);
-      if (rejected) {
+      const { isRefreshCredentialRejected, isTransientRefreshError } = await import("./cognito");
+      if (error instanceof InvalidAuthResponseError || isRefreshCredentialRejected(error)) {
         auth.invalidate();
         throw new AuthRequiredError("ログインし直してください。");
       }
-      if (previouslyVerified && before.expiresAt > Date.now()) {
-        emit({ phase: "authenticated", sub: before.sub, groups: before.groups });
-      } else {
-        emit({
-          phase: "temporarily_unavailable",
-          sub: null,
-          groups: [],
-          error: "通信の問題で認証を確認できません。接続が回復したら再確認します。",
-        });
-      }
+      // An unconfirmed refresh must never keep verified identity visible.
+      emit({
+        phase: "temporarily_unavailable",
+        sub: null,
+        groups: [],
+        error: "通信の問題で認証を確認できません。接続を確認して再度お試しください。",
+      });
       scheduleExpiryOnly();
+      if (isTransientRefreshError(error)) {
+        retryPending = true;
+        if (retryAttempts >= retryDelaysMs.length) retryStopped = true;
+        else scheduleRetry();
+      } else {
+        // Unknown/configuration failures retain credentials but require manual review.
+        retryPending = false;
+        retryStopped = true;
+      }
       throw new AuthUnavailableError("認証を確認できません。");
     } finally {
       if (epoch === generation) refreshTask = null;
@@ -265,7 +307,7 @@ export const auth = {
     const epoch=generation;
     const session = await (await identity()).begin(email);
     if(epoch!==generation)throw new Error("ログイン状態が変わりました。");
-    generation++;tokens=null;refreshTask=null;clearTimeout(refreshTimer);clearStored();
+    generation++;tokens=null;refreshTask=null;clearTimeout(refreshTimer);resetRetry();clearStored();
     emit({ phase: "challenge", sub: null, groups: [] });
     return session;
   },
@@ -292,11 +334,19 @@ export const auth = {
     if (!initialized) await auth.initialize();
     else if (initializeTask) await initializeTask;
     if (!tokens) throw new AuthRequiredError("ログインしてください。");
+    if (refreshTask) return refreshTask;
+    if (retryStopped || (retryPending && retryTimer !== undefined))
+      throw new AuthUnavailableError("認証を確認できません。");
     if (state.phase === "temporarily_unavailable" && !force)
       throw new AuthUnavailableError("認証を確認できません。");
     if (!force && state.phase === "authenticated" &&
       tokens.expiresAt - Date.now() > 30000) return tokens.access;
     return renew();
+  },
+  /** User-triggered reconfirmation starts a fresh, bounded sequence. */
+  recheck(): Promise<string> {
+    resetRetry();
+    return auth.access(true);
   },
   async logout() {
     const previous = tokens;
@@ -304,6 +354,7 @@ export const auth = {
     tokens = null;
     refreshTask = null;
     clearTimeout(refreshTimer);
+    resetRetry();
     clearStored();
     emit({ phase: "anonymous", sub: null, groups: [] });
     if (mockAuth())
@@ -341,12 +392,13 @@ export const auth = {
     tokens = null;
     refreshTask = null;
     clearTimeout(refreshTimer);
+    resetRetry();
     clearStored();
     emit({
       phase: "anonymous",
       sub: null,
       groups: [],
-      error: "ログインし直してください。編集内容は保持しています。",
+      error: "ログインの有効期限が切れました。再度ログインしてください。",
     });
   },
   setMockActor(sub: string, groups: string[]) {
@@ -354,6 +406,8 @@ export const auth = {
     generation++;
     initialized = true;
     tokens = null;
+    clearTimeout(refreshTimer);
+    resetRetry();
     emit({ phase: "authenticated", sub, groups });
     try {
       sessionStorage.setItem(

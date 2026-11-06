@@ -6,7 +6,7 @@ import {
   RevokeTokenCommand,
   NotAuthorizedException,
   UserNotFoundException,
-  InvalidParameterException,
+  // InvalidParameterException does not prove the refresh token was revoked.
   type AuthenticationResultType,
 } from "@aws-sdk/client-cognito-identity-provider";
 
@@ -20,11 +20,26 @@ export interface IdentityAdapter {
   refresh(token: string): Promise<AuthenticationResultType>;
   revoke(token: string): Promise<void>;
 }
-/** Cognito's generated exception classes identify definite refresh rejection. */
+/** Only credential-rejection responses may invalidate saved refresh credentials. */
 export function isRefreshCredentialRejected(error: unknown): boolean {
   return error instanceof NotAuthorizedException ||
-    error instanceof UserNotFoundException ||
-    error instanceof InvalidParameterException;
+    error instanceof UserNotFoundException;
+}
+/** Retry recognized transport, throttling and server-side transient failures only. */
+export function isTransientRefreshError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const value = error as {
+    name?: unknown;
+    $retryable?: unknown;
+    $metadata?: { httpStatusCode?: number };
+  };
+  const status = value.$metadata?.httpStatusCode;
+  return value.$retryable != null ||
+    (typeof status === "number" && (status === 429 || status >= 500)) ||
+    (typeof value.name === "string" &&
+      ["AbortError", "TimeoutError", "NetworkingError", "NetworkError",
+        "RequestTimeout", "TypeError", "InternalErrorException",
+        "TooManyRequestsException"].includes(value.name));
 }
 export function cognitoAdapter(): IdentityAdapter {
   const region = process.env.NEXT_PUBLIC_COGNITO_REGION;
