@@ -27,6 +27,7 @@ def parse_history_query(owner, params, now):
         or not isinstance(limit, str)
         or not limit.isascii()
         or not limit.isdecimal()
+        or len(limit) > 3
     ):
         raise BusinessError(400, "VALIDATION_ERROR")
     count = int(limit)
