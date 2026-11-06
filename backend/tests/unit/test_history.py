@@ -133,6 +133,10 @@ def test_cursor_must_match_owner_and_filters():
         parse_history_query(OWNER, {"mode": "assist", "limit": "1", "cursor": cursor}, NOW)
     with pytest.raises(BusinessError):
         parse_history_query(OWNER, {"limit": "-4"}, NOW)
+    with pytest.raises(BusinessError) as oversized:
+        parse_history_query(OWNER, {"limit": "9" * 10000}, NOW)
+    assert oversized.value.status == 400
+    assert oversized.value.code == "VALIDATION_ERROR"
 
 
 def test_memory_repository_separates_owner_records():
