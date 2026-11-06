@@ -145,6 +145,10 @@ test("T15 application response cannot replace typing during apply", async ({
   await expect(page.getByLabel("あなたの回答")).toHaveValue(
     "反映の通信中に本人が入力した内容です。",
   );
+  // When a concurrent edit wins, the result popup stays open; its backdrop hides
+  // background status announcements from the accessibility tree by design.
+  await expect(page.getByRole("dialog", { name: "生成した3案の回答" })).toBeVisible();
+  await page.getByRole("button", { name: "入力画面に戻る" }).click();
   await expect(
     page.getByRole("status").filter({ hasText: "下書き：" }),
   ).toContainText("保存済");
