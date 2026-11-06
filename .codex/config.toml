@@ -1,0 +1,5 @@
+# 230Kトークン付近で自動圧縮
+model_auto_compact_token_limit = 230000
+
+# コンテキスト全体を基準に圧縮
+model_auto_compact_token_limit_scope = "total"
