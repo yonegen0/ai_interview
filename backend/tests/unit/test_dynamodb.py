@@ -1143,9 +1143,9 @@ def test_history_query_paginates_with_stable_timestamp_ties_and_owner_scope():
     second = repository.history(
         OWNER, {"limit": "1", "cursor": first["nextCursor"]}
     ).body
-    assert [row["attemptId"] for row in first["items"] + second["items"]] == [
-        other_id, first_id
-    ] if other_id > first_id else [first_id, other_id]
+    assert [row["attemptId"] for row in first["items"] + second["items"]] == sorted(
+        [first_id, other_id], reverse=True
+    )
     assert second["nextCursor"] is None
     assert len([q for q in client.queries if from_wire(
         q["ExpressionAttributeValues"]
