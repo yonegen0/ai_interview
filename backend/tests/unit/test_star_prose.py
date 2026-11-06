@@ -105,8 +105,8 @@ def test_natural_prose_v5_preserves_direct_model_text_with_unlisted_action():
 @pytest.mark.parametrize(
     "operation_kind, expected",
     [
-        ("initial_answer", [250, 330]),
-        ("retry_attempt", [250, 330]),
+        ("initial_answer", [250, 300]),
+        ("retry_attempt", [250, 300]),
         ("coaching_answer", [150, 220]),
     ],
 )
@@ -115,6 +115,67 @@ def test_operation_length_targets_are_guidance_only(operation_kind, expected):
     result = live(client).generate("経験は？", sample(), operation_kind=operation_kind)
     assert result.status == "ready"
     assert client.data["lengthTarget"] == expected
+
+
+def test_star_source_mode_keeps_original_length_targets():
+    class SourceClient(Client):
+        def converse(self, **kwargs):
+            self.calls += 1
+            self.data = json.loads(kwargs["messages"][0]["content"][0]["text"])
+            plan = {
+                "status": "ready",
+                "candidates": [
+                    {"id": "A", "style": "conclusion", "fields": ["R", "S", "T", "A"]},
+                    {"id": "B", "style": "action", "fields": ["A", "S", "T", "R"]},
+                    {"id": "C", "style": "conversational", "fields": ["S", "T", "A", "R"]},
+                ],
+                "missingInformation": [],
+            }
+            return {
+                "stopReason": "end_turn",
+                "output": {
+                    "message": {
+                        "role": "assistant",
+                        "content": [{"text": json.dumps(plan)}],
+                    }
+                },
+            }
+
+    for operation_kind, expected in (
+        ("initial_answer", [250, 330]),
+        ("retry_attempt", [250, 330]),
+        ("coaching_answer", [150, 220]),
+    ):
+        client = SourceClient()
+        provider = LiveStarProvider(
+            BedrockProvider(client_factory=lambda *args, client=client, **kw: client), mode="source"
+        )
+        result = provider.generate("経験は？", sample(), operation_kind=operation_kind)
+        assert result.status == "ready"
+        assert client.data["lengthTarget"] == expected
+        assert client.calls == 1
+        assert provider.last_prompt_version == "star_grounded_v1"
+
+
+def test_question_fit_prompt_contract_prioritizes_question_and_preserves_facts():
+    for required in (
+        "質問への直接回答",
+        "複数の要求事項",
+        "強み・長所",
+        "弱み・短所",
+        "失敗経験",
+        "工夫したこと",
+        "困難への対応",
+        "判断理由",
+        "成果対象の範囲",
+        "パン全体の販売金額",
+        "250字未満",
+        "600コードポイント",
+        "candidatesに{id:A,style:conclusion",
+        "needs_information",
+    ):
+        assert required in PROSE_V5_INSTRUCTIONS
+    assert "Aは成果があれば結論・変化から始める" not in PROSE_V5_INSTRUCTIONS
 
 
 def test_partial_candidate_is_preserved_and_only_missing_one_is_restored():
@@ -488,6 +549,10 @@ def test_other_assist_prompt_version_v3_is_reported(mode):
     assert result.status == "ready" and len(result.candidates) == 1
     assert provider.last_prompt_version == "answer_assist_v3"
     assert client.kwargs["inferenceConfig"] == {"maxTokens": 2048}
+    assert json.loads(client.kwargs["messages"][0]["content"][0]["text"])["lengthTarget"] == [
+        250,
+        330,
+    ]
     output = []
     with invocation_context("worker", "test", {}, None):
         log_event(
