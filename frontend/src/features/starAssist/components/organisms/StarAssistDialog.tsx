@@ -334,21 +334,21 @@ export function StarAssistDialog({ open, onClose, workspace: w, onApply, onDisca
 
   return (
     <>
-    <Dialog
-      open={open}
-      onClose={onClose}
-      title={title}
-      content={content}
-      actions={actions}
-      maxWidth="lg"
-      fullScreen={fullScreen}
-      scrollContent
-    />
-    <AssistGeneratingOverlay
-      open={open && !overlayDismissed && (requestingGeneration || w.generating)}
-      mode={mode}
-      onDismiss={() => setOverlayDismissed(true)}
-    />
+      <Dialog
+        open={open}
+        onClose={onClose}
+        title={title}
+        content={content}
+        actions={actions}
+        maxWidth="lg"
+        fullScreen={fullScreen}
+        scrollContent
+      />
+      <AssistGeneratingOverlay
+        open={open && !overlayDismissed && (requestingGeneration || w.generating)}
+        mode={mode}
+        onDismiss={() => setOverlayDismissed(true)}
+      />
     </>
   );
 }
