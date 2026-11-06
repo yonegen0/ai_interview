@@ -109,6 +109,14 @@ const CloseButton = styled(IconButton)(({ theme }) => ({
   color: theme.palette.text.secondary,
   "&:focus-visible": { outline: "3px solid " + theme.palette.primary.main },
 }));
+const AccountTitle = styled(DialogTitle)(({ theme }) => ({
+  margin: 0,
+  padding: 0,
+  fontSize: 28,
+  fontWeight: 800,
+  color: theme.palette.primary.dark,
+  [theme.breakpoints.down("sm")]: { fontSize: 24 },
+}));
 const AccentLine = styled("span")(({ theme }) => ({
   width: 54,
   height: 3,
@@ -253,12 +261,7 @@ export function AccountManagementDialog({
               <CloseRoundedIcon />
             </CloseButton>
             <Leaf><SpaOutlinedIcon fontSize="large" aria-hidden="true" /></Leaf>
-            <DialogTitle id={headingId} component="h2" style={{
-              margin: 0, padding: 0, fontSize: "clamp(24px, 5vw, 28px)",
-              fontWeight: 800, color: "#415739",
-            }}>
-              アカウント管理
-            </DialogTitle>
+            <AccountTitle id={headingId} component="h2">アカウント管理</AccountTitle>
             <AccentLine aria-hidden="true" />
           </Header>
           <ProfileCard aria-label="ユーザー情報">
