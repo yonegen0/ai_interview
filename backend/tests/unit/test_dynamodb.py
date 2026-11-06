@@ -1094,9 +1094,7 @@ class HistoryPagesClient:
         values = from_wire(request["ExpressionAttributeValues"])
         owner, prefix = values[":owner"], values[":prefix"]
         after = (
-            from_wire(request["ExclusiveStartKey"])["SK"]
-            if "ExclusiveStartKey" in request
-            else ""
+            from_wire(request["ExclusiveStartKey"])["SK"] if "ExclusiveStartKey" in request else ""
         )
         matches = sorted(
             (item_key, data)
@@ -1106,9 +1104,7 @@ class HistoryPagesClient:
         page = matches[: min(self.page_size, request["Limit"])]
         response = {"Items": [data for _, data in page]}
         if len(matches) > len(page):
-            response["LastEvaluatedKey"] = to_wire(
-                {"PK": page[-1][0][0], "SK": page[-1][0][1]}
-            )
+            response["LastEvaluatedKey"] = to_wire({"PK": page[-1][0][0], "SK": page[-1][0][1]})
         return response
 
 
@@ -1120,9 +1116,7 @@ def history_snapshot_with_equal_timestamps():
     other_attempt = replace(first, id=uid(881), evaluation_id=uid(882))
     other_evaluation = replace(evaluation, id=uid(882), attempt_id=uid(881))
     foreign_attempt = replace(first, owner="other-user", id=uid(883), evaluation_id=uid(884))
-    foreign_evaluation = replace(
-        evaluation, owner="other-user", id=uid(884), attempt_id=uid(883)
-    )
+    foreign_evaluation = replace(evaluation, owner="other-user", id=uid(884), attempt_id=uid(883))
     items = snapshot(memory)
     for kind, record in (
         ("Attempt", other_attempt),
@@ -1140,16 +1134,21 @@ def test_history_query_paginates_with_stable_timestamp_ties_and_owner_scope():
     client = HistoryPagesClient(items)
     repository = db(client)
     first = repository.history(OWNER, {"limit": "1"}).body
-    second = repository.history(
-        OWNER, {"limit": "1", "cursor": first["nextCursor"]}
-    ).body
+    second = repository.history(OWNER, {"limit": "1", "cursor": first["nextCursor"]}).body
     assert [row["attemptId"] for row in first["items"] + second["items"]] == sorted(
         [first_id, other_id], reverse=True
     )
     assert second["nextCursor"] is None
-    assert len([q for q in client.queries if from_wire(
-        q["ExpressionAttributeValues"]
-    )[":prefix"] == "ATTEMPT#"]) >= 4
+    assert (
+        len(
+            [
+                q
+                for q in client.queries
+                if from_wire(q["ExpressionAttributeValues"])[":prefix"] == "ATTEMPT#"
+            ]
+        )
+        >= 4
+    )
     assert all(
         from_wire(q["ExpressionAttributeValues"])[":owner"] == f"USER#{OWNER}"
         for q in client.queries
