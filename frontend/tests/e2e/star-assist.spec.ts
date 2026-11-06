@@ -218,9 +218,15 @@ for (const width of [375, 390, 768, 1280, 1440])
     await expect(page.getByRole("tab", { name: "C 会話重視" })).toBeFocused();
     await page.getByRole("tab", { name: "A 結論重視" }).click();
     await page.screenshot({ path: testInfo.outputPath(`star-dialog-${width}.png`) });
+    // 390pxでは案Bを選択し、表示中の候補が実際の通常回答欄へ反映されることも検証。
+    if (width === 390) {
+      await page.getByRole("tab", { name: "B 行動重視" }).click();
+    }
     await page.getByRole("button", { name: "この回答を使う" }).click();
     await expect(page.getByLabel("あなたの回答")).toHaveValue(
-      "本人が選択前に編集した回答Aです。",
+      width === 390
+        ? "本人が選択前に編集した回答Bです。"
+        : "本人が選択前に編集した回答Aです。",
     );
     await expect(
       page.getByRole("button", { name: "回答を送信", exact: true }),
