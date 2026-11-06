@@ -95,7 +95,8 @@ export function StarAssistPanel({
       w.input.generationId !== requestedGenerationId || w.resultWaiting ||
       w.input.candidates.length !== (w.mode === "star" ? 3 : 1)) return;
     setRequestedGenerationId(null);
-    setScreen("result");
+    viewRef.current = "result";
+    setView("result");
   }, [view, requestedGenerationId, w.input.generationId, w.input.candidates.length, w.resultWaiting, w.mode]);
 
   const close = () => {
