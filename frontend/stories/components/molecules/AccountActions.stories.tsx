@@ -1,6 +1,6 @@
-/** @file AccountActions.stories.tsx @description Components/Molecules/AccountActionsの表示・操作。 */
+/** @file AccountActions.stories.tsx @description Components/Organisms/AccountActionsの表示・操作。 */
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
-import { AccountActions } from "@/components/molecules/AccountActions";
+import { AccountActions } from "@/components/organisms/AccountActions";
 
 const meta = {
   title: "Components/Molecules/AccountActions",
