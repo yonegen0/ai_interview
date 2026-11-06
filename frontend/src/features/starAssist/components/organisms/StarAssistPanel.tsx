@@ -151,6 +151,8 @@ export function StarAssistPanel({
         setScreen("result");
         return;
       }
+      // Keep the result visible (with actions disabled) until apply resolves.
+      setScreen("result");
       await commitApply(id);
       return;
     }
