@@ -148,7 +148,7 @@ def test_star_source_mode_keeps_original_length_targets():
     ):
         client = SourceClient()
         provider = LiveStarProvider(
-            BedrockProvider(client_factory=lambda *args, **kw: client), mode="source"
+            BedrockProvider(client_factory=lambda *args, client=client, **kw: client), mode="source"
         )
         result = provider.generate("経験は？", sample(), operation_kind=operation_kind)
         assert result.status == "ready"
