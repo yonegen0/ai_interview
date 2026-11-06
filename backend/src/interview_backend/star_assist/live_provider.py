@@ -21,7 +21,7 @@ from interview_backend.star_assist.models import (
     Strict,
     star_notes_length,
 )
-from interview_backend.star_assist.prose_v5 import ProseV5Reply, validate_prose_v5
+from interview_backend.star_assist.prose_v5 import ProseV5Reply, missing_action, validate_prose_v5
 from interview_backend.text_limits import utf16_length
 
 MAX_OUTPUT_TOKENS = 4096
@@ -268,9 +268,7 @@ class LiveStarProvider:
             "lengthTarget": length_target,
         }
         if self.mode == "natural":
-            if not facts["A"].strip() or any(
-                term in facts["A"] for term in ("一切行っていない", "何もしていない")
-            ):
+            if missing_action(facts):
                 self.last_reason_code = "INPUT_ACTION_MISSING"
                 return clarify("action")
             if contradictory(facts):
@@ -341,12 +339,12 @@ class LiveStarProvider:
             > MAX_INPUT_BYTES
         ):
             raise ProviderFailure("USAGE_LIMIT")
-        self.last_prompt_version = "answer_assist_v2"
+        self.last_prompt_version = "answer_assist_v3"
         prompt = StructuredPrompt(
             instruction,
             data,
             schema,
-            version="answer_assist_v2",
+            version="answer_assist_v3",
             max_tokens=2048,
         )
         try:
