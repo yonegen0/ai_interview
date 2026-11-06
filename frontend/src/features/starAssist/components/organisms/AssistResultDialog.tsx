@@ -197,7 +197,7 @@ export function AssistResultDialog({ open, workspace: w, applying, onClose, onBa
   const answerLength = candidate ? countCodePoints(candidate.text) : 0;
   const valid = starInputSchema.safeParse(w.input).success;
   const disabled = applying || w.busy || w.pending || !valid ||
-    w.input.assistType !== w.mode || !candidate?.text.trim();
+    (w.input.assistType ?? "star") !== w.mode || !candidate?.text.trim();
   const choose = (id: CandidateId) => {
     if (!candidates.some((c) => c.id === id)) return;
     setActiveId(id);
