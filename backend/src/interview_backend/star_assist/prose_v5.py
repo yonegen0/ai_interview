@@ -95,16 +95,12 @@ def _unsafe_claim(text: str, notes: dict[str, str]) -> bool:
         from_matches = [
             pair
             for pair in original_pairs
-            if (pair[1] or pair[3])
-            and pair[0] == start
-            and _compatible(start_unit, pair[1])
+            if (pair[1] or pair[3]) and pair[0] == start and _compatible(start_unit, pair[1])
         ]
         to_matches = [
             pair
             for pair in original_pairs
-            if (pair[1] or pair[3])
-            and pair[2] == end
-            and _compatible(end_unit, pair[3])
+            if (pair[1] or pair[3]) and pair[2] == end and _compatible(end_unit, pair[3])
         ]
         if len(from_matches) == 1 or len(to_matches) == 1:
             return True
