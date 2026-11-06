@@ -1,18 +1,34 @@
-/** @file HistoryAccountControls.tsx @description 共通アカウントUIと履歴Featureを上位で合成する。 */
+/** @file HistoryAccountControls.tsx @description 既存アカウントメニューと本人別の履歴Dialogを合成する。 */
 "use client";
 import { useEffect, useState } from "react";
-import { AccountActions } from "@/components/molecules/AccountActions";
+import { AccountActions } from "@/components/organisms/AccountActions";
 import { useAuthSession } from "@/hooks/useAuthSession";
-import { HistoryDialog } from "./HistoryDialog";
+import { HistoryDialog, type HistoryTab } from "./HistoryDialog";
+
+type HistoryView = { owner: string; tab: HistoryTab };
 
 export function HistoryAccountControls() {
-  const [open, setOpen] = useState(false);
+  const [view, setView] = useState<HistoryView | null>(null);
   const { sub } = useAuthSession();
-  useEffect(() => { setOpen(false); }, [sub]);
+
+  useEffect(() => { setView(null); }, [sub]);
+
+  const openHistory = (tab: HistoryTab) => {
+    if (sub) setView({ owner: sub, tab });
+  };
+
+  const visible = Boolean(view && sub && view.owner === sub);
   return (
     <>
-      <AccountActions onHistory={() => setOpen(true)} />
-      <HistoryDialog open={open && Boolean(sub)} owner={sub ?? ""} onClose={() => setOpen(false)} />
+      <AccountActions onHistory={openHistory} />
+      {visible && view && (
+        <HistoryDialog
+          open
+          owner={view.owner}
+          initialTab={view.tab}
+          onClose={() => setView(null)}
+        />
+      )}
     </>
   );
 }

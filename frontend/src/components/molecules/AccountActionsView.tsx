@@ -13,9 +13,7 @@ import {
   Typography,
 } from "@mui/material";
 import { alpha, styled } from "@mui/material/styles";
-import { Button } from "@/components/atoms/Button";
 import { Link } from "@/components/atoms/Link";
-import { Dialog } from "@/components/organisms/Dialog";
 import { scaledRadius } from "@/theme/tokens";
 
 const Navigation = styled("nav")(({ theme }) => ({
@@ -59,11 +57,6 @@ const HighlightItem = styled(MenuItem)(({ theme }) => ({
   "&:hover, &.Mui-focusVisible": { background: alpha(theme.palette.success.light, 0.2) },
 }));
 const MenuAction = styled(MenuItem)(({ theme }) => ({ borderRadius: theme.shape.borderRadius }));
-const DetailCopy = styled("div")(({ theme }) => ({
-  display: "grid", gap: theme.spacing(1.25),
-  padding: theme.spacing(1),
-  overflowWrap: "anywhere",
-}));
 
 export type AccountActionsViewProps = {
   authenticated: boolean;
@@ -72,19 +65,18 @@ export type AccountActionsViewProps = {
   phase?: string;
   onLogout: () => void;
   onHistory?: () => void;
+  onManage?: () => void;
 };
 
 export const AccountActionsView = ({
-  authenticated, admin, sub, phase, onLogout, onHistory,
+  authenticated, admin, onLogout, onHistory, onManage,
 }: AccountActionsViewProps) => {
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
-  const [accountOpen, setAccountOpen] = useState(false);
   const close = () => setAnchor(null);
   const clickTrigger = (event: MouseEvent<HTMLElement>) =>
     setAnchor((current) => current ? null : event.currentTarget);
   const logout = () => {
     close();
-    setAccountOpen(false);
     onLogout();
   };
   return (
@@ -123,7 +115,7 @@ export const AccountActionsView = ({
               </div>
             </RoleHeader>
             <Divider />
-            <MenuAction onClick={() => { close(); setAccountOpen(true); }}>
+            <MenuAction onClick={() => { close(); onManage?.(); }}>
               <ListItemIcon><ManageAccountsOutlinedIcon fontSize="small" /></ListItemIcon>
               <ListItemText>アカウント管理</ListItemText>
             </MenuAction>
@@ -139,20 +131,6 @@ export const AccountActionsView = ({
               <ListItemText>ログアウト</ListItemText>
             </MenuAction>
           </AccountMenu>
-          <Dialog
-            open={accountOpen && authenticated}
-            onClose={() => setAccountOpen(false)}
-            title="アカウント管理"
-            content={
-              <DetailCopy>
-                <Typography>権限：{admin ? "管理者" : "一般ユーザー"}</Typography>
-                <Typography>ログイン状態：{phase === "authenticated" ? "認証済み" : "確認中"}</Typography>
-                {sub && <Typography variant="body2" color="text.secondary">ユーザー識別子：{sub}</Typography>}
-                <Typography variant="caption" color="text.secondary">アカウント情報は閲覧専用です。</Typography>
-              </DetailCopy>
-            }
-            actions={<Button onClick={() => setAccountOpen(false)}>閉じる</Button>}
-          />
         </>
       ) : (
         <Link href="/login/" variant="text">ログイン</Link>

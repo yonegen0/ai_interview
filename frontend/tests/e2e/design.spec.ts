@@ -208,3 +208,29 @@ test("home guide and action cards navigate to implemented destinations", async (
   await page.getByRole("link", { name: /3分から始める/ }).click();
   await expect(page).toHaveURL(/\/practice\/$/);
 });
+
+
+test("account management fits mobile and desktop and opens the chosen history tab", async ({ page }) => {
+  for (const width of [320, 390, 1440]) {
+    await page.setViewportSize({ width, height: 640 });
+    await page.goto("/");
+    await page.getByRole("button", { name: "アカウントメニュー" }).click();
+    await page.getByRole("menuitem", { name: "アカウント管理" }).click();
+
+    const dialog = page.getByRole("dialog", { name: "アカウント管理" });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole("button", { name: "ユーザーIDをコピー" })).toBeVisible();
+    await expect(dialog.getByRole("button", { name: "ログアウト" })).toBeVisible();
+    const bounds = await dialog.boundingBox();
+    expect(bounds).not.toBeNull();
+    expect(bounds!.x).toBeGreaterThanOrEqual(-1);
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width + 1);
+    expect(await page.evaluate(() =>
+      document.documentElement.scrollWidth > window.innerWidth + 1,
+    )).toBe(false);
+
+    await dialog.getByRole("button", { name: "利用状況" }).click();
+    await expect(page.getByRole("tab", { name: "利用状況" })).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByRole("dialog")).toHaveCount(1);
+  }
+});

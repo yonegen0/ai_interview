@@ -47,6 +47,8 @@ const Details = styled("div")(({ theme }) => ({
   display: "grid", gap: theme.spacing(2),
   minWidth: 0, marginBottom: theme.spacing(2),
 }));
+export type HistoryTab = 0 | 1;
+
 const assistLabels = {
   star: "STAR", prep: "PREP", motivation: "志望動機",
   career_change: "転職理由", career_plan: "キャリアプラン",
@@ -91,10 +93,10 @@ function UsagePanel({ owner, open, data, loading, error, quota, quotaLoading, qu
   );
 }
 
-export function HistoryDialog({ open, onClose, owner }: {
-  open: boolean; onClose: () => void; owner: string;
+export function HistoryDialog({ open, onClose, owner, initialTab = 0 }: {
+  open: boolean; onClose: () => void; owner: string; initialTab?: HistoryTab;
 }) {
-  const [tab, setTab] = useState(0);
+  const [tab, setTab] = useState<HistoryTab>(initialTab);
   const [mode, setMode] = useState<HistoryMode>("all");
   const [period, setPeriod] = useState<HistoryPeriod>("all");
   const [selected, setSelected] = useState<HistoryItem | null>(null);
@@ -117,7 +119,7 @@ export function HistoryDialog({ open, onClose, owner }: {
         scrollContent
         title={<Heading><HistoryRoundedIcon aria-hidden="true" />利用履歴</Heading>}
         content={<Container>
-          <Tabs value={tab} onChange={(_, value: number) => setTab(value)} variant="fullWidth"
+          <Tabs value={tab} onChange={(_, value: HistoryTab) => setTab(value)} variant="fullWidth"
             aria-label="利用履歴の表示内容">
             <Tab label="練習履歴" />
             <Tab label="利用状況" />
