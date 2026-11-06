@@ -13,9 +13,8 @@ export function AccountActions({ onHistory }: { onHistory?: (tab: HistoryTab) =>
   const [dialogOwner, setDialogOwner] = useState<string | null>(null);
   const pending = useRef<{ owner: string; tab: HistoryTab } | null>(null);
   const currentOwner = useRef(account.sub);
-  currentOwner.current = account.sub;
-
   useEffect(() => {
+    currentOwner.current = account.sub;
     pending.current = null;
     setDialogOwner(null);
   }, [account.sub]);
