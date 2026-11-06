@@ -12,7 +12,7 @@ import HistoryRoundedIcon from "@mui/icons-material/HistoryRounded";
 import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
 import QueryStatsRoundedIcon from "@mui/icons-material/QueryStatsRounded";
 import SpaOutlinedIcon from "@mui/icons-material/SpaOutlined";
-import { Alert, Avatar, Button as MuiButton, Dialog as MuiDialog, DialogTitle,
+import { Alert, Avatar, Button as MuiButton, Dialog as MuiDialog,
   IconButton, Snackbar, Typography } from "@mui/material";
 import { alpha, styled } from "@mui/material/styles";
 import { scaledRadius } from "@/theme/tokens";
@@ -109,7 +109,7 @@ const CloseButton = styled(IconButton)(({ theme }) => ({
   color: theme.palette.text.secondary,
   "&:focus-visible": { outline: "3px solid " + theme.palette.primary.main },
 }));
-const AccountTitle = styled(DialogTitle)(({ theme }) => ({
+const AccountTitle = styled("h2")(({ theme }) => ({
   margin: 0,
   padding: 0,
   fontSize: 28,
@@ -261,16 +261,16 @@ export function AccountManagementDialog({
               <CloseRoundedIcon />
             </CloseButton>
             <Leaf><SpaOutlinedIcon fontSize="large" aria-hidden="true" /></Leaf>
-            <AccountTitle id={headingId} component="h2">アカウント管理</AccountTitle>
+            <AccountTitle id={headingId}>アカウント管理</AccountTitle>
             <AccentLine aria-hidden="true" />
           </Header>
           <ProfileCard aria-label="ユーザー情報">
             <IdentityRow>
               <RoleAvatar><AccountCircleOutlinedIcon fontSize="large" /></RoleAvatar>
               <IdentityText>
-                <Typography variant="body1" fontWeight={800}>
+                <Typography variant="body1"><strong>
                   {admin ? "管理者アカウント" : "ユーザーアカウント"}
-                </Typography>
+                </strong></Typography>
                 <Typography variant="caption" color="text.secondary">
                   {admin ? "管理者" : "一般ユーザー"}
                 </Typography>
@@ -284,7 +284,7 @@ export function AccountManagementDialog({
               <BadgeOutlinedIcon fontSize="small" color="primary" aria-hidden="true" />
               <IdText>
                 <Typography variant="caption" color="text.secondary">ユーザーID</Typography>
-                <Typography variant="body2" fontWeight={600}>{maskAccountId(sub)}</Typography>
+                <Typography variant="body2"><strong>{maskAccountId(sub)}</strong></Typography>
               </IdText>
               <IconButton aria-label="ユーザーIDをコピー" onClick={() => { void copyId(); }}
                 disabled={!sub} size="medium">
