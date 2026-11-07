@@ -19,6 +19,10 @@ variables {
 run "closed_dev" {
   command = plan
   assert {
+    condition     = aws_lambda_function.main["api"].environment[0].variables["INTERVIEW_COACHING_FOLLOWUP_REVIEW_ENABLED"] == "false" && aws_lambda_function.main["api"].environment[0].variables["INTERVIEW_COACHING_OVERALL_RUBRIC_V2_ENABLED"] == "false"
+    error_message = "Both API scoring flags must default to false during compatible code deployment."
+  }
+  assert {
     condition     = aws_apigatewayv2_api.main.disable_execute_api_endpoint && !aws_lambda_event_source_mapping.worker.enabled && !aws_lambda_event_source_mapping.streams.enabled && aws_scheduler_schedule.recovery.state == "DISABLED"
     error_message = "Omitting activation inputs must keep the first deployment closed."
   }
@@ -33,6 +37,40 @@ run "closed_dev" {
   assert {
     condition     = alltrue([for f in aws_lambda_function.main : f.tracing_config[0].mode == "PassThrough" && length(f.vpc_config) == 0 && f.memory_size == 512 && length(f.architectures) == 1 && contains(f.architectures, "x86_64") && f.reserved_concurrent_executions == -1])
     error_message = "Runtime must remain on demand, unreserved and outside a VPC."
+  }
+}
+
+run "followup_scoring_only" {
+  command = plan
+  variables { coaching_followup_review_enabled = true }
+  assert {
+    condition     = aws_lambda_function.main["api"].environment[0].variables["INTERVIEW_COACHING_FOLLOWUP_REVIEW_ENABLED"] == "true" && aws_lambda_function.main["api"].environment[0].variables["INTERVIEW_COACHING_OVERALL_RUBRIC_V2_ENABLED"] == "false"
+    error_message = "Follow-up scoring must be independently enabled and disabled."
+  }
+}
+
+run "overall_rubric_only" {
+  command = plan
+  variables { coaching_overall_rubric_v2_enabled = true }
+  assert {
+    condition     = aws_lambda_function.main["api"].environment[0].variables["INTERVIEW_COACHING_FOLLOWUP_REVIEW_ENABLED"] == "false" && aws_lambda_function.main["api"].environment[0].variables["INTERVIEW_COACHING_OVERALL_RUBRIC_V2_ENABLED"] == "true"
+    error_message = "The overall rubric must be independently enabled and disabled."
+  }
+}
+
+run "both_scoring_flags_api_only" {
+  command = plan
+  variables {
+    coaching_followup_review_enabled   = true
+    coaching_overall_rubric_v2_enabled = true
+  }
+  assert {
+    condition     = aws_lambda_function.main["api"].environment[0].variables["INTERVIEW_COACHING_FOLLOWUP_REVIEW_ENABLED"] == "true" && aws_lambda_function.main["api"].environment[0].variables["INTERVIEW_COACHING_OVERALL_RUBRIC_V2_ENABLED"] == "true"
+    error_message = "Both API scoring features can be enabled after Worker verification."
+  }
+  assert {
+    condition     = alltrue([for role in ["admin", "worker", "dispatcher"] : !contains(keys(aws_lambda_function.main[role].environment[0].variables), "INTERVIEW_COACHING_FOLLOWUP_REVIEW_ENABLED") && !contains(keys(aws_lambda_function.main[role].environment[0].variables), "INTERVIEW_COACHING_OVERALL_RUBRIC_V2_ENABLED")])
+    error_message = "API scoring settings must not change other Lambda environments."
   }
 }
 

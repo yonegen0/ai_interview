@@ -23,10 +23,12 @@ locals {
   }
   role_env = {
     api = {
-      INTERVIEW_CLIENT_ID    = aws_cognito_user_pool_client.web.id
-      INTERVIEW_USER_POOL_ID = aws_cognito_user_pool.main.id
-      INTERVIEW_API_ID       = aws_apigatewayv2_api.main.id
-      INTERVIEW_STAGE        = "dev"
+      INTERVIEW_CLIENT_ID                          = aws_cognito_user_pool_client.web.id
+      INTERVIEW_USER_POOL_ID                       = aws_cognito_user_pool.main.id
+      INTERVIEW_API_ID                             = aws_apigatewayv2_api.main.id
+      INTERVIEW_STAGE                              = "dev"
+      INTERVIEW_COACHING_FOLLOWUP_REVIEW_ENABLED   = tostring(var.coaching_followup_review_enabled)
+      INTERVIEW_COACHING_OVERALL_RUBRIC_V2_ENABLED = tostring(var.coaching_overall_rubric_v2_enabled)
     }
     admin = {
       INTERVIEW_CLIENT_ID    = aws_cognito_user_pool_client.web.id

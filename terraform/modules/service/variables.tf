@@ -84,6 +84,18 @@ variable "api_enabled" {
   type    = bool
   default = false
 }
+variable "coaching_followup_review_enabled" {
+  description = "API-only follow-up scoring; enable only after deploying a compatible Worker."
+  type        = bool
+  default     = false
+  nullable    = false
+}
+variable "coaching_overall_rubric_v2_enabled" {
+  description = "API-only overall rubric for new Attempts; keep a compatible Worker when disabling."
+  type        = bool
+  default     = false
+  nullable    = false
+}
 variable "monthly_budget_usd" {
   type = number
   validation {
