@@ -40,6 +40,7 @@ function makeAdapter(refresh: IdentityAdapter["refresh"]): IdentityAdapter {
 async function signIn(adapter: IdentityAdapter) {
   configure();
   setIdentityAdapterForTests(adapter);
+  await auth.initialize();
   await auth.complete("user@example.invalid", "challenge", "123456");
 }
 afterEach(async () => {
