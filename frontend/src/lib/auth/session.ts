@@ -136,10 +136,7 @@ function onResume() {
     void auth.access(true).catch(() => undefined);
 }
 function onOnline() {
-  // Remember reconnects even while the final bounded refresh is still settling.
-  if (tokens && !onlineRecoveryUsed &&
-    (retryStopped || retryAttempts >= retryDelaysMs.length))
-    onlineRecoveryRequested = true;
+  if (tokens && retryStopped && !onlineRecoveryUsed) onlineRecoveryRequested = true;
   onResume();
 }
 async function identity() {
@@ -243,11 +240,7 @@ function renew(): Promise<string> {
       }
       throw new AuthUnavailableError("認証を確認できません。");
     } finally {
-      if (epoch === generation) {
-        refreshTask = null;
-        // An online event during the final failed refresh is handled once it settles.
-        if (onlineRecoveryRequested) queueMicrotask(onResume);
-      }
+      if (epoch === generation) refreshTask = null;
     }
   })();
   return refreshTask;
