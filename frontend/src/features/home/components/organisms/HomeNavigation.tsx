@@ -168,11 +168,11 @@ const StepItem = styled("li")(({ theme }) => ({
   },
 }));
 
-/** リンク先は実装済みの練習画面とホーム内ガイドに限定する。 */
+/** リンク先は実装済みの練習画面と専用ガイドに限定する。 */
 export function HomeNavigation() {
   return (
     <>
-    <GuideLink href="#home-how-it-works" variant="text">
+    <GuideLink href="/guide/" variant="text">
       <CardIcon><MenuBookOutlinedIcon aria-hidden="true" /></CardIcon>
       <CardCopy>
         <CardEyebrow component="span" variant="caption">はじめての方へ</CardEyebrow>

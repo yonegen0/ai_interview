@@ -180,7 +180,7 @@ test("home header stays compact and CTA visible on mobile", async ({ page }) => 
     await expect(primary).toBeVisible();
     await expect(primary).toHaveAttribute("href", "/practice/");
     await expect(page.getByRole("link", { name: /まずは使い方ガイド/ }))
-      .toHaveAttribute("href", "#home-how-it-works");
+      .toHaveAttribute("href", "/guide/");
     await expect(page.getByRole("link", { name: /カテゴリから選ぶ/ }))
       .toHaveAttribute("href", "/practice/category/");
     await expect(page.getByRole("link", { name: /3分から始める/ }))
@@ -197,10 +197,11 @@ test("home guide and action cards navigate to implemented destinations", async (
   await page.setViewportSize({ width: 375, height: 800 });
   await page.goto("/");
   await page.getByRole("link", { name: /まずは使い方ガイド/ }).click();
-  await expect(page).toHaveURL(/#home-how-it-works$/);
-  await expect(page.getByRole("heading", { name: "練習を続ける3つのステップ" }))
+  await expect(page).toHaveURL(/\/guide\/$/);
+  await expect(page.getByRole("heading", { name: "使い方ガイド" }))
     .toBeVisible();
 
+  await page.goto("/");
   await page.getByRole("link", { name: /カテゴリから選ぶ/ }).click();
   await expect(page).toHaveURL(/\/practice\/category\/$/);
   await expect(page.getByRole("heading", { name: "カテゴリを選択" })).toBeVisible();
