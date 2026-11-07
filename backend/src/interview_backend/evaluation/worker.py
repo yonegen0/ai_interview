@@ -12,6 +12,7 @@ from interview_backend.evaluation.coaching import InvalidCoachingResult, validat
 from interview_backend.evaluation.provider import (
     COACHING_PROMPT_VERSION,
     FOLLOWUP_PROMPT_VERSION,
+    OVERALL_RUBRIC_PROMPT_VERSION,
     PROMPT_VERSION,
     build_coaching_prompt,
     build_prompt,
@@ -86,22 +87,31 @@ class Worker:
         remaining = remaining_ms or (
             lambda: max(0, 60000 - int((self.monotonic() - started) * 1000))
         )
-        version = self.repository.evaluation_contract_version(owner, evaluation_id)
-        review_version = self.repository.evaluation_review_prompt_version(owner, evaluation_id)
-        if review_version is not None and (
-            version != 2 or review_version != FOLLOWUP_PROMPT_VERSION
-        ):
-            # Never let an unsupported Worker run an unknown job contract.
-            self.metric("InvalidConfiguration")
-            return False
-        followup_review = version == 2 and review_version == FOLLOWUP_PROMPT_VERSION
-        config = (
-            self.followup_config
-            if followup_review
-            else self.coaching_config
-            if version == 2
-            else self.config
+        version, overall_version, review_version = self.repository.evaluation_prompt_versions(
+            owner, evaluation_id
         )
+        supported = (
+            version != 2
+            or (
+                overall_version in {COACHING_PROMPT_VERSION, OVERALL_RUBRIC_PROMPT_VERSION}
+                and review_version in {None, FOLLOWUP_PROMPT_VERSION}
+            )
+        )
+        followup_review = version == 2 and review_version == FOLLOWUP_PROMPT_VERSION
+        if version == 2:
+            # Preserve the old combined execution ID for existing review jobs.
+            prompt_version = (
+                FOLLOWUP_PROMPT_VERSION
+                if followup_review and overall_version == COACHING_PROMPT_VERSION
+                else overall_version
+            )
+            config = replace(
+                self.coaching_config,
+                prompt_version=prompt_version,
+                result_schema_version=3 if review_version is not None else 2,
+            )
+        else:
+            config = self.config
         claim = self.repository.claim(
             owner, evaluation_id, generation, self.new_execution_id(), config
         )
@@ -113,6 +123,13 @@ class Worker:
                 self.metric("MissingEvaluation")
             return False
         lease = claim.lease
+        if not supported:
+            # Terminalize unknown jobs before any paid call; never relabel as legacy.
+            self.metric("InvalidConfiguration")
+            return self.repository.finish(lease, reason="PREPARATION_FAILED").status in {
+                "applied",
+                "already_terminal",
+            }
 
         def enough():
             return (
@@ -123,23 +140,21 @@ class Worker:
         try:
             if (
                 lease.execution_config != config
-                or config.prompt_version
-                != (
-                    FOLLOWUP_PROMPT_VERSION
-                    if followup_review
-                    else COACHING_PROMPT_VERSION
-                    if version == 2
-                    else PROMPT_VERSION
-                )
                 or config.provider_id != getattr(self.provider, "provider_id", "fake")
                 or config.model_id != getattr(self.provider, "model_id", "fake")
             ):
                 raise ValueError("execution_config")
             prompt = (
-                build_coaching_prompt(lease.coaching_input, follow_up_review=followup_review)
+                build_coaching_prompt(
+                    lease.coaching_input,
+                    follow_up_review=followup_review,
+                    overall_prompt_version=overall_version,
+                )
                 if version == 2
                 else build_prompt(lease.attempt.question, lease.attempt.answer)
             )
+            if config.prompt_version != prompt.version:
+                raise ValueError("prompt_version")
             if hasattr(self.provider, "authorize_owner"):
                 self.provider.authorize_owner(lease.owner)
         except Exception:
