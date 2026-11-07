@@ -468,12 +468,13 @@ export const feedbackWithReviewsSchema = z.object({
   feedback: feedbackSchema,
   followUpReviews: z.array(followUpReviewItemSchema).max(3),
 }).strict().superRefine((value, ctx) => {
-  if ("feedbackVersion" in value.feedback) {
-    if (value.followUpReviews.length !== value.feedback.coachingCount ||
+  const feedback = value.feedback;
+  if ("feedbackVersion" in feedback) {
+    if (value.followUpReviews.length !== feedback.coachingCount ||
       value.followUpReviews.some((item, i) =>
         item.roundIndex !== i + 1 ||
-        item.question !== value.feedback.coachingHistory[i]?.question ||
-        item.answer !== value.feedback.coachingHistory[i]?.answer
+        item.question !== feedback.coachingHistory[i]?.question ||
+        item.answer !== feedback.coachingHistory[i]?.answer
       )) ctx.addIssue({ code: "custom", message: "深掘り回答と採点の対応が一致しません。" });
   } else if (value.followUpReviews.length) {
     ctx.addIssue({ code: "custom", message: "通常評価に深掘り採点はありません。" });

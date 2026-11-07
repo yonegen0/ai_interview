@@ -57,7 +57,7 @@ const item = {
 it("validates exact review scores and preserves independent aggregate", () => {
   const parsed = feedbackWithReviewsSchema.parse({ feedback, followUpReviews: [item] });
   expect(parsed.followUpReviews[0].review?.totalScore).toBe(26);
-  expect(parsed.feedback.totalScore).toBe(feedback.totalScore);
+  expect(parsed.feedback).toEqual(feedback);
   expect(followUpReviewSchema.safeParse({ ...review, totalScore: 28 }).success).toBe(false);
   expect(followUpReviewSchema.safeParse({ ...review, question_fit_score: 11 }).success).toBe(false);
   expect(followUpReviewSchema.safeParse({ ...review, suitability: "unknown" }).success).toBe(false);
