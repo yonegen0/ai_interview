@@ -10,6 +10,12 @@ import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
 import ThumbUpOutlinedIcon from "@mui/icons-material/ThumbUpOutlined";
 import LightbulbOutlinedIcon from "@mui/icons-material/LightbulbOutlined";
 import HistoryOutlinedIcon from "@mui/icons-material/HistoryOutlined";
+import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
+import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
+import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
+import TrackChangesOutlinedIcon from "@mui/icons-material/TrackChangesOutlined";
+import LayersOutlinedIcon from "@mui/icons-material/LayersOutlined";
+import LinkOutlinedIcon from "@mui/icons-material/LinkOutlined";
 import AutoAwesomeOutlinedIcon from "@mui/icons-material/AutoAwesomeOutlined";
 import { alpha, styled } from "@mui/material/styles";
 import { Panel } from "@/components/atoms/Panel";
@@ -155,30 +161,209 @@ const HistoryItems = styled("div")(({ theme }) => ({
 }));
 
 
-const ReviewPanel = styled(Panel)(({ theme }) => ({
+const ReviewPanel = styled(Panel, {
+  shouldForwardProp: (prop) => prop !== "$compact",
+})<{ $compact: boolean }>(({ theme, $compact }) => ({
   display: "grid",
-  gap: theme.spacing(1.5),
-  padding: theme.spacing(2),
+  gap: theme.spacing($compact ? 1.5 : 2.5),
+  padding: theme.spacing($compact ? 2 : 2.5),
   minWidth: 0,
   overflowWrap: "anywhere",
-  border: "1px solid " + alpha(theme.palette.primary.main, 0.25),
-  borderRadius: scaledRadius(theme, 1.3),
-  backgroundColor: alpha(theme.palette.primary.main, 0.055),
-  [theme.breakpoints.up("md")]: { padding: theme.spacing(3) },
+  border: "1px solid " + alpha(theme.palette.primary.main, 0.17),
+  borderRadius: scaledRadius(theme, 1.5),
+  backgroundColor: "#FFFEFB",
+  boxShadow: "0 8px 28px " + alpha(theme.palette.text.primary, 0.07),
+  [theme.breakpoints.up("md")]: {
+    padding: theme.spacing($compact ? 2.5 : 3.5),
+  },
 }));
+
+const ReviewHeading = styled(Text)(({ theme }) => ({
+  margin: 0,
+  display: "flex",
+  alignItems: "center",
+  gap: theme.spacing(1.5),
+  minWidth: 0,
+  fontWeight: 700,
+  color: theme.palette.text.primary,
+  "&::before": {
+    content: '""',
+    display: "block",
+    width: 6,
+    height: 28,
+    flexShrink: 0,
+    borderRadius: 4,
+    backgroundColor: theme.palette.primary.light,
+  },
+}));
+
+const ReviewOverview = styled("div")(({ theme }) => ({
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  flexWrap: "wrap",
+  gap: theme.spacing(1.5),
+  minWidth: 0,
+}));
+
+const ReviewTotal = styled("p")(({ theme }) => ({
+  display: "flex",
+  alignItems: "baseline",
+  gap: theme.spacing(0.75),
+  margin: 0,
+  lineHeight: 1.2,
+  whiteSpace: "nowrap",
+  fontVariantNumeric: "tabular-nums",
+}));
+
+const ReviewTotalNumber = styled("span")(({ theme }) => ({
+  color: theme.palette.primary.dark,
+  fontSize: "clamp(2.5rem, 9vw, 3.4rem)",
+  fontWeight: 800,
+  letterSpacing: "-0.045em",
+}));
+
+const ReviewTotalUnit = styled("span")(({ theme }) => ({
+  color: theme.palette.text.primary,
+  fontSize: "clamp(1.05rem, 4.2vw, 1.4rem)",
+  fontWeight: 700,
+}));
+
+const ReviewBadge = styled("span", {
+  shouldForwardProp: (prop) => prop !== "$tone",
+})<{ $tone: "positive" | "caution" | "neutral" }>(({ theme, $tone }) => {
+  const color =
+    $tone === "caution" ? theme.palette.warning.dark :
+    $tone === "neutral" ? theme.palette.text.secondary :
+    theme.palette.primary.dark;
+  return {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: theme.spacing(0.75),
+    maxWidth: "100%",
+    minWidth: 0,
+    padding: theme.spacing(0.75, 1.5),
+    borderRadius: 999,
+    backgroundColor: alpha(color, 0.09),
+    color,
+    fontSize: "0.875rem",
+    fontWeight: 700,
+    lineHeight: 1.5,
+    textAlign: "center",
+    "& svg": { flexShrink: 0, fontSize: "1.25rem" },
+  };
+});
+
+const ReviewDivider = styled("hr")(({ theme }) => ({
+  width: "100%",
+  margin: 0,
+  border: 0,
+  borderTop: "1px solid " + alpha(theme.palette.text.secondary, 0.16),
+}));
+
 const ReviewScores = styled("div")(({ theme }) => ({
   display: "grid",
-  gap: theme.spacing(1),
-  gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 180px), 1fr))",
-}));
-const ReviewScore = styled("div")(({ theme }) => ({
-  padding: theme.spacing(1.5),
+  gap: theme.spacing(1.25),
   minWidth: 0,
-  borderRadius: scaledRadius(theme, 1),
-  backgroundColor: theme.palette.background.paper,
-  overflowWrap: "anywhere",
 }));
-const ReviewText = styled(Text)({ overflowWrap: "anywhere" });
+
+const ReviewScore = styled("div")(({ theme }) => ({
+  display: "grid",
+  gridTemplateColumns: "auto minmax(0, 1fr) auto",
+  alignItems: "center",
+  gap: theme.spacing(1.25),
+  minHeight: 64,
+  minWidth: 0,
+  padding: theme.spacing(1, 1.5),
+  border: "1px solid " + alpha(theme.palette.primary.main, 0.18),
+  borderRadius: 999,
+  backgroundColor: theme.palette.background.paper,
+  "@media (max-width: 359.95px)": {
+    gap: theme.spacing(0.75),
+    padding: theme.spacing(0.75, 1),
+  },
+}));
+
+const ReviewScoreIcon = styled("span")(({ theme }) => ({
+  display: "inline-grid",
+  placeItems: "center",
+  width: 42,
+  height: 42,
+  flexShrink: 0,
+  borderRadius: "50%",
+  backgroundColor: alpha(theme.palette.primary.main, 0.085),
+  color: theme.palette.primary.dark,
+  "& svg": { fontSize: "1.4rem" },
+  "@media (max-width: 359.95px)": { width: 36, height: 36 },
+}));
+
+const ReviewScoreName = styled(Text)(({ theme }) => ({
+  margin: 0,
+  minWidth: 0,
+  fontSize: "1rem",
+  fontWeight: 700,
+  lineHeight: 1.4,
+  color: theme.palette.text.primary,
+  "@media (max-width: 359.95px)": { fontSize: "0.875rem" },
+}));
+
+const ReviewScoreValue = styled("span")(({ theme }) => ({
+  whiteSpace: "nowrap",
+  color: theme.palette.text.primary,
+  fontSize: "1rem",
+  fontWeight: 600,
+  fontVariantNumeric: "tabular-nums",
+  "& strong": {
+    color: theme.palette.primary.dark,
+    fontSize: "1.2rem",
+  },
+  "@media (max-width: 359.95px)": {
+    fontSize: "0.875rem",
+    "& strong": { fontSize: "1rem" },
+  },
+}));
+
+const ReviewNarrative = styled("section")(({ theme }) => ({
+  display: "grid",
+  gridTemplateColumns: "44px minmax(0, 1fr)",
+  alignItems: "start",
+  gap: theme.spacing(1.25),
+  minWidth: 0,
+}));
+
+const ReviewNarrativeIcon = styled("span")(({ theme }) => ({
+  display: "inline-grid",
+  placeItems: "center",
+  width: 44,
+  height: 44,
+  borderRadius: "50%",
+  color: theme.palette.primary.dark,
+  backgroundColor: alpha(theme.palette.primary.main, 0.085),
+  "& svg": { fontSize: "1.5rem" },
+}));
+
+const ReviewNarrativeBody = styled("div")(({ theme }) => ({
+  display: "grid",
+  gap: theme.spacing(0.5),
+  minWidth: 0,
+  paddingLeft: theme.spacing(1.5),
+  borderLeft: "3px solid " + alpha(theme.palette.primary.light, 0.9),
+}));
+
+const ReviewNarrativeHeading = styled(Text)(({ theme }) => ({
+  margin: 0,
+  fontSize: "1.0625rem",
+  fontWeight: 700,
+  lineHeight: 1.4,
+  color: theme.palette.primary.dark,
+}));
+
+const ReviewText = styled(Text)({
+  margin: 0,
+  overflowWrap: "anywhere",
+  whiteSpace: "pre-wrap",
+});
 
 const suitabilityLabels = {
   ready: "そのまま使える",
@@ -188,22 +373,65 @@ const suitabilityLabels = {
 } as const;
 
 function FollowUpReviewView({
-  item, title,
-}: { item?: FollowUpReviewItem; title: string }) {
+  item, title, variant = "featured",
+}: { item?: FollowUpReviewItem; title: string; variant?: "featured" | "compact" }) {
   if (!item?.review) return <ReviewText>専用評価データなし</ReviewText>;
   const review = item.review;
+  const tone =
+    review.suitability === "needs_revision" ? "caution" :
+    review.suitability === "needs_verification" ? "neutral" : "positive";
+  const badgeIcon =
+    review.suitability === "ready" ? <CheckCircleOutlineIcon /> :
+    review.suitability === "minor_revision" ? <EditOutlinedIcon /> :
+    review.suitability === "needs_revision" ? <ErrorOutlineIcon /> :
+    <HelpOutlineIcon />;
+
   return (
-    <ReviewPanel aria-label={title}>
-      <Text variant="h3" component="h3">{title}</Text>
-      <Text variant="h2" component="p">{review.totalScore} / 30点</Text>
-      <ReviewText>{suitabilityLabels[review.suitability]}</ReviewText>
-      <ReviewScores>
-        <ReviewScore>質問適合性：{review.question_fit_score} / 10点</ReviewScore>
-        <ReviewScore>具体性・情報の充実度：{review.detail_score} / 10点</ReviewScore>
-        <ReviewScore>一貫性・納得感：{review.coherence_score} / 10点</ReviewScore>
+    <ReviewPanel aria-label={title} $compact={variant === "compact"}>
+      <ReviewHeading component="h3" variant="h3">{title}</ReviewHeading>
+      <ReviewOverview>
+        <ReviewTotal aria-label={review.totalScore + " / 30点"}>
+          <ReviewTotalNumber>{review.totalScore}</ReviewTotalNumber>
+          <ReviewTotalUnit>/ 30点</ReviewTotalUnit>
+        </ReviewTotal>
+        <ReviewBadge $tone={tone}>
+          {badgeIcon}
+          {suitabilityLabels[review.suitability]}
+        </ReviewBadge>
+      </ReviewOverview>
+      <ReviewDivider />
+      <ReviewScores aria-label="深掘り回答の採点内訳">
+        <ReviewScore role="group" aria-label={"質問適合性：" + review.question_fit_score + " / 10点"}>
+          <ReviewScoreIcon aria-hidden="true"><TrackChangesOutlinedIcon /></ReviewScoreIcon>
+          <ReviewScoreName>質問適合性</ReviewScoreName>
+          <ReviewScoreValue><strong>{review.question_fit_score}</strong> / 10点</ReviewScoreValue>
+        </ReviewScore>
+        <ReviewScore role="group" aria-label={"具体性・情報の充実度：" + review.detail_score + " / 10点"}>
+          <ReviewScoreIcon aria-hidden="true"><LayersOutlinedIcon /></ReviewScoreIcon>
+          <ReviewScoreName>具体性・情報の充実度</ReviewScoreName>
+          <ReviewScoreValue><strong>{review.detail_score}</strong> / 10点</ReviewScoreValue>
+        </ReviewScore>
+        <ReviewScore role="group" aria-label={"一貫性・納得感：" + review.coherence_score + " / 10点"}>
+          <ReviewScoreIcon aria-hidden="true"><LinkOutlinedIcon /></ReviewScoreIcon>
+          <ReviewScoreName>一貫性・納得感</ReviewScoreName>
+          <ReviewScoreValue><strong>{review.coherence_score}</strong> / 10点</ReviewScoreValue>
+        </ReviewScore>
       </ReviewScores>
-      <ReviewText><strong>良かった点：</strong>{review.good_point}</ReviewText>
-      <ReviewText><strong>改善ポイント：</strong>{review.improvement}</ReviewText>
+      <ReviewDivider />
+      <ReviewNarrative>
+        <ReviewNarrativeIcon aria-hidden="true"><ThumbUpOutlinedIcon /></ReviewNarrativeIcon>
+        <ReviewNarrativeBody>
+          <ReviewNarrativeHeading component="h4">良かった点</ReviewNarrativeHeading>
+          <ReviewText>{review.good_point}</ReviewText>
+        </ReviewNarrativeBody>
+      </ReviewNarrative>
+      <ReviewNarrative>
+        <ReviewNarrativeIcon aria-hidden="true"><LightbulbOutlinedIcon /></ReviewNarrativeIcon>
+        <ReviewNarrativeBody>
+          <ReviewNarrativeHeading component="h4">改善ポイント</ReviewNarrativeHeading>
+          <ReviewText>{review.improvement}</ReviewText>
+        </ReviewNarrativeBody>
+      </ReviewNarrative>
     </ReviewPanel>
   );
 }
@@ -370,6 +598,7 @@ function CoachingContent({
                 <DetailRow title={"深掘り回答 " + (index + 1)} text={history.answer} icon={<DescriptionOutlinedIcon />} onOpen={onOpen} />
                 <FollowUpReviewView
                   title={"深掘り " + (index + 1) + " 回目の専用採点"}
+                  variant="compact"
                   item={followUpReviews.find((item) =>
                     item.roundIndex === index + 1 &&
                     item.question === history.question &&
