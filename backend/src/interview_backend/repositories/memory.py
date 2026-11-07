@@ -129,6 +129,19 @@ class MemoryRepository(DomainRepository):
                 200, {"questionId": question_id, "answer": latest.answer if latest else None}
             )
 
+    def _owner_records(self, kind, owner, limit):
+        with self._lock:
+            records = (self._state.sessions.values() if kind == "Session" else
+                       (v for v in self._state.star_records.values()
+                        if type(v).__name__ == "AnswerContext"))
+            selected = [deepcopy(v) for v in records if v.owner == owner]
+            if len(selected) > limit:
+                raise BusinessError(503, "PRACTICE_RESUME_UNAVAILABLE")
+            for record in selected:
+                from interview_backend.repositories.codec import validate
+                validate(record)
+            return selected
+
     def practice_progress(self, owner: str, defaults) -> Reply:
         from interview_backend.repositories.practice_progress import (
             PROGRESS_MAX_RECORDS,

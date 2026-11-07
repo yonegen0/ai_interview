@@ -359,6 +359,48 @@ class DynamoDBRepository(DomainRepository):
             request["ExclusiveStartKey"] = cursor
         raise BusinessError(503, "PREVIOUS_ANSWER_UNAVAILABLE")
 
+    def _owner_records(self, kind, owner, limit):
+        """Strongly consistent bounded owner-only prefix query; no table scan or GSI."""
+        from interview_backend.repositories.practice_resume import RESUME_PAGE_SIZE
+
+        prefix = {"Session": "SESSION#", "AnswerContext": "ANSWER_CONTEXT#"}[kind]
+        deadline = self.monotonic() + 4.5
+        request = {
+            "TableName": self.table,
+            "KeyConditionExpression": "PK = :owner AND begins_with(SK, :prefix)",
+            "ExpressionAttributeValues": to_wire({
+                ":owner": f"USER#{owner}", ":prefix": prefix,
+            }),
+            "ConsistentRead": True,
+            "Limit": RESUME_PAGE_SIZE,
+        }
+        records, previous = [], ""
+        while True:
+            page = self._call("query", deadline, **request)
+            items = page.get("Items", [])
+            if not isinstance(items, list) or len(items) > RESUME_PAGE_SIZE:
+                raise StorageFormatError("resume_page")
+            if len(records) + len(items) > limit:
+                raise BusinessError(503, "PRACTICE_RESUME_UNAVAILABLE")
+            for raw in items:
+                item = from_wire(raw)
+                row, _ = decode(item)
+                if item.get("kind") != kind or row.owner != owner:
+                    raise StorageFormatError("resume_owner")
+                records.append(row)
+            cursor = page.get("LastEvaluatedKey")
+            if not cursor:
+                return records
+            if len(records) >= limit:
+                raise BusinessError(503, "PRACTICE_RESUME_UNAVAILABLE")
+            native = from_wire(cursor)
+            position = native.get("SK")
+            if (native.get("PK") != f"USER#{owner}" or not isinstance(position, str)
+                    or not position.startswith(prefix) or position <= previous):
+                raise StorageFormatError("resume_cursor")
+            previous = position
+            request["ExclusiveStartKey"] = cursor
+
     def practice_progress(self, owner: str, defaults) -> Reply:
         from interview_backend.repositories.practice_progress import (
             PROGRESS_MAX_RECORDS,
