@@ -76,9 +76,12 @@ class StarWorker:
                     remaining_ms() / 1000 - 10 if remaining_ms else 40,
                 )
                 deadline = Deadline(began + seconds, self.monotonic)
+                options = {"operation_kind": lease.operation_kind}
+                if lease.input.assistType == "follow_up":
+                    options["follow_up_context"] = lease.follow_up_context
                 result = StarResult.model_validate(
                     self.provider.generate_with_deadline(
-                        lease.question, lease.input, deadline, operation_kind=lease.operation_kind
+                        lease.question, lease.input, deadline, **options
                     )
                 )
             if self.monotonic() - began >= 40:
