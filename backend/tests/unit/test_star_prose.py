@@ -634,5 +634,6 @@ def test_other_assist_ascii_serialized_prompt_fits_normal_input_boundaries(mode)
         "lengthTarget": [250, 330],
     }
     instruction = ASSIST_COMMON_INSTRUCTIONS + ASSIST_INSTRUCTIONS[mode]
-    size = len(json.dumps([instruction, data, AssistReply.model_json_schema()], ensure_ascii=True).encode())
+    serialized = json.dumps([instruction, data, AssistReply.model_json_schema()], ensure_ascii=True)
+    size = len(serialized.encode())
     assert size <= MAX_INPUT_BYTES == 24000
