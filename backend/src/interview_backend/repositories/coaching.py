@@ -3,6 +3,7 @@
 from copy import deepcopy
 
 from interview_backend.evaluation.coaching import unavailable
+from interview_backend.evaluation.provider import OVERALL_RUBRIC_PROMPT_VERSION
 from interview_backend.models.internal import (
     Attempt,
     AttemptCoaching,
@@ -278,6 +279,15 @@ class CoachingRepositoryMixin:
                     None,
                 )
                 head.updated_at = max(now, head.updated_at)
+            # Bind the overall rubric once per Attempt, independent of the review flag.
+            if fresh:
+                selected_overall = (
+                    OVERALL_RUBRIC_PROMPT_VERSION
+                    if getattr(self, "coaching_overall_rubric_v2_enabled", False)
+                    else None
+                )
+            else:
+                selected_overall = evaluation.overall_prompt_version
             # Bind review selection at creation, never at worker-claim time.
             selected_review = (
                 evaluation.review_prompt_version
@@ -297,6 +307,7 @@ class CoachingRepositoryMixin:
                 round_index=context.coaching_count,
                 retry_of_evaluation_id=evaluation.id if kind == "retry_evaluation" else None,
                 review_prompt_version=selected_review,
+                overall_prompt_version=selected_overall,
             )
             dispatch = Dispatch(owner, eid, job.deadline_at, created_at=now, next_at=now)
             session.active = ActiveAttempt(
