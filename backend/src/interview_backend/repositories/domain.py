@@ -405,6 +405,21 @@ class DomainRepository(StarRepositoryMixin, CoachingRepositoryMixin):
         evaluation = self._read(ref("Evaluation", owner, resource_id))
         return evaluation.coaching_contract_version or 1 if evaluation else 1
 
+    def evaluation_prompt_versions(self, owner, resource_id):
+        """Resolve immutable contract and scoring modes in one owner-scoped read."""
+        from interview_backend.evaluation.provider import COACHING_PROMPT_VERSION
+
+        evaluation = self._read(ref("Evaluation", owner, resource_id))
+        if evaluation is None:
+            return 1, COACHING_PROMPT_VERSION, None
+        return (
+            evaluation.coaching_contract_version or 1,
+            evaluation.overall_prompt_version
+            if evaluation.overall_prompt_version is not None
+            else COACHING_PROMPT_VERSION,
+            evaluation.review_prompt_version,
+        )
+
     def evaluation_review_prompt_version(self, owner, resource_id):
         evaluation = self._read(ref("Evaluation", owner, resource_id))
         return evaluation.review_prompt_version if evaluation else None
@@ -522,9 +537,26 @@ class DomainRepository(StarRepositoryMixin, CoachingRepositoryMixin):
                 or source.status != "failed"
                 or source.coaching_input != context
                 or source.round_index != evaluation.round_index
+                or source.overall_prompt_version != evaluation.overall_prompt_version
                 or source.created_at > evaluation.created_at
             ):
                 raise IntegrityError("retry_input_relation")
+            tx.ignore_dependency(er)
+        elif context.coaching_count > 0:
+            # Follow-ups keep the rubric of the Evaluation that asked this question.
+            head = tx.get(ref("AttemptCoaching", attempt.owner, attempt.id))
+            if head is None or len(head.history) < context.coaching_count:
+                raise IntegrityError("overall_prompt_relation")
+            prior_id = head.history[context.coaching_count - 1].source_evaluation_id
+            er = ref("Evaluation", attempt.owner, prior_id)
+            prior = tx.get(er)
+            if (
+                prior is None
+                or prior.owner != attempt.owner
+                or prior.attempt_id != attempt.id
+                or prior.overall_prompt_version != evaluation.overall_prompt_version
+            ):
+                raise IntegrityError("overall_prompt_relation")
             tx.ignore_dependency(er)
 
     @staticmethod

@@ -128,6 +128,7 @@ class Evaluation:
     retry_of_evaluation_id: str | None = None
     provider_usage_month: str | None = None
     review_prompt_version: Literal["interview-coaching-v2-followup-review-v1"] | None = None
+    overall_prompt_version: str | None = None  # None means legacy overall scoring.
 
 
 @dataclass

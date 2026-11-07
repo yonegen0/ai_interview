@@ -277,6 +277,11 @@ def validate(record):
         if v2 != (record.coaching_input is not None) or v2 != (record.round_index is not None):
             raise IntegrityError("partial_coaching_contract")
         if v2:
+            if (
+                record.overall_prompt_version is not None
+                and not record.overall_prompt_version.strip()
+            ):
+                raise StorageFormatError("overall_prompt_version")
             if record.round_index != record.coaching_input.coaching_count:
                 raise IntegrityError("round_index")
             if record.review_prompt_version is not None and record.round_index == 0:
@@ -288,7 +293,8 @@ def validate(record):
             if record.feedback is not None and not isinstance(record.feedback, FeedbackV2):
                 raise IntegrityError("feedback_version")
         elif (
-            record.review_prompt_version is not None
+            record.overall_prompt_version is not None
+            or record.review_prompt_version is not None
             or record.retry_of_evaluation_id is not None
             or isinstance(record.feedback, FeedbackV2)
             or (record.execution_config and record.execution_config.result_schema_version != 1)

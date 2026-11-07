@@ -188,6 +188,10 @@ def build_entry(component):
         raw_repository.coaching_review_enabled = (
             os.environ.get("INTERVIEW_COACHING_FOLLOWUP_REVIEW_ENABLED") == "true"
         )
+        # Stage new jobs only after API and Worker can execute both rubric versions.
+        raw_repository.coaching_overall_rubric_v2_enabled = (
+            os.environ.get("INTERVIEW_COACHING_OVERALL_RUBRIC_V2_ENABLED") == "true"
+        )
     from interview_backend.evaluation.provider_limits import validate_limits
 
     limits = (
