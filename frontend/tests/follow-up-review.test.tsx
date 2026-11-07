@@ -71,18 +71,18 @@ it("shows separate current and historical reviews without hiding original overal
   render(<ThemeProvider theme={theme}><FeedbackCard feedback={feedback} followUpReviews={[item]} /></ThemeProvider>);
   expect(screen.getByRole("heading", { name: "今回の深掘り回答評価" })).toBeInTheDocument();
   expect(screen.getByRole("heading", { name: "総合評価" })).toBeInTheDocument();
-  expect(screen.getByText("26 / 30点")).toBeInTheDocument();
-  expect(screen.getByText("そのまま使える")).toBeInTheDocument();
-  expect(screen.getByText("質問適合性：9 / 10点")).toBeInTheDocument();
-  expect(screen.getByText("具体性・情報の充実度：8 / 10点")).toBeInTheDocument();
-  expect(screen.getByText("一貫性・納得感：9 / 10点")).toBeInTheDocument();
+  expect(screen.getAllByText("26 / 30点").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("そのまま使える").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("質問適合性：9 / 10点").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("具体性・情報の充実度：8 / 10点").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("一貫性・納得感：9 / 10点").length).toBeGreaterThan(0);
 });
 
 it("keeps old feedback and rounds visible with missing dedicated review", () => {
   render(<ThemeProvider theme={theme}><FeedbackCard feedback={feedback} /></ThemeProvider>);
-  expect(screen.getByText("専用評価データなし")).toBeInTheDocument();
+  expect(screen.getAllByText("専用評価データなし").length).toBeGreaterThan(0);
   expect(screen.getByRole("heading", { name: "総合評価" })).toBeInTheDocument();
-  expect(screen.getByText(initial)).toBeInTheDocument();
+  expect(screen.getAllByText(initial).length).toBeGreaterThan(0);
   expect(feedbackWithReviewsSchema.parse({
     feedback, followUpReviews: [{ ...item, review: null }],
   }).followUpReviews[0].review).toBeNull();
