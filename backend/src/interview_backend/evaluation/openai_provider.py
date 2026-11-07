@@ -170,7 +170,9 @@ def schema_for(prompt):
                         "properties": {
                             **{
                                 name: {"type": "integer", "minimum": 0, "maximum": 10}
-                                for name in ("question_fit_score", "detail_score", "coherence_score")
+                                for name in (
+                                    "question_fit_score", "detail_score", "coherence_score"
+                                )
                             },
                             "suitability": {"type": "string", "enum": [
                                 "ready", "minor_revision", "needs_revision", "needs_verification"
