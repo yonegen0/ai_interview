@@ -203,16 +203,20 @@ it("does not accept a delayed renewal after logout or user switching", async () 
 
 it("retries a stopped session once after the browser reconnects", async () => {
   configure();
-  await auth.initialize();
+  // setup.ts initializes mock auth: import a fresh real-auth module to attach listeners.
+  vi.resetModules();
+  const { auth: restoredAuth, setIdentityAdapterForTests: setAdapter,
+    AuthUnavailableError: Unavailable } = await import("@/lib/auth/session");
   const value = adapter();
-  setIdentityAdapterForTests(value);
-  await auth.complete("user@example.invalid", "s", "123456");
+  setAdapter(value);
+  await restoredAuth.initialize();
+  await restoredAuth.complete("user@example.invalid", "s", "123456");
   vi.useFakeTimers();
   vi.mocked(value.refresh).mockRejectedValue(Object.assign(
     new Error("network unavailable"), { name: "NetworkError" },
   ));
-  await expect(auth.access(true)).rejects.toBeInstanceOf(AuthUnavailableError);
-  await vi.advanceTimersByTimeAsync(22_000);
+  await expect(restoredAuth.access(true)).rejects.toBeInstanceOf(Unavailable);
+  await vi.advanceTimersByTimeAsync(23_000);
   expect(value.refresh).toHaveBeenCalledTimes(4);
   window.dispatchEvent(new Event("focus"));
   expect(value.refresh).toHaveBeenCalledTimes(4);
@@ -222,4 +226,5 @@ it("retries a stopped session once after the browser reconnects", async () => {
   window.dispatchEvent(new Event("online"));
   await vi.advanceTimersByTimeAsync(30_000);
   expect(value.refresh).toHaveBeenCalledTimes(8);
+  await restoredAuth.logout();
 });
