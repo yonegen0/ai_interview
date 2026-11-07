@@ -278,6 +278,13 @@ class CoachingRepositoryMixin:
                     None,
                 )
                 head.updated_at = max(now, head.updated_at)
+            # Bind review selection at creation, never at worker-claim time.
+            selected_review = (
+                evaluation.review_prompt_version if kind == "retry_evaluation" else
+                "interview-coaching-v2-followup-review-v1"
+                if context.coaching_count > 0 and getattr(self, "coaching_review_enabled", False)
+                else None
+            )
             job = Evaluation(
                 owner,
                 eid,
@@ -288,6 +295,7 @@ class CoachingRepositoryMixin:
                 coaching_input=context,
                 round_index=context.coaching_count,
                 retry_of_evaluation_id=evaluation.id if kind == "retry_evaluation" else None,
+                review_prompt_version=selected_review,
             )
             dispatch = Dispatch(owner, eid, job.deadline_at, created_at=now, next_at=now)
             session.active = ActiveAttempt(

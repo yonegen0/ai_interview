@@ -20,6 +20,7 @@ from interview_backend.models.internal import (
     Dispatch,
     Evaluation,
     ExecutionConfig,
+    FollowUpReviewRecord,
     IdempotentReply,
     IntegrityError,
     ItemTooLarge,
@@ -41,6 +42,7 @@ from interview_backend.models.public import (
     Created,
     Feedback,
     FeedbackV2,
+    FollowUpReview,
     Question,
     SessionResponse,
     limited_text,
@@ -67,6 +69,8 @@ PREFIXES = dict(
 )
 KINDS.update(QuestionBank=QuestionBank, QuestionBankChange=QuestionBankChange)
 KINDS["AttemptCoaching"] = AttemptCoaching
+KINDS["FollowUpReviewRecord"] = FollowUpReviewRecord
+PREFIXES["FollowUpReviewRecord"] = "FOLLOWUP_REVIEW"
 KINDS["AssistHistory"] = AssistHistory
 PREFIXES["AssistHistory"] = "ASSIST_HISTORY"
 PREFIXES["AttemptCoaching"] = "COACHING"
@@ -264,7 +268,7 @@ def validate(record):
             not record.provider_id
             or not record.model_id
             or not record.prompt_version
-            or record.result_schema_version not in {1, 2}
+            or record.result_schema_version not in {1, 2, 3}
             or record.provider_timeout_ms != 40000
         ):
             raise StorageFormatError("execution_config")
@@ -275,12 +279,17 @@ def validate(record):
         if v2:
             if record.round_index != record.coaching_input.coaching_count:
                 raise IntegrityError("round_index")
-            if record.execution_config and record.execution_config.result_schema_version != 2:
+            if record.review_prompt_version is not None and record.round_index == 0:
+                raise IntegrityError("initial_review")
+            if record.execution_config and record.execution_config.result_schema_version != (
+                3 if record.review_prompt_version else 2
+            ):
                 raise IntegrityError("result_schema_version")
             if record.feedback is not None and not isinstance(record.feedback, FeedbackV2):
                 raise IntegrityError("feedback_version")
         elif (
-            record.retry_of_evaluation_id is not None
+            record.review_prompt_version is not None
+            or record.retry_of_evaluation_id is not None
             or isinstance(record.feedback, FeedbackV2)
             or (record.execution_config and record.execution_config.result_schema_version != 1)
         ):
@@ -317,6 +326,12 @@ def validate(record):
     if isinstance(record, (Evaluation, Dispatch)):
         if record.deadline_at != record.created_at + 900000:
             raise IntegrityError("deadline")
+    if isinstance(record, FollowUpReviewRecord):
+        if record.round_index not in (1, 2, 3):
+            raise IntegrityError("review_round")
+        validate_id(record.attempt_id)
+        CoachingHistoryItem(question=record.question, answer=record.answer)
+        FollowUpReview.model_validate(record.review.model_dump())
     if isinstance(record, CoachingTurn):
         CoachingHistoryItem(question=record.question, answer=record.answer)
     if isinstance(record, AttemptCoaching):
@@ -465,6 +480,8 @@ def hydrate(kind, data):
             data["coaching_input"] = CoachingInput.model_validate(context)
         if "execution_config" in data:
             data["execution_config"] = ExecutionConfig(**data["execution_config"])
+    if kind == "FollowUpReviewRecord":
+        data["review"] = FollowUpReview.model_validate(data["review"])
     if kind == "AttemptCoaching":
         data["history"] = tuple(CoachingTurn(**h) for h in data["history"])
         data["unavailable_questions"] = tuple(data["unavailable_questions"])

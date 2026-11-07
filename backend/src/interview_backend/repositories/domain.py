@@ -15,6 +15,7 @@ from interview_backend.models.internal import (
     DeliveryResult,
     Dispatch,
     Evaluation,
+    FollowUpReviewRecord,
     IdempotentReply,
     IntegrityError,
     ItemTooLarge,
@@ -404,10 +405,18 @@ class DomainRepository(StarRepositoryMixin, CoachingRepositoryMixin):
         evaluation = self._read(ref("Evaluation", owner, resource_id))
         return evaluation.coaching_contract_version or 1 if evaluation else 1
 
-    def get_feedback(self, owner, resource_id, evaluation_id=None):
-        return self._atomic(lambda tx: self._feedback_read(tx, owner, resource_id, evaluation_id))
+    def evaluation_review_prompt_version(self, owner, resource_id):
+        evaluation = self._read(ref("Evaluation", owner, resource_id))
+        return evaluation.review_prompt_version if evaluation else None
 
-    def _feedback_read(self, tx, owner, resource_id, evaluation_id):
+    def get_feedback(self, owner, resource_id, evaluation_id=None, include_follow_up_reviews=False):
+        return self._atomic(
+            lambda tx: self._feedback_read(
+                tx, owner, resource_id, evaluation_id, include_follow_up_reviews
+            )
+        )
+
+    def _feedback_read(self, tx, owner, resource_id, evaluation_id, include_follow_up_reviews=False):
         attempt = tx.get(ref("Attempt", owner, resource_id))
         if attempt is None:
             raise BusinessError(404, "ATTEMPT_NOT_FOUND")
@@ -439,7 +448,38 @@ class DomainRepository(StarRepositoryMixin, CoachingRepositoryMixin):
         validate_feedback(evaluation.feedback, attempt)
         if attempt.coaching_contract_version == 2:
             self._validate_v2_feedback(evaluation.feedback, evaluation)
-        return Reply(200, evaluation.feedback.wire())
+        original = evaluation.feedback.wire()
+        if not include_follow_up_reviews:
+            return Reply(200, original)
+        reviews = []
+        if attempt.coaching_contract_version == 2:
+            head = tx.get(ref("AttemptCoaching", owner, attempt.id))
+            if head is None:
+                raise IntegrityError("missing_coaching")
+            # A later turn stores the Evaluation that scored the preceding turn.
+            for i, history in enumerate(evaluation.feedback.coachingHistory):
+                scored_by = (
+                    head.history[i + 1].source_evaluation_id
+                    if i + 1 < len(head.history) else evaluation.id
+                )
+                record = tx.get(ref("FollowUpReviewRecord", owner, scored_by))
+                if record is not None and (
+                    record.owner != owner or record.attempt_id != attempt.id
+                    or record.round_index != i + 1
+                    or record.question != history.question or record.answer != history.answer
+                ):
+                    raise IntegrityError("follow_up_review_relation")
+                reviews.append({
+                    "roundIndex": i + 1,
+                    "evaluationId": scored_by,
+                    "question": history.question,
+                    "answer": history.answer,
+                    "review": ({
+                        **record.review.wire(),
+                        "totalScore": record.review.total_score,
+                    } if record else None),
+                })
+        return Reply(200, {"feedback": original, "followUpReviews": reviews})
 
     @staticmethod
     def _validate_v2_evaluation(tx, attempt, evaluation):
@@ -740,7 +780,8 @@ class DomainRepository(StarRepositoryMixin, CoachingRepositoryMixin):
             self._save(tx, session)
         self._save(tx, e, d)
 
-    def finish(self, lease, feedback=None, reason="PROVIDER_FAILED", now=None):
+    def finish(self, lease, feedback=None, reason="PROVIDER_FAILED", now=None,
+               follow_up_review=None):
         def run(tx):
             at = self.clock() if now is None else max(now, self.clock())
             related = self._related(tx, lease.owner, lease.evaluation_id, full=True)
@@ -770,6 +811,20 @@ class DomainRepository(StarRepositoryMixin, CoachingRepositoryMixin):
                     encode("Evaluation", candidate, 0)
                 except ItemTooLarge:
                     result, failure = None, "RESULT_TOO_LARGE"
+            if result is not None and follow_up_review is not None:
+                if e.coaching_contract_version != 2 or e.round_index not in (1, 2, 3):
+                    raise IntegrityError("unexpected_follow_up_review")
+                last_turn = e.coaching_input.coaching_history[-1]
+                review_record = FollowUpReviewRecord(
+                    owner=e.owner,
+                    id=e.id,
+                    attempt_id=e.attempt_id,
+                    round_index=e.round_index,
+                    question=last_turn.question,
+                    answer=last_turn.answer,
+                    review=follow_up_review,
+                )
+                tx.new(ref("FollowUpReviewRecord", e.owner, e.id), review_record)
             self._terminal(tx, e, d, s, result, failure, at)
             return MutationResult("applied", e)
 
