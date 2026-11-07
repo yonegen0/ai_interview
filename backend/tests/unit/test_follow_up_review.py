@@ -145,6 +145,22 @@ def test_bad_optional_review_does_not_lose_good_overall(runtime):
     assert answered["evaluationId"] not in runtime.repository.snapshot().follow_up_reviews
 
 
+def test_missing_optional_review_keeps_valid_coaching(runtime):
+    """A missing dedicated review must not discard a valid overall evaluation."""
+    runtime.repository.coaching_review_enabled = True
+    sid, qid, initial = start(runtime)
+    runtime.provider.behavior = lambda prompt: overall("そのとき何をしましたか？")
+    assert runtime.worker.run("owner", initial["evaluationId"])
+    answered = follow(runtime, sid, qid, initial)
+    runtime.provider.behavior = lambda prompt: {"coaching": overall()}
+    assert runtime.worker.run("owner", answered["evaluationId"])
+    extended = runtime.application.feedback(
+        "owner", answered["attemptId"], answered["evaluationId"], True
+    ).body
+    assert extended["feedback"]["result"]["status"] == "completed"
+    assert extended["followUpReviews"][0]["review"] is None
+
+
 def test_invalid_overall_remains_failed(runtime):
     runtime.repository.coaching_review_enabled = True
     sid, qid, initial = start(runtime)
