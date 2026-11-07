@@ -38,6 +38,7 @@ COLLECTIONS = {
     "Session": "sessions",
     "Attempt": "attempts",
     "Evaluation": "evaluations",
+    "FollowUpReviewRecord": "follow_up_reviews",
     "Dispatch": "dispatches",
     "IdempotencyRecord": "requests",
     "RecoveryCursor": "cursors",

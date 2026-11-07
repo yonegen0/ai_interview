@@ -183,6 +183,11 @@ def build_entry(component):
         profile=os.environ.get("INTERVIEW_MONITORING_PROFILE", "full"),
     )
     raw_repository = DynamoDBRepository(client_for(settings.region), settings.table)
+    # Keep new-job creation OFF until all Workers support the new contract.
+    if component == "api":
+        raw_repository.coaching_review_enabled = (
+            os.environ.get("INTERVIEW_COACHING_FOLLOWUP_REVIEW_ENABLED") == "true"
+        )
     from interview_backend.evaluation.provider_limits import validate_limits
 
     limits = (

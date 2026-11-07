@@ -568,6 +568,37 @@ export function createHandlers(
         return error("ATTEMPT_NOT_FOUND", 404);
       if (record.evaluation.status !== "completed")
         return error("EVALUATION_NOT_COMPLETED", 409);
+      if (new URL(request.url).searchParams.get("includeFollowUpReviews") === "1") {
+        const feedback = record.feedback;
+        const followUpReviews = isFeedbackV2(feedback)
+          ? feedback.coachingHistory.map((turn, i) => {
+              const matching = Object.values(state.evaluations).find((item) =>
+                isFeedbackV2(item.feedback) &&
+                item.evaluation.status === "completed" &&
+                item.feedback.attemptId === feedback.attemptId &&
+                item.feedback.coachingCount === i + 1 &&
+                item.feedback.coachingHistory[i]?.question === turn.question &&
+                item.feedback.coachingHistory[i]?.answer === turn.answer
+              );
+              return {
+                roundIndex: i + 1,
+                evaluationId: matching?.evaluation.evaluationId ?? feedback.evaluationId,
+                question: turn.question,
+                answer: turn.answer,
+                review: matching ? {
+                  question_fit_score: 8,
+                  detail_score: 8,
+                  coherence_score: 8,
+                  suitability: "minor_revision",
+                  good_point: "質問への回答があります（Mock評価）。",
+                  improvement: "本人の判断を伝えましょう（Mock評価）。",
+                  totalScore: 24,
+                } : null,
+              };
+            })
+          : [];
+        return HttpResponse.json({ feedback, followUpReviews });
+      }
       return HttpResponse.json(record.feedback);
     }),
     http.post(`${base}/sessions/:id/questions/next`, ({ params, request }) =>

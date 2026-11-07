@@ -10,6 +10,7 @@ from interview_backend.models.public import (
     CoachingInput,
     Feedback,
     FeedbackV2,
+    FollowUpReview,
     Question,
 )
 
@@ -126,6 +127,18 @@ class Evaluation:
     round_index: int | None = None
     retry_of_evaluation_id: str | None = None
     provider_usage_month: str | None = None
+    review_prompt_version: Literal["interview-coaching-v2-followup-review-v1"] | None = None
+
+
+@dataclass
+class FollowUpReviewRecord:
+    owner: str
+    id: str
+    attempt_id: str
+    round_index: int
+    question: str
+    answer: str
+    review: FollowUpReview
 
 
 @dataclass
@@ -334,6 +347,7 @@ class State:
     sessions: dict[str, Session] = field(default_factory=dict)
     attempts: dict[str, Attempt] = field(default_factory=dict)
     evaluations: dict[str, Evaluation] = field(default_factory=dict)
+    follow_up_reviews: dict[str, FollowUpReviewRecord] = field(default_factory=dict)
     requests: dict[tuple[str, str], IdempotentReply] = field(default_factory=dict)
     dispatches: dict[str, Dispatch] = field(default_factory=dict)
     cursors: dict[str, RecoveryCursor] = field(default_factory=dict)

@@ -439,6 +439,49 @@ export const feedbackSchema = z
       return parsed.data;
     },
   );
+/** Opt-in response only. The eight-field CoachingResult and FeedbackV2 remain unchanged. */
+export const followUpReviewSchema = z.object({
+  question_fit_score: z.number().int().min(0).max(10),
+  detail_score: z.number().int().min(0).max(10),
+  coherence_score: z.number().int().min(0).max(10),
+  suitability: z.enum(["ready", "minor_revision", "needs_revision", "needs_verification"]),
+  good_point: coachingQuestionSchema,
+  improvement: coachingQuestionSchema,
+  totalScore: z.number().int().min(0).max(30),
+}).strict().superRefine((v, ctx) => {
+  if (
+    v.totalScore !== v.question_fit_score + v.detail_score + v.coherence_score ||
+    (v.suitability === "ready" &&
+      (v.question_fit_score < 7 || v.coherence_score < 7))
+  ) ctx.addIssue({ code: "custom", message: "深掘り専用評価の集計が一致しません。" });
+});
+
+export const followUpReviewItemSchema = z.object({
+  roundIndex: z.number().int().min(1).max(3),
+  evaluationId: idSchema,
+  question: coachingQuestionSchema,
+  answer: coachingAnswerSchema,
+  review: followUpReviewSchema.nullable(),
+}).strict();
+
+export const feedbackWithReviewsSchema = z.object({
+  feedback: feedbackSchema,
+  followUpReviews: z.array(followUpReviewItemSchema).max(3),
+}).strict().superRefine((value, ctx) => {
+  const feedback = value.feedback;
+  if ("feedbackVersion" in feedback) {
+    if (value.followUpReviews.length !== feedback.coachingCount ||
+      value.followUpReviews.some((item, i) =>
+        item.roundIndex !== i + 1 ||
+        item.question !== feedback.coachingHistory[i]?.question ||
+        item.answer !== feedback.coachingHistory[i]?.answer
+      )) ctx.addIssue({ code: "custom", message: "深掘り回答と採点の対応が一致しません。" });
+  } else if (value.followUpReviews.length) {
+    ctx.addIssue({ code: "custom", message: "通常評価に深掘り採点はありません。" });
+  }
+});
+export type FollowUpReviewItem = z.infer<typeof followUpReviewItemSchema>;
+export type FeedbackWithReviews = z.infer<typeof feedbackWithReviewsSchema>;
 export type FeedbackV2 = z.infer<typeof feedbackV2Schema>;
 export type LegacyFeedback = z.infer<typeof legacyFeedbackSchema>;
 export const isFeedbackV2 = (value: Feedback): value is FeedbackV2 =>

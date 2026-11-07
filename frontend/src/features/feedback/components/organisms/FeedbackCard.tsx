@@ -18,7 +18,7 @@ import { MascotCoachCard } from "@/components/molecules/MascotCoachCard";
 import { FullTextDialog } from "@/components/organisms/FullTextDialog";
 import { FullTextPreview } from "@/components/organisms/FullTextPreview";
 import { scaledRadius, radiusLength } from "@/theme/tokens";
-import type { Feedback, FeedbackV2, LegacyFeedback } from "@/lib/api/schemas";
+import type { Feedback, FeedbackV2, LegacyFeedback, FollowUpReviewItem } from "@/lib/api/schemas";
 import { isFeedbackV2 } from "@/lib/api/schemas";
 import { FeedbackScoreSummary } from "./FeedbackScoreSummary";
 
@@ -154,6 +154,60 @@ const HistoryItems = styled("div")(({ theme }) => ({
   marginTop: theme.spacing(2),
 }));
 
+
+const ReviewPanel = styled(Panel)(({ theme }) => ({
+  display: "grid",
+  gap: theme.spacing(1.5),
+  padding: theme.spacing(2),
+  minWidth: 0,
+  overflowWrap: "anywhere",
+  border: "1px solid " + alpha(theme.palette.primary.main, 0.25),
+  borderRadius: scaledRadius(theme, 1.3),
+  backgroundColor: alpha(theme.palette.primary.main, 0.055),
+  [theme.breakpoints.up("md")]: { padding: theme.spacing(3) },
+}));
+const ReviewScores = styled("div")(({ theme }) => ({
+  display: "grid",
+  gap: theme.spacing(1),
+  gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 180px), 1fr))",
+}));
+const ReviewScore = styled("div")(({ theme }) => ({
+  padding: theme.spacing(1.5),
+  minWidth: 0,
+  borderRadius: scaledRadius(theme, 1),
+  backgroundColor: theme.palette.background.paper,
+  overflowWrap: "anywhere",
+}));
+const ReviewText = styled(Text)({ overflowWrap: "anywhere" });
+
+const suitabilityLabels = {
+  ready: "そのまま使える",
+  minor_revision: "概ね適切・微修正",
+  needs_revision: "要修正",
+  needs_verification: "情報不足・要確認",
+} as const;
+
+function FollowUpReviewView({
+  item, title,
+}: { item?: FollowUpReviewItem; title: string }) {
+  if (!item?.review) return <ReviewText>専用評価データなし</ReviewText>;
+  const review = item.review;
+  return (
+    <ReviewPanel aria-label={title}>
+      <Text variant="h3" component="h3">{title}</Text>
+      <Text variant="h2" component="p">{review.totalScore} / 30点</Text>
+      <ReviewText>{suitabilityLabels[review.suitability]}</ReviewText>
+      <ReviewScores>
+        <ReviewScore>質問適合性：{review.question_fit_score} / 10点</ReviewScore>
+        <ReviewScore>具体性・情報の充実度：{review.detail_score} / 10点</ReviewScore>
+        <ReviewScore>一貫性・納得感：{review.coherence_score} / 10点</ReviewScore>
+      </ReviewScores>
+      <ReviewText><strong>良かった点：</strong>{review.good_point}</ReviewText>
+      <ReviewText><strong>改善ポイント：</strong>{review.improvement}</ReviewText>
+    </ReviewPanel>
+  );
+}
+
 const JumpLink = styled("a")(({ theme }) => ({
   display: "inline-flex",
   alignItems: "center",
@@ -268,7 +322,12 @@ function LegacyContent({ feedback: f, onOpen }: { feedback: LegacyFeedback; onOp
   );
 }
 
-function CoachingContent({ feedback: f, onOpen, canJump }: { feedback: FeedbackV2; onOpen: OpenFullText; canJump: boolean }) {
+function CoachingContent({
+  feedback: f, onOpen, canJump, followUpReviews,
+}: {
+  feedback: FeedbackV2; onOpen: OpenFullText; canJump: boolean;
+  followUpReviews: FollowUpReviewItem[];
+}) {
   return (
     <>
       <ScoreStack>
@@ -309,6 +368,14 @@ function CoachingContent({ feedback: f, onOpen, canJump }: { feedback: FeedbackV
               <div key={index}>
                 <DetailRow title={"深掘り質問 " + (index + 1)} text={history.question} icon={<HistoryOutlinedIcon />} lines={2} onOpen={onOpen} />
                 <DetailRow title={"深掘り回答 " + (index + 1)} text={history.answer} icon={<DescriptionOutlinedIcon />} onOpen={onOpen} />
+                <FollowUpReviewView
+                  title={"深掘り " + (index + 1) + " 回目の専用採点"}
+                  item={followUpReviews.find((item) =>
+                    item.roundIndex === index + 1 &&
+                    item.question === history.question &&
+                    item.answer === history.answer
+                  )}
+                />
               </div>
             ))}
           </HistoryItems>
@@ -319,15 +386,30 @@ function CoachingContent({ feedback: f, onOpen, canJump }: { feedback: FeedbackV
 }
 
 /** 画面内の全文表示を1個のDialogへ集約し、同時表示と重複マウントを防ぐ。 */
-export function FeedbackCard({ feedback, canJumpToCoaching = false }: { feedback: Feedback; canJumpToCoaching?: boolean }) {
+export function FeedbackCard({
+  feedback, canJumpToCoaching = false, followUpReviews = [],
+}: {
+  feedback: Feedback; canJumpToCoaching?: boolean;
+  followUpReviews?: FollowUpReviewItem[];
+}) {
   const [target, setTarget] = useState<FullTextTarget | null>(null);
   const openFullText: OpenFullText = (title, text, icon) => setTarget({ title, text, icon });
   return (
     <>
+      {isFeedbackV2(feedback) && feedback.coachingCount > 0 && (
+        <FollowUpReviewView
+          title="今回の深掘り回答評価"
+          item={followUpReviews.find((item) =>
+            item.roundIndex === feedback.coachingCount &&
+            item.answer === feedback.latestAnswer &&
+            item.evaluationId === feedback.evaluationId
+          )}
+        />
+      )}
       <Report>
         <ReportHeading />
         {isFeedbackV2(feedback)
-          ? <CoachingContent feedback={feedback} onOpen={openFullText} canJump={canJumpToCoaching} />
+          ? <CoachingContent feedback={feedback} followUpReviews={followUpReviews} onOpen={openFullText} canJump={canJumpToCoaching} />
           : <LegacyContent feedback={feedback} onOpen={openFullText} />}
       </Report>
       <FullTextDialog
