@@ -15,7 +15,15 @@ for (const width of [390, 1440]) {
     await expect(page.getByRole("heading", { name: "自分の言葉で回答しよう" })).toBeVisible();
     await page.reload();
     await expect(page.getByRole("heading", { name: "基本ガイド" })).toBeVisible();
-    await page.getByRole("button", { name: "STEP 4を表示" }).click();
+    for (const [step, name] of [[1, "start"], [2, "answer"], [3, "feedback"], [4, "progress"]] as const) {
+      await page.getByRole("button", { name: `STEP ${step}を表示` }).click();
+      const screenshot = page.locator('img[src^="/guide/mock-"]');
+      await expect(screenshot).toHaveAttribute("src", `/guide/mock-${name}.jpg`);
+      await expect(screenshot).toHaveAttribute("alt", /Mock/);
+      await expect.poll(() => screenshot.evaluate((image) =>
+        (image as HTMLImageElement).naturalWidth
+      )).toBeGreaterThan(0);
+    }
     await expect(page.getByRole("link", { name: /面接練習を始める/ }))
       .toHaveAttribute("href", "/practice/quick/");
 

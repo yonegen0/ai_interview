@@ -1,12 +1,11 @@
-/** @file GuideBasic.tsx @description 四つの操作ステップを現行UI準拠のサンプル画面で案内する。 */
+/** @file GuideBasic.tsx @description Mock環境の実画面画像で四つの面接練習ステップを案内する。 */
 "use client";
 
 import { useRef, useState, type TouchEvent } from "react";
-import { Button, LinearProgress } from "@mui/material";
+import { Button } from "@mui/material";
+import Image from "next/image";
 import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded";
 import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
-import AutoAwesomeOutlinedIcon from "@mui/icons-material/AutoAwesomeOutlined";
-import CheckCircleOutlineRoundedIcon from "@mui/icons-material/CheckCircleOutlineRounded";
 import { alpha, styled } from "@mui/material/styles";
 import { Link } from "@/components/atoms/Link";
 import {
@@ -14,36 +13,23 @@ import {
   GuideLead, GuidePage, GuideSubheading, GuideSurface,
 } from "./GuideUI";
 
-const Sample = styled("div")(({ theme }) => ({
-  display: "grid", gap: theme.spacing(2),
-  borderRadius: theme.shape.borderRadius,
-  padding: theme.spacing(2.5), minWidth: 0,
-  border: "1px solid " + alpha(theme.palette.primary.main, 0.25),
-  background: `linear-gradient(135deg, ${alpha(theme.palette.primary.light, 0.13)}, ${theme.palette.background.default})`,
-  [theme.breakpoints.down("sm")]: { padding: theme.spacing(1.5) },
-}));
-const SampleCard = styled("div")(({ theme }) => ({
-  minWidth: 0, display: "grid", gap: theme.spacing(1),
-  padding: theme.spacing(2), borderRadius: theme.shape.borderRadius,
-  boxShadow: theme.shadows[1], background: theme.palette.background.paper,
-}));
-const Highlight = styled("div")(({ theme }) => ({
-  display: "grid", gap: theme.spacing(0.5), minWidth: 0,
-  padding: theme.spacing(1.5),
-  border: "2px solid " + theme.palette.primary.main,
-  borderRadius: theme.shape.borderRadius, background: alpha(theme.palette.primary.main, 0.055),
-}));
-const SampleLabel = styled("strong")(({ theme }) => ({
-  ...theme.typography.body1, color: theme.palette.text.primary,
-}));
-const SampleText = styled("span")(({ theme }) => ({
-  ...theme.typography.body2, color: theme.palette.text.secondary, lineHeight: 1.65,
-}));
 const StepTitle = styled("div")(({ theme }) => ({
   display: "grid", gap: theme.spacing(0.5),
 }));
-const SampleNote = styled("p")(({ theme }) => ({
-  ...theme.typography.caption, color: theme.palette.text.secondary, margin: 0,
+const ScreenshotFrame = styled("figure")(({ theme }) => ({
+  display: "grid", justifyItems: "center", gap: theme.spacing(1.5),
+  margin: 0, padding: theme.spacing(1.5), minWidth: 0,
+  border: "1px solid " + alpha(theme.palette.primary.main, 0.25),
+  borderRadius: theme.shape.borderRadius,
+  backgroundColor: alpha(theme.palette.primary.main, 0.045),
+}));
+const ScreenshotImage = styled(Image)(({ theme }) => ({
+  display: "block", width: "100%", maxWidth: 390, height: "auto",
+  borderRadius: theme.shape.borderRadius, boxShadow: theme.shadows[1],
+}));
+const ScreenshotNote = styled("figcaption")(({ theme }) => ({
+  ...theme.typography.caption, color: theme.palette.text.secondary,
+  textAlign: "center", margin: 0, lineHeight: 1.6,
 }));
 const StepNav = styled("div")(({ theme }) => ({
   display: "flex", justifyContent: "space-between",
@@ -64,72 +50,23 @@ const Indicator = styled("button", {
 const SwipeArea = styled("div")({
   display: "grid", gap: 16, minWidth: 0, touchAction: "pan-y",
 });
-const SampleTwo = styled("div")(({ theme }) => ({
-  display: "grid", gap: theme.spacing(1.5),
-  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-  [theme.breakpoints.down("sm")]: { gridTemplateColumns: "minmax(0, 1fr)" },
-}));
-const SampleButton = styled("span")(({ theme }) => ({
-  display: "block", textAlign: "center", padding: theme.spacing(1.25),
-  borderRadius: theme.shape.borderRadius, fontWeight: 700,
-  backgroundColor: theme.palette.primary.main, color: theme.palette.primary.contrastText,
-}));
+const captures = [
+  { src: "/guide/mock-start.jpg", alt: "Mockのホーム画面。カテゴリから選ぶ・3分から始めるの練習開始リンク" },
+  { src: "/guide/mock-answer.jpg", alt: "Mockの回答作成画面。面接質問と回答の入力欄" },
+  { src: "/guide/mock-feedback.jpg", alt: "Mockの評価画面。回答後のAIフィードバックと総合評価" },
+  { src: "/guide/mock-progress.jpg", alt: "Mockのホーム画面。15問の進捗カードと残り質問数" },
+] as const;
 function StepIllustration({ step }: { step: number }) {
+  const capture = captures[step] ?? captures[0];
   return (
-    <>
-      <Sample aria-label={["練習開始画面の操作例", "回答作成画面の操作例", "評価画面の表示例", "進捗画面の表示例"][step]}>
-        {step === 0 ? (
-          <SampleTwo>
-            <Highlight>
-              <SampleLabel>① カテゴリから選ぶ</SampleLabel>
-              <SampleText>テーマ別に質問を選んで練習</SampleText>
-              <SampleNote>テーマを選びたい方</SampleNote>
-            </Highlight>
-            <Highlight>
-              <SampleLabel>② 3分から始める</SampleLabel>
-              <SampleText>未完了の質問から、自動で一問を開始</SampleText>
-              <SampleNote>迷ったらこちら</SampleNote>
-            </Highlight>
-          </SampleTwo>
-        ) : step === 1 ? (
-          <>
-            <SampleCard>
-              <SampleNote>一問一答 · QUESTION 01</SampleNote>
-              <SampleLabel>質問に回答してみましょう</SampleLabel>
-            </SampleCard>
-            <SampleCard>
-              <SampleLabel>回答作成</SampleLabel>
-              <Highlight>
-                <SampleLabel>① <AutoAwesomeOutlinedIcon fontSize="small" aria-hidden="true" /> STARアシスト</SampleLabel>
-                <SampleText>経験を4つのステップで整理し、A/B/Cの3案を生成します。</SampleText>
-              </Highlight>
-              <Highlight>
-                <SampleLabel>② あなたの回答</SampleLabel>
-                <SampleText>ここに自分の回答を入力します</SampleText>
-              </Highlight>
-              <SampleButton>回答を送信</SampleButton>
-            </SampleCard>
-          </>
-        ) : step === 2 ? (
-          <SampleCard>
-            <SampleNote>AI評価のサンプル（Coaching V2の表示イメージ）</SampleNote>
-            <Highlight><SampleLabel>① 総合評価　24 / 30</SampleLabel><SampleText>回答の伝わりやすさを確認</SampleText></Highlight>
-            <Highlight><SampleLabel>② 良かった点</SampleLabel><SampleText>質問に沿って経験を説明できています。</SampleText></Highlight>
-            <Highlight><SampleLabel>③ 改善ポイント</SampleLabel><SampleText>判断した理由を加えると伝わりやすくなります。</SampleText></Highlight>
-          </SampleCard>
-        ) : (
-          <SampleCard>
-            <SampleLabel><CheckCircleOutlineRoundedIcon fontSize="small" aria-hidden="true" /> 面接練習の進捗</SampleLabel>
-            <SampleLabel>3 / 15 問完了</SampleLabel>
-            <SampleText>あと12問</SampleText>
-            <LinearProgress variant="determinate" value={20} aria-label="進捗の表示例" />
-            <SampleText>いいスタートです。その調子！</SampleText>
-            <SampleButton>練習を続ける</SampleButton>
-          </SampleCard>
-        )}
-      </Sample>
-      <SampleNote>※ 実画面の構成に合わせた説明用再現です。表示内容・数値はサンプルです。</SampleNote>
-    </>
+    <ScreenshotFrame>
+      <ScreenshotImage
+        src={capture.src} alt={capture.alt} width={390} height={844} unoptimized
+      />
+      <ScreenshotNote>
+        ※ Mock環境で実際に操作して撮影した画面です。回答・評価・進捗は架空のデータです。
+      </ScreenshotNote>
+    </ScreenshotFrame>
   );
 }
 const steps = [

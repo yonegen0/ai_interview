@@ -200,6 +200,9 @@ const EntryCard = styled("article")(({ theme }) => ({
 const ItemTitle = styled("h3")(({ theme }) => ({
   ...theme.typography.h3, margin: 0, fontWeight: 800,
 }));
+const SectionTitle = styled("span")(({ theme }) => ({
+  ...theme.typography.h3, fontWeight: 800,
+}));
 const Label = styled("strong")(({ theme }) => ({
   color: theme.palette.primary.dark, fontWeight: 700,
 }));
@@ -304,11 +307,11 @@ export function GuideFeatures() {
                 aria-controls={cat.id + "-content"} id={cat.id + "-heading"}>
                 <SectionHeading>
                   <GuideEyebrow>0{i + 1} / 07</GuideEyebrow>
-                  <ItemTitle>{cat.title}</ItemTitle>
+                  <SectionTitle>{cat.title}</SectionTitle>
                   <P>{cat.introduction}</P>
                 </SectionHeading>
               </Summary>
-              <Content id={cat.id + "-content"}>
+              <Content>
                 {cat.id === "assist" && <AssistPicker />}
                 {cat.entries.map((entry) => <FeatureEntry key={entry.title} entry={entry} />)}
                 {cat.id === "account" && <FAQ />}
