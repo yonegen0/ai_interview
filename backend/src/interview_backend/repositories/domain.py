@@ -460,7 +460,7 @@ class DomainRepository(StarRepositoryMixin, CoachingRepositoryMixin):
             for i, history in enumerate(evaluation.feedback.coachingHistory):
                 scored_by = (
                     head.history[i + 1].source_evaluation_id
-                    if i + 1 < len(head.history) else evaluation.id
+                    if i + 1 < evaluation.feedback.coachingCount else evaluation.id
                 )
                 record = tx.get(ref("FollowUpReviewRecord", owner, scored_by))
                 if record is not None and (

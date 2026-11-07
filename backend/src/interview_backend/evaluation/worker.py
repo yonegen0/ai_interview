@@ -88,6 +88,12 @@ class Worker:
         )
         version = self.repository.evaluation_contract_version(owner, evaluation_id)
         review_version = self.repository.evaluation_review_prompt_version(owner, evaluation_id)
+        if review_version is not None and (
+            version != 2 or review_version != FOLLOWUP_PROMPT_VERSION
+        ):
+            # Never let an unsupported Worker run an unknown job contract.
+            self.metric("UnsupportedReviewVersion")
+            return False
         followup_review = version == 2 and review_version == FOLLOWUP_PROMPT_VERSION
         config = (
             self.followup_config if followup_review else
