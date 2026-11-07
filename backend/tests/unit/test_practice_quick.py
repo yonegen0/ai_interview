@@ -4,6 +4,7 @@ from itertools import count
 
 import pytest
 from conftest import uid
+from test_practice_progress import attempt, evaluation
 
 from interview_backend.application.service import Application
 from interview_backend.assets import load_questions
@@ -13,7 +14,6 @@ from interview_backend.repositories.memory import MemoryRepository
 from interview_backend.repositories.practice_progress import completed_question_ids
 from interview_backend.star_assist.models import AnswerContext, AnswerDraft
 from interview_backend.star_assist.repository import digest
-from test_practice_progress import attempt, evaluation
 
 NOW = 1780000000000
 OWNER = "quick-user"
