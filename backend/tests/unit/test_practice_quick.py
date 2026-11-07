@@ -134,7 +134,7 @@ def test_resume_is_owner_scoped_and_restores_original_session():
     result = app.practice_resume(OWNER, app.questions[0].id)
     assert result.body == {"status": "resume", "reason": "draft", "sessionId": second}
     assert app.practice_resume("another-user", app.questions[0].id, first).body == {
-        "status": "none"
+        "status": "changed"
     }
 
 
@@ -174,10 +174,24 @@ def test_expired_draft_and_changed_question_fail_closed_without_data_loss():
     assert draft.answer == "保存済みです。"
 
 
+def test_failed_initial_evaluation_preserves_valid_draft():
+    app, repo = setup()
+    sid = make_session(app)
+    add_draft(repo, sid, app.questions[0], index=350)
+    repo._state.sessions[sid].active = ActiveAttempt(
+        attemptId=uid(455), evaluationId=uid(456), status="failed"
+    )
+    assert app.practice_resume(OWNER, app.questions[0].id).body == {
+        "status": "resume",
+        "reason": "draft",
+        "sessionId": sid,
+    }
+
+
 def test_local_session_reference_requires_original_question():
     app, repo = setup()
     sid = make_session(app, question=app.questions[1])
-    assert app.practice_resume(OWNER, app.questions[0].id, sid).body == {"status": "none"}
+    assert app.practice_resume(OWNER, app.questions[0].id, sid).body == {"status": "changed"}
     own = make_session(app, key=209)
     assert app.practice_resume(OWNER, app.questions[0].id, own).body == {
         "status": "resume",

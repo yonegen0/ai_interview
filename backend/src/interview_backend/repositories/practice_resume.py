@@ -78,9 +78,6 @@ def practice_resume(repo, owner, question_id, defaults, local_session_id=None, l
             continue
         if session.active and session.active.status == "completed":
             continue
-        if session.active and session.active.status == "failed":
-            # V2 retry-attempt is a separate operation, not an initial-answer draft.
-            continue
         recent = None
         for kind, identifier in (
             ("AnswerDraft", context.answer_draft_id),
@@ -115,5 +112,9 @@ def practice_resume(repo, owner, question_id, defaults, local_session_id=None, l
                     "questionNumber": local.number,
                 },
             )
+        changed = True
+    elif local_session_id is not None:
+        # A tab-local draft referring to a missing or advanced session must not
+        # be treated as proof that creating a fresh session is safe.
         changed = True
     return Reply(200, {"status": "changed" if changed else "none"})
