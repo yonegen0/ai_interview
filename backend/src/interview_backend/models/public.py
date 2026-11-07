@@ -98,7 +98,9 @@ class CreateRequest(Model):
     difficulty: Literal["standard"]
     mode: Literal["full", "category", "quick"] = Field(default=None, validate_default=False)
     questionId: Identifier | None = Field(default=None, validate_default=False)
-    bankVersion: Annotated[int, Field(ge=0, le=9007199254740991)] | None = Field(default=None, validate_default=False)
+    bankVersion: Annotated[int, Field(ge=0, le=9007199254740991)] | None = Field(
+        default=None, validate_default=False
+    )
 
     @model_validator(mode="before")
     @classmethod
@@ -210,7 +212,9 @@ class SessionResponse(Model):
     questionNumber: PositiveInt
     activeAttempt: ActiveAttempt | None
     activeCoaching: ActiveCoaching = Field(default=None, validate_default=False)
-    mode: Literal["full", "category", "quick", "legacy"] = Field(default=None, validate_default=False)
+    mode: Literal["full", "category", "quick", "legacy"] = Field(
+        default=None, validate_default=False
+    )
     totalQuestions: PositiveInt = Field(default=None, validate_default=False)
     hasNext: bool = Field(default=None, validate_default=False)
 

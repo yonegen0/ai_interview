@@ -157,9 +157,15 @@ class Handler:
                 args.extend(match.groups())
                 if action == "practice_resume":
                     query = event.get("queryStringParameters") or {}
-                    if (not isinstance(query, dict) or set(query) - {"questionId", "localSessionId"}
-                            or not isinstance(query.get("questionId"), str)
-                            or ("localSessionId" in query and not isinstance(query["localSessionId"], str))):
+                    if (
+                        not isinstance(query, dict)
+                        or set(query) - {"questionId", "localSessionId"}
+                        or not isinstance(query.get("questionId"), str)
+                        or (
+                            "localSessionId" in query
+                            and not isinstance(query["localSessionId"], str)
+                        )
+                    ):
                         raise BusinessError(400, "VALIDATION_ERROR")
                     args.extend((query["questionId"], query.get("localSessionId")))
                 if action == "history":

@@ -139,7 +139,9 @@ class DomainRepository(StarRepositoryMixin, CoachingRepositoryMixin):
             selected, current_bank_version = questions, None
             if mode:
                 bank = tx.get(ref("QuestionBank", "", "CURRENT"))
-                selected, current_bank_version = (bank.questions, bank.version) if bank else (questions, 0)
+                selected, current_bank_version = (
+                    (bank.questions, bank.version) if bank else (questions, 0)
+                )
                 if mode == "quick":
                     if bank_version != current_bank_version:
                         raise BusinessError(409, "QUESTION_BANK_CONFLICT")

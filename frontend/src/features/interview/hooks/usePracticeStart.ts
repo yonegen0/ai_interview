@@ -48,7 +48,10 @@ export function usePracticeStart(fixedMode?: "category") {
           ? restored.body.category!
           : restored.category || null,
       );
-      if (!fixedMode || restored.body?.mode === "category") setMode(restored.body?.mode || "category");
+      if (fixedMode) setMode("category");
+      else if (restored.body?.mode === "full" || restored.body?.mode === "category") {
+        setMode(restored.body.mode);
+      } else setMode("category");
       setRecovering(true);
     }
     setRestoring(false);
