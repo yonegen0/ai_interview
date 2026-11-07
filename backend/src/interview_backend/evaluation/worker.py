@@ -11,12 +11,19 @@ from pydantic import ValidationError
 from interview_backend.evaluation.coaching import InvalidCoachingResult, validate_coaching_result
 from interview_backend.evaluation.provider import (
     COACHING_PROMPT_VERSION,
+    FOLLOWUP_PROMPT_VERSION,
     PROMPT_VERSION,
     build_coaching_prompt,
     build_prompt,
 )
 from interview_backend.models.internal import ExecutionConfig
-from interview_backend.models.public import CoachingResult, EvaluationResult, Feedback, FeedbackV2
+from interview_backend.models.public import (
+    CoachingResult,
+    EvaluationResult,
+    Feedback,
+    FeedbackV2,
+    FollowUpReview,
+)
 from interview_backend.operational_logs import log_provider_usage
 from interview_backend.repositories.budget import invocation_budget
 from interview_backend.repositories.domain import utc_ms
@@ -44,6 +51,11 @@ class Worker:
         )
         self.coaching_config = replace(
             self.config, prompt_version=COACHING_PROMPT_VERSION, result_schema_version=2
+        )
+        self.followup_config = replace(
+            self.coaching_config,
+            prompt_version=FOLLOWUP_PROMPT_VERSION,
+            result_schema_version=3,
         )
         self.metric = metric
         from interview_backend.star_assist.worker import StarWorker
@@ -75,7 +87,12 @@ class Worker:
             lambda: max(0, 60000 - int((self.monotonic() - started) * 1000))
         )
         version = self.repository.evaluation_contract_version(owner, evaluation_id)
-        config = self.coaching_config if version == 2 else self.config
+        review_version = self.repository.evaluation_review_prompt_version(owner, evaluation_id)
+        followup_review = version == 2 and review_version == FOLLOWUP_PROMPT_VERSION
+        config = (
+            self.followup_config if followup_review else
+            self.coaching_config if version == 2 else self.config
+        )
         claim = self.repository.claim(
             owner, evaluation_id, generation, self.new_execution_id(), config
         )
@@ -98,13 +115,18 @@ class Worker:
             if (
                 lease.execution_config != config
                 or config.prompt_version
-                != (COACHING_PROMPT_VERSION if version == 2 else PROMPT_VERSION)
+                != (
+                    FOLLOWUP_PROMPT_VERSION if followup_review else
+                    COACHING_PROMPT_VERSION if version == 2 else PROMPT_VERSION
+                )
                 or config.provider_id != getattr(self.provider, "provider_id", "fake")
                 or config.model_id != getattr(self.provider, "model_id", "fake")
             ):
                 raise ValueError("execution_config")
             prompt = (
-                build_coaching_prompt(lease.coaching_input)
+                build_coaching_prompt(
+                    lease.coaching_input, follow_up_review=followup_review
+                )
                 if version == 2
                 else build_prompt(lease.attempt.question, lease.attempt.answer)
             )
@@ -141,7 +163,7 @@ class Worker:
                 "applied",
                 "already_terminal",
             }
-        feedback, reason = None, "PROVIDER_FAILED"
+        feedback, reason, review = None, "PROVIDER_FAILED", None
         try:
             if entered:
                 raise RuntimeError("already_called")
@@ -165,7 +187,18 @@ class Worker:
                 raw = self.provider.evaluate(prompt)
             if (self.monotonic() - called_at) * 1000 >= config.provider_timeout_ms:
                 raise TimeoutError
-            result = (CoachingResult if version == 2 else EvaluationResult).model_validate(raw)
+            if followup_review:
+                if not isinstance(raw, dict) or set(raw) - {
+                    "coaching", "follow_up_review"
+                } or "coaching" not in raw or not isinstance(raw["coaching"], dict):
+                    raise InvalidCoachingResult("InvalidReviewEnvelope")
+                result = CoachingResult.model_validate(raw["coaching"])
+                try:
+                    review = FollowUpReview.model_validate(raw.get("follow_up_review"))
+                except ValidationError:
+                    self.metric("FollowUpReviewInvalid")
+            else:
+                result = (CoachingResult if version == 2 else EvaluationResult).model_validate(raw)
             created_at = (
                 datetime.fromtimestamp(self.clock() / 1000, UTC).isoformat().replace("+00:00", "Z")
             )
@@ -231,5 +264,5 @@ class Worker:
                 else "openai",
                 getattr(self.provider, "last_observation", None),
             )
-        result = self.repository.finish(lease, feedback, reason)
+        result = self.repository.finish(lease, feedback, reason, follow_up_review=review)
         return result.status in {"applied", "already_terminal"}

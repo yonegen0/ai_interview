@@ -127,12 +127,17 @@ class Application:
         validate_id(evaluation_id)
         return self.repository.get_evaluation(owner, evaluation_id)
 
-    def feedback(self, owner: str, attempt_id: str, evaluation_id: str | None = None) -> Reply:
+    def feedback(
+        self, owner: str, attempt_id: str, evaluation_id: str | None = None,
+        include_follow_up_reviews: bool = False,
+    ) -> Reply:
         self._owner(owner)
         validate_id(attempt_id)
         if evaluation_id is not None:
             validate_id(evaluation_id)
-        return self.repository.get_feedback(owner, attempt_id, evaluation_id)
+        return self.repository.get_feedback(
+            owner, attempt_id, evaluation_id, include_follow_up_reviews
+        )
 
     def next_question(self, owner: str, key: str, session_id: str, payload: dict) -> Reply:
         self._owner(owner)
