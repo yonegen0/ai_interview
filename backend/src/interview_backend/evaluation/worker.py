@@ -92,7 +92,7 @@ class Worker:
             version != 2 or review_version != FOLLOWUP_PROMPT_VERSION
         ):
             # Never let an unsupported Worker run an unknown job contract.
-            self.metric("UnsupportedReviewVersion")
+            self.metric("InvalidConfiguration")
             return False
         followup_review = version == 2 and review_version == FOLLOWUP_PROMPT_VERSION
         config = (
@@ -209,7 +209,8 @@ class Worker:
                 try:
                     review = FollowUpReview.model_validate(raw.get("follow_up_review"))
                 except ValidationError:
-                    self.metric("FollowUpReviewInvalid")
+                    # Optional review failure must not fail a valid CoachingResult.
+                    review = None
             else:
                 result = (CoachingResult if version == 2 else EvaluationResult).model_validate(raw)
             created_at = (

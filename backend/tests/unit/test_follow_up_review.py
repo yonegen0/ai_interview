@@ -120,6 +120,13 @@ def test_initial_legacy_and_new_follow_up_one_call(runtime):
 
 
 def test_bad_optional_review_does_not_lose_good_overall(runtime):
+    from interview_backend.observability import Metrics
+
+    # A production-like allowlisted metric callback must not turn partial failure
+    # into an overall evaluation failure.
+    runtime.worker.metric = Metrics(
+        "worker", environment="test", sink=lambda _: None
+    ).classification
     runtime.repository.coaching_review_enabled = True
     sid, qid, initial = start(runtime)
     runtime.provider.behavior = lambda prompt: overall("そのとき何をしましたか？")
