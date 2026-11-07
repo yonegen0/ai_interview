@@ -14,18 +14,19 @@ const mock = vi.hoisted(() => {
   const saved = new Map<string, unknown>();
   const replace = vi.fn();
   const router = { replace };
+  const isActive = () => true;
   const storage = {
     readSaved: (key: string) => saved.get(key) ?? null,
     save: (key: string, value: unknown) => { saved.set(key, value); return true; },
     removeSaved: (key: string) => { saved.delete(key); },
   };
-  return { saved, replace, router, storage };
+  return { saved, replace, router, storage, isActive };
 });
 vi.mock("next/navigation", () => ({ useRouter: () => mock.router }));
 vi.mock("@/hooks/useOperationScope", () => ({
   useOperationScope: () => ({
     scope: "quick-test-scope:",
-    isActive: () => true,
+    isActive: mock.isActive,
     storage: mock.storage,
   }),
 }));
