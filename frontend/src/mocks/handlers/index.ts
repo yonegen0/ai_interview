@@ -5,6 +5,7 @@ import { starRoute, closeStarAnswer, closeStarSession } from "../star";
 import { pumpStarJobs } from "../transactions";
 import { attemptSchema } from "@/lib/api/schemas";
 import { mockHistory } from "../history";
+import { mockPracticeProgress } from "../practiceProgress";
 import { z } from "zod";
 import {
   createSchema,
@@ -313,6 +314,13 @@ export function createHandlers(
   );
   return [
     ...helperHandlers,
+    http.get(`${base}/me/practice-progress`, ({ request }) => {
+      const identity = actor(request);
+      if (!identity) return error("UNAUTHORIZED", 401);
+      return HttpResponse.json(mockPracticeProgress(activeRepository.read(), identity.sub), {
+        headers: { "Cache-Control": "no-store" },
+      });
+    }),
     http.get(`${base}/me/history`, ({ request }) => {
       const identity = actor(request);
       if (!identity) return error("UNAUTHORIZED", 401);
