@@ -1,6 +1,6 @@
 /** @file practice-quick.test.tsx @description Quick entry and recovery behavior without AI or AWS. */
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ThemeProvider } from "@mui/material/styles";
 import { theme } from "@/theme/theme";
 import { HomeNavigation } from "@/features/home/components/organisms/HomeNavigation";
@@ -124,6 +124,57 @@ it("restores an unresolved start operation with the original idempotency key", a
   expect(createSession).toHaveBeenCalledWith(body, REQUEST_KEY);
   expect(getPracticeProgress).not.toHaveBeenCalled();
   expect(mock.saved.size).toBe(0);
+});
+
+it("restarts from latest progress after a definitive rejection of a saved create", async () => {
+  const oldBody = {
+    mode: "quick", questionId: QUESTION_ID, bankVersion: 0, difficulty: "standard",
+  };
+  mock.saved.set("pocket:create:quick", { version: 1, key: REQUEST_KEY, body: oldBody });
+  vi.mocked(createSession).mockRejectedValueOnce(new ApiError("QUESTION_BANK_CONFLICT", 409));
+
+  mount(<PracticeQuick />);
+  const retry = await screen.findByRole("button", { name: "最新の未完了質問から再試行" });
+  expect(mock.saved.has("pocket:create:quick")).toBe(false);
+  expect(createSession).toHaveBeenCalledWith(oldBody, REQUEST_KEY);
+  expect(getPracticeProgress).not.toHaveBeenCalled();
+
+  fireEvent.click(retry);
+  await waitFor(() => expect(mock.replace).toHaveBeenCalledWith(
+    `/practice/session/?sessionId=${SESSION_ID}`,
+  ));
+  expect(getPracticeProgress).toHaveBeenCalledTimes(1);
+  expect(getPracticeResume).toHaveBeenCalledTimes(1);
+  expect(createSession).toHaveBeenCalledTimes(2);
+  expect(vi.mocked(createSession).mock.calls[1][1]).not.toBe(REQUEST_KEY);
+  expect(mock.saved.has("pocket:create:quick")).toBe(false);
+});
+
+it.each([
+  ["timeout", new ApiError("TIMEOUT")],
+  ["unconfirmed authentication", new ApiError("UNAUTHORIZED", 401)],
+])("keeps the exact saved operation after %s during recovery", async (_case, failure) => {
+  const body = {
+    mode: "quick", questionId: QUESTION_ID, bankVersion: 0, difficulty: "standard",
+  };
+  const operation = { version: 1, key: REQUEST_KEY, body };
+  mock.saved.set("pocket:create:quick", operation);
+  vi.mocked(createSession).mockRejectedValueOnce(failure);
+
+  mount(<PracticeQuick />);
+  const retry = await screen.findByRole("button", { name: "同じ操作で再確認する" });
+  expect(mock.saved.get("pocket:create:quick")).toEqual(operation);
+  expect(getPracticeProgress).not.toHaveBeenCalled();
+
+  fireEvent.click(retry);
+  await waitFor(() => expect(mock.replace).toHaveBeenCalledWith(
+    `/practice/session/?sessionId=${SESSION_ID}`,
+  ));
+  expect(createSession).toHaveBeenCalledTimes(2);
+  expect(createSession).toHaveBeenNthCalledWith(1, body, REQUEST_KEY);
+  expect(createSession).toHaveBeenNthCalledWith(2, body, REQUEST_KEY);
+  expect(getPracticeProgress).not.toHaveBeenCalled();
+  expect(mock.saved.has("pocket:create:quick")).toBe(false);
 });
 
 it("restores the original draft session without creating or copying", async () => {

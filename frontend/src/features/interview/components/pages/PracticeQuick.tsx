@@ -14,7 +14,7 @@ import { ErrorView } from "@/components/organisms/ErrorView";
 import { useOperationScope } from "@/hooks/useOperationScope";
 import { getPracticeProgress, getPracticeResume } from "@/lib/api/practiceProgress";
 import { createSession, getQuestion } from "@/lib/api/interview";
-import { ApiError, uncertain } from "@/lib/api/client";
+import { ApiError } from "@/lib/api/client";
 import { createSchema, idSchema } from "@/lib/api/schemas";
 import { scopedKey, answerRecoverySchema, operationSchema } from "@/lib/storage/recovery";
 
@@ -23,9 +23,19 @@ type View =
   | { status: "complete"; completed: number; total: number }
   | { status: "empty" }
   | { status: "changed" }
-  | { status: "error"; error: Error };
+  | { status: "error"; error: Error; restartFromLatest: boolean };
 
 const CREATE_KEY = "pocket:create:quick";
+
+// Only an explicit business rejection proves the saved create did not succeed.
+// Network, auth, and malformed responses keep the original payload/idempotency key.
+const definitelyRejectedCreate = (error: unknown) =>
+  error instanceof ApiError && (
+    (error.status === 409 &&
+      ["QUESTION_BANK_CONFLICT", "QUESTION_UNAVAILABLE"].includes(error.code)) ||
+    (error.status === 400 && error.code === "VALIDATION_ERROR") ||
+    (error.status === 429 && error.code === "SESSION_CREATION_LIMIT")
+  );
 
 type LocalResume = { id: string; pending: boolean };
 
@@ -71,6 +81,7 @@ export function PracticeQuick() {
     if (!isActive() || locked.current) return;
     locked.current = true;
     setView({ status: "loading" });
+    let restartFromLatest = false;
     try {
       // A lost POST response must be resolved with its original body and key.
       const operation = storage.readSaved(CREATE_KEY, operationSchema);
@@ -78,11 +89,19 @@ export function PracticeQuick() {
         if (!operation.body || operation.body.mode !== "quick") {
           throw new ApiError("INVALID_RESPONSE", 0);
         }
-        const resumed = await createSession(operation.body, operation.key);
-        if (!isActive()) return;
-        storage.removeSaved(CREATE_KEY);
-        navigate(resumed.sessionId);
-        return;
+        try {
+          const resumed = await createSession(operation.body, operation.key);
+          if (!isActive()) return;
+          storage.removeSaved(CREATE_KEY);
+          navigate(resumed.sessionId);
+          return;
+        } catch (error) {
+          if (isActive() && definitelyRejectedCreate(error)) {
+            storage.removeSaved(CREATE_KEY);
+            restartFromLatest = true;
+          }
+          throw error;
+        }
       }
 
       // Do not use the home card's cached progress; always fetch again.
@@ -142,13 +161,17 @@ export function PracticeQuick() {
         storage.removeSaved(CREATE_KEY);
         navigate(created.sessionId);
       } catch (error) {
-        if (!uncertain(error)) storage.removeSaved(CREATE_KEY);
+        if (isActive() && definitelyRejectedCreate(error)) {
+          storage.removeSaved(CREATE_KEY);
+          restartFromLatest = true;
+        }
         throw error;
       }
     } catch (error) {
       if (isActive()) setView({
         status: "error",
         error: error instanceof Error ? error : new Error("練習を開始できませんでした。"),
+        restartFromLatest,
       });
     } finally {
       locked.current = false;
@@ -185,9 +208,16 @@ export function PracticeQuick() {
         </Panel>
       ) : view.status === "error" ? (
         <Panel>
-          <Header title="練習を確認できませんでした" description="下書き・開始操作は保持されています。通信と認証を確認して再試行してください。" />
+          <Header
+            title="練習を確認できませんでした"
+            description={view.restartFromLatest
+              ? "開始要求は受理されませんでした。最新の未完了質問から再試行できます。下書きは保持されています。"
+              : "下書き・開始操作は保持されています。通信と認証を確認して再試行してください。"}
+          />
           <ErrorView error={view.error} />
-          <Button variant="contained" onClick={() => void start()}>同じ操作で再確認する</Button>
+          <Button variant="contained" onClick={() => void start()}>
+            {view.restartFromLatest ? "最新の未完了質問から再試行" : "同じ操作で再確認する"}
+          </Button>
           <Link href="/">ホームへ戻る</Link>
         </Panel>
       ) : (
