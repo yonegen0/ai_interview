@@ -147,11 +147,16 @@ def test_processing_and_local_pending_precede_other_drafts():
         attemptId=uid(410), evaluationId=uid(411), status="processing"
     )
     assert app.practice_resume(OWNER, app.questions[0].id, with_draft, True).body == {
-        "status": "resume", "reason": "processing", "sessionId": original
+        "status": "resume",
+        "reason": "processing",
+        "sessionId": original,
     }
     repo._state.sessions[original].active = None
     assert app.practice_resume(OWNER, app.questions[0].id, original, True).body == {
-        "status": "resume", "reason": "local", "sessionId": original, "questionNumber": 1
+        "status": "resume",
+        "reason": "local",
+        "sessionId": original,
+        "questionNumber": 1,
     }
 
 
@@ -175,5 +180,8 @@ def test_local_session_reference_requires_original_question():
     assert app.practice_resume(OWNER, app.questions[0].id, sid).body == {"status": "none"}
     own = make_session(app, key=209)
     assert app.practice_resume(OWNER, app.questions[0].id, own).body == {
-        "status": "resume", "reason": "local", "sessionId": own, "questionNumber": 1
+        "status": "resume",
+        "reason": "local",
+        "sessionId": own,
+        "questionNumber": 1,
     }

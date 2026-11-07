@@ -171,10 +171,13 @@ class Handler:
                         query.get("localPending") == "1" and not query.get("localSessionId")
                     ):
                         raise BusinessError(400, "VALIDATION_ERROR")
-                    args.extend((
-                        query["questionId"], query.get("localSessionId"),
-                        query.get("localPending") == "1",
-                    ))
+                    args.extend(
+                        (
+                            query["questionId"],
+                            query.get("localSessionId"),
+                            query.get("localPending") == "1",
+                        )
+                    )
                 if action == "history":
                     query = event.get("queryStringParameters") or {}
                     if not isinstance(query, dict):

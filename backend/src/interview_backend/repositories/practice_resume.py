@@ -41,9 +41,7 @@ def practice_resume(repo, owner, question_id, defaults, local_session_id=None, l
 
     local = by_id.get(local_session_id) if local_session_id else None
     if local_pending and local is not None and local.question.id == question_id:
-        if compatible(local) and (
-            local.active is None or local.active.status != "completed"
-        ):
+        if compatible(local) and (local.active is None or local.active.status != "completed"):
             return Reply(
                 200,
                 {
