@@ -164,6 +164,7 @@ def test_job_method_frozen_before_enable_toggle_and_retry(runtime):
         runtime.repository.snapshot().evaluations[answered["evaluationId"]].review_prompt_version
         is None
     )
+    runtime.provider.behavior = lambda prompt: overall()
     assert runtime.worker.run("owner", answered["evaluationId"])
     status = runtime.application.feedback("owner", answered["attemptId"]).body["result"]["status"]
     assert status == "completed"
