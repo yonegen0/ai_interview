@@ -277,7 +277,9 @@ class LiveStarProvider:
             follow_up_context=follow_up_context,
         )
 
-    def generate_with_deadline(self, question, value, deadline, *, operation_kind="initial_answer", follow_up_context=None):
+    def generate_with_deadline(
+        self, question, value, deadline, *, operation_kind="initial_answer", follow_up_context=None
+    ):
         # A local clarification must never inherit usage from a previous warm call.
         self.last_observation = None
         self.last_reason_code = None
@@ -290,7 +292,9 @@ class LiveStarProvider:
         except KeyError:
             raise ProviderFailure("CONFIGURATION") from None
         if value.assistType != "star":
-            return self._generate_assist(question, value, facts, deadline, length_target, follow_up_context)
+            return self._generate_assist(
+                question, value, facts, deadline, length_target, follow_up_context
+            )
         if self.mode == "natural" and operation_kind in {"initial_answer", "retry_attempt"}:
             length_target = [250, 300]
         if star_notes_length(facts) > STAR_NOTES_MAX_LENGTH:
@@ -366,7 +370,9 @@ class LiveStarProvider:
         deadline.seconds()
         return result
 
-    def _generate_assist(self, question, value, facts, deadline, length_target, follow_up_context=None):
+    def _generate_assist(
+        self, question, value, facts, deadline, length_target, follow_up_context=None
+    ):
         """Other modes use one structured response and no paid retries."""
         if star_notes_length(facts) > OTHER_NOTES_MAX_LENGTH:
             self.last_reason_code = "USAGE_LIMIT"

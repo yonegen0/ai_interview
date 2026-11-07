@@ -73,7 +73,8 @@ def test_follow_up_scoped_history_snapshot_and_apply(runtime):
         "starDraftId": legacy["id"], "expectedVersion": legacy["version"],
     })
     assert forbidden[0] == 403 and forbidden[1]["code"] == "ASSIST_MODE_FORBIDDEN"
-    assert call(runtime, "GET", f"/answer-contexts/{context}/drafts")[1]["starDraft"]["id"] == legacy["id"]
+    saved_drafts = call(runtime, "GET", f"/answer-contexts/{context}/drafts")[1]
+    assert saved_drafts["starDraft"]["id"] == legacy["id"]
     assert call(runtime, "POST", f"/star-drafts/{legacy['id']}/discard", {
         "expectedVersion": legacy["version"],
     })[0] == 200
@@ -148,9 +149,11 @@ def test_follow_up_rejected_before_coaching_and_for_none(runtime):
     dummy = StarRepositoryMixin()
     tx = SimpleNamespace(get=lambda _: SimpleNamespace(question=SimpleNamespace(assistType="none")))
     with pytest.raises(BusinessError) as error:
-        dummy._allowed_assist_mode(tx, "owner",
-                                   SimpleNamespace(session_id="session", operation_kind="initial_answer"),
-                                   "star")
+        dummy._allowed_assist_mode(
+            tx, "owner",
+            SimpleNamespace(session_id="session", operation_kind="initial_answer"),
+            "star",
+        )
     assert error.value.status == 403
 
 
