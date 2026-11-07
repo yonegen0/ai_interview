@@ -415,6 +415,29 @@ class CoachingResult(StrictModel):
         return self
 
 
+class FollowUpReview(StrictModel):
+    """Independent, strictly validated review of the latest follow-up answer."""
+
+    question_fit_score: Annotated[int, Field(strict=True, ge=0, le=10)]
+    detail_score: Annotated[int, Field(strict=True, ge=0, le=10)]
+    coherence_score: Annotated[int, Field(strict=True, ge=0, le=10)]
+    suitability: Literal["ready", "minor_revision", "needs_revision", "needs_verification"]
+    good_point: CoachingQuestion
+    improvement: CoachingQuestion
+
+    @model_validator(mode="after")
+    def consistent_suitability(self):
+        if self.suitability == "ready" and (
+            self.question_fit_score < 7 or self.coherence_score < 7
+        ):
+            raise ValueError("Contradictory ready suitability")
+        return self
+
+    @property
+    def total_score(self) -> int:
+        return self.question_fit_score + self.detail_score + self.coherence_score
+
+
 class FeedbackV2(StrictModel):
     feedbackVersion: Literal[2]
     attemptId: Identifier
