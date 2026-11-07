@@ -1,5 +1,5 @@
 /** @file follow-up-review.test.tsx @description 独立採点の契約・旧データと表示を検証。 */
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { ThemeProvider } from "@mui/material/styles";
 import { expect, it } from "vitest";
 import { FeedbackCard } from "@/features/feedback/components/organisms/FeedbackCard";
@@ -76,8 +76,9 @@ it("shows separate current and historical reviews without hiding original overal
   expect(screen.getByRole("group", { name: "質問適合性：9 / 10点" })).toBeInTheDocument();
   expect(screen.getByRole("group", { name: "具体性・情報の充実度：8 / 10点" })).toBeInTheDocument();
   expect(screen.getByRole("group", { name: "一貫性・納得感：9 / 10点" })).toBeInTheDocument();
-  expect(screen.getByText(review.good_point)).toBeInTheDocument();
-  expect(screen.getByText(review.improvement)).toBeInTheDocument();
+  const current = screen.getByRole("region", { name: "今回の深掘り回答評価" });
+  expect(within(current).getByText(review.good_point)).toBeInTheDocument();
+  expect(within(current).getByText(review.improvement)).toBeInTheDocument();
 });
 
 it("keeps old feedback and rounds visible with missing dedicated review", () => {
@@ -101,7 +102,8 @@ it.each([
       <FeedbackCard feedback={feedback} followUpReviews={[{ ...item, review: { ...review, suitability } }]} />
     </ThemeProvider>
   );
-  expect(screen.getByText(label)).toBeInTheDocument();
+  const current = screen.getByRole("region", { name: "今回の深掘り回答評価" });
+  expect(within(current).getByText(label)).toBeInTheDocument();
 });
 
 it("shows the latest review without confusing it with other rounds", () => {
@@ -171,7 +173,7 @@ it("keeps the complete good and improvement text in a single card", () => {
       }]} />
     </ThemeProvider>
   );
-  expect(screen.getByText(good)).toBeInTheDocument();
-  expect(screen.getByText(improvement)).toBeInTheDocument();
-  expect(screen.getByRole("region", { name: "今回の深掘り回答評価" })).toContainElement(screen.getByText(good));
+  const current = screen.getByRole("region", { name: "今回の深掘り回答評価" });
+  expect(within(current).getByText(good)).toBeInTheDocument();
+  expect(within(current).getByText(improvement)).toBeInTheDocument();
 });
