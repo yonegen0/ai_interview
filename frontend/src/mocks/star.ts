@@ -502,6 +502,18 @@ export function finishStarJob(
     now,
   );
 }
+function allowedMode(state: MockState, context: Context, requested: string): boolean {
+  const session = state.sessions[context.sessionId];
+  const configured = session?.question.assistType ?? "star";
+  if (!session || configured === "none") return false;
+  if (context.operationKind !== "coaching_answer") return requested === configured;
+  const progress = session.activeCoaching;
+  return requested === "follow_up" && progress?.stage === "awaiting_answer" &&
+    progress.attemptId === context.fromAttemptId &&
+    progress.evaluationId === context.fromEvaluationId &&
+    progress.followUpQuestion === context.question;
+}
+
 export function starRoute(
   state: MockState,
   owner: string,
@@ -759,9 +771,8 @@ export function starRoute(
         return fail("STAR_GENERATION_IN_PROGRESS");
       if (row.value.version !== body.expectedVersion)
         return fail("DRAFT_VERSION_CONFLICT");
-      const configuredMode = state.sessions[context.sessionId]?.question.assistType ?? "star";
       const draftMode = row.value.assistType ?? "star";
-      if (configuredMode === "none" || configuredMode !== draftMode)
+      if (!allowedMode(state, context, draftMode))
         return fail("ASSIST_MODE_FORBIDDEN", 403);
       const limit = draftMode === "star" ? STAR_INPUT_LIMIT : OTHER_ASSIST_INPUT_LIMIT;
       if (countStarNotes(row.value.notes) > limit)
@@ -834,8 +845,7 @@ export function starRoute(
           a = draft(state, owner, body.answerDraftId, false, now);
         if (a.context.id !== context.id)
           return fail("STAR_DRAFT_NOT_FOUND", 404);
-        const configuredMode = state.sessions[context.sessionId]?.question.assistType ?? "star";
-        if (configuredMode === "none" || configuredMode !== (s.value.assistType ?? "star"))
+        if (!allowedMode(state, context, s.value.assistType ?? "star"))
           return fail("ASSIST_MODE_FORBIDDEN", 403);
         const answer = state.star.answers[body.answerDraftId];
         if (
