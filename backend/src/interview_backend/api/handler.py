@@ -168,7 +168,10 @@ class Handler:
                     requested = query.get("includeFollowUpReviews")
                     if requested is not None and requested != "1":
                         raise BusinessError(400, "VALIDATION_ERROR")
-                    args.extend((query.get("evaluationId"), requested == "1"))
+                    if requested == "1":
+                        args.extend((query.get("evaluationId"), True))
+                    elif "evaluationId" in query:
+                        args.append(query["evaluationId"])
                 if method == "POST":
                     args.append(parse_body(event))
                 # Application validation failures only; unrelated ValueError is a 500.

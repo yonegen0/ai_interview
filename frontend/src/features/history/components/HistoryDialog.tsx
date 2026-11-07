@@ -12,7 +12,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/atoms/Button";
 import { Dialog } from "@/components/organisms/Dialog";
 import { FeedbackCard } from "@/features/feedback/components/organisms/FeedbackCard";
-import { getFeedback } from "@/lib/api/feedback";
+import { getFeedbackWithReviews } from "@/lib/api/feedback";
 import { useHistory } from "../hooks/useHistory";
 import { HistoryList, historyStatus, formatHistoryDate } from "./HistoryList";
 import {
@@ -107,7 +107,7 @@ export function HistoryDialog({ open, onClose, owner, initialTab = 0 }: {
   const items = records.data?.pages.flatMap((page) => page.items) ?? [];
   const detail = useQuery({
     queryKey: [owner, "history-feedback", selected?.attemptId, selected?.evaluationId],
-    queryFn: ({ signal }) => getFeedback(selected!.attemptId!, signal, selected!.evaluationId!),
+    queryFn: ({ signal }) => getFeedbackWithReviews(selected!.attemptId!, signal, selected!.evaluationId!),
     enabled: open && Boolean(owner && selected?.attemptId && selected.status === "completed"),
   });
   return (
@@ -198,7 +198,7 @@ export function HistoryDialog({ open, onClose, owner, initialTab = 0 }: {
               detail.error ? <Alert severity="error">評価結果を取得できませんでした。
                 <Button onClick={() => { void detail.refetch(); }}>再試行</Button>
               </Alert> :
-              detail.data ? <FeedbackCard feedback={detail.data} /> : null}
+              detail.data ? <FeedbackCard feedback={detail.data.feedback} followUpReviews={detail.data.followUpReviews} /> : null}
         </Details> : <></>}
         actions={<Button onClick={() => setSelected(null)}>閉じる</Button>}
       />

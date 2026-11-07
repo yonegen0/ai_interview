@@ -4,7 +4,7 @@ import { useOperationScope } from "@/hooks/useOperationScope";
 import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { idSchema } from "@/lib/api/schemas";
-import { getFeedback } from "@/lib/api/feedback";
+import { getFeedbackWithReviews } from "@/lib/api/feedback";
 export function useFeedbackResult() {
   const { scope, isActive, assertActive } = useOperationScope();
   const params = useSearchParams();
@@ -17,7 +17,7 @@ export function useFeedbackResult() {
     queryKey: [scope, "feedback", id, evaluationId ?? "latest"],
     queryFn: ({ signal }) => {
       assertActive();
-      return getFeedback(id, signal, evaluationId);
+      return getFeedbackWithReviews(id, signal, evaluationId);
     },
     enabled: isActive() && valid,
   });
@@ -28,7 +28,8 @@ export function useFeedbackResult() {
       loading: valid && query.isPending,
       error: !valid ? new Error("回答IDを確認してください。") : query.error,
     },
-    feedback: query.data,
+    feedback: query.data?.feedback,
+    followUpReviews: query.data?.followUpReviews ?? [],
     actions: {
       refresh: () => {
         if (isActive()) void query.refetch();
