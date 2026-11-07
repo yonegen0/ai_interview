@@ -178,6 +178,7 @@ def test_owner_read_separation(runtime):
     runtime.provider.behavior = lambda prompt: {"coaching": overall(), "follow_up_review": review()}
     assert runtime.worker.run("owner", answered["evaluationId"])
     from interview_backend.models.internal import BusinessError
+
     with pytest.raises(BusinessError) as err:
         runtime.application.feedback("other-owner", answered["attemptId"], None, True)
     assert err.value.status == 404
