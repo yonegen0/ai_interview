@@ -434,7 +434,8 @@ class LiveStarProvider:
                     status="needs_information",
                     candidates=[],
                     missingInformation=(
-                        parsed.missingInformation[:1] if value.assistType == "follow_up"
+                        parsed.missingInformation[:1]
+                        if value.assistType == "follow_up"
                         else ["回答の要点・具体例をもう少し入力してください。"]
                     ),
                 )
