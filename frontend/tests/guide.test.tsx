@@ -68,6 +68,22 @@ describe("使い方ガイド", () => {
     expect(screen.getByText(/おすすめ：STAR/)).toBeInTheDocument();
   });
 
+  it("7カテゴリの見出しと領域は正しい対応・一意なIDを持つ", () => {
+    const { container } = mount(<GuideFeatures />);
+    for (const id of ["practice", "assist", "evaluation", "followup", "draft", "history", "account"]) {
+      const summary = container.querySelector(`#${id}-heading`);
+      expect(summary).not.toBeNull();
+      expect(summary).toHaveAttribute("aria-controls", `${id}-content`);
+      const region = container.querySelector(`#${id}-content`);
+      expect(region).toHaveAttribute("role", "region");
+      expect(region).toHaveAttribute("aria-labelledby", `${id}-heading`);
+      expect(container.querySelectorAll(`[id="${id}-content"]`)).toHaveLength(1);
+      const heading = summary?.closest("h3");
+      expect(heading).not.toBeNull();
+      expect(heading?.querySelector("h3")).toBeNull();
+    }
+  });
+
   it("アンカー直リンクで対象カテゴリを開く", () => {
     window.history.replaceState({}, "", "/guide/features/#history");
     mount(<GuideFeatures />);
