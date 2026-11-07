@@ -15,13 +15,13 @@ const Introduction = styled("div")(({ theme }) => ({
   marginBottom: theme.spacing(3),
   [theme.breakpoints.up("md")]: { gap: theme.spacing(3) },
 }));
-export const PracticeStartTemplate = (props: PracticeSelectorProps) => (
+export const PracticeStartTemplate = (props: PracticeSelectorProps & { categoryOnly?: boolean }) => (
   <>
     <Introduction>
       <Header
         eyebrow="INTERVIEW PRACTICE"
-        title="今日は何を練習しますか？"
-        description="通し練習かカテゴリ練習を選べます。難易度は標準です。"
+        title={props.categoryOnly ? "カテゴリを選択" : "今日は何を練習しますか？"}
+        description={props.categoryOnly ? "練習したいテーマを選んでください" : "通し練習かカテゴリ練習を選べます。難易度は標準です。"}
       />
       <MascotCharacter variant="welcome" size="lg" loading="eager" />
     </Introduction>

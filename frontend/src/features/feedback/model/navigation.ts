@@ -7,6 +7,7 @@ export type FeedbackNavigationView = {
   canNext: boolean;
   hasNext: boolean;
   total?: number;
+  mode?: "full" | "category" | "quick" | "legacy";
   recovering: boolean;
   pending: boolean;
   sessionUrl: string;

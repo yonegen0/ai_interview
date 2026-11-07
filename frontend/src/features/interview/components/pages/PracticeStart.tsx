@@ -2,6 +2,6 @@
 "use client";
 import { usePracticeStart } from "../../hooks/usePracticeStart";
 import { PracticeStartTemplate } from "../templates/PracticeStartTemplate";
-export const PracticeStart = () => (
-  <PracticeStartTemplate {...usePracticeStart()} />
+export const PracticeStart = ({ categoryOnly = false }: { categoryOnly?: boolean }) => (
+  <PracticeStartTemplate {...usePracticeStart(categoryOnly ? "category" : undefined)} categoryOnly={categoryOnly} />
 );

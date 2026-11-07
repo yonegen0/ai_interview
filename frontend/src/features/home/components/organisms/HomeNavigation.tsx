@@ -185,7 +185,7 @@ export function HomeNavigation() {
     </GuideLink>
 
     <ActionCards aria-label="練習の始め方">
-      <ActionLink href="/practice/" variant="text">
+      <ActionLink href="/practice/category/" variant="text">
         <CardIcon><GridViewRoundedIcon aria-hidden="true" /></CardIcon>
         <ActionArrow aria-hidden="true" />
         <ActionCopy>
@@ -195,13 +195,13 @@ export function HomeNavigation() {
           </CardDescription>
         </ActionCopy>
       </ActionLink>
-      <ActionLink href="/practice/" variant="text">
+      <ActionLink href="/practice/quick/" variant="text">
         <CardIcon><AccessTimeRoundedIcon aria-hidden="true" /></CardIcon>
         <ActionArrow aria-hidden="true" />
         <ActionCopy>
           <CardTitle component="span" variant="h3">3分から始める</CardTitle>
           <CardDescription component="span" variant="body2">
-            練習画面で、気軽に一問から
+            未完了の質問から、自動で一問を開始
           </CardDescription>
         </ActionCopy>
       </ActionLink>

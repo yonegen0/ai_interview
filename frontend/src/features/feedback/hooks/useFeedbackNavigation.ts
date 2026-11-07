@@ -96,6 +96,7 @@ export function useFeedbackNavigation(feedback: Feedback) {
       canNext: (current(session.data) && hasNext) || recovering,
       hasNext,
       total: session.data?.totalQuestions,
+      mode: session.data?.mode,
       recovering,
       pending: mutation.isPending,
       sessionUrl: `/practice/session/?sessionId=${feedback.sessionId}`,

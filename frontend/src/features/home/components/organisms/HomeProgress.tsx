@@ -161,7 +161,7 @@ export function HomeProgress() {
                   ? "まずは1問、練習してみましょう。"
                   : `全問達成まで、あと${remaining}問！少しずつ続けることが自信につながります。`}
             </Typography>
-            <Action href="/practice/" variant="text">
+            <Action href={complete ? "/practice/category/" : "/practice/quick/"} variant="text">
               {complete ? "もう一度練習する" : "練習を続ける"}
               <ArrowForwardRoundedIcon aria-hidden="true" />
             </Action>
