@@ -1,5 +1,5 @@
 /** @file follow-up-review.test.tsx @description 独立採点の契約・旧データと表示を検証。 */
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { ThemeProvider } from "@mui/material/styles";
 import { expect, it } from "vitest";
 import { FeedbackCard } from "@/features/feedback/components/organisms/FeedbackCard";
@@ -71,11 +71,14 @@ it("shows separate current and historical reviews without hiding original overal
   render(<ThemeProvider theme={theme}><FeedbackCard feedback={feedback} followUpReviews={[item]} /></ThemeProvider>);
   expect(screen.getByRole("heading", { name: "今回の深掘り回答評価" })).toBeInTheDocument();
   expect(screen.getByRole("heading", { name: "総合評価" })).toBeInTheDocument();
-  expect(screen.getAllByText("26 / 30点").length).toBeGreaterThan(0);
+  const current = screen.getByRole("region", { name: "今回の深掘り回答評価" });
+  expect(within(current).getByLabelText("26 / 30点")).toBeInTheDocument();
   expect(screen.getAllByText("そのまま使える").length).toBeGreaterThan(0);
-  expect(screen.getAllByText("質問適合性：9 / 10点").length).toBeGreaterThan(0);
-  expect(screen.getAllByText("具体性・情報の充実度：8 / 10点").length).toBeGreaterThan(0);
-  expect(screen.getAllByText("一貫性・納得感：9 / 10点").length).toBeGreaterThan(0);
+  expect(within(current).getByRole("group", { name: "質問適合性：9 / 10点" })).toBeInTheDocument();
+  expect(within(current).getByRole("group", { name: "具体性・情報の充実度：8 / 10点" })).toBeInTheDocument();
+  expect(within(current).getByRole("group", { name: "一貫性・納得感：9 / 10点" })).toBeInTheDocument();
+  expect(within(current).getByText(review.good_point)).toBeInTheDocument();
+  expect(within(current).getByText(review.improvement)).toBeInTheDocument();
 });
 
 it("keeps old feedback and rounds visible with missing dedicated review", () => {
@@ -86,4 +89,91 @@ it("keeps old feedback and rounds visible with missing dedicated review", () => 
   expect(feedbackWithReviewsSchema.parse({
     feedback, followUpReviews: [{ ...item, review: null }],
   }).followUpReviews[0].review).toBeNull();
+});
+
+it.each([
+  ["ready", "そのまま使える"],
+  ["minor_revision", "概ね適切・微修正"],
+  ["needs_revision", "要修正"],
+  ["needs_verification", "情報不足・要確認"],
+] as const)("keeps the %s suitability label", (suitability, label) => {
+  render(
+    <ThemeProvider theme={theme}>
+      <FeedbackCard feedback={feedback} followUpReviews={[{ ...item, review: { ...review, suitability } }]} />
+    </ThemeProvider>
+  );
+  const current = screen.getByRole("region", { name: "今回の深掘り回答評価" });
+  expect(within(current).getByText(label)).toBeInTheDocument();
+});
+
+it("shows the latest review without confusing it with other rounds", () => {
+  const secondQuestion = "その判断をした理由は？";
+  const secondAnswer = "配達先の課題を聞いたためです。";
+  const thirdQuestion = "結果をどう確認しましたか？";
+  const thirdAnswer = "集荷の利用開始を確認しました。";
+  const latestFeedback = feedbackV2Schema.parse({
+    ...feedback,
+    coachingCount: 3,
+    coachingHistory: [
+      { question, answer },
+      { question: secondQuestion, answer: secondAnswer },
+      { question: thirdQuestion, answer: thirdAnswer },
+    ],
+    latestAnswer: thirdAnswer,
+  });
+  const reviews = [
+    item,
+    {
+      roundIndex: 2,
+      evaluationId: feedback.evaluationId,
+      question: secondQuestion,
+      answer: secondAnswer,
+      review: { ...review, totalScore: 24, question_fit_score: 8, detail_score: 7, coherence_score: 9 },
+    },
+    {
+      roundIndex: 3,
+      evaluationId: feedback.evaluationId,
+      question: thirdQuestion,
+      answer: thirdAnswer,
+      review: {
+        ...review,
+        totalScore: 22,
+        question_fit_score: 8,
+        detail_score: 7,
+        coherence_score: 7,
+        good_point: "3回目の回答が明確です。",
+        improvement: "結果の数値を補足すると伝わります。",
+      },
+    },
+  ];
+  const { container } = render(
+    <ThemeProvider theme={theme}>
+      <FeedbackCard feedback={latestFeedback} followUpReviews={reviews} />
+    </ThemeProvider>
+  );
+  const latest = screen.getByRole("region", { name: "今回の深掘り回答評価" });
+  expect(latest).toHaveTextContent("3回目の回答が明確です。");
+  expect(latest).toHaveTextContent("結果の数値を補足すると伝わります。");
+  expect(latest).toHaveTextContent("22");
+  expect(latest).not.toHaveTextContent("26");
+  expect(container).toHaveTextContent("深掘り 1 回目の専用採点");
+  expect(container).toHaveTextContent("深掘り 2 回目の専用採点");
+  expect(container).toHaveTextContent("深掘り 3 回目の専用採点");
+  expect(container).toHaveTextContent("26");
+  expect(container).toHaveTextContent("24");
+});
+
+it("keeps the complete good and improvement text in a single card", () => {
+  const good = "1行目の良かった点。\\n2行目も省略しません。";
+  const improvement = "1行目の改善点。\\n2行目も省略しません。";
+  render(
+    <ThemeProvider theme={theme}>
+      <FeedbackCard feedback={feedback} followUpReviews={[{
+        ...item, review: { ...review, good_point: good, improvement },
+      }]} />
+    </ThemeProvider>
+  );
+  const current = screen.getByRole("region", { name: "今回の深掘り回答評価" });
+  expect(within(current).getByText(good)).toBeInTheDocument();
+  expect(within(current).getByText(improvement)).toBeInTheDocument();
 });
