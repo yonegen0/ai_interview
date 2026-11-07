@@ -12,6 +12,7 @@ from interview_backend.models.public import InvalidIdentifier
 ROUTES = (
     ("GET", re.compile(r"^/practice-options$"), "practice_options"),
     ("GET", re.compile(r"^/me/history$"), "history"),
+    ("GET", re.compile(r"^/me/practice-progress$"), "practice_progress"),
     ("POST", re.compile(r"^/sessions$"), "create"),
     ("GET", re.compile(r"^/sessions/([^/]+)/question$"), "question"),
     ("POST", re.compile(r"^/sessions/([^/]+)/answers$"), "submit"),
@@ -44,6 +45,7 @@ MESSAGES = {
     "ATTEMPT_NOT_FOUND": "Attempt not found.",
     "PREVIOUS_ANSWER_UNAVAILABLE": "Previous answer search is temporarily unavailable.",
     "HISTORY_SEARCH_LIMIT": "History exceeds the supported search range.",
+    "PRACTICE_PROGRESS_UNAVAILABLE": "Practice progress is temporarily unavailable.",
     "SESSION_STATE_CONFLICT": "Session state conflicts with this operation.",
     "IDEMPOTENCY_CONFLICT": "Idempotency key conflicts with this request.",
     "EVALUATION_NOT_COMPLETED": "Evaluation is not completed.",

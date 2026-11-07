@@ -359,6 +359,73 @@ class DynamoDBRepository(DomainRepository):
             request["ExclusiveStartKey"] = cursor
         raise BusinessError(503, "PREVIOUS_ANSWER_UNAVAILABLE")
 
+    def practice_progress(self, owner: str, defaults) -> Reply:
+        from interview_backend.repositories.practice_progress import (
+            PROGRESS_MAX_RECORDS,
+            PROGRESS_PAGE_SIZE,
+            count_completed_questions,
+        )
+
+        bank = self.get_question_bank(defaults)
+        active_ids = {q["id"] for q in bank["questions"]}
+        if not active_ids:
+            return Reply(200, {
+                "bankVersion": bank["version"], "totalQuestions": 0,
+                "completedQuestions": 0,
+            })
+
+        deadline = self.monotonic() + 4.5
+
+        def load(prefix, kind):
+            records = []
+            request = {
+                "TableName": self.table,
+                "KeyConditionExpression": "PK = :owner AND begins_with(SK, :prefix)",
+                "ExpressionAttributeValues": to_wire({
+                    ":owner": f"USER#{owner}", ":prefix": prefix,
+                }),
+                "ConsistentRead": True,
+                "Limit": PROGRESS_PAGE_SIZE,
+            }
+            previous = ""
+            while True:
+                page = self._call("query", deadline, **request)
+                items = page.get("Items", [])
+                if not isinstance(items, list) or len(items) > PROGRESS_PAGE_SIZE:
+                    raise StorageFormatError("progress_page")
+                if len(records) + len(items) > PROGRESS_MAX_RECORDS:
+                    raise BusinessError(503, "PRACTICE_PROGRESS_UNAVAILABLE")
+                for raw in items:
+                    item = from_wire(raw)
+                    record, _ = decode(item)
+                    if item.get("kind") != kind or record.owner != owner:
+                        raise StorageFormatError("progress_owner")
+                    records.append(record)
+                cursor = page.get("LastEvaluatedKey")
+                if not cursor:
+                    return records
+                if len(records) >= PROGRESS_MAX_RECORDS:
+                    raise BusinessError(503, "PRACTICE_PROGRESS_UNAVAILABLE")
+                native = from_wire(cursor)
+                position = native.get("SK")
+                if (
+                    native.get("PK") != f"USER#{owner}"
+                    or not isinstance(position, str)
+                    or not position.startswith(prefix)
+                    or position <= previous
+                ):
+                    raise StorageFormatError("progress_cursor")
+                previous = position
+                request["ExclusiveStartKey"] = cursor
+
+        attempts = load("ATTEMPT#", "Attempt")
+        evaluations = load("EVALUATION#", "Evaluation")
+        completed = count_completed_questions(owner, active_ids, attempts, evaluations)
+        return Reply(200, {
+            "bankVersion": bank["version"], "totalQuestions": len(active_ids),
+            "completedQuestions": completed,
+        })
+
     def history(self, owner: str, params: dict) -> Reply:
         """Read complete bounded key-prefix ranges; a truncated range is never 'latest'."""
         from interview_backend.repositories.history import (

@@ -113,6 +113,10 @@ class Application:
             application_id,
         )
 
+    def practice_progress(self, owner: str) -> Reply:
+        self._owner(owner)
+        return self.repository.practice_progress(owner, self.questions)
+
     def history(self, owner: str, params: dict) -> Reply:
         self._owner(owner)
         return self.repository.history(owner, params)
