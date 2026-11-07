@@ -570,17 +570,17 @@ export function useStarWorkspace(
     try {
       const value = await getDrafts(contextId);
       assertActive();
-      setSavedPreview([
+      const oldAssist = value.starDraft &&
+        (value.starDraft.assistType ?? "star") !== mode;
+      setSavedPreview(oldAssist ? [
         "正式回答の下書き：",
         value.answerDraft?.answer ?? "（なし）",
         "回答アシストの旧下書き：",
-        value.starDraft
-          ? `モード：${value.starDraft.assistType ?? "star"}\n${Object.entries(value.starDraft.notes)
-              .filter(([, text]) => text.trim())
-              .map(([key, text]) => `${key}: ${text}`)
-              .join("\n") || "（メモなし）"}`
-          : "（なし）",
-      ].join("\n"));
+        `モード：${value.starDraft!.assistType ?? "star"}\n${Object.entries(value.starDraft!.notes)
+          .filter(([, text]) => text.trim())
+          .map(([key, text]) => `${key}: ${text}`)
+          .join("\n") || "（メモなし）"}`,
+      ].join("\n") : value.answerDraft?.answer ?? "（有効な通常下書きなし）");
     } catch (cause) {
       setError(
         cause instanceof Error ? cause.message : "保存版を取得できません。",
