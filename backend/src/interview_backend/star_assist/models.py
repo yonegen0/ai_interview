@@ -43,8 +43,8 @@ STAR_NOTES_MAX_LENGTH = 600
 STAR_CANDIDATE_MAX_LENGTH = 600
 OTHER_NOTES_MAX_LENGTH = 1600
 OTHER_CANDIDATE_MAX_LENGTH = 500
-ASSIST_TYPES = ("star", "prep", "motivation", "career_change", "career_plan")
-AssistType = Literal["star", "prep", "motivation", "career_change", "career_plan"]
+ASSIST_TYPES = ("star", "prep", "motivation", "career_change", "career_plan", "follow_up")
+AssistType = Literal["star", "prep", "motivation", "career_change", "career_plan", "follow_up"]
 
 
 def star_notes_length(notes):
@@ -129,6 +129,10 @@ class StarInput(Strict):
 
     @model_validator(mode="after")
     def consistent(self):
+        if self.assistType == "follow_up" and any(
+            getattr(self.notes, field) for field in ("T", "A", "R")
+        ):
+            raise ValueError("follow_up_notes")
         expected = (
             [("A", "conclusion"), ("B", "action"), ("C", "conversational")]
             if self.assistType == "star"

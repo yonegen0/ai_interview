@@ -19,7 +19,7 @@ const starCandidates: StarInput["candidates"] = [
 const apply = vi.fn();
 const close = vi.fn();
 const back = vi.fn();
-const modes: AssistMode[] = ["star", "prep", "motivation", "career_change", "career_plan"];
+const modes: AssistMode[] = ["star", "prep", "motivation", "career_change", "career_plan", "follow_up"];
 
 function Harness({ mode }: { mode: AssistMode }) {
   const form = useForm<StarInput>({

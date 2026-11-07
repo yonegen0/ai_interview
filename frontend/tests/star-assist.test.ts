@@ -418,3 +418,20 @@ describe("answer-assist reference tips", () => {
     expect(assistModes.career_plan.steps[3].tips[2]).toBe("まず担当業務を理解し、気づいた課題を周囲に相談して改善に取り組む");
   });
 });
+
+it("keeps follow-up as one free-note mode without changing question management", () => {
+  const value = { ...emptyStarInput("follow_up"),
+    notes: { S: "自分から声をかけた", T: "", A: "", R: "" } };
+  expect(starInputSchema.safeParse(value).success).toBe(true);
+  expect(starInputSchema.safeParse({
+    ...value, notes: { ...value.notes, T: "旧形式の入力" },
+  }).success).toBe(false);
+  expect(starInputSchema.safeParse({
+    ...value, notes: { ...value.notes, S: "メモ".repeat(801) },
+  }).success).toBe(true);
+  expect(countStarNotes({ ...value.notes, S: "メモ".repeat(801) })).toBe(1602);
+  const result = { status: "ready", missingInformation: [],
+    candidates: [{ id: "A", style: "conclusion", text: "自分から提案しました。" }] };
+  expect(starResultSchema.safeParse(result).success).toBe(true);
+  expect(assistModes.follow_up.steps).toHaveLength(0);
+});

@@ -118,6 +118,7 @@ it.each([false, true])(
       () => useAnswerOperation(session, null, undefined, operation),
       { wrapper },
     );
+    expect(followUp.result.current.workspace.mode).toBe("follow_up");
     act(() => followUp.result.current.form.setValue("answer", draft));
     await waitFor(() =>
       expect(readSaved(key, answerRecoverySchema)?.draft).toBe(draft),
@@ -143,6 +144,7 @@ it.each([false, true])(
       () => useAnswerOperation(session, null, undefined, operation),
       { wrapper },
     );
+    expect(restored.result.current.workspace.mode).toBe("follow_up");
     expect(restored.result.current.answer).toBe(draft);
     expect(restored.result.current.phase).toBe("answering");
     expect(submitAnswer).not.toHaveBeenCalled();

@@ -2,6 +2,7 @@
 "use client";
 
 import { useState } from "react";
+import { Controller } from "react-hook-form";
 import AutoAwesomeOutlinedIcon from "@mui/icons-material/AutoAwesomeOutlined";
 import CloseIcon from "@mui/icons-material/Close";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
@@ -118,14 +119,16 @@ export function StarAssistDialog({ open, onClose, workspace: w, onGenerationQueu
   const modeChanged = draftMode !== mode;
   const meta = assistModes[mode];
   const steps = meta.steps;
-  const last = step === steps.length - 1;
+  const last = mode === "follow_up" || step === steps.length - 1;
   const totalCount = countStarNotes(w.input.notes);
   const inputLimit = mode === "star" ? STAR_INPUT_LIMIT : OTHER_ASSIST_INPUT_LIMIT;
   const notesValid = starNotesSchema.safeParse(w.input.notes).success && totalCount <= inputLimit;
   const inputValid = starInputSchema.safeParse(w.input).success;
   const canGenerate = !modeChanged && !w.loading && !w.busy && !w.pending && !w.generating &&
     (mode !== "star" || !!w.input.targetCategory) && notesValid && inputValid &&
-    steps.some(({ key }) => w.input.notes[key].trim()) &&
+    (mode === "follow_up" ? !!w.input.notes.S.trim() &&
+      !w.input.notes.T && !w.input.notes.A && !w.input.notes.R :
+      steps.some(({ key }) => w.input.notes[key].trim())) &&
     w.quota?.user.remaining !== 0 && w.quota?.global.remaining !== 0;
 
   const startGenerate = async () => {
@@ -162,28 +165,43 @@ export function StarAssistDialog({ open, onClose, workspace: w, onGenerationQueu
       </Text>
       {modeChanged && (
         <Alert severity="warning">
-          管理者が回答アシストの種類を変更しました。以前の下書きは保持しています。
-          新しいモードで生成するには、下書きを確認したうえで明示的に破棄してください。
+          以前のモードの下書きを保持しています。内容を確認し、明示的に破棄してから新しいモードで生成してください。
         </Alert>
       )}
-      {mode === "star" && (
+      {(mode === "star" || mode === "follow_up") && (
         <Text role="status" aria-live="polite" variant="body2"
           color={totalCount > inputLimit ? "error.main" : "text.secondary"}>
-          入力文字数：{totalCount} / {STAR_INPUT_LIMIT}文字
+          入力文字数：{totalCount} / {inputLimit}文字
         </Text>
       )}
       {totalCount > inputLimit && (
         <Alert severity="error">
           {mode === "star"
             ? "STARアシストは4項目の合計600文字まで入力できます。内容を短くしてください。"
-            : "入力は4項目の合計1600文字までです。内容を短くしてください。"}
+            : mode === "follow_up" ? "回答のメモは1600文字までです。"
+              : "入力は4項目の合計1600文字までです。内容を短くしてください。"}
         </Alert>
       )}
-      <StarAssistStepper activeStep={step} steps={steps} label={meta.label} />
-      <Columns>
-        <StarAssistStepForm step={step} steps={steps} mode={mode} form={w.form} input={w.input} disabled={false} />
-        <StarAssistTips step={step} steps={steps} />
-      </Columns>
+      {mode === "follow_up" ? (
+        <Settings aria-label="回答のメモ">
+          <Controller name="notes.S" control={w.form.control} render={({ field }) => (
+            <Input {...field} label="回答のメモ" multiline minRows={6}
+              placeholder={"例：送り状を見た\n自分から声をかけた\n3社が新しく利用した"}
+              disabled={w.busy || w.pending || modeChanged}
+              error={totalCount > inputLimit || !!w.form.formState.errors.notes?.S}
+              helperText="思いついたことを箇条書きで入力してください"
+            />
+          )} />
+        </Settings>
+      ) : (
+        <>
+          <StarAssistStepper activeStep={step} steps={steps} label={meta.label} />
+          <Columns>
+            <StarAssistStepForm step={step} steps={steps} mode={mode} form={w.form} input={w.input} disabled={false} />
+            <StarAssistTips step={step} steps={steps} />
+          </Columns>
+        </>
+      )}
       {last && mode === "star" && (
         <Settings aria-label="応募先の設定">
           <Text variant="h3" component="h3">応募先の設定</Text>
@@ -276,17 +294,20 @@ export function StarAssistDialog({ open, onClose, workspace: w, onGenerationQueu
     <Footer>
       <Button type="button" variant="outlined" onClick={onClose}>キャンセル</Button>
       <NextActions>
-        <Button type="button" variant="outlined" startIcon={<ArrowBackIcon />}
-          disabled={step === 0} onClick={() => setStep((value) => Math.max(0, value - 1))}>
-          戻る
-        </Button>
+        {mode !== "follow_up" && (
+          <Button type="button" variant="outlined" startIcon={<ArrowBackIcon />}
+            disabled={step === 0} onClick={() => setStep((value) => Math.max(0, value - 1))}>
+            戻る
+          </Button>
+        )}
         {last ? (
           <Button type="button" variant="contained" endIcon={<AutoAwesomeOutlinedIcon />}
             disabled={!canGenerate}
             onClick={() => void startGenerate()}>
             {w.generating ? "回答を生成しています…" :
               w.input.candidates.length ? "新しい入力で再生成（1回）" :
-              mode === "star" ? "3案を生成（1回）" : "回答案を生成（1回）"}
+              mode === "star" ? "3案を生成（1回）" :
+              mode === "follow_up" ? "回答例を生成（1案）" : "回答案を生成（1回）"}
           </Button>
         ) : (
           <Button type="button" variant="contained" endIcon={<ArrowForwardIcon />}

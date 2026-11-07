@@ -9,7 +9,7 @@ from interview_backend.models.internal import BusinessError, IntegrityError, Rep
 JST = timezone(timedelta(hours=9))
 HISTORY_MAX_RECORDS = 2000
 HISTORY_PAGE_SIZE = 100
-ASSIST_MODES = {"star", "prep", "motivation", "career_change", "career_plan"}
+ASSIST_MODES = {"star", "prep", "motivation", "career_change", "career_plan", "follow_up"}
 MODES = {"all", "normal", "coaching", "assist"} | ASSIST_MODES
 PERIODS = {"all", "today", "7d", "30d"}
 

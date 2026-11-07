@@ -416,15 +416,35 @@ class StarRepositoryMixin:
             )
             row.original_candidates, row.generation_target_category = (), None
 
+    def _allowed_assist_mode(self, tx, owner, context, requested):
+        """Authorize by the owner-scoped live attempt, never by a client mode flag."""
+        session = tx.get(ref("Session", owner, context.session_id))
+        configured = session.question.assistType or "star"
+        if configured == "none":
+            raise BusinessError(403, "ASSIST_MODE_FORBIDDEN")
+        allowed = configured
+        if context.operation_kind == "coaching_answer":
+            _, attempt, coaching, evaluation = self._active_records(tx, owner, session)
+            if (
+                attempt is None
+                or attempt.id != context.from_attempt_id
+                or evaluation.id != context.from_evaluation_id
+                or coaching is None
+                or coaching.stage != "awaiting_answer"
+                or coaching.pending_question != context.question
+            ):
+                raise BusinessError(409, "SESSION_STATE_CONFLICT")
+            allowed = "follow_up"
+        if requested != allowed:
+            raise BusinessError(403, "ASSIST_MODE_FORBIDDEN")
+        return allowed
+
     def star_apply(self, tx, owner, identifier, body, now, new):
         star, context = self._star_draft(tx, owner, "StarDraft", identifier, now)
         answer, answer_context = self._star_draft(tx, owner, "AnswerDraft", body.answerDraftId, now)
         if answer_context.id != context.id:
             raise BusinessError(404, "STAR_DRAFT_NOT_FOUND")
-        session = tx.get(ref("Session", owner, context.session_id))
-        configured = session.question.assistType or "star"
-        if configured == "none" or configured != star.value.assistType:
-            raise BusinessError(403, "ASSIST_MODE_FORBIDDEN")
+        self._allowed_assist_mode(tx, owner, context, star.value.assistType)
         if star.version != body.expectedVersion or answer.version != body.expectedAnswerVersion:
             raise BusinessError(409, "DRAFT_VERSION_CONFLICT")
         candidate = next((c for c in star.value.candidates if c.id == body.candidateId), None)
@@ -503,10 +523,7 @@ class StarRepositoryMixin:
             raise BusinessError(409, "STAR_GENERATION_IN_PROGRESS")
         if row.version != body.expectedVersion:
             raise BusinessError(409, "DRAFT_VERSION_CONFLICT")
-        session = tx.get(ref("Session", owner, context.session_id))
-        configured = session.question.assistType or "star"
-        if configured == "none" or configured != row.value.assistType:
-            raise BusinessError(403, "ASSIST_MODE_FORBIDDEN")
+        configured = self._allowed_assist_mode(tx, owner, context, row.value.assistType)
         maximum = STAR_NOTES_MAX_LENGTH if configured == "star" else OTHER_NOTES_MAX_LENGTH
         if star_notes_length(row.value.notes) > maximum:
             raise BusinessError(400, "ASSIST_INPUT_TOO_LONG")
@@ -787,8 +804,26 @@ class StarRepositoryMixin:
             tx.window = CommitWindow(upper=min(job.deadline_at, draft.expires_at * 1000))
             tx.put(ref("StarGeneration", owner, identifier), job)
             tx.put(ref("Dispatch", owner, identifier), dispatch)
-            # Pass validated context to this execution only; never persist a new schema field.
+            # Execution-only snapshot: never persist applicant answers in generation/history.
             job.operation_kind = context.operation_kind
+            if job.input.assistType == "follow_up":
+                session = tx.get(ref("Session", owner, context.session_id))
+                _, attempt, coaching, _ = self._active_records(tx, owner, session)
+                if (
+                    attempt is None
+                    or attempt.id != context.from_attempt_id
+                    or coaching is None
+                    or coaching.pending_question != job.question
+                ):
+                    raise BusinessError(409, "SESSION_STATE_CONFLICT")
+                job.follow_up_context = {
+                    "originalQuestion": attempt.question.question,
+                    "initialAnswer": attempt.answer,
+                    "history": [
+                        {"question": turn.question, "answer": turn.answer}
+                        for turn in coaching.history
+                    ],
+                }
             return job
 
         return self._atomic(run, temporal=True)

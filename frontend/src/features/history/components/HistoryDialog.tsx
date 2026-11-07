@@ -52,6 +52,7 @@ export type HistoryTab = 0 | 1;
 const assistLabels = {
   star: "STAR", prep: "PREP", motivation: "志望動機",
   career_change: "転職理由", career_plan: "キャリアプラン",
+  follow_up: "深掘り回答",
 };
 
 function UsagePanel({ owner, open, data, loading, error, quota, quotaLoading, quotaError, retry, retryQuota }: {

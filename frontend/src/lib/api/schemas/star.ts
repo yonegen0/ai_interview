@@ -5,7 +5,7 @@ export const STAR_INPUT_LIMIT = 600;
 export const STAR_OUTPUT_LIMIT = 600;
 export const OTHER_ASSIST_INPUT_LIMIT = 1600;
 export const OTHER_ASSIST_OUTPUT_LIMIT = 500;
-export const assistModeSchema = z.enum(["star", "prep", "motivation", "career_change", "career_plan"]);
+export const assistModeSchema = z.enum(["star", "prep", "motivation", "career_change", "career_plan", "follow_up"]);
 export type AssistMode = z.infer<typeof assistModeSchema>;
 export const countStarText = (text: string): number =>
   Array.from(text.replace(/\r\n?/g, "\n")).length;
@@ -78,6 +78,7 @@ export const starInputSchema = z
   .strict()
   .refine(
     (v) =>
+      (v.assistType !== "follow_up" || (!v.notes.T && !v.notes.A && !v.notes.R)) &&
       Boolean(v.candidates.length) === Boolean(v.generationId) &&
       (v.candidates.length === 0 ||
         (v.assistType && v.assistType !== "star"

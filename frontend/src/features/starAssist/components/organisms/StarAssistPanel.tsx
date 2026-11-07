@@ -89,6 +89,7 @@ export function StarAssistPanel({
   const [applying, setApplying] = useState(false);
   const applyLock = useRef(false);
   const meta = assistModes[w.mode];
+  const modeMismatch = (w.input.assistType ?? "star") !== w.mode;
 
   useEffect(() => {
     if (view !== "input" || !requestedGenerationId ||
@@ -180,8 +181,19 @@ export function StarAssistPanel({
       </Status>
       {w.error && <Alert severity="error">{w.error}</Alert>}
       {w.migrationWarning && <Alert severity="warning">{w.migrationWarning}</Alert>}
-      {(w.pending || w.status === "競合" || w.savedPreview !== null || (w.error && !w.pending)) && (
+      {modeMismatch && (
+        <Alert severity="warning">
+          以前のモードの下書きが保存されています。内容を確認してから明示的に破棄してください。
+          正式回答欄の下書きは保持されます。
+        </Alert>
+      )}
+      {(modeMismatch || w.pending || w.status === "競合" || w.savedPreview !== null || (w.error && !w.pending)) && (
         <Actions>
+          {modeMismatch && (
+            <Button type="button" onClick={() => void w.inspectSaved()} disabled={w.loading}>
+              旧下書きを確認
+            </Button>
+          )}
           {w.pending && (
             <Button type="button" onClick={() => void w.recover()} disabled={w.busy}>
               保存結果を再確認
@@ -196,7 +208,7 @@ export function StarAssistPanel({
                 保存版を読み込む
               </Button>
               <Button type="button" onClick={() => startConfirmation("mine")}
-                disabled={w.pending || w.busy}>
+                disabled={w.pending || w.busy || modeMismatch}>
                 自分の内容を保存
               </Button>
             </>

@@ -4,7 +4,7 @@ import { assistModeSchema } from "./star";
 
 export const historyFilterSchema = z.enum([
   "all", "normal", "coaching", "assist", "star", "prep",
-  "motivation", "career_change", "career_plan",
+  "motivation", "career_change", "career_plan", "follow_up",
 ]);
 export type HistoryMode = z.infer<typeof historyFilterSchema>;
 export const historyPeriodSchema = z.enum(["all", "today", "7d", "30d"]);
