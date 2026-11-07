@@ -29,8 +29,8 @@ def setup():
 def test_sparse_progress_is_computed_by_bank_id_order():
     app, repo = setup()
     questions = app.questions
-    a = [attempt(i, questions[i].id) for i in [0, 2, 4]]
-    e = [evaluation(i, f"a{i}") for i in [0, 2, 4]]
+    a = [attempt(i, questions[i].id, owner=OWNER) for i in [0, 2, 4]]
+    e = [evaluation(i, f"a{i}", owner=OWNER) for i in [0, 2, 4]]
     completed = completed_question_ids(OWNER, {q.id for q in questions}, a, e)
     assert completed == {q.id for q in [questions[0], questions[2], questions[4]]}
     # Progress and next ID must come from the same successful-initial set.
