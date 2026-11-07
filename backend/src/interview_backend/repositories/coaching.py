@@ -280,8 +280,9 @@ class CoachingRepositoryMixin:
                 head.updated_at = max(now, head.updated_at)
             # Bind review selection at creation, never at worker-claim time.
             selected_review = (
-                evaluation.review_prompt_version if kind == "retry_evaluation" else
-                "interview-coaching-v2-followup-review-v1"
+                evaluation.review_prompt_version
+                if kind == "retry_evaluation"
+                else "interview-coaching-v2-followup-review-v1"
                 if context.coaching_count > 0 and getattr(self, "coaching_review_enabled", False)
                 else None
             )

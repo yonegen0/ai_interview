@@ -96,8 +96,11 @@ class Worker:
             return False
         followup_review = version == 2 and review_version == FOLLOWUP_PROMPT_VERSION
         config = (
-            self.followup_config if followup_review else
-            self.coaching_config if version == 2 else self.config
+            self.followup_config
+            if followup_review
+            else self.coaching_config
+            if version == 2
+            else self.config
         )
         claim = self.repository.claim(
             owner, evaluation_id, generation, self.new_execution_id(), config
@@ -122,17 +125,18 @@ class Worker:
                 lease.execution_config != config
                 or config.prompt_version
                 != (
-                    FOLLOWUP_PROMPT_VERSION if followup_review else
-                    COACHING_PROMPT_VERSION if version == 2 else PROMPT_VERSION
+                    FOLLOWUP_PROMPT_VERSION
+                    if followup_review
+                    else COACHING_PROMPT_VERSION
+                    if version == 2
+                    else PROMPT_VERSION
                 )
                 or config.provider_id != getattr(self.provider, "provider_id", "fake")
                 or config.model_id != getattr(self.provider, "model_id", "fake")
             ):
                 raise ValueError("execution_config")
             prompt = (
-                build_coaching_prompt(
-                    lease.coaching_input, follow_up_review=followup_review
-                )
+                build_coaching_prompt(lease.coaching_input, follow_up_review=followup_review)
                 if version == 2
                 else build_prompt(lease.attempt.question, lease.attempt.answer)
             )
@@ -194,9 +198,12 @@ class Worker:
             if (self.monotonic() - called_at) * 1000 >= config.provider_timeout_ms:
                 raise TimeoutError
             if followup_review:
-                if not isinstance(raw, dict) or set(raw) - {
-                    "coaching", "follow_up_review"
-                } or "coaching" not in raw or not isinstance(raw["coaching"], dict):
+                if (
+                    not isinstance(raw, dict)
+                    or set(raw) - {"coaching", "follow_up_review"}
+                    or "coaching" not in raw
+                    or not isinstance(raw["coaching"], dict)
+                ):
                     raise InvalidCoachingResult("InvalidReviewEnvelope")
                 result = CoachingResult.model_validate(raw["coaching"])
                 try:

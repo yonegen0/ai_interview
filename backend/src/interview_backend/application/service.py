@@ -128,7 +128,10 @@ class Application:
         return self.repository.get_evaluation(owner, evaluation_id)
 
     def feedback(
-        self, owner: str, attempt_id: str, evaluation_id: str | None = None,
+        self,
+        owner: str,
+        attempt_id: str,
+        evaluation_id: str | None = None,
         include_follow_up_reviews: bool = False,
     ) -> Reply:
         self._owner(owner)

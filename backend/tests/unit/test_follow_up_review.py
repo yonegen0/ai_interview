@@ -11,20 +11,25 @@ from interview_backend.repositories.codec import decode, encode
 
 def start(runtime):
     app = runtime.application
-    sid = app.create("owner", uid(500), {
-        "mode": "category", "category": "job_change", "difficulty": "standard"
-    }).body["sessionId"]
+    sid = app.create(
+        "owner", uid(500), {"mode": "category", "category": "job_change", "difficulty": "standard"}
+    ).body["sessionId"]
     qid = app.question("owner", sid).body["question"]["id"]
-    accepted = app.submit("owner", uid(501), sid, {
-        "kind": "initial_answer", "questionId": qid, "answer": "営業に挑戦したいです。"
-    }).body
+    accepted = app.submit(
+        "owner",
+        uid(501),
+        sid,
+        {"kind": "initial_answer", "questionId": qid, "answer": "営業に挑戦したいです。"},
+    ).body
     return sid, qid, accepted
 
 
 def overall(question=None):
     return {
         "status": "coaching" if question else "completed",
-        "conclusion_score": 8, "specificity_score": 7, "reasoning_score": 8,
+        "conclusion_score": 8,
+        "specificity_score": 7,
+        "reasoning_score": 8,
         "good_point": "結論が伝わります。",
         "improvement": "判断理由を補足してください。",
         "follow_up_question": question,
@@ -34,32 +39,44 @@ def overall(question=None):
 
 def review():
     return {
-        "question_fit_score": 9, "detail_score": 8, "coherence_score": 9,
-        "suitability": "ready", "good_point": "具体的な方法を説明しています。",
+        "question_fit_score": 9,
+        "detail_score": 8,
+        "coherence_score": 9,
+        "suitability": "ready",
+        "good_point": "具体的な方法を説明しています。",
         "improvement": "現時点で重要な改善点はありません。",
     }
 
 
 def follow(runtime, sid, qid, initial):
-    return runtime.application.submit("owner", uid(502), sid, {
-        "kind": "coaching_answer", "questionId": qid,
-        "attemptId": initial["attemptId"],
-        "fromEvaluationId": initial["evaluationId"],
-        "answer": "集荷先で他社の送り状を確認し、利用状況を尋ねました。",
-    }).body
+    return runtime.application.submit(
+        "owner",
+        uid(502),
+        sid,
+        {
+            "kind": "coaching_answer",
+            "questionId": qid,
+            "attemptId": initial["attemptId"],
+            "fromEvaluationId": initial["evaluationId"],
+            "answer": "集荷先で他社の送り状を確認し、利用状況を尋ねました。",
+        },
+    ).body
 
 
-@pytest.mark.parametrize("invalid", [
-    {"question_fit_score": True},
-    {"question_fit_score": -1},
-    {"question_fit_score": 11},
-    {"detail_score": 7.5},
-    {"coherence_score": "9"},
-    {"suitability": "unknown"},
-    {"improvement": ""},
-    {"improvement": "あ" * 201},
-    {"question_fit_score": 2},
-])
+@pytest.mark.parametrize(
+    "invalid",
+    [
+        {"question_fit_score": True},
+        {"question_fit_score": -1},
+        {"question_fit_score": 11},
+        {"detail_score": 7.5},
+        {"coherence_score": "9"},
+        {"suitability": "unknown"},
+        {"improvement": ""},
+        {"improvement": "あ" * 201},
+        {"question_fit_score": 2},
+    ],
+)
 def test_follow_up_strict_validation(invalid):
     raw = review() | invalid
     with pytest.raises(ValidationError):
@@ -82,9 +99,7 @@ def test_initial_legacy_and_new_follow_up_one_call(runtime):
     job = runtime.repository.snapshot().evaluations[answered["evaluationId"]]
     assert job.review_prompt_version == FOLLOWUP_PROMPT_VERSION
     assert job.round_index == 1
-    runtime.provider.behavior = lambda prompt: {
-        "coaching": overall(), "follow_up_review": review()
-    }
+    runtime.provider.behavior = lambda prompt: {"coaching": overall(), "follow_up_review": review()}
     assert runtime.worker.run("owner", answered["evaluationId"])
     assert runtime.provider.calls == 2  # exactly one call per Evaluation
     traditional = runtime.application.feedback("owner", answered["attemptId"]).body
@@ -111,7 +126,8 @@ def test_bad_optional_review_does_not_lose_good_overall(runtime):
     assert runtime.worker.run("owner", initial["evaluationId"])
     answered = follow(runtime, sid, qid, initial)
     runtime.provider.behavior = lambda prompt: {
-        "coaching": overall(), "follow_up_review": review() | {"question_fit_score": -4}
+        "coaching": overall(),
+        "follow_up_review": review() | {"question_fit_score": -4},
     }
     assert runtime.worker.run("owner", answered["evaluationId"])
     extended = runtime.application.feedback(
@@ -159,9 +175,7 @@ def test_owner_read_separation(runtime):
     runtime.provider.behavior = lambda prompt: overall("そのとき何をしましたか？")
     assert runtime.worker.run("owner", initial["evaluationId"])
     answered = follow(runtime, sid, qid, initial)
-    runtime.provider.behavior = lambda prompt: {
-        "coaching": overall(), "follow_up_review": review()
-    }
+    runtime.provider.behavior = lambda prompt: {"coaching": overall(), "follow_up_review": review()}
     assert runtime.worker.run("owner", answered["evaluationId"])
     from interview_backend.models.internal import BusinessError
     with pytest.raises(BusinessError) as err:

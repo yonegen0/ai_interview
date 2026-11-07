@@ -70,7 +70,8 @@ def build_coaching_prompt(
     return CoachingPrompt(
         FOLLOWUP_PROMPT_VERSION if follow_up_review else COACHING_PROMPT_VERSION,
         COACHING_INSTRUCTIONS + FOLLOWUP_REVIEW_INSTRUCTIONS
-        if follow_up_review else COACHING_INSTRUCTIONS,
+        if follow_up_review
+        else COACHING_INSTRUCTIONS,
         deepcopy(context),
         CoachingResult.model_json_schema(),
     )
@@ -144,14 +145,17 @@ class FakeProvider:
                 "example": prompt.context.latest_answer,
             }
             if prompt.version == FOLLOWUP_PROMPT_VERSION:
-                return {"coaching": overall, "follow_up_review": {
-                    "question_fit_score": 8,
-                    "detail_score": 8,
-                    "coherence_score": 8,
-                    "suitability": "minor_revision",
-                    "good_point": "質問への回答があります。",
-                    "improvement": "判断理由を具体的に説明しましょう。",
-                }}
+                return {
+                    "coaching": overall,
+                    "follow_up_review": {
+                        "question_fit_score": 8,
+                        "detail_score": 8,
+                        "coherence_score": 8,
+                        "suitability": "minor_revision",
+                        "good_point": "質問への回答があります。",
+                        "improvement": "判断理由を具体的に説明しましょう。",
+                    },
+                }
             return overall
         return deepcopy(
             {

@@ -462,25 +462,34 @@ class DomainRepository(StarRepositoryMixin, CoachingRepositoryMixin):
             for i, history in enumerate(evaluation.feedback.coachingHistory):
                 scored_by = (
                     head.history[i + 1].source_evaluation_id
-                    if i + 1 < evaluation.feedback.coachingCount else evaluation.id
+                    if i + 1 < evaluation.feedback.coachingCount
+                    else evaluation.id
                 )
                 record = tx.get(ref("FollowUpReviewRecord", owner, scored_by))
                 if record is not None and (
-                    record.owner != owner or record.attempt_id != attempt.id
+                    record.owner != owner
+                    or record.attempt_id != attempt.id
                     or record.round_index != i + 1
-                    or record.question != history.question or record.answer != history.answer
+                    or record.question != history.question
+                    or record.answer != history.answer
                 ):
                     raise IntegrityError("follow_up_review_relation")
-                reviews.append({
-                    "roundIndex": i + 1,
-                    "evaluationId": scored_by,
-                    "question": history.question,
-                    "answer": history.answer,
-                    "review": ({
-                        **record.review.wire(),
-                        "totalScore": record.review.total_score,
-                    } if record else None),
-                })
+                reviews.append(
+                    {
+                        "roundIndex": i + 1,
+                        "evaluationId": scored_by,
+                        "question": history.question,
+                        "answer": history.answer,
+                        "review": (
+                            {
+                                **record.review.wire(),
+                                "totalScore": record.review.total_score,
+                            }
+                            if record
+                            else None
+                        ),
+                    }
+                )
         return Reply(200, {"feedback": original, "followUpReviews": reviews})
 
     @staticmethod
@@ -782,8 +791,9 @@ class DomainRepository(StarRepositoryMixin, CoachingRepositoryMixin):
             self._save(tx, session)
         self._save(tx, e, d)
 
-    def finish(self, lease, feedback=None, reason="PROVIDER_FAILED", now=None,
-               follow_up_review=None):
+    def finish(
+        self, lease, feedback=None, reason="PROVIDER_FAILED", now=None, follow_up_review=None
+    ):
         def run(tx):
             at = self.clock() if now is None else max(now, self.clock())
             related = self._related(tx, lease.owner, lease.evaluation_id, full=True)

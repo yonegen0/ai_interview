@@ -171,17 +171,33 @@ def schema_for(prompt):
                             **{
                                 name: {"type": "integer", "minimum": 0, "maximum": 10}
                                 for name in (
-                                    "question_fit_score", "detail_score", "coherence_score"
+                                    "question_fit_score",
+                                    "detail_score",
+                                    "coherence_score",
                                 )
                             },
-                            "suitability": {"type": "string", "enum": [
-                                "ready", "minor_revision", "needs_revision", "needs_verification"
-                            ]},
-                            **{name: {"type": "string", "minLength": 1, "maxLength": 200}
-                               for name in ("good_point", "improvement")},
+                            "suitability": {
+                                "type": "string",
+                                "enum": [
+                                    "ready",
+                                    "minor_revision",
+                                    "needs_revision",
+                                    "needs_verification",
+                                ],
+                            },
+                            **{
+                                name: {"type": "string", "minLength": 1, "maxLength": 200}
+                                for name in ("good_point", "improvement")
+                            },
                         },
-                        "required": ["question_fit_score", "detail_score", "coherence_score",
-                                     "suitability", "good_point", "improvement"],
+                        "required": [
+                            "question_fit_score",
+                            "detail_score",
+                            "coherence_score",
+                            "suitability",
+                            "good_point",
+                            "improvement",
+                        ],
                     },
                 },
                 "required": ["coaching", "follow_up_review"],
@@ -355,8 +371,10 @@ class OpenAIProvider:
             deadline.seconds()
             return result  # Caller owns domain type and semantic validation.
         if isinstance(prompt, CoachingPrompt) and prompt.version == FOLLOWUP_PROMPT_VERSION:
-            if not isinstance(result, dict) or "coaching" not in result or (
-                set(result) - {"coaching", "follow_up_review"}
+            if (
+                not isinstance(result, dict)
+                or "coaching" not in result
+                or (set(result) - {"coaching", "follow_up_review"})
             ):
                 raise ProviderFailure("INVALID_SCHEMA")
             deadline.seconds()

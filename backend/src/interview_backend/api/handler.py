@@ -161,9 +161,7 @@ class Handler:
                         raise BusinessError(400, "VALIDATION_ERROR")
                     if set(query) - {"evaluationId", "includeFollowUpReviews"}:
                         raise BusinessError(400, "VALIDATION_ERROR")
-                    if "evaluationId" in query and not isinstance(
-                        query["evaluationId"], str
-                    ):
+                    if "evaluationId" in query and not isinstance(query["evaluationId"], str):
                         raise BusinessError(400, "VALIDATION_ERROR")
                     requested = query.get("includeFollowUpReviews")
                     if requested is not None and requested != "1":
