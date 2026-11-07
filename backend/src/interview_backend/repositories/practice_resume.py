@@ -72,8 +72,11 @@ def practice_resume(repo, owner, question_id, defaults, local_session_id=None, l
             or session.number != context.question_number
             or context.question_hash != digest(session.question.wire())
             or context.question != session.question.question
-            or (session.active and session.active.status == "completed")
         ):
+            # A mismatched saved context is not proof that no draft exists.
+            changed = True
+            continue
+        if session.active and session.active.status == "completed":
             continue
         if session.active and session.active.status == "failed":
             # V2 retry-attempt is a separate operation, not an initial-answer draft.
