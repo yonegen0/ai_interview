@@ -102,9 +102,11 @@ it("shows a safe error and retries follow-up question retrieval with the keyboar
   await waitFor(() =>
     expect(screen.queryByText("現在の質問を取得できませんでした。")).not.toBeInTheDocument(),
   );
+  expect(screen.getByRole("region", { name: "深掘り質問 1" })).toBeInTheDocument();
   expect(
-    await screen.findByRole("heading", { name: "深掘り質問 1 / 3" }),
+    await screen.findByRole("heading", { name: followUpQuestion }),
   ).toBeInTheDocument();
+  expect(screen.getByText("QUESTION 01 · 深掘り · 1 / 3問")).toBeInTheDocument();
   expect(screen.getByText(followUpQuestion)).toBeInTheDocument();
   expect(screen.getByText("150〜220文字がおすすめです")).toBeInTheDocument();
   expect(screen.getByRole("textbox", { name: "あなたの回答" })).toBeEnabled();

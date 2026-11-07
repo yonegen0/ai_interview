@@ -10,6 +10,7 @@ import { retryGet } from "@/lib/api/client";
 import type { FeedbackV2, Session } from "@/lib/api/schemas";
 import { countCodePoints } from "@/lib/textLimits";
 import { Text } from "@/components/atoms/Text";
+import { Muted } from "@/components/atoms/Muted";
 import { ErrorView } from "@/components/organisms/ErrorView";
 import { Panel } from "@/components/atoms/Panel";
 import { AnswerSubmission } from "@/features/interview/components/organisms/AnswerSubmission";
@@ -45,12 +46,18 @@ function CurrentResponse({
         `/result/?attemptId=${feedback.attemptId}&evaluationId=${state.evaluation.data.evaluationId}`,
       );
   }, [state.evaluation.data, router, feedback.attemptId, isActive]);
+  const questionNumber = feedback.coachingCount + 1;
   return (
-    <Panel id="coaching-response" tabIndex={-1}>
-      <Text variant="h2" component="h2">
-        深掘り質問 {feedback.coachingCount + 1} / 3
-      </Text>
-      <Text>{feedback.result.follow_up_question}</Text>
+    <div id="coaching-response" tabIndex={-1}>
+      <Panel aria-label={`深掘り質問 ${questionNumber}`}>
+        <Muted>
+          QUESTION {String(questionNumber).padStart(2, "0")} · 深掘り ·{" "}
+          {questionNumber} / 3問
+        </Muted>
+        <Text variant="h2" component="h2">
+          {feedback.result.follow_up_question}
+        </Text>
+      </Panel>
       <AnswerSubmission
         workspace={state.workspace}
         currentAnswer={state.answer}
@@ -66,7 +73,7 @@ function CurrentResponse({
         onSubmit={state.form.handleSubmit((value) => state.send(value))}
         onReconfirm={() => void state.send()}
       />
-    </Panel>
+    </div>
   );
 }
 
