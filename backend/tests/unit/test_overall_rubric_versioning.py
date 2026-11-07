@@ -62,9 +62,7 @@ def answer_followup(runtime, sid, qid, initial):
 
 @pytest.mark.parametrize("new_rubric", [False, True])
 @pytest.mark.parametrize("dedicated_review", [False, True])
-def test_four_scoring_combinations_keep_one_call_and_schema(
-    runtime, new_rubric, dedicated_review
-):
+def test_four_scoring_combinations_keep_one_call_and_schema(runtime, new_rubric, dedicated_review):
     runtime.repository.coaching_overall_rubric_v2_enabled = new_rubric
     runtime.repository.coaching_review_enabled = dedicated_review
     sid, qid, initial = begin(runtime)
@@ -76,18 +74,12 @@ def test_four_scoring_combinations_keep_one_call_and_schema(
     answered = answer_followup(runtime, sid, qid, initial)
     job = runtime.repository.snapshot().evaluations[answered["evaluationId"]]
     assert job.overall_prompt_version == initial_job.overall_prompt_version
-    assert job.review_prompt_version == (
-        FOLLOWUP_PROMPT_VERSION if dedicated_review else None
-    )
+    assert job.review_prompt_version == (FOLLOWUP_PROMPT_VERSION if dedicated_review else None)
     prompts = []
 
     def evaluate(prompt):
         prompts.append(prompt)
-        return (
-            {"coaching": overall(), "follow_up_review": None}
-            if dedicated_review
-            else overall()
-        )
+        return {"coaching": overall(), "follow_up_review": None} if dedicated_review else overall()
 
     runtime.provider.behavior = evaluate
     assert runtime.worker.run("owner", answered["evaluationId"])
@@ -96,14 +88,10 @@ def test_four_scoring_combinations_keep_one_call_and_schema(
     prompt = prompts[0]
     assert prompt.follow_up_review is dedicated_review
     assert prompt.version == (
-        FOLLOWUP_PROMPT_VERSION
-        if dedicated_review and not new_rubric
-        else expected
+        FOLLOWUP_PROMPT_VERSION if dedicated_review and not new_rubric else expected
     )
     assert schema_for(prompt)["required"] == (
-        ["coaching", "follow_up_review"]
-        if dedicated_review
-        else list(overall())
+        ["coaching", "follow_up_review"] if dedicated_review else list(overall())
     )
     evaluated = runtime.repository.snapshot().evaluations[answered["evaluationId"]]
     assert evaluated.execution_config.prompt_version == prompt.version
@@ -176,8 +164,15 @@ def test_rubric_prioritizes_question_and_preserves_old_instructions(runtime):
     assert old.result_schema == new.result_schema
     assert new.instructions.startswith(old.instructions)
     for fragment in (
-        "質問本文", "強み", "判断理由", "重大矛盾", "0〜10整数",
-        "重複減点", "good_point", "improvement", "深掘り",
+        "質問本文",
+        "強み",
+        "判断理由",
+        "重大矛盾",
+        "0〜10整数",
+        "重複減点",
+        "good_point",
+        "improvement",
+        "深掘り",
     ):
         assert fragment in new.instructions
     with pytest.raises(ValueError, match="Unsupported overall"):

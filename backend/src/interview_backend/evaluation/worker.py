@@ -90,12 +90,9 @@ class Worker:
         version, overall_version, review_version = self.repository.evaluation_prompt_versions(
             owner, evaluation_id
         )
-        supported = (
-            version != 2
-            or (
-                overall_version in {COACHING_PROMPT_VERSION, OVERALL_RUBRIC_PROMPT_VERSION}
-                and review_version in {None, FOLLOWUP_PROMPT_VERSION}
-            )
+        supported = version != 2 or (
+            overall_version in {COACHING_PROMPT_VERSION, OVERALL_RUBRIC_PROMPT_VERSION}
+            and review_version in {None, FOLLOWUP_PROMPT_VERSION}
         )
         followup_review = version == 2 and review_version == FOLLOWUP_PROMPT_VERSION
         if version == 2:
