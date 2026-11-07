@@ -13,19 +13,36 @@ from interview_backend.repositories.practice_progress import count_completed_que
 
 def attempt(index, question, *, owner="user-a", v2=False):
     return Obj(
-        owner=owner, id=f"a{index}", evaluation_id=f"e{index}", question=Obj(id=question),
+        owner=owner,
+        id=f"a{index}",
+        evaluation_id=f"e{index}",
+        question=Obj(id=question),
         coaching_contract_version=2 if v2 else None,
     )
 
 
-def evaluation(index, attempt_id, *, owner="user-a", status="completed",
-               v2=False, round_index=None, retry=None, score=80):
+def evaluation(
+    index,
+    attempt_id,
+    *,
+    owner="user-a",
+    status="completed",
+    v2=False,
+    round_index=None,
+    retry=None,
+    score=80,
+):
     return Obj(
-        owner=owner, id=f"e{index}", attempt_id=attempt_id, status=status,
+        owner=owner,
+        id=f"e{index}",
+        attempt_id=attempt_id,
+        status=status,
         coaching_contract_version=2 if v2 else None,
-        round_index=round_index, retry_of_evaluation_id=retry,
-        feedback=Obj(attemptId=attempt_id, evaluationId=f"e{index}",
-                     totalScore=score, score=score) if status == "completed" else None,
+        round_index=round_index,
+        retry_of_evaluation_id=retry,
+        feedback=Obj(attemptId=attempt_id, evaluationId=f"e{index}", totalScore=score, score=score)
+        if status == "completed"
+        else None,
     )
 
 
@@ -77,14 +94,22 @@ def test_failed_initial_can_succeed_on_coaching_retry():
     assert count(a, [e[0], e[2]]) == 0
 
 
-@pytest.mark.parametrize("attempts,evaluations", [
-    ([attempt(0, "q0")], [evaluation(0, "a0", owner="user-b")]),
-    ([attempt(0, "q0")], [evaluation(0, "other")]),
-    ([attempt(0, "q0")], [evaluation(1, "a0")]),
-    ([attempt(0, "q0", v2=True)], [evaluation(2, "a0", v2=True, round_index=0)]),
-    ([attempt(0, "q0", v2=True)], [evaluation(0, "a0", v2=True, round_index=0, status="failed"),
-                                  evaluation(2, "a0", v2=True, round_index=0, retry="missing")]),
-])
+@pytest.mark.parametrize(
+    "attempts,evaluations",
+    [
+        ([attempt(0, "q0")], [evaluation(0, "a0", owner="user-b")]),
+        ([attempt(0, "q0")], [evaluation(0, "other")]),
+        ([attempt(0, "q0")], [evaluation(1, "a0")]),
+        ([attempt(0, "q0", v2=True)], [evaluation(2, "a0", v2=True, round_index=0)]),
+        (
+            [attempt(0, "q0", v2=True)],
+            [
+                evaluation(0, "a0", v2=True, round_index=0, status="failed"),
+                evaluation(2, "a0", v2=True, round_index=0, retry="missing"),
+            ],
+        ),
+    ],
+)
 def test_corrupt_relations_do_not_count(attempts, evaluations):
     with pytest.raises(IntegrityError):
         count(attempts, evaluations)
@@ -95,15 +120,20 @@ def test_app_and_handler_return_bank_version_and_no_private_details():
     app = Application(repo, (), lambda: "unused")
     # No bank and no attempts is valid, including a zero-question bank.
     assert app.practice_progress("user-a").body == {
-        "bankVersion": 0, "totalQuestions": 0, "completedQuestions": 0,
+        "bankVersion": 0,
+        "totalQuestions": 0,
+        "completedQuestions": 0,
     }
     handler = Handler(app)
     event = {
         "rawPath": "/me/practice-progress",
-        "requestContext": {"http": {"method": "GET"},
-                           "authorizer": {"jwt": {"claims": {"sub": "user-a"}}}},
+        "requestContext": {
+            "http": {"method": "GET"},
+            "authorizer": {"jwt": {"claims": {"sub": "user-a"}}},
+        },
     }
     import json
+
     response = handler(event)
     assert response["statusCode"] == 200
     assert json.loads(response["body"]) == app.practice_progress("user-a").body

@@ -369,10 +369,14 @@ class DynamoDBRepository(DomainRepository):
         bank = self.get_question_bank(defaults)
         active_ids = {q["id"] for q in bank["questions"]}
         if not active_ids:
-            return Reply(200, {
-                "bankVersion": bank["version"], "totalQuestions": 0,
-                "completedQuestions": 0,
-            })
+            return Reply(
+                200,
+                {
+                    "bankVersion": bank["version"],
+                    "totalQuestions": 0,
+                    "completedQuestions": 0,
+                },
+            )
 
         deadline = self.monotonic() + 4.5
 
@@ -381,9 +385,12 @@ class DynamoDBRepository(DomainRepository):
             request = {
                 "TableName": self.table,
                 "KeyConditionExpression": "PK = :owner AND begins_with(SK, :prefix)",
-                "ExpressionAttributeValues": to_wire({
-                    ":owner": f"USER#{owner}", ":prefix": prefix,
-                }),
+                "ExpressionAttributeValues": to_wire(
+                    {
+                        ":owner": f"USER#{owner}",
+                        ":prefix": prefix,
+                    }
+                ),
                 "ConsistentRead": True,
                 "Limit": PROGRESS_PAGE_SIZE,
             }
@@ -421,10 +428,14 @@ class DynamoDBRepository(DomainRepository):
         attempts = load("ATTEMPT#", "Attempt")
         evaluations = load("EVALUATION#", "Evaluation")
         completed = count_completed_questions(owner, active_ids, attempts, evaluations)
-        return Reply(200, {
-            "bankVersion": bank["version"], "totalQuestions": len(active_ids),
-            "completedQuestions": completed,
-        })
+        return Reply(
+            200,
+            {
+                "bankVersion": bank["version"],
+                "totalQuestions": len(active_ids),
+                "completedQuestions": completed,
+            },
+        )
 
     def history(self, owner: str, params: dict) -> Reply:
         """Read complete bounded key-prefix ranges; a truncated range is never 'latest'."""

@@ -146,10 +146,14 @@ class MemoryRepository(DomainRepository):
                 if len(attempts) > PROGRESS_MAX_RECORDS or len(evaluations) > PROGRESS_MAX_RECORDS:
                     raise BusinessError(503, "PRACTICE_PROGRESS_UNAVAILABLE")
                 completed = count_completed_questions(owner, active_ids, attempts, evaluations)
-            return Reply(200, {
-                "bankVersion": bank["version"], "totalQuestions": len(active_ids),
-                "completedQuestions": completed,
-            })
+            return Reply(
+                200,
+                {
+                    "bankVersion": bank["version"],
+                    "totalQuestions": len(active_ids),
+                    "completedQuestions": completed,
+                },
+            )
 
     def history(self, owner: str, params: dict) -> Reply:
         from interview_backend.repositories.history import HISTORY_MAX_RECORDS, build_history
