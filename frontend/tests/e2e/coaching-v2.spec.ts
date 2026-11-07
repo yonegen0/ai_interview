@@ -31,7 +31,7 @@ test("three rounds retain drafts on reload, past results stay read-only, complet
   const first = page.url();
   for (let round = 1; round <= 3; round++) {
     await expect(
-      page.getByRole("heading", { name: `深掘り質問 ${round} / 3` }),
+      page.getByRole("region", { name: `深掘り質問 ${round}` }),
     ).toBeVisible();
     await expect(
       page.getByRole("button", { name: "次の質問へ", exact: true }),
@@ -103,7 +103,7 @@ test("failed follow-up restores accepted history on reload and retries without a
   await answer(page, "顧客を支援したいです。");
   await feedback(page);
   await expect(
-    page.getByRole("heading", { name: "深掘り質問 1 / 3" }),
+    page.getByRole("region", { name: "深掘り質問 1" }),
   ).toBeVisible();
   await page.evaluate(() =>
     sessionStorage.setItem("pocket:scenario", "evaluation_failed"),
