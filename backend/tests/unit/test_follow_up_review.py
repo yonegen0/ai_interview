@@ -1,7 +1,5 @@
 """Focused offline tests for isolated follow-up review and legacy compatibility."""
 
-from copy import deepcopy
-
 import pytest
 from conftest import uid
 from pydantic import ValidationError
@@ -74,7 +72,10 @@ def test_initial_legacy_and_new_follow_up_one_call(runtime):
     runtime.provider.behavior = lambda prompt: overall("あなたはどのように提案しましたか？")
     assert runtime.worker.run("owner", initial["evaluationId"])
     assert runtime.provider.calls == 1
-    assert runtime.repository.snapshot().evaluations[initial["evaluationId"]].review_prompt_version is None
+    assert (
+        runtime.repository.snapshot().evaluations[initial["evaluationId"]].review_prompt_version
+        is None
+    )
     first = runtime.application.feedback("owner", initial["attemptId"]).body
     assert "followUpReviews" not in first and first["totalScore"] >= 0
     answered = follow(runtime, sid, qid, initial)
@@ -132,7 +133,8 @@ def test_invalid_overall_remains_failed(runtime):
         "follow_up_review": review(),
     }
     assert runtime.worker.run("owner", answered["evaluationId"])
-    assert runtime.application.evaluation("owner", answered["evaluationId"]).body["status"] == "failed"
+    status = runtime.application.evaluation("owner", answered["evaluationId"]).body["status"]
+    assert status == "failed"
     assert answered["evaluationId"] not in runtime.repository.snapshot().follow_up_reviews
 
 
@@ -142,9 +144,13 @@ def test_job_method_frozen_before_enable_toggle_and_retry(runtime):
     assert runtime.worker.run("owner", initial["evaluationId"])
     answered = follow(runtime, sid, qid, initial)
     runtime.repository.coaching_review_enabled = True
-    assert runtime.repository.snapshot().evaluations[answered["evaluationId"]].review_prompt_version is None
+    assert (
+        runtime.repository.snapshot().evaluations[answered["evaluationId"]].review_prompt_version
+        is None
+    )
     assert runtime.worker.run("owner", answered["evaluationId"])
-    assert runtime.application.feedback("owner", answered["attemptId"]).body["result"]["status"] == "completed"
+    status = runtime.application.feedback("owner", answered["attemptId"]).body["result"]["status"]
+    assert status == "completed"
 
 
 def test_owner_read_separation(runtime):

@@ -416,7 +416,9 @@ class DomainRepository(StarRepositoryMixin, CoachingRepositoryMixin):
             )
         )
 
-    def _feedback_read(self, tx, owner, resource_id, evaluation_id, include_follow_up_reviews=False):
+    def _feedback_read(
+        self, tx, owner, resource_id, evaluation_id, include_follow_up_reviews=False
+    ):
         attempt = tx.get(ref("Attempt", owner, resource_id))
         if attempt is None:
             raise BusinessError(404, "ATTEMPT_NOT_FOUND")

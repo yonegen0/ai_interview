@@ -15,7 +15,7 @@ from interview_backend.evaluation.openai_provider import (
     schema_for,
     strict_json,
 )
-from interview_backend.evaluation.provider import CoachingPrompt, Prompt, FOLLOWUP_PROMPT_VERSION
+from interview_backend.evaluation.provider import FOLLOWUP_PROMPT_VERSION, CoachingPrompt, Prompt
 from interview_backend.evaluation.provider_limits import validate_limits
 from interview_backend.evaluation.structured import StructuredPrompt
 from interview_backend.models.public import CoachingResult, EvaluationResult

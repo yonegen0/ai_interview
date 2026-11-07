@@ -9,7 +9,7 @@ from time import monotonic
 from pydantic import ValidationError
 
 from interview_backend.evaluation.coaching import InvalidCoachingResult, validate_coaching_result
-from interview_backend.evaluation.provider import CoachingPrompt, Prompt, FOLLOWUP_PROMPT_VERSION
+from interview_backend.evaluation.provider import FOLLOWUP_PROMPT_VERSION, CoachingPrompt, Prompt
 from interview_backend.evaluation.provider_limits import validate_limits
 from interview_backend.evaluation.structured import StructuredPrompt
 from interview_backend.models.public import CoachingResult, EvaluationResult
@@ -168,8 +168,10 @@ def schema_for(prompt):
                         "type": "object",
                         "additionalProperties": False,
                         "properties": {
-                            **{name: {"type": "integer", "minimum": 0, "maximum": 10}
-                               for name in ("question_fit_score", "detail_score", "coherence_score")},
+                            **{
+                                name: {"type": "integer", "minimum": 0, "maximum": 10}
+                                for name in ("question_fit_score", "detail_score", "coherence_score")
+                            },
                             "suitability": {"type": "string", "enum": [
                                 "ready", "minor_revision", "needs_revision", "needs_verification"
                             ]},
