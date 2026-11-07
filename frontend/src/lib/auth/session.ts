@@ -34,7 +34,10 @@ const retryDelaysMs = [2000, 5000, 15000] as const;
 let retryAttempts = 0;
 let retryPending = false;
 let retryStopped = false;
+let onlineRecoveryUsed = false;
+let onlineRecoveryRequested = false;
 let generation = 0;
+let verifiedGeneration = -1;
 const listeners = new Set<() => void>();
 export const mockAuth = () => process.env.NEXT_PUBLIC_MSW_ENABLED === "true";
 const clientId = () =>
@@ -60,12 +63,16 @@ function persist() {
     markStorageUnavailable();
   }
 }
-function resetRetry() {
+function resetRetry(newSession = false) {
   clearTimeout(retryTimer);
   retryTimer = undefined;
   retryAttempts = 0;
   retryPending = false;
   retryStopped = false;
+  if (newSession) {
+    onlineRecoveryUsed = false;
+    onlineRecoveryRequested = false;
+  }
 }
 /** One backoff sequence per credential; visibility changes never reset its budget. */
 function scheduleRetry() {
@@ -111,13 +118,26 @@ function schedule() {
 }
 function onResume() {
   if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
-  if (!tokens || refreshTask || retryTimer !== undefined || retryStopped) return;
+  if (!tokens || refreshTask || retryTimer !== undefined) return;
+  if (retryStopped) {
+    // One additional bounded sequence after reconnection; focus alone cannot restart it.
+    if (onlineRecoveryRequested && !onlineRecoveryUsed) {
+      onlineRecoveryRequested = false;
+      onlineRecoveryUsed = true;
+      void auth.recheck().catch(() => undefined);
+    }
+    return;
+  }
   if (retryPending) {
     scheduleRetry();
     return;
   }
   if (state.phase === "temporarily_unavailable" || tokens.expiresAt - Date.now() <= 30000)
     void auth.access(true).catch(() => undefined);
+}
+function onOnline() {
+  if (tokens && retryStopped && !onlineRecoveryUsed) onlineRecoveryRequested = true;
+  onResume();
 }
 async function identity() {
   if (!adapter) adapter = (await import("./cognito")).cognitoAdapter();
@@ -160,7 +180,8 @@ function accept(result: AuthenticationResultType, previous?: Tokens) {
   const claims = parseToken(result.AccessToken);
   if (previous && claims.sub !== previous.sub)
     throw new InvalidAuthResponseError("ログイン利用者が変わりました。");
-  resetRetry();
+  resetRetry(true);
+  verifiedGeneration = generation;
   tokens = {
     access: result.AccessToken,
     refresh: result.RefreshToken || previous!.refresh,
@@ -262,7 +283,7 @@ export const auth = {
     }
     if (typeof window !== "undefined") {
       window.addEventListener("focus", onResume);
-      window.addEventListener("online", onResume);
+      window.addEventListener("online", onOnline);
       document.addEventListener("visibilitychange", onResume);
     }
     initializeTask = (async () => {
@@ -307,7 +328,7 @@ export const auth = {
     const epoch=generation;
     const session = await (await identity()).begin(email);
     if(epoch!==generation)throw new Error("ログイン状態が変わりました。");
-    generation++;tokens=null;refreshTask=null;clearTimeout(refreshTimer);resetRetry();clearStored();
+    generation++;tokens=null;refreshTask=null;clearTimeout(refreshTimer);resetRetry(true);verifiedGeneration=-1;clearStored();
     emit({ phase: "challenge", sub: null, groups: [] });
     return session;
   },
@@ -346,6 +367,7 @@ export const auth = {
   /** User-triggered reconfirmation starts a fresh, bounded sequence. */
   recheck(): Promise<string> {
     resetRetry();
+    onlineRecoveryRequested = false;
     return auth.access(true);
   },
   async logout() {
@@ -354,7 +376,8 @@ export const auth = {
     tokens = null;
     refreshTask = null;
     clearTimeout(refreshTimer);
-    resetRetry();
+    resetRetry(true);
+    verifiedGeneration = -1;
     clearStored();
     emit({ phase: "anonymous", sub: null, groups: [] });
     if (mockAuth())
@@ -392,7 +415,8 @@ export const auth = {
     tokens = null;
     refreshTask = null;
     clearTimeout(refreshTimer);
-    resetRetry();
+    resetRetry(true);
+    verifiedGeneration = -1;
     clearStored();
     emit({
       phase: "anonymous",
@@ -407,7 +431,8 @@ export const auth = {
     initialized = true;
     tokens = null;
     clearTimeout(refreshTimer);
-    resetRetry();
+    resetRetry(true);
+    verifiedGeneration = -1;
     emit({ phase: "authenticated", sub, groups });
     try {
       sessionStorage.setItem(
@@ -417,6 +442,12 @@ export const auth = {
     } catch {
       markStorageUnavailable();
     }
+  },
+  /** Previously verified scope for retaining hidden UI only, never for API authorization. */
+  retainedViewScope() {
+    return verifiedGeneration === generation && tokens
+      ? `pocket:v2:${encodeURIComponent(clientId())}:${encodeURIComponent(tokens.sub)}:`
+      : null;
   },
   scope() {
     return state.sub
