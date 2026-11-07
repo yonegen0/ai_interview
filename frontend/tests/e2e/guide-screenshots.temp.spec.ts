@@ -26,7 +26,7 @@ test("capture actual Mock app screens for basic guide", async ({ page }) => {
   await page.goto("/practice/");
   await page.getByRole("button", { name: "カテゴリ練習", exact: true }).click();
   await page.getByRole("combobox", { name: "練習するカテゴリ" }).click();
-  await page.getByRole("option", { name: /^転職理由（\\d+問）$/ }).click();
+  await page.getByRole("option", { name: /^転職理由（\d+問）$/ }).click();
   await page.getByRole("button", { name: "練習を始める", exact: true }).click();
   const answer = page.getByLabel("あなたの回答");
   await expect(answer).toBeVisible();
