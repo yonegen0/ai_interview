@@ -4,6 +4,7 @@
 import { styled } from "@mui/material/styles";
 import { HomeHero } from "../organisms/HomeHero";
 import { HomeNavigation } from "../organisms/HomeNavigation";
+import { HomeProgress } from "../organisms/HomeProgress";
 
 const PageContent = styled("div")(({ theme }) => ({
   display: "grid",
@@ -16,6 +17,7 @@ const PageContent = styled("div")(({ theme }) => ({
 export const HomePage = () => (
   <PageContent>
     <HomeHero />
+    <HomeProgress />
     <HomeNavigation />
   </PageContent>
 );
