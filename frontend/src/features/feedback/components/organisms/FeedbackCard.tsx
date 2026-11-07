@@ -10,9 +10,8 @@ import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
 import ThumbUpOutlinedIcon from "@mui/icons-material/ThumbUpOutlined";
 import LightbulbOutlinedIcon from "@mui/icons-material/LightbulbOutlined";
 import HistoryOutlinedIcon from "@mui/icons-material/HistoryOutlined";
-import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
+import CheckCircleOutlinedIcon from "@mui/icons-material/CheckCircleOutlined";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
-import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 import TrackChangesOutlinedIcon from "@mui/icons-material/TrackChangesOutlined";
 import LayersOutlinedIcon from "@mui/icons-material/LayersOutlined";
 import LinkOutlinedIcon from "@mui/icons-material/LinkOutlined";
@@ -381,9 +380,9 @@ function FollowUpReviewView({
     review.suitability === "needs_revision" ? "caution" :
     review.suitability === "needs_verification" ? "neutral" : "positive";
   const badgeIcon =
-    review.suitability === "ready" ? <CheckCircleOutlineIcon /> :
+    review.suitability === "ready" ? <CheckCircleOutlinedIcon /> :
     review.suitability === "minor_revision" ? <EditOutlinedIcon /> :
-    review.suitability === "needs_revision" ? <ErrorOutlineIcon /> :
+    review.suitability === "needs_revision" ? <LightbulbOutlinedIcon /> :
     <HelpOutlineIcon />;
 
   return (
