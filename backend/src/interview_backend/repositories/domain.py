@@ -130,8 +130,17 @@ class DomainRepository(StarRepositoryMixin, CoachingRepositoryMixin):
         return self._atomic(run)
 
     def create_once(
-        self, owner, key, fingerprint, questions, new_id, *,
-        mode=None, category=None, question_id=None, bank_version=None
+        self,
+        owner,
+        key,
+        fingerprint,
+        questions,
+        new_id,
+        *,
+        mode=None,
+        category=None,
+        question_id=None,
+        bank_version=None,
     ):
         generated = []
 

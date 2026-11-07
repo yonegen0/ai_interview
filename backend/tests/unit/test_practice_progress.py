@@ -123,6 +123,7 @@ def test_app_and_handler_return_bank_version_and_no_private_details():
         "bankVersion": 0,
         "totalQuestions": 0,
         "completedQuestions": 0,
+        "nextIncompleteQuestionId": None,
     }
     handler = Handler(app)
     event = {

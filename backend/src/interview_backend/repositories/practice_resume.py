@@ -43,17 +43,23 @@ def practice_resume(repo, owner, question_id, defaults, local_session_id=None):
     for context in contexts:
         if context.owner != owner:
             raise IntegrityError("resume_context_owner")
-        if (context.question_id != question_id or context.status != "ACTIVE"
-                or context.operation_kind != "initial_answer"):
+        if (
+            context.question_id != question_id
+            or context.status != "ACTIVE"
+            or context.operation_kind != "initial_answer"
+        ):
             continue
         session = by_id.get(context.session_id)
         if session is None:
             # A cross-owner or deleted session may never be used as a restore target.
             continue
-        if (session.question.id != question_id or session.number != context.question_number
-                or context.question_hash != digest(session.question.wire())
-                or context.question != session.question.question
-                or (session.active and session.active.status == "completed")):
+        if (
+            session.question.id != question_id
+            or session.number != context.question_number
+            or context.question_hash != digest(session.question.wire())
+            or context.question != session.question.question
+            or (session.active and session.active.status == "completed")
+        ):
             continue
         if session.active and session.active.status == "failed":
             # V2 retry-attempt is a separate operation, not an initial-answer draft.

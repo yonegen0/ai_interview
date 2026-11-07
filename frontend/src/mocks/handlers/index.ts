@@ -321,6 +321,59 @@ export function createHandlers(
         headers: { "Cache-Control": "no-store" },
       });
     }),
+    http.get(`${base}/me/practice-resume`, ({ request }) => {
+      const identity = actor(request);
+      if (!identity) return error("UNAUTHORIZED", 401);
+      const { searchParams } = new URL(request.url);
+      const questionId = searchParams.get("questionId");
+      const localSessionId = searchParams.get("localSessionId");
+      if (!idSchema.safeParse(questionId).success ||
+          (localSessionId !== null && !idSchema.safeParse(localSessionId).success))
+        return error("VALIDATION_ERROR", 400);
+      const state = activeRepository.read();
+      const question = state.bank.questions.find(q => q.id === questionId);
+      if (!question) return error("QUESTION_BANK_CONFLICT", 409);
+      const sessions = Object.values(state.sessions).filter(s =>
+        sessionOwner(state, s.sessionId) === identity.sub &&
+        s.question.id === questionId,
+      );
+      const matches = (s: Session) => JSON.stringify(s.question) === JSON.stringify(question);
+      const processing = sessions.find(s => s.activeAttempt?.status === "processing" && matches(s));
+      if (processing)
+        return HttpResponse.json({ status: "resume", reason: "processing", sessionId: processing.sessionId });
+      let changed = sessions.some(s => !matches(s));
+      const drafts = Object.values(state.star.contexts)
+        .filter(c => c.owner === identity.sub && c.questionId === questionId &&
+          c.status === "ACTIVE" && c.operationKind === "initial_answer")
+        .flatMap(c => {
+          const session = sessions.find(s => s.sessionId === c.sessionId &&
+            s.questionNumber === c.questionNumber && s.activeAttempt?.status !== "completed");
+          if (!session) return [];
+          const a = c.answerDraftId ? state.star.answers[c.answerDraftId] : undefined;
+          const b = c.starDraftId ? state.star.drafts[c.starDraftId] : undefined;
+          const valid = (d?: { owner: string; contextId: string; status: string; value: { expiresAt: number; updatedAt: number } }) =>
+            d && d.owner === identity.sub && d.contextId === c.id &&
+            d.status === "ACTIVE" && d.value.expiresAt > Math.floor(Date.now() / 1000);
+          const timestamps = [valid(a) ? a!.value.updatedAt : 0, valid(b) ? b!.value.updatedAt : 0];
+          const updatedAt = Math.max(...timestamps);
+          if (!updatedAt) return [];
+          if (!matches(session)) { changed = true; return []; }
+          return [{ sessionId: session.sessionId, updatedAt }];
+        })
+        .sort((a, b) => b.updatedAt - a.updatedAt);
+      if (drafts.length)
+        return HttpResponse.json({ status: "resume", reason: "draft", sessionId: drafts[0].sessionId });
+      const local = sessions.find(s => s.sessionId === localSessionId);
+      if (local) {
+        if (matches(local) && local.activeAttempt?.status !== "completed")
+          return HttpResponse.json({
+            status: "resume", reason: "local",
+            sessionId: local.sessionId, questionNumber: local.questionNumber,
+          });
+        changed = true;
+      }
+      return HttpResponse.json({ status: changed ? "changed" : "none" });
+    }),
     http.get(`${base}/me/history`, ({ request }) => {
       const identity = actor(request);
       if (!identity) return error("UNAUTHORIZED", 401);
@@ -392,10 +445,14 @@ export function createHandlers(
     ),
     http.post(`${base}/sessions`, ({ request }) =>
       mutate(request, createSchema, (state, body) => {
+        if (body.mode === "quick" && body.bankVersion !== state.bank.version)
+          return error("QUESTION_BANK_CONFLICT", 409);
         const pool = state.bank.questions.filter(
-          (q) => body.mode === "full" || q.category === body.category,
+          (q) => body.mode === "full" ||
+            (body.mode === "quick" ? q.id === body.questionId : q.category === body.category),
         );
-        if (!pool.length) return error("CATEGORY_UNAVAILABLE", 409);
+        if (!pool.length)
+          return error(body.mode === "quick" ? "QUESTION_UNAVAILABLE" : "CATEGORY_UNAVAILABLE", 409);
         const sessionId = crypto.randomUUID();
         state.sessionQuestions[sessionId] = structuredClone(pool);
         state.owners[sessionId] = actor(request)!.sub;

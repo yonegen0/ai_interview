@@ -116,8 +116,11 @@ class CreateRequest(Model):
     @model_validator(mode="after")
     def selection(self):
         if self.mode == "quick":
-            if ("category" in self.model_fields_set or self.questionId is None
-                or self.bankVersion is None):
+            if (
+                "category" in self.model_fields_set
+                or self.questionId is None
+                or self.bankVersion is None
+            ):
                 raise ValueError("Quick practice requires a question and bank version")
         else:
             if "questionId" in self.model_fields_set or "bankVersion" in self.model_fields_set:

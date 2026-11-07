@@ -368,9 +368,12 @@ class DynamoDBRepository(DomainRepository):
         request = {
             "TableName": self.table,
             "KeyConditionExpression": "PK = :owner AND begins_with(SK, :prefix)",
-            "ExpressionAttributeValues": to_wire({
-                ":owner": f"USER#{owner}", ":prefix": prefix,
-            }),
+            "ExpressionAttributeValues": to_wire(
+                {
+                    ":owner": f"USER#{owner}",
+                    ":prefix": prefix,
+                }
+            ),
             "ConsistentRead": True,
             "Limit": RESUME_PAGE_SIZE,
         }
@@ -395,8 +398,12 @@ class DynamoDBRepository(DomainRepository):
                 raise BusinessError(503, "PRACTICE_RESUME_UNAVAILABLE")
             native = from_wire(cursor)
             position = native.get("SK")
-            if (native.get("PK") != f"USER#{owner}" or not isinstance(position, str)
-                    or not position.startswith(prefix) or position <= previous):
+            if (
+                native.get("PK") != f"USER#{owner}"
+                or not isinstance(position, str)
+                or not position.startswith(prefix)
+                or position <= previous
+            ):
                 raise StorageFormatError("resume_cursor")
             previous = position
             request["ExclusiveStartKey"] = cursor
