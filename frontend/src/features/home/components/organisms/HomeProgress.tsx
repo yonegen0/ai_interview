@@ -12,7 +12,7 @@ import { useHomeProgress } from "../../hooks/useHomeProgress";
 const Surface = styled("section")(({ theme }) => ({
   padding: theme.spacing(2.5),
   border: `1px solid ${alpha(theme.palette.primary.main, 0.28)}`,
-  borderRadius: theme.shape.borderRadius * 1.5,
+  borderRadius: theme.shape.borderRadius,
   backgroundColor: theme.palette.background.paper,
   boxShadow: theme.shadows[2],
   minWidth: 0,
