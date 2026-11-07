@@ -71,12 +71,12 @@ it("shows separate current and historical reviews without hiding original overal
   render(<ThemeProvider theme={theme}><FeedbackCard feedback={feedback} followUpReviews={[item]} /></ThemeProvider>);
   expect(screen.getByRole("heading", { name: "今回の深掘り回答評価" })).toBeInTheDocument();
   expect(screen.getByRole("heading", { name: "総合評価" })).toBeInTheDocument();
-  expect(screen.getByLabelText("26 / 30点")).toBeInTheDocument();
+  const current = screen.getByRole("region", { name: "今回の深掘り回答評価" });
+  expect(within(current).getByLabelText("26 / 30点")).toBeInTheDocument();
   expect(screen.getAllByText("そのまま使える").length).toBeGreaterThan(0);
   expect(screen.getByRole("group", { name: "質問適合性：9 / 10点" })).toBeInTheDocument();
   expect(screen.getByRole("group", { name: "具体性・情報の充実度：8 / 10点" })).toBeInTheDocument();
   expect(screen.getByRole("group", { name: "一貫性・納得感：9 / 10点" })).toBeInTheDocument();
-  const current = screen.getByRole("region", { name: "今回の深掘り回答評価" });
   expect(within(current).getByText(review.good_point)).toBeInTheDocument();
   expect(within(current).getByText(review.improvement)).toBeInTheDocument();
 });
