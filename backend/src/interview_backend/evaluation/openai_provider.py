@@ -9,7 +9,7 @@ from time import monotonic
 from pydantic import ValidationError
 
 from interview_backend.evaluation.coaching import InvalidCoachingResult, validate_coaching_result
-from interview_backend.evaluation.provider import FOLLOWUP_PROMPT_VERSION, CoachingPrompt, Prompt
+from interview_backend.evaluation.provider import CoachingPrompt, Prompt
 from interview_backend.evaluation.provider_limits import validate_limits
 from interview_backend.evaluation.structured import StructuredPrompt
 from interview_backend.models.public import CoachingResult, EvaluationResult
@@ -158,7 +158,7 @@ def schema_for(prompt):
                 "example",
             ],
         }
-        if prompt.version == FOLLOWUP_PROMPT_VERSION:
+        if prompt.follow_up_review:
             return {
                 "type": "object",
                 "additionalProperties": False,
@@ -370,7 +370,7 @@ class OpenAIProvider:
                 raise ProviderFailure("INVALID_SCHEMA")
             deadline.seconds()
             return result  # Caller owns domain type and semantic validation.
-        if isinstance(prompt, CoachingPrompt) and prompt.version == FOLLOWUP_PROMPT_VERSION:
+        if isinstance(prompt, CoachingPrompt) and prompt.follow_up_review:
             if (
                 not isinstance(result, dict)
                 or "coaching" not in result

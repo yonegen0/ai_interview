@@ -15,7 +15,7 @@ from interview_backend.evaluation.openai_provider import (
     schema_for,
     strict_json,
 )
-from interview_backend.evaluation.provider import FOLLOWUP_PROMPT_VERSION, CoachingPrompt, Prompt
+from interview_backend.evaluation.provider import CoachingPrompt, Prompt
 from interview_backend.evaluation.provider_configuration import provider_values
 from interview_backend.evaluation.provider_limits import validate_limits
 from interview_backend.evaluation.structured import StructuredPrompt
@@ -288,7 +288,7 @@ class BedrockProvider:
         if isinstance(prompt, StructuredPrompt):
             deadline.seconds()
             return result  # Caller owns domain type and semantic validation.
-        if isinstance(prompt, CoachingPrompt) and prompt.version == FOLLOWUP_PROMPT_VERSION:
+        if isinstance(prompt, CoachingPrompt) and prompt.follow_up_review:
             if "coaching" not in result or set(result) - {"coaching", "follow_up_review"}:
                 raise ProviderFailure("INVALID_SCHEMA")
             deadline.seconds()
