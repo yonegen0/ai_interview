@@ -52,6 +52,7 @@ export type HistoryTab = 0 | 1;
 const assistLabels = {
   star: "STAR", prep: "PREP", motivation: "志望動機",
   career_change: "転職理由", career_plan: "キャリアプラン",
+  follow_up: "深掘り回答",
 };
 
 function UsagePanel({ owner, open, data, loading, error, quota, quotaLoading, quotaError, retry, retryQuota }: {
@@ -136,7 +137,7 @@ export function HistoryDialog({ open, onClose, owner, initialTab = 0 }: {
                     <MenuItem value="coaching">Coaching V2</MenuItem>
                     <MenuItem value="assist">回答アシスト</MenuItem>
                     {Object.entries(assistLabels).map(([value, label]) =>
-                      <MenuItem value={value} key={value}>{label}アシスト</MenuItem>)}
+                      <MenuItem value={value} key={value}>{value === "follow_up" ? label + "アシスト" : label + "アシスト"}</MenuItem>)}
                   </Select>
                 </FormControl>
                 <FormControl size="small" fullWidth>

@@ -168,6 +168,11 @@ export const assistModes = {
     description: "目指す姿と必要な行動を整理し、1案を生成します。",
     steps: careerPlanSteps,
   },
+  follow_up: {
+    label: "深掘り回答アシスト", tag: "深掘り質問に答える",
+    description: "思いついたことを箇条書きで入力してください",
+    steps: [] as readonly AssistStep[],
+  },
 } as const satisfies Record<AssistMode, {
   label: string;
   tag: string;

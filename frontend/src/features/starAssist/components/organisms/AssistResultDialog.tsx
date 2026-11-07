@@ -176,6 +176,7 @@ const titles = {
   motivation: "生成した志望動機",
   career_change: "生成した転職理由",
   career_plan: "生成したキャリアプラン",
+  follow_up: "生成した深掘り回答",
 } as const;
 
 export function AssistResultDialog({ open, workspace: w, applying, onClose, onBack, onApply }: Props) {

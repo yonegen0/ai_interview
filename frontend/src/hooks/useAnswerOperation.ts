@@ -128,6 +128,9 @@ export const useAnswerOperation = (
     [form],
   );
   const assistConfigured = session.question.assistType ?? "star";
+  const assistMode = operation && assistConfigured !== "none"
+    ? "follow_up" as const
+    : assistConfigured === "none" ? "star" as const : assistConfigured;
   const workspace = useStarWorkspace(
     session,
     operation
@@ -155,7 +158,7 @@ export const useAnswerOperation = (
         }
       : null,
     restoreAnswer,
-    assistConfigured === "none" ? "star" : assistConfigured,
+    assistMode,
   );
   const mutation = useMutation({
     retry: false,

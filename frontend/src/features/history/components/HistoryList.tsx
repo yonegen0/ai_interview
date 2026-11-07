@@ -46,6 +46,7 @@ const Score = styled("span")(({ theme }) => ({
 const AssistNames = {
   star: "STAR", prep: "PREP", motivation: "志望動機",
   career_change: "転職理由", career_plan: "キャリアプラン",
+  follow_up: "深掘り回答アシスト",
 };
 export const formatHistoryDate = (ms: number) =>
   new Intl.DateTimeFormat("ja-JP", {
