@@ -30,7 +30,10 @@ def count_completed_questions(owner, active_ids, attempts, evaluations):
         if evaluation.feedback is None:
             raise IntegrityError("progress_missing_feedback")
         attempt = by_attempt.get(evaluation.attempt_id)
-        if attempt is None or attempt.coaching_contract_version != evaluation.coaching_contract_version:
+        if (
+            attempt is None
+            or attempt.coaching_contract_version != evaluation.coaching_contract_version
+        ):
             raise IntegrityError("progress_missing_attempt")
         if evaluation.feedback.attemptId != attempt.id:
             raise IntegrityError("progress_feedback_relation")
