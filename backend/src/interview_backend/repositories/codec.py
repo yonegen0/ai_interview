@@ -277,7 +277,10 @@ def validate(record):
         if v2 != (record.coaching_input is not None) or v2 != (record.round_index is not None):
             raise IntegrityError("partial_coaching_contract")
         if v2:
-            if record.overall_prompt_version is not None and not record.overall_prompt_version.strip():
+            if (
+                record.overall_prompt_version is not None
+                and not record.overall_prompt_version.strip()
+            ):
                 raise StorageFormatError("overall_prompt_version")
             if record.round_index != record.coaching_input.coaching_count:
                 raise IntegrityError("round_index")

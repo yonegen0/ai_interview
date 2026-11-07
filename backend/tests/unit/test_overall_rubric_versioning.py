@@ -1,10 +1,11 @@
 """Offline compatibility tests for versioned 30-point overall coaching scoring."""
 
+import json
 from dataclasses import replace
 
 import pytest
-
 from conftest import uid
+
 from interview_backend.evaluation.openai_provider import schema_for
 from interview_backend.evaluation.provider import (
     COACHING_INSTRUCTIONS,
@@ -104,8 +105,10 @@ def test_four_scoring_combinations_keep_one_call_and_schema(
         if dedicated_review
         else list(overall())
     )
-    assert runtime.repository.snapshot().evaluations[answered["evaluationId"]].execution_config.prompt_version == prompt.version
-    assert runtime.application.feedback("owner", answered["attemptId"]).body["result"]["conclusion_score"] == 8
+    evaluated = runtime.repository.snapshot().evaluations[answered["evaluationId"]]
+    assert evaluated.execution_config.prompt_version == prompt.version
+    feedback = runtime.application.feedback("owner", answered["attemptId"]).body
+    assert feedback["result"]["conclusion_score"] == 8
 
 
 def test_old_attempt_keeps_old_rubric_even_after_enablement(runtime):
@@ -127,7 +130,8 @@ def test_retry_inherits_frozen_method_and_codec_readability(runtime):
     runtime.repository.coaching_overall_rubric_v2_enabled = True
     sid, _, initial = begin(runtime)
     first = runtime.repository.snapshot().evaluations[initial["evaluationId"]]
-    assert decode(encode("Evaluation", first, 0))[0].overall_prompt_version == OVERALL_RUBRIC_PROMPT_VERSION
+    recovered = decode(encode("Evaluation", first, 0))[0]
+    assert recovered.overall_prompt_version == OVERALL_RUBRIC_PROMPT_VERSION
     runtime.provider.behavior = lambda _: {"invalid": True}
     assert runtime.worker.run("owner", initial["evaluationId"])
     retry = runtime.application.submit(
@@ -146,7 +150,7 @@ def test_retry_inherits_frozen_method_and_codec_readability(runtime):
     assert decode(encode("Evaluation", saved, 0))[0] == saved
     legacy = replace(saved, overall_prompt_version=None)
     item = encode("Evaluation", legacy, 0)
-    assert "overall_prompt_version" not in __import__("json").loads(item["data"])
+    assert "overall_prompt_version" not in json.loads(item["data"])
     assert decode(item)[0].overall_prompt_version is None
 
 
