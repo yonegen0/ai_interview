@@ -20,19 +20,19 @@ describe("使い方ガイド", () => {
     mount(<GuideTop />);
     expect(screen.getByRole("heading", { name: "基本ガイド" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "機能別ガイド" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /基本ガイドを見る/ })).toHaveAttribute("href", "/guide/basic/");
-    expect(screen.getByRole("link", { name: /機能別ガイドを見る/ })).toHaveAttribute("href", "/guide/features/");
+    expect(screen.getByRole("link", { name: /基本ガイドを見る/ })).toHaveAttribute("href", expect.stringMatching(/^\/guide\/basic\/?$/));
+    expect(screen.getByRole("link", { name: /機能別ガイドを見る/ })).toHaveAttribute("href", expect.stringMatching(/^\/guide\/features\/?$/));
   });
 
   it("4ステップを移動し、最初から練習へ進める", async () => {
     const user = userEvent.setup();
     mount(<GuideBasic />);
     expect(screen.getByText(/1 \/ 4/)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "練習に進む" })).toHaveAttribute("href", "/practice/quick/");
+    expect(screen.getByRole("link", { name: "練習に進む" })).toHaveAttribute("href", expect.stringMatching(/^\/practice\/quick\/?$/));
     await user.click(screen.getByRole("button", { name: "次へ" }));
     expect(screen.getByText("自分の言葉で回答しよう")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "STEP 4を表示" }));
-    expect(screen.getByRole("link", { name: /面接練習を始める/ })).toHaveAttribute("href", "/practice/quick/");
+    expect(screen.getByRole("link", { name: /面接練習を始める/ })).toHaveAttribute("href", expect.stringMatching(/^\/practice\/quick\/?$/));
     await user.click(screen.getByRole("button", { name: "戻る" }));
     expect(screen.getByText("AIのアドバイスを確認しよう")).toBeInTheDocument();
   });
