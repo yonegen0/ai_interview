@@ -66,7 +66,7 @@ test("ADMIN login edits, publishes, adds/removes/reorders, and keeps an existing
     .fill("これまでの業務経験と学びについて回答します。");
   await page.getByRole("button", { name: "回答を送信", exact: true }).click();
   await expect(
-    page.getByRole("heading", { name: "全1問の練習が完了しました" }),
+    page.getByRole("heading", { name: "このカテゴリの練習が完了しました" }),
   ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "次の質問へ", exact: true }),

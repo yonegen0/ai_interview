@@ -32,7 +32,11 @@ export const FeedbackNavigation = ({
               <Text variant="h2" component="h2">
                 {view.hasNext
                   ? "次の練習へ"
-                  : `全${view.total}問の練習が完了しました`}
+                  : view.mode === "quick"
+                    ? "この質問の練習が完了しました"
+                    : view.mode === "category"
+                      ? "このカテゴリの練習が完了しました"
+                      : `全${view.total}問の練習が完了しました`}
               </Text>
             }
             actions={

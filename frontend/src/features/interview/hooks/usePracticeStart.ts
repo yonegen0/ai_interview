@@ -16,7 +16,7 @@ import type {
   PracticeStartView,
   PracticeStartActions,
 } from "../model/practiceStart";
-export function usePracticeStart() {
+export function usePracticeStart(fixedMode?: "category") {
   const {
     scope,
     isActive,
@@ -25,7 +25,8 @@ export function usePracticeStart() {
   } = useOperationScope();
   const router = useRouter();
   const [category, setCategory] = useState<Category | null>(null);
-  const [mode, setMode] = useState<"full" | "category">("full");
+  const [mode, setMode] = useState<"full" | "category">(fixedMode ?? "full");
+  const recoveryKey = fixedMode === "category" ? "pocket:create:category" : "pocket:create";
   const options = useQuery({
     queryKey: [scope, "practice-options"],
     queryFn: ({ signal }) => {
@@ -39,7 +40,7 @@ export function usePracticeStart() {
   const [restoring, setRestoring] = useState(true);
   useEffect(() => {
     if (!isActive()) return;
-    const restored = readSaved("pocket:create", operationSchema);
+    const restored = readSaved(recoveryKey, operationSchema);
     if (restored?.body || restored?.category) {
       pending.current = restored;
       setCategory(
@@ -47,11 +48,14 @@ export function usePracticeStart() {
           ? restored.body.category!
           : restored.category || null,
       );
-      setMode(restored.body?.mode || "category");
+      if (fixedMode) setMode("category");
+      else if (restored.body?.mode === "full" || restored.body?.mode === "category") {
+        setMode(restored.body.mode);
+      } else setMode("category");
       setRecovering(true);
     }
     setRestoring(false);
-  }, [readSaved, isActive]);
+  }, [readSaved, isActive, fixedMode, recoveryKey]);
   const locked = useRef(false);
   const mutation = useMutation({
     mutationFn: ({ body, key }: { body: CreateInput; key: string }) => {
@@ -71,13 +75,13 @@ export function usePracticeStart() {
       version: 1 as const,
       key: crypto.randomUUID(),
       body: createSchema.parse(
-        mode === "full"
-          ? { mode, difficulty: "standard" }
-          : { mode, category, difficulty: "standard" },
+        (fixedMode ?? mode) === "full"
+          ? { mode: "full", difficulty: "standard" }
+          : { mode: "category", category, difficulty: "standard" },
       ),
     };
     pending.current = request;
-    save("pocket:create", request);
+    save(recoveryKey, request);
     try {
       const value = await mutation.mutateAsync({
         body:
@@ -89,14 +93,14 @@ export function usePracticeStart() {
         key: request.key,
       });
       if (!isActive()) return;
-      removeSaved("pocket:create");
+      removeSaved(recoveryKey);
       router.push(`/practice/session/?sessionId=${value.sessionId}`);
     } catch (error) {
       if (!isActive()) return;
       if (uncertain(error)) setRecovering(true);
       else {
         pending.current = null;
-        removeSaved("pocket:create");
+        removeSaved(recoveryKey);
         setRecovering(false);
         if (
           error instanceof ApiError &&
@@ -114,7 +118,7 @@ export function usePracticeStart() {
   const disabled = restoring || mutation.isPending || recovering;
   return {
     view: {
-      mode,
+      mode: fixedMode ?? mode,
       category,
       options: options.data,
       loading: options.isPending,
@@ -130,7 +134,7 @@ export function usePracticeStart() {
     } satisfies PracticeStartView,
     actions: {
       selectMode: (value) => {
-        if (isActive() && !disabled) setMode(value);
+        if (!fixedMode && isActive() && !disabled) setMode(value);
       },
       selectCategory: (value) => {
         if (isActive() && !disabled) setCategory(value);

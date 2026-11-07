@@ -32,5 +32,6 @@ export function mockPracticeProgress(state: MockState, owner: string) {
     bankVersion: state.bank.version,
     totalQuestions: ids.size,
     completedQuestions: completed.size,
+    nextIncompleteQuestionId: state.bank.questions.find((q) => !completed.has(q.id))?.id ?? null,
   };
 }

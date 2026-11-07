@@ -13,6 +13,7 @@ ROUTES = (
     ("GET", re.compile(r"^/practice-options$"), "practice_options"),
     ("GET", re.compile(r"^/me/history$"), "history"),
     ("GET", re.compile(r"^/me/practice-progress$"), "practice_progress"),
+    ("GET", re.compile(r"^/me/practice-resume$"), "practice_resume"),
     ("POST", re.compile(r"^/sessions$"), "create"),
     ("GET", re.compile(r"^/sessions/([^/]+)/question$"), "question"),
     ("POST", re.compile(r"^/sessions/([^/]+)/answers$"), "submit"),
@@ -37,6 +38,7 @@ MESSAGES = {
     "QUESTION_BANK_CONFLICT": "Question bank changed.",
     "QUESTION_BANK_TOO_LARGE": "Question bank too large.",
     "CATEGORY_UNAVAILABLE": "Category unavailable.",
+    "QUESTION_UNAVAILABLE": "Question unavailable.",
     "SESSION_COMPLETED": "Practice completed.",
     "SESSION_CREATION_LIMIT": "Monthly session creation limit reached.",
     "REQUEST_TOO_LARGE": "Request too large.",
@@ -46,6 +48,7 @@ MESSAGES = {
     "PREVIOUS_ANSWER_UNAVAILABLE": "Previous answer search is temporarily unavailable.",
     "HISTORY_SEARCH_LIMIT": "History exceeds the supported search range.",
     "PRACTICE_PROGRESS_UNAVAILABLE": "Practice progress is temporarily unavailable.",
+    "PRACTICE_RESUME_UNAVAILABLE": "Practice resume search is temporarily unavailable.",
     "SESSION_STATE_CONFLICT": "Session state conflicts with this operation.",
     "IDEMPOTENCY_CONFLICT": "Idempotency key conflicts with this request.",
     "EVALUATION_NOT_COMPLETED": "Evaluation is not completed.",
@@ -152,6 +155,29 @@ class Handler:
                     headers = {k.lower(): v for k, v in (event.get("headers") or {}).items()}
                     args.append(headers.get("idempotency-key"))
                 args.extend(match.groups())
+                if action == "practice_resume":
+                    query = event.get("queryStringParameters") or {}
+                    if (
+                        not isinstance(query, dict)
+                        or set(query) - {"questionId", "localSessionId", "localPending"}
+                        or not isinstance(query.get("questionId"), str)
+                        or (
+                            "localSessionId" in query
+                            and not isinstance(query["localSessionId"], str)
+                        )
+                    ):
+                        raise BusinessError(400, "VALIDATION_ERROR")
+                    if query.get("localPending") not in {None, "1"} or (
+                        query.get("localPending") == "1" and not query.get("localSessionId")
+                    ):
+                        raise BusinessError(400, "VALIDATION_ERROR")
+                    args.extend(
+                        (
+                            query["questionId"],
+                            query.get("localSessionId"),
+                            query.get("localPending") == "1",
+                        )
+                    )
                 if action == "history":
                     query = event.get("queryStringParameters") or {}
                     if not isinstance(query, dict):

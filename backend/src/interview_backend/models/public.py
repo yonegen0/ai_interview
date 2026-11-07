@@ -96,7 +96,11 @@ class AnswerFields(Model):
 class CreateRequest(Model):
     category: Category = Field(default=None, validate_default=False)
     difficulty: Literal["standard"]
-    mode: Literal["full", "category"] = Field(default=None, validate_default=False)
+    mode: Literal["full", "category", "quick"] = Field(default=None, validate_default=False)
+    questionId: Identifier | None = Field(default=None, validate_default=False)
+    bankVersion: Annotated[int, Field(ge=0, le=9007199254740991)] | None = Field(
+        default=None, validate_default=False
+    )
 
     @model_validator(mode="before")
     @classmethod
@@ -104,18 +108,28 @@ class CreateRequest(Model):
         if (
             isinstance(value, dict)
             and "mode" in value
-            and set(value) - {"mode", "category", "difficulty"}
+            and set(value) - {"mode", "category", "difficulty", "questionId", "bankVersion"}
         ):
             raise ValueError("Unknown practice field")
         return value
 
     @model_validator(mode="after")
     def selection(self):
-        if self.mode == "full":
-            if "category" in self.model_fields_set:
-                raise ValueError("Full practice does not select a category")
-        elif self.category is None:
-            raise ValueError("Category required")
+        if self.mode == "quick":
+            if (
+                "category" in self.model_fields_set
+                or self.questionId is None
+                or self.bankVersion is None
+            ):
+                raise ValueError("Quick practice requires a question and bank version")
+        else:
+            if "questionId" in self.model_fields_set or "bankVersion" in self.model_fields_set:
+                raise ValueError("Only quick practice selects a question")
+            if self.mode == "full":
+                if "category" in self.model_fields_set:
+                    raise ValueError("Full practice does not select a category")
+            elif self.category is None:
+                raise ValueError("Category required")
         if "mode" in self.model_fields_set and self.mode is None:
             raise ValueError("Invalid mode")
         if self.mode == "category" and self.category not in CATEGORIES:
@@ -201,7 +215,9 @@ class SessionResponse(Model):
     questionNumber: PositiveInt
     activeAttempt: ActiveAttempt | None
     activeCoaching: ActiveCoaching = Field(default=None, validate_default=False)
-    mode: Literal["full", "category", "legacy"] = Field(default=None, validate_default=False)
+    mode: Literal["full", "category", "quick", "legacy"] = Field(
+        default=None, validate_default=False
+    )
     totalQuestions: PositiveInt = Field(default=None, validate_default=False)
     hasNext: bool = Field(default=None, validate_default=False)
 

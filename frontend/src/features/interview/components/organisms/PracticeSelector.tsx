@@ -4,6 +4,7 @@ import { Panel } from "@/components/atoms/Panel";
 import { Actions } from "@/components/atoms/Actions";
 import { Button } from "@/components/atoms/Button";
 import { Text } from "@/components/atoms/Text";
+import { Link } from "@/components/atoms/Link";
 import { ErrorView } from "@/components/organisms/ErrorView";
 import { PracticeModeSelector } from "../molecules/PracticeModeSelector";
 import { PracticeCategorySelector } from "../molecules/PracticeCategorySelector";
@@ -14,15 +15,16 @@ import type {
 export type PracticeSelectorProps = {
   view: PracticeStartView;
   actions: PracticeStartActions;
+  categoryOnly?: boolean;
 };
-export const PracticeSelector = ({ view, actions }: PracticeSelectorProps) => (
+export const PracticeSelector = ({ view, actions, categoryOnly = false }: PracticeSelectorProps) => (
   <Panel>
-    <PracticeModeSelector
+    {!categoryOnly && <PracticeModeSelector
       mode={view.mode}
       total={view.options?.totalQuestions}
       disabled={view.disabled}
       onSelect={actions.selectMode}
-    />
+    />}
     {view.loading && <Text role="status">練習の選択肢を読み込んでいます…</Text>}
     {view.optionsError && (
       <ErrorView error={view.optionsError} retry={actions.refresh} />
@@ -50,5 +52,6 @@ export const PracticeSelector = ({ view, actions }: PracticeSelectorProps) => (
       </Button>
     </Actions>
     {view.error && <ErrorView error={view.error} />}
+    {categoryOnly && <Link href="/">ホームへ戻る</Link>}
   </Panel>
 );

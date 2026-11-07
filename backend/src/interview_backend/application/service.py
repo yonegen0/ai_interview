@@ -65,6 +65,8 @@ class Application:
             self._new_id,
             mode=request.mode or "category",
             category=request.category,
+            question_id=request.questionId,
+            bank_version=request.bankVersion,
         )
 
     def practice_options(self, owner: str) -> Reply:
@@ -116,6 +118,17 @@ class Application:
     def practice_progress(self, owner: str) -> Reply:
         self._owner(owner)
         return self.repository.practice_progress(owner, self.questions)
+
+    def practice_resume(
+        self, owner: str, question_id: str, local_session_id=None, local_pending=False
+    ) -> Reply:
+        self._owner(owner)
+        validate_id(question_id)
+        if local_session_id is not None:
+            validate_id(local_session_id)
+        return self.repository.practice_resume(
+            owner, question_id, self.questions, local_session_id, local_pending
+        )
 
     def history(self, owner: str, params: dict) -> Reply:
         self._owner(owner)

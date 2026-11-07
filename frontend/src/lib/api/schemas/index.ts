@@ -94,6 +94,12 @@ export const createSchema = z.union([
   z
     .object({ mode: z.literal("full"), difficulty: z.literal("standard") })
     .strict(),
+  z.object({
+    mode: z.literal("quick"),
+    questionId: idSchema,
+    bankVersion: z.number().int().nonnegative(),
+    difficulty: z.literal("standard"),
+  }).strict(),
   z
     .object({
       mode: z.literal("category"),
@@ -136,7 +142,7 @@ export const sessionSchema = z
     questionNumber: z.number().int().positive(),
     activeAttempt: attemptSchema.nullable(),
     activeCoaching: activeCoachingSchema.optional(),
-    mode: z.enum(["full", "category", "legacy"]).optional(),
+    mode: z.enum(["full", "category", "quick", "legacy"]).optional(),
     totalQuestions: z.number().int().positive().optional(),
     hasNext: z.boolean().optional(),
   })

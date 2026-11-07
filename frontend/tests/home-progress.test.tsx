@@ -17,6 +17,7 @@ vi.mock("@/lib/api/practiceProgress", async (importOriginal) => ({
 const renderCard = async (completed: number, total = 15) => {
   vi.mocked(getPracticeProgress).mockResolvedValue({
     bankVersion: 0, totalQuestions: total, completedQuestions: completed,
+    nextIncompleteQuestionId: completed === total ? null : "11111111-1111-4111-8111-111111111111",
   });
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(

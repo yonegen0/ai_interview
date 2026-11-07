@@ -22,6 +22,8 @@ const messages: Record<string, string> = {
   REQUEST_TOO_LARGE: "保存する内容が大きすぎます。",
   CATEGORY_UNAVAILABLE:
     "このカテゴリの質問がありません。カテゴリを選び直してください。",
+  QUESTION_UNAVAILABLE: "対象の質問が変更されています。もう一度お試しください。",
+  PRACTICE_RESUME_UNAVAILABLE: "保存済みの練習を確認できません。時間をおいて再試行してください。",
   SESSION_COMPLETED: "この練習は完了しています。",
   SESSION_CREATION_LIMIT:
     "今月の面接練習の新規作成上限に達しました。翌月から再び作成できます。",

@@ -182,9 +182,9 @@ test("home header stays compact and CTA visible on mobile", async ({ page }) => 
     await expect(page.getByRole("link", { name: /まずは使い方ガイド/ }))
       .toHaveAttribute("href", "#home-how-it-works");
     await expect(page.getByRole("link", { name: /カテゴリから選ぶ/ }))
-      .toHaveAttribute("href", "/practice/");
+      .toHaveAttribute("href", "/practice/category/");
     await expect(page.getByRole("link", { name: /3分から始める/ }))
-      .toHaveAttribute("href", "/practice/");
+      .toHaveAttribute("href", "/practice/quick/");
     const overflow = await page.evaluate(() =>
       document.documentElement.scrollWidth > window.innerWidth + 1,
     );
@@ -202,11 +202,12 @@ test("home guide and action cards navigate to implemented destinations", async (
     .toBeVisible();
 
   await page.getByRole("link", { name: /カテゴリから選ぶ/ }).click();
-  await expect(page).toHaveURL(/\/practice\/$/);
+  await expect(page).toHaveURL(/\/practice\/category\/$/);
+  await expect(page.getByRole("heading", { name: "カテゴリを選択" })).toBeVisible();
 
   await page.goto("/");
   await page.getByRole("link", { name: /3分から始める/ }).click();
-  await expect(page).toHaveURL(/\/practice\/$/);
+  await expect(page).toHaveURL(/\/practice\/session\/\?sessionId=/);
 });
 
 
