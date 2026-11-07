@@ -9,7 +9,7 @@ from time import monotonic
 from pydantic import ValidationError
 
 from interview_backend.evaluation.coaching import InvalidCoachingResult, validate_coaching_result
-from interview_backend.evaluation.provider import CoachingPrompt, Prompt
+from interview_backend.evaluation.provider import CoachingPrompt, Prompt, FOLLOWUP_PROMPT_VERSION
 from interview_backend.evaluation.provider_limits import validate_limits
 from interview_backend.evaluation.structured import StructuredPrompt
 from interview_backend.models.public import CoachingResult, EvaluationResult
@@ -131,7 +131,7 @@ def schema_for(prompt):
         return prompt.schema
     if isinstance(prompt, CoachingPrompt):
         # Preserve all eight required keys; cross-field semantics remain domain validation.
-        return {
+        coaching = {
             "type": "object",
             "additionalProperties": False,
             "properties": {
@@ -158,6 +158,31 @@ def schema_for(prompt):
                 "example",
             ],
         }
+        if prompt.version == FOLLOWUP_PROMPT_VERSION:
+            return {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "coaching": coaching,
+                    "follow_up_review": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "properties": {
+                            **{name: {"type": "integer", "minimum": 0, "maximum": 10}
+                               for name in ("question_fit_score", "detail_score", "coherence_score")},
+                            "suitability": {"type": "string", "enum": [
+                                "ready", "minor_revision", "needs_revision", "needs_verification"
+                            ]},
+                            **{name: {"type": "string", "minLength": 1, "maxLength": 200}
+                               for name in ("good_point", "improvement")},
+                        },
+                        "required": ["question_fit_score", "detail_score", "coherence_score",
+                                     "suitability", "good_point", "improvement"],
+                    },
+                },
+                "required": ["coaching", "follow_up_review"],
+            }
+        return coaching
     schema = EvaluationResult.model_json_schema()
     schema["properties"]["exampleAnswer"] = {"type": ["string", "null"]}
     schema["additionalProperties"] = False
@@ -325,6 +350,13 @@ class OpenAIProvider:
                 raise ProviderFailure("INVALID_SCHEMA")
             deadline.seconds()
             return result  # Caller owns domain type and semantic validation.
+        if isinstance(prompt, CoachingPrompt) and prompt.version == FOLLOWUP_PROMPT_VERSION:
+            if not isinstance(result, dict) or "coaching" not in result or (
+                set(result) - {"coaching", "follow_up_review"}
+            ):
+                raise ProviderFailure("INVALID_SCHEMA")
+            deadline.seconds()
+            return result
         try:
             model = CoachingResult if isinstance(prompt, CoachingPrompt) else EvaluationResult
             if set(result) != set(schema_for(prompt)["required"]):

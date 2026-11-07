@@ -15,7 +15,7 @@ from interview_backend.evaluation.openai_provider import (
     schema_for,
     strict_json,
 )
-from interview_backend.evaluation.provider import CoachingPrompt, Prompt
+from interview_backend.evaluation.provider import CoachingPrompt, Prompt, FOLLOWUP_PROMPT_VERSION
 from interview_backend.evaluation.provider_limits import validate_limits
 from interview_backend.evaluation.structured import StructuredPrompt
 from interview_backend.models.public import CoachingResult, EvaluationResult
@@ -344,6 +344,11 @@ class AnthropicProvider:
             raise ProviderFailure("INVALID_SCHEMA")
         if isinstance(prompt, StructuredPrompt):
             # The STAR caller performs the original Pydantic and grounding checks.
+            deadline.seconds()
+            return result
+        if isinstance(prompt, CoachingPrompt) and prompt.version == FOLLOWUP_PROMPT_VERSION:
+            if "coaching" not in result or set(result) - {"coaching", "follow_up_review"}:
+                raise ProviderFailure("INVALID_SCHEMA")
             deadline.seconds()
             return result
         try:
