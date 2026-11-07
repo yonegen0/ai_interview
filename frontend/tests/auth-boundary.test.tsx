@@ -1,5 +1,5 @@
 /** @file auth-boundary.test.tsx @description Verified refresh and manual recheck keep the auth boundary safe. */
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
 import { AuthBoundary } from "@/components/organisms/AuthBoundary";
@@ -71,15 +71,20 @@ it("keeps the same answer input mounted while a verified session refreshes", asy
   expect(screen.getByRole("textbox", { name: "練習回答" })).toBe(input);
 });
 
-it("blocks content during an auth outage and restores it through manual recheck", async () => {
+it("hides unverified content but retains unsaved input until recheck succeeds", async () => {
   let finish: ((result: Awaited<ReturnType<IdentityAdapter["refresh"]>>) => void) | undefined;
   const refresh = vi.fn(() => new Promise<Awaited<ReturnType<IdentityAdapter["refresh"]>>>((resolve) => {
     finish = resolve;
   }));
   await signIn(makeAdapter(refresh));
   render(<AuthBoundary><input aria-label="保護された回答欄" /></AuthBoundary>);
+  const input = screen.getByRole("textbox", { name: "保護された回答欄" });
+  fireEvent.change(input, { target: { value: "未保存の回答文" } });
   act(() => { auth.suspend(); });
   expect(screen.queryByRole("textbox", { name: "保護された回答欄" })).not.toBeInTheDocument();
+  expect(input).toBeInTheDocument();
+  expect(input).not.toBeVisible();
+  expect(input).toHaveValue("未保存の回答文");
   await userEvent.click(screen.getByRole("button", { name: "認証を再確認する" }));
   await waitFor(() => expect(finish).toBeTypeOf("function"));
   expect(refresh).toHaveBeenCalledTimes(1);
@@ -87,7 +92,10 @@ it("blocks content during an auth outage and restores it through manual recheck"
   await act(async () => {
     finish!({ AccessToken: token(), ExpiresIn: 300 });
   });
-  await waitFor(() => expect(screen.getByRole("textbox", { name: "保護された回答欄" })).toBeInTheDocument());
+  await waitFor(() => expect(screen.getByRole("textbox", { name: "保護された回答欄" })).toBe(input));
+  expect(input).toHaveValue("未保存の回答文");
+  await act(async () => { await auth.logout(); });
+  expect(input).not.toBeInTheDocument();
 });
 
 it("shows the recheck action rather than a login link on transient outage", async () => {
@@ -102,4 +110,20 @@ it("shows the recheck action rather than a login link on transient outage", asyn
   rerender(<AccountActionsView authenticated={false} phase="restoring" onLogout={vi.fn()} />);
   expect(screen.getByText("ログイン状態を確認しています…")).toBeInTheDocument();
   expect(screen.queryByText("ログイン")).not.toBeInTheDocument();
+});
+
+it("retains an unsaved answer across a transient failed refresh and its retry", async () => {
+  const refresh = vi.fn()
+    .mockRejectedValueOnce(Object.assign(new Error("offline"), { name: "NetworkError" }))
+    .mockResolvedValue({ AccessToken: token(), ExpiresIn: 300 });
+  await signIn(makeAdapter(refresh));
+  render(<AuthBoundary><input aria-label="編集中回答" defaultValue="回答の途中" /></AuthBoundary>);
+  const input = screen.getByRole("textbox", { name: "編集中回答" });
+  await act(async () => { await auth.access(true).catch(() => undefined); });
+  expect(screen.queryByRole("textbox", { name: "編集中回答" })).not.toBeInTheDocument();
+  expect(input).toBeInTheDocument();
+  expect(input).not.toBeVisible();
+  await userEvent.click(screen.getByRole("button", { name: "認証を再確認する" }));
+  await waitFor(() => expect(screen.getByRole("textbox", { name: "編集中回答" })).toBe(input));
+  expect(input).toHaveValue("回答の途中");
 });
