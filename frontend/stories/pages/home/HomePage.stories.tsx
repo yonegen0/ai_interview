@@ -29,10 +29,13 @@ const assertHomeContent = async (canvasElement: HTMLElement) => {
     canvas.getByRole("link", { name: /まずは使い方ガイド/ }),
   ).toHaveAttribute("href", "#home-how-it-works");
 
-  for (const title of ["カテゴリから選ぶ", "3分から始める"]) {
+  for (const [title, target] of [
+    ["カテゴリから選ぶ", "/practice/category/"],
+    ["3分から始める", "/practice/quick/"],
+  ]) {
     await expect(
       canvas.getByRole("link", { name: new RegExp(title) }),
-    ).toHaveAttribute("href", "/practice/");
+    ).toHaveAttribute("href", target);
   }
 
   await expect(

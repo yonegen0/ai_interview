@@ -76,12 +76,10 @@ afterEach(() => {
 
 it("separates the two home actions", () => {
   mount(<HomeNavigation />);
-  expect(screen.getByRole("link", { name: /カテゴリから選ぶ/ })).toHaveAttribute(
-    "href", "/practice/category/",
-  );
-  expect(screen.getByRole("link", { name: /3分から始める/ })).toHaveAttribute(
-    "href", "/practice/quick/",
-  );
+  expect(screen.getByRole("link", { name: /カテゴリから選ぶ/ }).getAttribute("href"))
+    .toMatch(/^\/practice\/category\/?$/);
+  expect(screen.getByRole("link", { name: /3分から始める/ }).getAttribute("href"))
+    .toMatch(/^\/practice\/quick\/?$/);
 });
 
 it("category-only selector has no practice mode chooser", () => {
@@ -97,7 +95,7 @@ it("category-only selector has no practice mode chooser", () => {
     selectMode: vi.fn(), selectCategory: vi.fn(),
     start: vi.fn(async () => {}), refresh: vi.fn(),
   }} />);
-  expect(screen.getByText("練習するカテゴリ")).toBeInTheDocument();
+  expect(screen.getByRole("combobox", { name: "練習するカテゴリ" })).toBeInTheDocument();
   expect(screen.queryByText("全質問を順番に練習")).not.toBeInTheDocument();
   expect(screen.getByRole("link", { name: "ホームへ戻る" })).toBeInTheDocument();
 });
@@ -160,8 +158,8 @@ it("all questions complete renders achievement with no session creation", async 
   expect(await screen.findByRole("heading", {
     name: "全15問達成！おめでとうございます",
   })).toBeInTheDocument();
-  expect(screen.getByRole("link", { name: "カテゴリから復習する" }))
-    .toHaveAttribute("href", "/practice/category/");
+  expect(screen.getByRole("link", { name: "カテゴリから復習する" }).getAttribute("href"))
+    .toMatch(/^\/practice\/category\/?$/);
   expect(createSession).not.toHaveBeenCalled();
 });
 
