@@ -64,8 +64,11 @@ export function HomeProgress() {
   const percent = total > 0 ? (completed / total) * 100 : 0;
   const steps = total <= 8
     ? Array.from({ length: total }, (_, i) => i + 1)
-    : Array.from(new Set([1, 2, 3, Math.max(4, completed), total - 1, total]))
-        .filter((n) => n <= total).sort((a, b) => a - b);
+    : Array.from(new Set([
+        1, 2, 3,
+        ...Array.from({ length: 5 }, (_, i) => Math.max(1, completed - 4 + i)),
+        total,
+      ])).filter((n) => n <= total).sort((a, b) => a - b);
 
   return (
     <Surface aria-labelledby="home-progress-title">

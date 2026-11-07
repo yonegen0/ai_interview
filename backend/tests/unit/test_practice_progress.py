@@ -6,7 +6,7 @@ import pytest
 
 from interview_backend.application.service import Application
 from interview_backend.api.handler import Handler
-from interview_backend.models.internal import BusinessError, IntegrityError
+from interview_backend.models.internal import IntegrityError
 from interview_backend.repositories.memory import MemoryRepository
 from interview_backend.repositories.practice_progress import count_completed_questions
 
@@ -92,7 +92,6 @@ def test_corrupt_relations_do_not_count(attempts, evaluations):
 
 def test_app_and_handler_return_bank_version_and_no_private_details():
     repo = MemoryRepository()
-    question = Obj(id="q0", wire=lambda: {"id": "q0"})
     app = Application(repo, (), lambda: "unused")
     # No bank and no attempts is valid, including a zero-question bank.
     assert app.practice_progress("user-a").body == {
