@@ -364,6 +364,10 @@ export function useStarWorkspace(
     return result;
   };
   const saveStar = async () => {
+    if ((latest.current.input.assistType ?? "star") !== mode) {
+      setError("以前のモードの下書きを確認・破棄してから生成してください。");
+      throw new Error("AssistModeMismatch");
+    }
     if (!contextId) throw new Error("回答文脈を確認しています。");
     const parsed = starInputSchema.safeParse(latest.current.input);
     if (!parsed.success) {
@@ -394,6 +398,7 @@ export function useStarWorkspace(
       !enabled ||
       !contextId ||
       !initialized.current ||
+      (input.assistType ?? "star") !== mode ||
       pending ||
       status === "競合" ||
       status === "保存失敗"
@@ -424,7 +429,8 @@ export function useStarWorkspace(
   ]);
   const adopt = useCallback((): boolean => {
     const result = generation.data?.result;
-    if (!result || result.status !== "ready" || !generationId || !isActive())
+    if (!result || result.status !== "ready" || !generationId || !isActive() ||
+      (form.getValues("assistType") ?? "star") !== mode)
       return false;
     const candidateDraft = {
       ...form.getValues(),
@@ -471,6 +477,7 @@ export function useStarWorkspace(
   }, [generation.data, generationId, adopt, isActive, quota]);
 
   const generate = async (): Promise<string | null> => {
+    if ((latest.current.input.assistType ?? "star") !== mode) return null;
     const sourceInput = JSON.stringify(latest.current.input);
     try {
       const row =
@@ -493,7 +500,8 @@ export function useStarWorkspace(
     }
   };
   const apply = async (candidateId?: "A" | "B" | "C"): Promise<boolean> => {
-    if (locked.current || pending || !isActive() || !active.current) return false;
+    if (locked.current || pending || !isActive() || !active.current ||
+      (form.getValues("assistType") ?? "star") !== mode) return false;
     try {
       const current = form.getValues();
       const id = candidateId ?? current.selectedCandidateId;
@@ -562,7 +570,17 @@ export function useStarWorkspace(
     try {
       const value = await getDrafts(contextId);
       assertActive();
-      setSavedPreview(value.answerDraft?.answer ?? "（有効な通常下書きなし）");
+      setSavedPreview([
+        "正式回答の下書き：",
+        value.answerDraft?.answer ?? "（なし）",
+        "回答アシストの旧下書き：",
+        value.starDraft
+          ? `モード：${value.starDraft.assistType ?? "star"}\n${Object.entries(value.starDraft.notes)
+              .filter(([, text]) => text.trim())
+              .map(([key, text]) => `${key}: ${text}`)
+              .join("\n") || "（メモなし）"}`
+          : "（なし）",
+      ].join("\n"));
     } catch (cause) {
       setError(
         cause instanceof Error ? cause.message : "保存版を取得できません。",
@@ -570,7 +588,7 @@ export function useStarWorkspace(
     }
   };
   const saveMine = async () => {
-    if (!contextId) return;
+    if (!contextId || (latest.current.input.assistType ?? "star") !== mode) return;
     try {
       const value = await getDrafts(contextId);
       assertActive();

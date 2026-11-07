@@ -137,7 +137,7 @@ export function HistoryDialog({ open, onClose, owner, initialTab = 0 }: {
                     <MenuItem value="coaching">Coaching V2</MenuItem>
                     <MenuItem value="assist">回答アシスト</MenuItem>
                     {Object.entries(assistLabels).map(([value, label]) =>
-                      <MenuItem value={value} key={value}>{value === "follow_up" ? label + "アシスト" : label + "アシスト"}</MenuItem>)}
+                      <MenuItem value={value} key={value}>{label}アシスト</MenuItem>)}
                   </Select>
                 </FormControl>
                 <FormControl size="small" fullWidth>
