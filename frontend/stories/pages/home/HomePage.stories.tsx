@@ -27,7 +27,7 @@ const assertHomeContent = async (canvasElement: HTMLElement) => {
   ).toHaveAttribute("href", "/practice/");
   await expect(
     canvas.getByRole("link", { name: /まずは使い方ガイド/ }),
-  ).toHaveAttribute("href", "#home-how-it-works");
+  ).toHaveAttribute("href", "/guide/");
 
   for (const [title, target] of [
     ["カテゴリから選ぶ", "/practice/category/"],
