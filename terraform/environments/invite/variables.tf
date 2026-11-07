@@ -43,6 +43,18 @@ variable "api_enabled" {
   type    = bool
   default = false
 }
+variable "coaching_followup_review_enabled" {
+  description = "Enable follow-up scoring only after the compatible Worker has been deployed and verified."
+  type        = bool
+  default     = false
+  nullable    = false
+}
+variable "coaching_overall_rubric_v2_enabled" {
+  description = "Enable the new overall rubric for new Attempts only after verifying the compatible Worker."
+  type        = bool
+  default     = false
+  nullable    = false
+}
 variable "worker_enabled" {
   type    = bool
   default = false
