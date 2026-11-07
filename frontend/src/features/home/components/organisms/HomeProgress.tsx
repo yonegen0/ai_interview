@@ -82,7 +82,7 @@ export function HomeProgress() {
           <TrackChangesRoundedIcon aria-hidden="true" fontSize="large" />
         </Box>
         <Box sx={{ minWidth: 0 }}>
-          <Typography id="home-progress-title" variant="h6"
+          <Typography id="home-progress-title" component="h2" variant="h6"
             sx={{ color: "primary.dark", fontWeight: 800, lineHeight: 1.3 }}>
             面接練習の進捗
           </Typography>
