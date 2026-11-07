@@ -124,7 +124,7 @@ function StepIllustration({ step }: { step: number }) {
             <SampleText>あと12問</SampleText>
             <LinearProgress variant="determinate" value={20} aria-label="進捗の表示例" />
             <SampleText>いいスタートです。その調子！</SampleText>
-            <SampleButton>残りの質問にチャレンジ</SampleButton>
+            <SampleButton>練習を続ける</SampleButton>
           </SampleCard>
         )}
       </Sample>
