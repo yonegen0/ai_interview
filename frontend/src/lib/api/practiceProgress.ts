@@ -31,8 +31,11 @@ export const practiceResumeSchema = z.discriminatedUnion("status", [
 
 export type PracticeResume = z.infer<typeof practiceResumeSchema>;
 
-export const getPracticeResume = (questionId: string, localSessionId?: string) => {
+export const getPracticeResume = (
+  questionId: string, localSessionId?: string, localPending = false
+) => {
   const query = new URLSearchParams({ questionId });
   if (localSessionId) query.set("localSessionId", localSessionId);
+  if (localPending) query.set("localPending", "1");
   return request(`/me/practice-resume?${query.toString()}`, practiceResumeSchema);
 };

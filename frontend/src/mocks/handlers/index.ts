@@ -327,6 +327,7 @@ export function createHandlers(
       const { searchParams } = new URL(request.url);
       const questionId = searchParams.get("questionId");
       const localSessionId = searchParams.get("localSessionId");
+      const localPending = searchParams.get("localPending") === "1";
       if (!idSchema.safeParse(questionId).success ||
           (localSessionId !== null && !idSchema.safeParse(localSessionId).success))
         return error("VALIDATION_ERROR", 400);
@@ -342,6 +343,13 @@ export function createHandlers(
       if (processing)
         return HttpResponse.json({ status: "resume", reason: "processing", sessionId: processing.sessionId });
       let changed = sessions.some(s => !matches(s));
+      const local = sessions.find(s => s.sessionId === localSessionId);
+      if (localPending && local && matches(local) &&
+          local.activeAttempt?.status !== "completed")
+        return HttpResponse.json({
+          status: "resume", reason: "local",
+          sessionId: local.sessionId, questionNumber: local.questionNumber,
+        });
       const drafts = Object.values(state.star.contexts)
         .filter(c => c.owner === identity.sub && c.questionId === questionId &&
           c.status === "ACTIVE" && c.operationKind === "initial_answer")
@@ -363,7 +371,6 @@ export function createHandlers(
         .sort((a, b) => b.updatedAt - a.updatedAt);
       if (drafts.length)
         return HttpResponse.json({ status: "resume", reason: "draft", sessionId: drafts[0].sessionId });
-      const local = sessions.find(s => s.sessionId === localSessionId);
       if (local) {
         if (matches(local) && local.activeAttempt?.status !== "completed")
           return HttpResponse.json({

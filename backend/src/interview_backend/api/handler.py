@@ -159,7 +159,7 @@ class Handler:
                     query = event.get("queryStringParameters") or {}
                     if (
                         not isinstance(query, dict)
-                        or set(query) - {"questionId", "localSessionId"}
+                        or set(query) - {"questionId", "localSessionId", "localPending"}
                         or not isinstance(query.get("questionId"), str)
                         or (
                             "localSessionId" in query
@@ -167,7 +167,14 @@ class Handler:
                         )
                     ):
                         raise BusinessError(400, "VALIDATION_ERROR")
-                    args.extend((query["questionId"], query.get("localSessionId")))
+                    if query.get("localPending") not in {None, "1"} or (
+                        query.get("localPending") == "1" and not query.get("localSessionId")
+                    ):
+                        raise BusinessError(400, "VALIDATION_ERROR")
+                    args.extend((
+                        query["questionId"], query.get("localSessionId"),
+                        query.get("localPending") == "1",
+                    ))
                 if action == "history":
                     query = event.get("queryStringParameters") or {}
                     if not isinstance(query, dict):

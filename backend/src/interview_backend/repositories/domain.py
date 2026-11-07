@@ -197,10 +197,12 @@ class DomainRepository(StarRepositoryMixin, CoachingRepositoryMixin):
 
         return self._post(owner, key, fingerprint, run)
 
-    def practice_resume(self, owner, question_id, defaults, local_session_id=None):
+    def practice_resume(
+        self, owner, question_id, defaults, local_session_id=None, local_pending=False
+    ):
         from interview_backend.repositories.practice_resume import practice_resume
 
-        return practice_resume(self, owner, question_id, defaults, local_session_id)
+        return practice_resume(self, owner, question_id, defaults, local_session_id, local_pending)
 
     def get_question_bank(self, defaults):
         bank = self._read(ref("QuestionBank", "", "CURRENT"))

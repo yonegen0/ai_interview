@@ -7,7 +7,7 @@ RESUME_MAX_RECORDS = 2000
 RESUME_PAGE_SIZE = 100
 
 
-def practice_resume(repo, owner, question_id, defaults, local_session_id=None):
+def practice_resume(repo, owner, question_id, defaults, local_session_id=None, local_pending=False):
     bank = repo.get_question_bank(defaults)
     question = next((q for q in bank["questions"] if q["id"] == question_id), None)
     if question is None:
@@ -39,6 +39,22 @@ def practice_resume(repo, owner, question_id, defaults, local_session_id=None):
         session = max(pending, key=lambda row: (row.updated_at, row.id))
         return Reply(200, {"status": "resume", "reason": "processing", "sessionId": session.id})
 
+    local = by_id.get(local_session_id) if local_session_id else None
+    if local_pending and local is not None and local.question.id == question_id:
+        if compatible(local) and (
+            local.active is None or local.active.status != "completed"
+        ):
+            return Reply(
+                200,
+                {
+                    "status": "resume",
+                    "reason": "local",
+                    "sessionId": local.id,
+                    "questionNumber": local.number,
+                },
+            )
+        changed = True
+
     contexts = repo._owner_records("AnswerContext", owner, RESUME_MAX_RECORDS)
     for context in contexts:
         if context.owner != owner:
@@ -65,8 +81,10 @@ def practice_resume(repo, owner, question_id, defaults, local_session_id=None):
             # V2 retry-attempt is a separate operation, not an initial-answer draft.
             continue
         recent = None
-        for kind, identifier in (("AnswerDraft", context.answer_draft_id),
-                                 ("StarDraft", context.star_draft_id)):
+        for kind, identifier in (
+            ("AnswerDraft", context.answer_draft_id),
+            ("StarDraft", context.star_draft_id),
+        ):
             if not identifier:
                 continue
             row = repo._read((kind, owner, identifier))
@@ -85,13 +103,16 @@ def practice_resume(repo, owner, question_id, defaults, local_session_id=None):
     if draft_candidates:
         _, _, session_id = max(draft_candidates)
         return Reply(200, {"status": "resume", "reason": "draft", "sessionId": session_id})
-    if local_session_id is not None:
-        session = by_id.get(local_session_id)
-        if session and session.question.id == question_id:
-            if compatible(session):
-                return Reply(200, {
-                    "status": "resume", "reason": "local", "sessionId": session.id,
-                    "questionNumber": session.number,
-                })
-            changed = True
+    if local is not None and local.question.id == question_id:
+        if compatible(local) and (local.active is None or local.active.status != "completed"):
+            return Reply(
+                200,
+                {
+                    "status": "resume",
+                    "reason": "local",
+                    "sessionId": local.id,
+                    "questionNumber": local.number,
+                },
+            )
+        changed = True
     return Reply(200, {"status": "changed" if changed else "none"})

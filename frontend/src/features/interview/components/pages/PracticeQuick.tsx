@@ -102,7 +102,7 @@ export function PracticeQuick() {
       }
       const questionId = progress.nextIncompleteQuestionId;
       const local = localResumeCandidate(scope, questionId);
-      const candidate = await getPracticeResume(questionId, local?.id);
+      const candidate = await getPracticeResume(questionId, local?.id, local?.pending);
       if (!isActive()) return;
       if (candidate.status === "changed") {
         setView({ status: "changed" });

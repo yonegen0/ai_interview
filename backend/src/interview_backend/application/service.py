@@ -119,12 +119,16 @@ class Application:
         self._owner(owner)
         return self.repository.practice_progress(owner, self.questions)
 
-    def practice_resume(self, owner: str, question_id: str, local_session_id=None) -> Reply:
+    def practice_resume(
+        self, owner: str, question_id: str, local_session_id=None, local_pending=False
+    ) -> Reply:
         self._owner(owner)
         validate_id(question_id)
         if local_session_id is not None:
             validate_id(local_session_id)
-        return self.repository.practice_resume(owner, question_id, self.questions, local_session_id)
+        return self.repository.practice_resume(
+            owner, question_id, self.questions, local_session_id, local_pending
+        )
 
     def history(self, owner: str, params: dict) -> Reply:
         self._owner(owner)

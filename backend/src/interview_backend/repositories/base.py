@@ -62,6 +62,7 @@ class Repository(Protocol):
         question_id: str,
         defaults: tuple[Question, ...],
         local_session_id: str | None = None,
+        local_pending: bool = False,
     ) -> Reply: ...
     def get_evaluation(self, owner: str, resource_id: str) -> Reply: ...
     def get_feedback(
