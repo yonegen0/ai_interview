@@ -65,6 +65,8 @@ class Application:
             self._new_id,
             mode=request.mode or "category",
             category=request.category,
+            question_id=request.questionId,
+            bank_version=request.bankVersion,
         )
 
     def practice_options(self, owner: str) -> Reply:

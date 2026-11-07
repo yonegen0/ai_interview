@@ -363,7 +363,7 @@ class DynamoDBRepository(DomainRepository):
         from interview_backend.repositories.practice_progress import (
             PROGRESS_MAX_RECORDS,
             PROGRESS_PAGE_SIZE,
-            count_completed_questions,
+            completed_question_ids,
         )
 
         bank = self.get_question_bank(defaults)
@@ -375,6 +375,7 @@ class DynamoDBRepository(DomainRepository):
                     "bankVersion": bank["version"],
                     "totalQuestions": 0,
                     "completedQuestions": 0,
+                    "nextIncompleteQuestionId": None,
                 },
             )
 
@@ -427,13 +428,16 @@ class DynamoDBRepository(DomainRepository):
 
         attempts = load("ATTEMPT#", "Attempt")
         evaluations = load("EVALUATION#", "Evaluation")
-        completed = count_completed_questions(owner, active_ids, attempts, evaluations)
+        completed = completed_question_ids(owner, active_ids, attempts, evaluations)
         return Reply(
             200,
             {
                 "bankVersion": bank["version"],
                 "totalQuestions": len(active_ids),
-                "completedQuestions": completed,
+                "completedQuestions": len(completed),
+                "nextIncompleteQuestionId": next(
+                    (q["id"] for q in bank["questions"] if q["id"] not in completed), None
+                ),
             },
         )
 

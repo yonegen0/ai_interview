@@ -132,26 +132,29 @@ class MemoryRepository(DomainRepository):
     def practice_progress(self, owner: str, defaults) -> Reply:
         from interview_backend.repositories.practice_progress import (
             PROGRESS_MAX_RECORDS,
-            count_completed_questions,
+            completed_question_ids,
         )
 
         with self._lock:
             bank = self.get_question_bank(defaults)
             active_ids = {q["id"] for q in bank["questions"]}
             if not active_ids:
-                completed = 0
+                completed = set()
             else:
                 attempts = [v for v in self._state.attempts.values() if v.owner == owner]
                 evaluations = [v for v in self._state.evaluations.values() if v.owner == owner]
                 if len(attempts) > PROGRESS_MAX_RECORDS or len(evaluations) > PROGRESS_MAX_RECORDS:
                     raise BusinessError(503, "PRACTICE_PROGRESS_UNAVAILABLE")
-                completed = count_completed_questions(owner, active_ids, attempts, evaluations)
+                completed = completed_question_ids(owner, active_ids, attempts, evaluations)
             return Reply(
                 200,
                 {
                     "bankVersion": bank["version"],
                     "totalQuestions": len(active_ids),
-                    "completedQuestions": completed,
+                    "completedQuestions": len(completed),
+                    "nextIncompleteQuestionId": next(
+                        (q["id"] for q in bank["questions"] if q["id"] not in completed), None
+                    ),
                 },
             )
 

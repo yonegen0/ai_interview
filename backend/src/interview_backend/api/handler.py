@@ -37,6 +37,7 @@ MESSAGES = {
     "QUESTION_BANK_CONFLICT": "Question bank changed.",
     "QUESTION_BANK_TOO_LARGE": "Question bank too large.",
     "CATEGORY_UNAVAILABLE": "Category unavailable.",
+    "QUESTION_UNAVAILABLE": "Question unavailable.",
     "SESSION_COMPLETED": "Practice completed.",
     "SESSION_CREATION_LIMIT": "Monthly session creation limit reached.",
     "REQUEST_TOO_LARGE": "Request too large.",

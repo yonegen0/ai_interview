@@ -236,6 +236,8 @@ def validate(record):
             raise IntegrityError("session_position")
         if record.practice_mode == "category" and len({q.category for q in record.questions}) != 1:
             raise IntegrityError("session_category")
+        if record.practice_mode == "quick" and (len(record.questions) != 1 or record.number != 1):
+            raise IntegrityError("session_quick")
     if isinstance(record, QuestionBank):
         try:
             BankSaveRequest(

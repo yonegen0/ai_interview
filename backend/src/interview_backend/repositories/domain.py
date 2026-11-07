@@ -129,18 +129,28 @@ class DomainRepository(StarRepositoryMixin, CoachingRepositoryMixin):
 
         return self._atomic(run)
 
-    def create_once(self, owner, key, fingerprint, questions, new_id, *, mode=None, category=None):
+    def create_once(
+        self, owner, key, fingerprint, questions, new_id, *,
+        mode=None, category=None, question_id=None, bank_version=None
+    ):
         generated = []
 
         def run(tx, now):
-            selected, bank_version = questions, None
+            selected, current_bank_version = questions, None
             if mode:
                 bank = tx.get(ref("QuestionBank", "", "CURRENT"))
-                selected, bank_version = (bank.questions, bank.version) if bank else (questions, 0)
-                if mode == "category":
-                    selected = tuple(q for q in selected if q.category == category)
-                if not selected:
-                    raise BusinessError(409, "CATEGORY_UNAVAILABLE")
+                selected, current_bank_version = (bank.questions, bank.version) if bank else (questions, 0)
+                if mode == "quick":
+                    if bank_version != current_bank_version:
+                        raise BusinessError(409, "QUESTION_BANK_CONFLICT")
+                    selected = tuple(q for q in selected if q.id == question_id)
+                    if len(selected) != 1:
+                        raise BusinessError(409, "QUESTION_UNAVAILABLE")
+                else:
+                    if mode == "category":
+                        selected = tuple(q for q in selected if q.category == category)
+                    if not selected:
+                        raise BusinessError(409, "CATEGORY_UNAVAILABLE")
             if not generated:
                 generated.append(new_id())
             session = Session(
@@ -150,7 +160,7 @@ class DomainRepository(StarRepositoryMixin, CoachingRepositoryMixin):
                 created_at=now,
                 updated_at=now,
                 practice_mode=mode,
-                question_bank_version=bank_version,
+                question_bank_version=current_bank_version,
             )
             if mode:
                 try:

@@ -9,8 +9,8 @@ PROGRESS_MAX_RECORDS = 2000
 PROGRESS_PAGE_SIZE = 100
 
 
-def count_completed_questions(owner, active_ids, attempts, evaluations):
-    """Return the count of completed active question IDs, never a partial count."""
+def completed_question_ids(owner, active_ids, attempts, evaluations):
+    """Return distinct completed active question IDs; never a partial result."""
     by_attempt = {}
     for attempt in attempts:
         if attempt.owner != owner or attempt.id in by_attempt:
@@ -64,4 +64,9 @@ def count_completed_questions(owner, active_ids, attempts, evaluations):
 
         if attempt.question.id in active_ids:
             completed.add(attempt.question.id)
-    return len(completed)
+    return completed
+
+
+def count_completed_questions(owner, active_ids, attempts, evaluations):
+    """Backward-compatible count of successful initial evaluations."""
+    return len(completed_question_ids(owner, active_ids, attempts, evaluations))

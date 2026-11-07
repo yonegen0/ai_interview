@@ -38,7 +38,7 @@ class Session:
     version: int = 0
     created_at: int = 0
     updated_at: int = 0
-    practice_mode: Literal["full", "category"] | None = None
+    practice_mode: Literal["full", "category", "quick"] | None = None
     question_bank_version: int | None = None
 
     @property
