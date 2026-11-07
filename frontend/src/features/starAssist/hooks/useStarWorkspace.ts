@@ -398,7 +398,6 @@ export function useStarWorkspace(
       !enabled ||
       !contextId ||
       !initialized.current ||
-      (input.assistType ?? "star") !== mode ||
       pending ||
       status === "競合" ||
       status === "保存失敗"
@@ -407,7 +406,10 @@ export function useStarWorkspace(
     const answerChanged = dirty && answer !== answerBaseline.current;
     const starChanged =
       form.formState.isDirty && inputJson !== starBaseline.current;
-    if (!answerChanged && !starChanged) return;
+    // A legacy assist draft must not block saving the independent answer draft.
+    // Keep the existing mode guard inside saveStar for assist-only writes.
+    const canSaveStar = (input.assistType ?? "star") === mode;
+    if (!answerChanged && !(starChanged && canSaveStar)) return;
     setStatus("未保存");
     const timer = setTimeout(() => {
       if (locked.current || !isActive() || !active.current) return;
