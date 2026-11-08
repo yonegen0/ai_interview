@@ -16,7 +16,7 @@
 `NEXT_PUBLIC_MSW_ENABLED=false`とします。公開識別子だけを設定し、AWS credentialは渡しません。
 設定不足時にMockへ自動切替しません。
 実AI評価と実OTP完了の証明は含めません。
-[実装・検証記録](../docs/QUESTION_MANAGEMENT_VERIFICATION_20261006.md)を参照してください。
+実装・検証記録を参照してください。
 
 ## 起動
 
@@ -83,10 +83,10 @@ Storybookの `Components/Atoms/MascotCharacter` で表情・サイズ・取得�
 ## 資料
 
 - [設計書一覧](../設計書一覧/00_管理/00_設計書一覧.md)
-- [現Frontend契約の採用ADR](../docs/ADR-002-frontend-contract-alignment.md)
+- 現Frontend契約の採用ADR
 - [API契約](../docs/FRONTEND_API_CONTRACT.md)
-- [設計差分ADR](../docs/ADR-001-frontend-standalone-v2.md)
-- [リポジトリ案内](../REPOSITORY_GUIDE.md)
+- 設計差分ADR
+- リポジトリ案内
 
 Mockのシナリオ切替・実Backendに必要な実装はAPI契約を参照してください。
 
@@ -96,7 +96,7 @@ Mockのシナリオ切替・実Backendに必要な実装はAPI契約を参照し
 
 ## 実API接続準備（設計書v2.1）
 
-今回の実行結果と既知失敗は[検証記録](../docs/FRONTEND_ALIGNMENT_VERIFICATION.md)を参照してください。
+今回の実行結果と既知失敗は検証記録を参照してください。
 
 現API・復旧・画面を維持し、FORBIDDEN／RATE_LIMITED／AI_TIMEOUT／AI_UPSTREAM_ERRORの日本語表示を追加します。
 型・制約はsrc/lib/api/schemas、HTTP・冪等性・復旧はdocs/FRONTEND_API_CONTRACT.mdを正本とします。
@@ -128,7 +128,7 @@ npx vitest run --project storybook
 npm run build-storybook
 ```
 
-2026-10-07の最終検証結果・Story移行対応は[リファクタリング検証記録](../docs/FRONTEND_REFACTOR_VERIFICATION_20261007.md)を参照してください。AWS接続・配備・再有効化は実施しません。
+2026-10-07の最終検証結果・Story移行対応はリファクタリング検証記録を参照してください。AWS接続・配備・再有効化は実施しません。
 
 ## 2026-10-07 デザイン・Storybookパスの統一
 
@@ -138,4 +138,4 @@ npm run build-storybook
 
 Buttonは主要操作にcontained、補助操作にoutlined、削除にoutlined/error、終了の確定にcontained/errorを使用します。入力エラーはフォーカス中も赤を維持し、disabledを優先します。画面幅の切替はthemeのmd（900px）です。
 
-[今回の実装・検証記録](../docs/FRONTEND_DESIGN_FIX_VERIFICATION_20261007.md)を参照してください。
+今回の実装・検証記録を参照してください。

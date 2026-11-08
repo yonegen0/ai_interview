@@ -1,6 +1,6 @@
 # AI面接練習Webアプリ MVP
 
-> **2026-10-29 補足:** 以下の「現在の実装状況（2026-10-06）」以降は当時のスナップショットです。最新の公開受入項目は [MVP公開受入マトリクス](docs/MVP_LIVE_ACCEPTANCE_MATRIX_20261029.md)、実AWS Stage復旧状況は [Apply010診断](docs/P4_APPLY010_FAILURE_ANALYSIS_20261029.md) と [State15復旧ソース](docs/P4_APPLY010_STATE15_SOURCE_RECOVERY.md) を参照してください。Frontend用の非公開S3＋CloudFrontは [web Terraform root](terraform/environments/web/README.md) としてコードが存在しますが、コードの存在は実AWS配備や公開成功を証明しません。実環境の成否は最新の証拠で確認します。
+> **文書整理（2026-11-08）:** 過去の計画・調査・検証記録はmainから整理し、必要に応じてGit履歴から確認します。現在の仕様・配備状況は実装、現行運用手順、最新のCI・実環境確認結果を優先します。
 
 ## 現在の実装状況（2026-10-06）
 
@@ -13,7 +13,7 @@ EMAIL_OTPログイン、タブ内の認証維持、JWT付与・更新、管理�
 今回の機能はローカル／AWS非接続で検証しています。AWSへ配備した機能ではありません。
 既存devは保存済み証跡でclosed、`P4_DEV_CLOSED_PERFORMANCE_REVIEW_REQUIRED`を維持します。
 実AIはFakeProviderのままです。実CognitoのOTP完了・新APIの実機動作・新構成のIAM実効権限は後続検証です。
-[質問管理の実装・検証記録](docs/QUESTION_MANAGEMENT_VERIFICATION_20261006.md)を参照してください。
+質問管理の実装・検証記録を参照してください。
 
 Mock起動は `cd frontend` → `npm run dev:mock`。
 体験版はUSERとして開始し、管理画面の確認には `/login/` で `admin@example.invalid` と
@@ -31,18 +31,18 @@ Mock起動は `cd frontend` → `npm run dev:mock`。
 
 - [インフラ構成概要・構成図](docs/INFRASTRUCTURE_OVERVIEW.md)：Terraformの現行定義に基づく構成、非同期処理、Bootstrap、dev閉鎖運用。
 - [設計書一覧](設計書一覧/00_管理/00_設計書一覧.md)：現行の計画・基本・詳細・横断・テスト設計。
-- [リポジトリ案内](REPOSITORY_GUIDE.md)：構成と実装への入口。
-- [ADR-002](docs/ADR-002-frontend-contract-alignment.md)：現Frontend契約を採用する判断。
-- [実装計画](AI面接練習Webアプリ｜実装計画.md)：P0・P1の仕様とP2〜P7の着手条件。
-- [ADR-003](docs/ADR-003-local-backend-foundation.md)：メモリ＋FakeのローカルBackendを先行する判断。
-- [P3実装・検証記録](docs/P3_VERIFICATION.md)：DynamoDB・処理権・配送回復の実装、Python試験、P4実DB検証手順。
+- リポジトリ案内：構成と実装への入口。
+- ADR-002：現Frontend契約を採用する判断。
+- 実装計画：P0・P1の仕様とP2〜P7の着手条件。
+- ADR-003：メモリ＋FakeのローカルBackendを先行する判断。
+- P3実装・検証記録：DynamoDB・処理権・配送回復の実装、Python試験、P4実DB検証手順。
 - [Backend README](backend/README.md)：セットアップ、6 API、明示Worker、保証範囲。
 - [API契約](docs/FRONTEND_API_CONTRACT.md)：HTTP・冪等性・復旧の正本。
 - [Zod Schema](frontend/src/lib/api/schemas/index.ts)：Request／Responseの型・制約の正本。
 - [次工程の必須事項](設計書一覧/04_横断仕様/06_決定事項_未確定事項.md)：未確定事項と完了条件。
 
 最新の承認済みADRを判断の根拠とし、契約・Schema・設計書を連動して更新します。
-旧同期API等の履歴は[ADR-001](docs/ADR-001-frontend-standalone-v2.md)に残しています。
+旧同期API等の履歴はADR-001に残しています。
 外部サービスの仕様は実装時に最新の公式ドキュメントで確認します。
 
 ## 現在の実装と将来構成
@@ -52,7 +52,7 @@ Mock起動は `cd frontend` → `npm run dev:mock`。
 Storybook・Vitest・Playwright・Frontend GitHub Actionsです。
 P1としてPythonの6 API・メモリRepository・Fake Provider・明示Worker・Backend CIを追加しています。
 P3のDynamoDB Repository、Dispatch outbox、処理権・開始記録、配送回復、内部入力adapterを実装しました。
-現在は「P3実装完了・Python検証完了・実DB検証待ち」。2026-09-13のレビュー修正・番号別証拠は[検証記録](docs/P3_VERIFICATION.md)を参照。実AWS試験はP4へ引き継ぎます。
+現在は「P3実装完了・Python検証完了・実DB検証待ち」。2026-09-13のレビュー修正・番号別証拠は検証記録を参照。実AWS試験はP4へ引き継ぎます。
 Frontendは引き続きMSWで動作し、このローカルBackendとは未接続です。
 
 将来構成はCognito Email OTP（管理者登録、USER／ADMIN）、
@@ -68,12 +68,12 @@ Terraform、Private S3＋CloudFront OACです。
 
 ## 起動・検証
 
-[Backend P1検証記録](docs/BACKEND_P1_VERIFICATION.md)と[Backend手順](backend/README.md)を参照してください。
+Backend P1検証記録と[Backend手順](backend/README.md)を参照してください。
 BackendはPython 3.13・uvで `uv sync --locked`、`uv run --locked pytest -q`、
 `uv run --locked interview-demo` をbackend/から実行します。HTTPサーバー・公開用Lambdaではありません。
 
-[v2.1検証記録](docs/FRONTEND_ALIGNMENT_VERIFICATION.md)に今回のテスト・ビルド結果と既知失敗を記載しています。
-[P1検証記録](docs/BACKEND_P1_VERIFICATION.md)に回答上限500文字、score、405と最新の全体検証結果を記載しています。
+v2.1検証記録に今回のテスト・ビルド結果と既知失敗を記載しています。
+P1検証記録に回答上限500文字、score、405と最新の全体検証結果を記載しています。
 
 Node.js 22以上。CIも22を使用します。
 

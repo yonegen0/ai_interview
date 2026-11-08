@@ -9,16 +9,16 @@ STARの既存JST月カウンタと公開quota応答は互換性のため保持�
 0件を証明できない場合は、別承認の履歴照合・補正、または旧Workerを停止したまま次のUTC月へ移るまで有効化をHOLDする。
 既存カウンタの削除・リセットや旧版との混在運転でこの条件を回避しない。実環境の照合・補正はオフライン検証とは別の承認対象。
 
-Terraform更新のAWS非接続準備は[Issue #39 qualification手順](P4_TOOLCHAIN_QUALIFICATION_20261025.md)を参照。
+Terraform更新のAWS非接続準備はIssue #39 qualification手順を参照。
 候補CLIの隔離検証は正式Plan/Applyの版変更・旧Saved Plan再利用・過去承認移行を許可しない。
 現行の正式実行と既存の復旧証跡は引き続き1.14.9の契約を保持する。
 
-> 2026-10-09総合修正で更新済み。現在の安全条件・費用・手順は[総合修正レポート](P4_TOTAL_FIX_REPORT_20261009.md)、[Windows修正引継ぎ](P4_FIX_WINDOWS_HANDOFF_20261009.md)、[AWS受入チェックリスト](P4_FIX_AWS_ACCEPTANCE_20261009.md)を優先する。旧61固定、boolだけのtest閉鎖、FILL/1期間、17/22/42参照・旧費用は過去の計画/実装記録であり、新planへ流用しない。今回の開発工数に制約はなく、AWS受入未完了・cold FAIL・実AI30人未検証は継続。
+> 2026-11-08: 旧P4調査・検証レポートはGit履歴へ整理しました。本書の操作条件と最新の実環境State・承認資料を照合し、過去の固定値・旧承認をそのまま再利用しないでください。
 
 
 対象はbootstrap → S3 State移行 → CI保存plan → 閉鎖状態のdev apply。
 AWS操作・GitHub設定変更・commit/pushは、この文書の存在だけでは承認されない。
-最新の実装・検証状態は [P4_VERIFICATION.md](P4_VERIFICATION.md) を先に確認する。
+最新の実装・検証状態は P4_VERIFICATION.md を先に確認する。
 Linux ZIP importとAWS上のIAM許可・拒否、通知到達、OTPはローカル成功から推定しない。
 
 ## 0. 実行前提
@@ -138,7 +138,7 @@ FakeProvider、Worker MaximumConcurrency2、runtime/memory/timeout/throttle、IA
 
 性能値はLambda/API Gateway/SQS/DynamoDBの標準metricsと既存Logsから取得する。
 route-level detailed metrics、metric filter、dashboard、新しいEMF dimensionを追加しない。
-ただし、[既存の有効dev安全条件](P4_SERVERLESS_OPTIMIZATION.md#構成と監視)では、
+ただし、既存の有効dev安全条件では、
 処理開始前に14 alarm（Errors/Throttles6、DLQ2、IntegrityError3、OutcomeUnknown1、
 RecoveryHeartbeat1、RecoverySweepLag1）が必要。標準Lambda Errorsだけでは捕捉しない
 業務上の不整合・結果不明や復旧停止も検知するため、この依存条件を維持する。
@@ -248,7 +248,7 @@ runtime source、依存定義/lock、Lambda package builderの変更時だけ実
 infra/tools/tests/docsだけの変更ではpackageをskipし、build成功とは数えない。
 fixtureのpackage安全性単体テストはBackend offline CIで継続する。
 今回の正式saved planはローカルCLI経路で固定S3 versionを使い、build/upload付き配備jobを起動しない。
-監視と終了手順は [サーバレス最適化](P4_SERVERLESS_OPTIMIZATION.md)を参照。
+監視と終了手順は サーバレス最適化を参照。
 
 明示承認後、RepositoryのEnvironment `dev`をmain限定で作成・確認する。
 required reviewerは設定しない。workflowコードの変更権限を持つ人が配備Roleを利用できる境界である。
@@ -423,7 +423,7 @@ rollbackはFの停止・保全方針を維持し、remote削除・state push・�
 初回は準備・read-only照合だけで停止し、移行用Stateコピー、backend宣言追加、
 `init -migrate-state`/`init -reconfigure`、applyは行っていない。
 チェック欄は**実行直前の再検査用**であり、現時点で一括して完了にしない。
-観測証拠は[P4_VERIFICATION.mdの最新節](P4_VERIFICATION.md)とそのprivate参照先を使用する。
+観測証拠はP4_VERIFICATION.mdの最新節とそのprivate参照先を使用する。
 
 #### A. 移行元・移行先の固定
 
@@ -707,7 +707,7 @@ private成果物を保持し、実行ゲートを無効へ戻す。破壊的clea
 
 ## P4 2026-10-09 コスト・ログ変更の配備前確認
 
-現在の実装はmanifest **schema4**（2/3の旧証跡もそのまま読める）。上のschema2／旧Alarm数は当時の記録で、新planの期待値ではない。実装とWindows手順は[引き継ぎ](P4_COST_LOG_WINDOWS_HANDOFF_20261009.md)を参照。
+現在の実装はmanifest **schema4**（2/3の旧証跡もそのまま読める）。上のschema2／旧Alarm数は当時の記録で、新planの期待値ではない。実装とWindows手順は引き継ぎを参照。
 
 - 新dev入力は`log_usage`必須。開発専用`developer`=3日、実利用者利用`customer`=14日を明示する。module省略時はcustomer14日、test root省略時はdeveloper3日。将来prodはcustomerを指定する（prod rootは未作成）。Terraformは実際の利用者を自動識別できないため、公開前に承認入力と用途を照合する。
 - API/Admin/Worker/Dispatcher/HTTPアクセスの5group名/addressを維持。正式terraform_dev runnerはState用途・plan・apply直前を照合し、14→3その他短縮をP4_LOG_RETENTION_APPROVAL_PATH/SHA256のprivate承認とincidents/support/audit保全資料で検証する。資料やrunner配置がない場合は短縮拒否。replace/destroy/rename/address変更禁止。

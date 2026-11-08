@@ -9,7 +9,7 @@
 
 1. [設計書一覧](00_管理/00_設計書一覧.md)
 2. [CHANGELOG](00_管理/01_CHANGELOG.md)
-3. [ADR-002](../docs/ADR-002-frontend-contract-alignment.md)と[API契約](../docs/FRONTEND_API_CONTRACT.md)
+3. ADR-002と[API契約](../docs/FRONTEND_API_CONTRACT.md)
 4. [全体基本設計](02_基本設計/01_全体基本設計書.md)
 5. [Backend基本設計](02_基本設計/03_Backend基本設計書.md)と[Infrastructure基本設計](02_基本設計/04_Infrastructure基本設計書.md)
 6. [Backend着手前の必須事項](04_横断仕様/06_決定事項_未確定事項.md)
