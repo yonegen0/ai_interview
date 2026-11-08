@@ -7,6 +7,7 @@ import { Alert, CircularProgress, Typography } from "@mui/material";
 import { alpha, styled } from "@mui/material/styles";
 import { Button } from "@/components/atoms/Button";
 import type { HistoryItem } from "@/lib/api/schemas/history";
+import { assistModes } from "@/features/starAssist/model/steps";
 import { ApiError } from "@/lib/api/client";
 
 const List = styled("ul")(({ theme }) => ({
@@ -44,9 +45,9 @@ const Score = styled("span")(({ theme }) => ({
   fontSize: theme.typography.caption.fontSize,
 }));
 export const assistLabels = {
-  star: "エピソード作成アシスト", prep: "簡潔回答アシスト",
-  motivation: "志望動機アシスト", career_change: "転職理由アシスト",
-  career_plan: "キャリアプランアシスト", follow_up: "深掘り回答アシスト",
+  star: assistModes.star.label, prep: assistModes.prep.label,
+  motivation: assistModes.motivation.label, career_change: assistModes.career_change.label,
+  career_plan: assistModes.career_plan.label, follow_up: assistModes.follow_up.label,
 } as const;
 export const formatHistoryDate = (ms: number) =>
   new Intl.DateTimeFormat("ja-JP", {

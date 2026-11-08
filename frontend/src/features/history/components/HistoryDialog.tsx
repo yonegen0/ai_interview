@@ -187,7 +187,7 @@ export function HistoryDialog({ open, onClose, owner, initialTab = 0 }: {
               この生成に評価点は付きません。
             </Alert> :
             selected.status !== "completed" ?
-              <Alert severity="info">評価は{historyStatus(selected)}のため、結果の全文を表示できません。</Alert> :
+              <Alert severity="info">評価の状態：{historyStatus(selected)}。結果の全文を表示できません。</Alert> :
               detail.isPending ? <CircularProgress aria-label="評価結果を取得中" /> :
               detail.error ? <Alert severity="error">評価結果を取得できませんでした。
                 <Button onClick={() => { void detail.refetch(); }}>再試行</Button>
