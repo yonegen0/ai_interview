@@ -57,3 +57,8 @@ output "closure_target" {
     alarms             = [for suffix in ["api-5xx", "worker-Errors", "CriticalFailure", "RecoveryHeartbeat", "dlq"] : "${local.prefix}-${suffix}"]
   }
 }
+
+# A narrow output avoids depending on manifest.configuration.boundary_arn.
+output "cognito_user_pool_arn" {
+  value = aws_cognito_user_pool.main.arn
+}

@@ -3,6 +3,9 @@ mock_provider "aws" {
   mock_resource "aws_secretsmanager_secret" {
     defaults = { arn = "arn:aws:secretsmanager:ap-northeast-1:123456789012:secret:ai-interview-invite-g1-claude-Abc123" }
   }
+  mock_resource "aws_cognito_user_pool" {
+    defaults = { id = "ap-northeast-1_InviteSynthetic", arn = "arn:aws:cognito-idp:ap-northeast-1:123456789012:userpool/ap-northeast-1_InviteSynthetic" }
+  }
   mock_resource "aws_iam_policy" {
     defaults = { arn = "arn:aws:iam::123456789012:policy/ai-interview-invite-g1-runtime-boundary" }
   }
@@ -44,7 +47,7 @@ run "closed_generation" {
   }
   assert {
     condition = alltrue([for s in jsondecode(aws_iam_policy.runtime_boundary.policy).Statement :
-      alltrue([for r in s.Resource : r == "*" || strcontains(r, "ai-interview-invite-g1")])
+      alltrue([for r in s.Resource : r == "*" || strcontains(r, "ai-interview-invite-g1") || r == module.service.cognito_user_pool_arn])
     ])
     error_message = "The new runtime boundary cannot authorize legacy data or AI providers."
   }
@@ -164,4 +167,20 @@ run "duplicate_legacy_qualifiers_rejected" {
     }
   }
   expect_failures = [var.legacy_async_targets]
+}
+
+run "admin_cognito_boundary_scope" {
+  command = plan
+  assert {
+    condition = length([for s in jsondecode(aws_iam_policy.runtime_boundary.policy).Statement : s
+      if try(
+        s.Effect == "Allow" &&
+        toset(s.Action) == toset(["cognito-idp:ListUsers", "cognito-idp:AdminUpdateUserAttributes"]) &&
+        s.Resource == [module.service.cognito_user_pool_arn] &&
+        s.Condition.ArnEquals["aws:PrincipalArn"] == "arn:aws:iam::123456789012:role/ai-interview-invite-g1-admin-runtime",
+        false
+      )
+    ]) == 1
+    error_message = "Only the ADMIN runtime and this existing pool may receive Cognito permissions."
+  }
 }
