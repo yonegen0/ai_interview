@@ -1,6 +1,7 @@
 /** @file session.ts @description タブ内認証、復元時の本人再確認、期限更新の単一実行。 */
 import type { AuthenticationResultType } from "@aws-sdk/client-cognito-identity-provider";
-import type { IdentityAdapter } from "./cognito";
+import type { IdentityAdapter, IdentityProfile } from "./cognito";
+import { normalizeNickname } from "./nickname";
 import { markStorageUnavailable } from "../storage/status";
 
 export type AuthPhase =
@@ -26,6 +27,7 @@ let state = serverState;
 let tokens: Tokens | null = null;
 let refreshTask: Promise<string> | null = null;
 let adapter: IdentityAdapter | null = null;
+const mockNicknames = new Map<string, string>();
 let initialized = false;
 let initializeTask: Promise<void> | null = null;
 let refreshTimer: ReturnType<typeof setTimeout> | undefined;
@@ -345,6 +347,32 @@ export const auth = {
     const result=await (await identity()).complete(email, session, code);
     if(epoch!==generation)throw new Error("ログイン状態が変わりました。");
     accept(result);
+  },
+  async profile(): Promise<IdentityProfile> {
+    const epoch = generation;
+    const token = await auth.access();
+    if (mockAuth()) return { nickname: mockNicknames.get(state.sub ?? "") ?? null, email: null };
+    const getter = (await identity()).getProfile;
+    if (!getter) throw new Error("プロフィール情報を取得できません。");
+    const result = await getter(token);
+    if (generation !== epoch) throw new AuthRequiredError();
+    return result;
+  },
+  async updateNickname(value: string): Promise<void> {
+    const nickname = normalizeNickname(value);
+    const epoch = generation;
+    const token = await auth.access();
+    if (mockAuth()) {
+      if (state.sub) {
+        if (nickname) mockNicknames.set(state.sub, nickname);
+        else mockNicknames.delete(state.sub);
+      }
+      return;
+    }
+    const save = (await identity()).updateNickname;
+    if (!save) throw new Error("ニックネームを保存できません。");
+    await save(token, nickname);
+    if (generation !== epoch) throw new AuthRequiredError();
   },
   async access(force = false): Promise<string> {
     if (mockAuth()) {
