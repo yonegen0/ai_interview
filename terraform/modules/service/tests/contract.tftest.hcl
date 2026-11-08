@@ -57,10 +57,10 @@ run "admin_question_management" {
   }
   assert {
     condition = local.admin_user_source_paths == {
-      "GET /admin/users"                                     = "GET/admin/users"
-      "GET /admin/users/{userId}/history"                    = "GET/admin/users/*/history"
+      "GET /admin/users"                                        = "GET/admin/users"
+      "GET /admin/users/{userId}/history"                       = "GET/admin/users/*/history"
       "GET /admin/users/{userId}/attempts/{attemptId}/feedback" = "GET/admin/users/*/attempts/*/feedback"
-      "PUT /admin/users/{userId}/nickname"                   = "PUT/admin/users/*/nickname"
+      "PUT /admin/users/{userId}/nickname"                      = "PUT/admin/users/*/nickname"
     }
     error_message = "ADMIN Lambda invocation paths must match METHOD/resource without an extra slash."
   }
