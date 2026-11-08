@@ -124,7 +124,7 @@ test("T15 application response cannot replace typing during apply", async ({
   await page.evaluate(() =>
     sessionStorage.setItem("pocket:scenario", "star_apply_delayed"),
   );
-  await page.getByRole("button", { name: /STARアシスト/ }).click();
+  await page.getByRole("button", { name: /エピソード作成アシスト/ }).click();
   await page.getByRole("button", { name: "生成した回答を見る" }).click();
   await page.getByRole("button", { name: "この回答を使う" }).click();
   await expect(page.getByRole("dialog", { name: "入力中の回答を置き換えますか？" })).toBeVisible();
@@ -161,15 +161,15 @@ test("STAR quota label distinguishes JST-only allowance from the UTC shared paid
   page,
 }) => {
   await begin(page);
-  await page.getByRole("button", { name: /STARアシスト/ }).click();
+  await page.getByRole("button", { name: /エピソード作成アシスト/ }).click();
   for (let i = 0; i < 3; i++) {
     await page.getByRole("button", { name: "次へ", exact: true }).click();
   }
   await expect(
-    page.getByText(/STAR専用の生成枠.*あなた 20 \/ 全体 600（JST/),
+    page.getByText(/回答アシスト共通の生成枠.*あなた 20 \/ 全体 600（JST/),
   ).toBeVisible();
   await expect(
-    page.getByText(/通常評価・Coaching.*月間利用上限/),
+    page.getByText(/AI回答チェック・AI面接コーチ.*月間利用上限/),
   ).toBeVisible();
 });
 async function begin(page: Page) {
@@ -184,7 +184,7 @@ async function begin(page: Page) {
   ).toContainText("保存済");
 }
 async function generate(page: Page) {
-  await page.getByRole("button", { name: /STARアシスト/ }).click();
+  await page.getByRole("button", { name: /エピソード作成アシスト/ }).click();
   await page.getByRole("button", { name: "次へ", exact: true }).click();
   await page.getByRole("button", { name: "次へ", exact: true }).click();
   await page.getByLabel("A 本人の行動").fill("私は顧客の課題を整理しました。");
@@ -327,7 +327,7 @@ test("T20 close tab restores server draft and STAR edits", async ({
   await expect(next.getByLabel("あなたの回答")).toHaveValue(
     "通常下書きも復元します。",
   );
-  await next.getByRole("button", { name: /STARアシスト/ }).click();
+  await next.getByRole("button", { name: /エピソード作成アシスト/ }).click();
   for (let i = 0; i < 3; i++) {
     await next.getByRole("button", { name: "次へ", exact: true }).click();
   }
@@ -495,8 +495,8 @@ test("STAR four-step dialog retains draft and fits both 390px and 1440px", async
   for (const width of [390, 1440]) {
     await page.setViewportSize({ width, height: 844 });
     await begin(page);
-    await page.getByRole("button", { name: /STARアシスト/ }).click();
-    const dialog = page.getByRole("dialog", { name: /STARアシスト/ });
+    await page.getByRole("button", { name: /エピソード作成アシスト/ }).click();
+    const dialog = page.getByRole("dialog", { name: /エピソード作成アシスト/ });
     await expect(dialog).toBeVisible();
     await page.getByLabel("S 状況").fill("営業担当としての経験です。");
     await page.getByRole("button", { name: "次へ", exact: true }).click();
@@ -505,7 +505,7 @@ test("STAR four-step dialog retains draft and fits both 390px and 1440px", async
     await expect(page.getByLabel("S 状況")).toHaveValue("営業担当としての経験です。");
     await page.getByRole("button", { name: "キャンセル", exact: true }).click();
     await expect(dialog).not.toBeVisible();
-    await page.getByRole("button", { name: /STARアシスト/ }).click();
+    await page.getByRole("button", { name: /エピソード作成アシスト/ }).click();
     await expect(page.getByLabel("S 状況")).toHaveValue("営業担当としての経験です。");
     expect(
       await dialog.evaluate((node) => node.scrollWidth <= node.clientWidth),
@@ -516,7 +516,7 @@ test("STAR four-step dialog retains draft and fits both 390px and 1440px", async
 
 test("STAR blocks generation when optional profile fields exceed schema limits", async ({ page }) => {
   await begin(page);
-  await page.getByRole("button", { name: /STARアシスト/ }).click();
+  await page.getByRole("button", { name: /エピソード作成アシスト/ }).click();
   await page.getByLabel("S 状況").fill("営業の現場で顧客対応を担当しました。");
   for (let i = 0; i < 3; i++) {
     await page.getByRole("button", { name: "次へ", exact: true }).click();
@@ -542,10 +542,10 @@ test("STAR blocks generation when optional profile fields exceed schema limits",
 });
 
 for (const [mode, label, firstStep] of [
-  ["prep", "PREP", "結論"],
-  ["motivation", "志望動機", "志望理由"],
-  ["career_change", "転職理由", "転職のきっかけ"],
-  ["career_plan", "キャリアプラン", "目指す姿"],
+  ["prep", "簡潔回答アシスト", "結論"],
+  ["motivation", "志望動機アシスト", "志望理由"],
+  ["career_change", "転職理由アシスト", "転職のきっかけ"],
+  ["career_plan", "キャリアプランアシスト", "目指す姿"],
 ] as const) {
   test(`${label} generates one answer and applies it without additional editing`, async ({ page }) => {
     await page.addInitScript(() => sessionStorage.setItem("pocket:mock:role", "ADMIN"));
@@ -563,7 +563,7 @@ for (const [mode, label, firstStep] of [
     await page.getByRole("combobox", { name: "練習するカテゴリ" }).click();
     await page.getByRole("option", { name: "自己紹介（1問）", exact: true }).click();
     await page.getByRole("button", { name: "練習を始める", exact: true }).click();
-    await page.getByRole("button", { name: new RegExp(label + "アシスト") }).click();
+    await page.getByRole("button", { name: new RegExp(label) }).click();
     const tips = page.getByRole("complementary", { name: firstStep + "の記入例" });
     await expect(tips.getByText("①", { exact: true })).toBeVisible();
     await expect(tips.getByText("②", { exact: true })).toBeVisible();

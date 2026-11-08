@@ -30,7 +30,7 @@ for (const width of [390, 1440]) {
     await page.goto("/guide/features/#assist");
     const assist = page.locator("#assist");
     await expect(assist.getByRole("button", { name: /回答アシスト/ })).toHaveAttribute("aria-expanded", "true");
-    await expect(assist.getByRole("heading", { name: "STAR" })).toBeVisible();
+    await expect(assist.getByRole("heading", { name: "エピソード作成アシスト" })).toBeVisible();
     await page.getByRole("combobox", { name: "作りたい回答" }).click();
     await page.getByRole("option", { name: "追加質問への回答" }).click();
     await expect(page.getByText(/おすすめ：深掘り回答/)).toBeVisible();

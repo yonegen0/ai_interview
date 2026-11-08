@@ -21,11 +21,11 @@ export const Initial: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(
-      canvas.getByRole("button", { name: /STARアシスト/ }),
+      canvas.getByRole("button", { name: /エピソード作成アシスト/ }),
     );
     const dialog = within(document.body);
     await waitFor(() =>
-      expect(dialog.getByRole("dialog", { name: /STARアシスト/ })).toBeVisible(),
+      expect(dialog.getByRole("dialog", { name: /エピソード作成アシスト/ })).toBeVisible(),
     );
     await userEvent.click(dialog.getByRole("button", { name: "次へ" }));
     await userEvent.click(dialog.getByRole("button", { name: "次へ" }));
