@@ -4,13 +4,18 @@ import {
   InitiateAuthCommand,
   RespondToAuthChallengeCommand,
   RevokeTokenCommand,
+  GetUserCommand,
+  UpdateUserAttributesCommand,
   NotAuthorizedException,
   UserNotFoundException,
   // InvalidParameterException does not prove the refresh token was revoked.
   type AuthenticationResultType,
 } from "@aws-sdk/client-cognito-identity-provider";
 
+export interface IdentityProfile { nickname: string | null; email: string | null; }
 export interface IdentityAdapter {
+  getProfile?(access: string): Promise<IdentityProfile>;
+  updateNickname?(access: string, nickname: string): Promise<void>;
   begin(email: string): Promise<string>;
   complete(
     email: string,
@@ -132,6 +137,19 @@ export function cognitoAdapter(): IdentityAdapter {
           { abortSignal: signal },
         ),
       );
+    },
+    async getProfile(access) {
+      const result = await call((signal) =>
+        client.send(new GetUserCommand({ AccessToken: access }), { abortSignal: signal }),
+      );
+      const attributes = new Map(result.UserAttributes?.map((item) => [item.Name, item.Value]));
+      return { nickname: attributes.get("nickname") || null, email: attributes.get("email") || null };
+    },
+    async updateNickname(access, nickname) {
+      await call((signal) => client.send(new UpdateUserAttributesCommand({
+        AccessToken: access,
+        UserAttributes: [{ Name: "nickname", Value: nickname }],
+      }), { abortSignal: signal }));
     },
   };
 }
