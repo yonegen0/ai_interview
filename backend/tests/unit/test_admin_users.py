@@ -75,7 +75,10 @@ def test_admin_permission_and_no_store(runtime):
     long_cursor = "opaque-token-" * 30
     assert invoke(runtime.repository, users, "GET", url, query={"cursor": long_cursor})[0] == 200
     assert users.calls[-1] == (60, long_cursor)
-    for query in [{"limit": "61"}, {"limit": "0"}, {"limit": "1x"}, {"cursor": ""}, {"cursor": "a b"}, {"cursor": "\n"}]:
+    for query in [
+        {"limit": "61"}, {"limit": "0"}, {"limit": "1x"},
+        {"cursor": ""}, {"cursor": "a b"}, {"cursor": "\n"},
+    ]:
         assert invoke(runtime.repository, users, "GET", url, query=query)[0] == 400
     assert invoke(runtime.repository, users, "POST", url)[0] == 405
 
