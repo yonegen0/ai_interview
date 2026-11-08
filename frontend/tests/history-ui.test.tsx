@@ -31,8 +31,11 @@ const item: HistoryItem = {
   status: "completed", score: 0, scoreMax: 100,
   attemptId: id, evaluationId: id, generationId: null, assistType: null,
 };
+const accountQueryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 const wrapper = ({ children }: { children: React.ReactNode }) =>
-  <ThemeProvider theme={theme}>{children}</ThemeProvider>;
+  <ThemeProvider theme={theme}>
+    <QueryClientProvider client={accountQueryClient}>{children}</QueryClientProvider>
+  </ThemeProvider>;
 
 it("validates genuine zero scores separately from absent scores", () => {
   const assist = { ...item, id: `assist:${id}`, kind: "assist", status: "SUCCEEDED",
