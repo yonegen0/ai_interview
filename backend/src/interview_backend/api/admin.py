@@ -128,11 +128,14 @@ class AdminHandler:
                     raise BusinessError(400, "VALIDATION_ERROR")
                 limit = int(value)
                 cursor = query.get("cursor")
-                if not 1 <= limit <= 60 or (cursor is not None and (
-                    not isinstance(cursor, str)
-                    or not 1 <= len(cursor) <= 256
-                    or any(char.isspace() for char in cursor)
-                )):
+                if not 1 <= limit <= 60 or (
+                    cursor is not None
+                    and (
+                        not isinstance(cursor, str)
+                        or not 1 <= len(cursor) <= 256
+                        or any(char.isspace() for char in cursor)
+                    )
+                ):
                     raise BusinessError(400, "VALIDATION_ERROR")
                 return response(Reply(200, self.users.list_users(limit, cursor)))
             user_id = validate_id((history or feedback or nickname or target).group(1))
@@ -144,25 +147,35 @@ class AdminHandler:
             if feedback:
                 attempt_id = validate_id(feedback.group(2))
                 query = event.get("queryStringParameters") or {}
-                if not isinstance(query, dict) or set(query) - {
-                    "evaluationId", "includeFollowUpReviews"
-                } or query.get("includeFollowUpReviews") not in {None, "1"}:
+                if (
+                    not isinstance(query, dict)
+                    or set(query) - {"evaluationId", "includeFollowUpReviews"}
+                    or query.get("includeFollowUpReviews") not in {None, "1"}
+                ):
                     raise BusinessError(400, "VALIDATION_ERROR")
                 evaluation_id = query.get("evaluationId")
                 if evaluation_id is not None:
                     evaluation_id = validate_id(evaluation_id)
-                return response(self.repository.get_feedback(
-                    user_id, attempt_id, evaluation_id,
-                    query.get("includeFollowUpReviews") == "1",
-                ))
+                return response(
+                    self.repository.get_feedback(
+                        user_id,
+                        attempt_id,
+                        evaluation_id,
+                        query.get("includeFollowUpReviews") == "1",
+                    )
+                )
             if nickname:
                 payload = parse_body(event)
                 if set(payload) != {"nickname"}:
                     raise BusinessError(400, "VALIDATION_ERROR")
-                return response(Reply(
-                    200,
-                    self.users.update_nickname(user_id, normalize_nickname(payload["nickname"])),
-                ))
+                return response(
+                    Reply(
+                        200,
+                        self.users.update_nickname(
+                            user_id, normalize_nickname(payload["nickname"])
+                        ),
+                    )
+                )
             return error(404, "NOT_FOUND")
         except BusinessError as exc:
             return error(exc.status, exc.code)
