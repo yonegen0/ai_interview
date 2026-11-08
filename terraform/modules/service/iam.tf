@@ -10,7 +10,10 @@ locals {
     { Effect = "Allow", Action = ["dynamodb:PutItem", "dynamodb:ConditionCheckItem"], Resource = [local.table_arn], Condition = merge(local.bank_keys, { StringEquals = { "dynamodb:EnclosingOperation" = "TransactWriteItems" } }) },
     # Only PK/SK presence is needed to share the existing user's idempotency namespace.
     { Effect = "Allow", Action = ["dynamodb:GetItem"], Resource = [local.table_arn], Condition = merge(local.user_key_attributes, { StringEqualsIfExists = { "dynamodb:Select" = "SPECIFIC_ATTRIBUTES" } }) },
-    { Effect = "Allow", Action = ["dynamodb:ConditionCheckItem"], Resource = [local.table_arn], Condition = merge(local.user_key_attributes, { StringEquals = { "dynamodb:EnclosingOperation" = "TransactWriteItems" }, StringEqualsIfExists = { "dynamodb:ReturnValues" = "NONE" } }) }
+    { Effect = "Allow", Action = ["dynamodb:ConditionCheckItem"], Resource = [local.table_arn], Condition = merge(local.user_key_attributes, { StringEquals = { "dynamodb:EnclosingOperation" = "TransactWriteItems" }, StringEqualsIfExists = { "dynamodb:ReturnValues" = "NONE" } }) },
+    # Read-only owner data, independent of the restricted PK/SK idempotency probe.
+    { Effect = "Allow", Action = ["dynamodb:Query", "dynamodb:GetItem"], Resource = [local.table_arn], Condition = local.user_keys },
+    { Effect = "Allow", Action = ["cognito-idp:ListUsers", "cognito-idp:AdminUpdateUserAttributes"], Resource = [aws_cognito_user_pool.main.arn] }
   ]
   base_statements = { for role in keys(local.function_arns) : role => concat([
     { Effect = "Allow", Action = ["logs:CreateLogStream", "logs:PutLogEvents"], Resource = ["${aws_cloudwatch_log_group.lambda[role].arn}:*"] }
