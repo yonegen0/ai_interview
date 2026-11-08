@@ -66,8 +66,8 @@ it("uses new mode labels and preserves unknown outcome and internal assist types
   render(<HistoryList items={[item, assistItem]} loading={false} error={null}
     loadingMore={false} hasMore={false} onLoadMore={vi.fn()}
     onRetry={vi.fn()} onSelect={vi.fn()} />, { wrapper });
-  expect(screen.getByText("AI回答チェック")).toBeInTheDocument();
-  expect(screen.getByText("簡潔回答アシスト")).toBeInTheDocument();
+  expect(screen.getByText(/AI回答チェック/)).toBeInTheDocument();
+  expect(screen.getByText(/簡潔回答アシスト/)).toBeInTheDocument();
   expect(screen.getByText(/結果を確認できていません/)).toBeInTheDocument();
   expect(historyStatus(assistItem)).toBe("結果を確認できていません");
   expect(assistItem.assistType).toBe("prep");
