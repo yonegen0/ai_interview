@@ -128,7 +128,7 @@ export const AccountActionsView = ({
               </HighlightItem>
             )}
             {admin && (
-              <MenuAction component="a" href="/admin/users/" onClick={close}>
+              <MenuAction onClick={() => { close(); window.location.assign("/admin/users/"); }}>
                 <ListItemIcon><PeopleOutlineRoundedIcon fontSize="small" /></ListItemIcon>
                 <ListItemText>ユーザー管理</ListItemText>
               </MenuAction>
