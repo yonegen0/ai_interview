@@ -70,7 +70,16 @@ export const theme = createTheme({
     borderRadius: 16, // Increased for softer, more modern edges
   },
   typography: {
-    fontFamily: '"Inter", "Roboto", "Helvetica Neue", Arial, sans-serif',
+    fontFamily: [
+      'var(--font-inter, "Inter")',
+      'var(--font-noto-sans-jp, "Noto Sans JP")',
+      "-apple-system",
+      "BlinkMacSystemFont",
+      '"Hiragino Kaku Gothic ProN"',
+      '"Yu Gothic"',
+      "Meiryo",
+      "sans-serif",
+    ].join(", "),
     h1: {
       fontWeight: 700,
       fontSize: "27px",
@@ -148,6 +157,7 @@ export const theme = createTheme({
       styleOverrides: {
         "html, body": { overflowX: "hidden" },
         img: { maxWidth: "100%", height: "auto" },
+        "button, input, textarea, select": { fontFamily: "inherit" },
       },
     },
     // テーブルセルの余白・文字を xs で詰め、横スクロール量を減らす

@@ -6,6 +6,7 @@ import type { Preview } from "@storybook/nextjs-vite";
 import { ThemeProvider } from "@mui/material/styles";
 import { CssBaseline } from "@mui/material";
 import { theme } from "../src/theme/theme";
+import { inter, notoSansJP } from "../src/theme/fonts";
 import { save } from "../src/lib/storage/recovery";
 import { auth } from "../src/lib/auth/session";
 import {
@@ -15,6 +16,11 @@ import {
   StoryQueryProvider,
   type FeatureStoryParameters,
 } from "../stories/test-utils/storyEnvironment";
+
+// Portal上のDialog・Popoverを含め、Canvasのドキュメントルートで両フォントを解決する。
+if (typeof document !== "undefined") {
+  document.documentElement.classList.add(inter.variable, notoSansJP.variable);
+}
 
 /**
  * レスポンシブ確認用ビューポート。PC/スマホ境界 md=900 をまたぐ 4 つを定義する。

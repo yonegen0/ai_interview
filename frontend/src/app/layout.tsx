@@ -9,6 +9,7 @@ import { AppProviders } from "@/providers/AppProviders";
 import { AppShell } from "@/components/templates/AppShell";
 import { HistoryAccountControls } from "@/features/history/components/HistoryAccountControls";
 import { backgroundDefaultColor } from "@/theme/tokens";
+import { inter, notoSansJP } from "@/theme/fonts";
 
 export const metadata: Metadata = {
   title: "Interview Pocket | 3分でできるAI面接練習",
@@ -33,7 +34,7 @@ type RootLayoutProps = Readonly<{
  */
 export default function RootLayout(props: RootLayoutProps) {
   return (
-    <html lang="ja">
+    <html lang="ja" className={`${inter.variable} ${notoSansJP.variable}`}>
       <body>
         <AppRouterCacheProvider>
           <AppProviders>
