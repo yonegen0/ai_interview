@@ -140,6 +140,11 @@ locals {
     ["GET /admin/question-bank", "POST /admin/question-bank"],
     local.admin_user_routes,
   ))
+  # The route path already starts with "/"; replacing the space with "/" doubles the separator.
+  admin_user_source_paths = {
+    for route in local.admin_user_routes :
+    route => replace(replace(replace(route, " ", ""), "{userId}", "*"), "{attemptId}", "*")
+  }
 }
 resource "aws_apigatewayv2_route" "admin" {
   for_each           = local.admin_routes
@@ -168,5 +173,5 @@ resource "aws_lambda_permission" "admin_users" {
   qualifier      = aws_lambda_alias.entry["admin"].name
   principal      = "apigateway.amazonaws.com"
   source_account = var.account_id
-  source_arn     = "${aws_apigatewayv2_api.main.execution_arn}/dev/${replace(replace(replace(each.value, " ", "/"), "{userId}", "*"), "{attemptId}", "*")}"
+  source_arn     = "${aws_apigatewayv2_api.main.execution_arn}/dev/${local.admin_user_source_paths[each.value]}"
 }

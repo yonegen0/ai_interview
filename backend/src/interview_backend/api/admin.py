@@ -132,7 +132,7 @@ class AdminHandler:
                     cursor is not None
                     and (
                         not isinstance(cursor, str)
-                        or not 1 <= len(cursor) <= 256
+                        or not cursor
                         or any(char.isspace() for char in cursor)
                     )
                 ):
