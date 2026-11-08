@@ -43,11 +43,11 @@ const Score = styled("span")(({ theme }) => ({
   color: theme.palette.primary.dark, fontWeight: 700,
   fontSize: theme.typography.caption.fontSize,
 }));
-const AssistNames = {
-  star: "STAR", prep: "PREP", motivation: "志望動機",
-  career_change: "転職理由", career_plan: "キャリアプラン",
-  follow_up: "深掘り回答アシスト",
-};
+export const assistLabels = {
+  star: "エピソード作成アシスト", prep: "簡潔回答アシスト",
+  motivation: "志望動機アシスト", career_change: "転職理由アシスト",
+  career_plan: "キャリアプランアシスト", follow_up: "深掘り回答アシスト",
+} as const;
 export const formatHistoryDate = (ms: number) =>
   new Intl.DateTimeFormat("ja-JP", {
     timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit",
@@ -59,7 +59,7 @@ export function historyStatus(item: HistoryItem) {
     QUEUED: "生成待ち", PREPARED: "準備中", STARTED: "生成中",
     SUCCEEDED: "生成完了", NEEDS_INFORMATION: "追加情報が必要",
     CANCELLED: "キャンセル", FAILED_BEFORE_START: "生成失敗",
-    FAILED_AFTER_START: "生成失敗", OUTCOME_UNKNOWN: "結果未確定",
+    FAILED_AFTER_START: "生成失敗", OUTCOME_UNKNOWN: "結果を確認できていません",
   };
   return names[item.status] ?? "状態不明";
 }
@@ -97,8 +97,8 @@ export function HistoryList({
                 <strong>{item.label}</strong>
                 <Typography variant="caption" color="text.secondary" component="span">
                   {formatHistoryDate(item.createdAt)} ・
-                  {item.kind === "normal" ? "通常練習" :
-                    item.kind === "coaching" ? "Coaching V2" : AssistNames[item.assistType!]}
+                  {item.kind === "normal" ? "AI回答チェック" :
+                    item.kind === "coaching" ? "AI面接コーチ" : assistLabels[item.assistType!]}
                   {" ・ "}{historyStatus(item)}
                 </Typography>
               </Details>

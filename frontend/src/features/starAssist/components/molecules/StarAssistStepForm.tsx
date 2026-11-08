@@ -83,7 +83,7 @@ export function StarAssistStepForm({
             disabled={disabled}
             error={!!error || warning}
             helperText={warning && mode === "star"
-              ? "STARアシストは4項目の合計600文字まで入力できます。内容を短くしてください。"
+              ? "エピソード作成アシストは4項目の合計600文字まで入力できます。内容を短くしてください。"
               : error || "任意。実際の経験や考えだけを箇条書きで入力してください。"}
             onCompositionStart={() => { composing.current = true; }}
             onCompositionEnd={(event) => {

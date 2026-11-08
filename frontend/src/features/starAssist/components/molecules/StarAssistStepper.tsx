@@ -37,7 +37,7 @@ const StepName = styled("span")(({ theme }) => ({
   },
 }));
 
-export function StarAssistStepper({ activeStep, steps = starSteps, label = "STAR" }: {
+export function StarAssistStepper({ activeStep, steps = starSteps, label = "エピソード作成アシスト" }: {
   activeStep: number; steps?: readonly AssistStep[]; label?: string;
 }) {
   return (

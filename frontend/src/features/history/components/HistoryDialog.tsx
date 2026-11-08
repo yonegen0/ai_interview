@@ -14,7 +14,7 @@ import { Dialog } from "@/components/organisms/Dialog";
 import { FeedbackCard } from "@/features/feedback/components/organisms/FeedbackCard";
 import { getFeedbackWithReviews } from "@/lib/api/feedback";
 import { useHistory } from "../hooks/useHistory";
-import { HistoryList, historyStatus, formatHistoryDate } from "./HistoryList";
+import { HistoryList, historyStatus, formatHistoryDate, assistLabels } from "./HistoryList";
 import {
   type HistoryItem, type HistoryMode, type HistoryPeriod,
 } from "@/lib/api/schemas/history";
@@ -40,20 +40,14 @@ const Stat = styled("div")(({ theme }) => ({
   border: "1px solid " + alpha(theme.palette.primary.main, 0.12),
   background: alpha(theme.palette.primary.light, 0.075),
   borderRadius: theme.shape.borderRadius,
-  display: "grid", gap: theme.spacing(0.25),
-  padding: theme.spacing(2),
+  display: "grid", gap: theme.spacing(0.25), minWidth: 0,
+  overflowWrap: "anywhere", padding: theme.spacing(2),
 }));
 const Details = styled("div")(({ theme }) => ({
   display: "grid", gap: theme.spacing(2),
   minWidth: 0, marginBottom: theme.spacing(2),
 }));
 export type HistoryTab = 0 | 1;
-
-const assistLabels = {
-  star: "STAR", prep: "PREP", motivation: "志望動機",
-  career_change: "転職理由", career_plan: "キャリアプラン",
-  follow_up: "深掘り回答",
-};
 
 function UsagePanel({ owner, open, data, loading, error, quota, quotaLoading, quotaError, retry, retryQuota }: {
   owner: string; open: boolean;
@@ -75,20 +69,20 @@ function UsagePanel({ owner, open, data, loading, error, quota, quotaLoading, qu
           <Button onClick={retry}>再試行</Button>
         </Alert> :
         usage ? <Summary>
-          <Stat><Typography variant="caption">練習回答数</Typography><Typography variant="h3">{usage.practiceAttempts}件</Typography></Stat>
+          <Stat><Typography variant="caption">回答した回数</Typography><Typography variant="h3">{usage.practiceAttempts}件</Typography></Stat>
           <Stat><Typography variant="caption">評価完了数</Typography><Typography variant="h3">{usage.evaluatedAttempts}件</Typography></Stat>
-          <Stat><Typography variant="caption">確認できるアシスト生成数</Typography><Typography variant="h3">{usage.assistGenerations}件</Typography></Stat>
-          <Stat><Typography variant="caption">通常練習 平均（100点満点）</Typography><Typography variant="h3">{usage.normalAverage ?? "―"}</Typography></Stat>
-          <Stat><Typography variant="caption">Coaching V2 平均（30点満点）</Typography><Typography variant="h3">{usage.coachingAverage ?? "―"}</Typography></Stat>
+          <Stat><Typography variant="caption">AIで回答を作成した回数</Typography><Typography variant="h3">{usage.assistGenerations}件</Typography><Typography variant="caption" color="text.secondary">AI回答アシストの生成履歴を集計しています。生成途中や失敗した履歴を含む場合があります。</Typography></Stat>
+          <Stat><Typography variant="caption">AI回答チェック平均（100点満点）</Typography><Typography variant="h3">{usage.normalAverage ?? "―"}</Typography></Stat>
+          <Stat><Typography variant="caption">AI面接コーチ平均（30点満点）</Typography><Typography variant="h3">{usage.coachingAverage ?? "―"}</Typography></Stat>
         </Summary> :
         <Typography>正確な集計値を表示できません。</Typography>}
       <Typography variant="h3" component="h3">今月の回答アシスト利用枠</Typography>
       {quotaLoading ? <Typography role="status">利用枠を確認中…</Typography> :
         quotaError ? <Alert severity="error">利用枠を取得できませんでした。<Button onClick={retryQuota}>再試行</Button></Alert> :
         quota && <Summary>
-          <Stat><Typography variant="caption">消費済み（生成成功数とは異なります）</Typography><Typography variant="h3">{quota.user.consumed}回</Typography></Stat>
+          <Stat><Typography variant="caption">消費済み</Typography><Typography variant="h3">{quota.user.consumed}回</Typography></Stat>
           <Stat><Typography variant="caption">残りの利用枠</Typography><Typography variant="h3">{quota.user.remaining}回</Typography></Stat>
-          <Stat><Typography variant="caption">処理予約中</Typography><Typography variant="h3">{quota.user.reserved}回</Typography></Stat>
+          <Stat><Typography variant="caption">処理待ちの回数</Typography><Typography variant="h3">{quota.user.reserved}回</Typography><Typography variant="caption" color="text.secondary">処理待ち・処理中のため、利用枠として確保されている回数です。</Typography></Stat>
         </Summary>}
     </Container>
   );
@@ -133,11 +127,11 @@ export function HistoryDialog({ open, onClose, owner, initialTab = 0 }: {
                   <Select labelId="history-mode-label" value={mode} label="モード"
                     onChange={(e) => setMode(e.target.value as HistoryMode)}>
                     <MenuItem value="all">すべてのモード</MenuItem>
-                    <MenuItem value="normal">通常練習</MenuItem>
-                    <MenuItem value="coaching">Coaching V2</MenuItem>
+                    <MenuItem value="normal">AI回答チェック</MenuItem>
+                    <MenuItem value="coaching">AI面接コーチ</MenuItem>
                     <MenuItem value="assist">回答アシスト</MenuItem>
                     {Object.entries(assistLabels).map(([value, label]) =>
-                      <MenuItem value={value} key={value}>{label}アシスト</MenuItem>)}
+                      <MenuItem value={value} key={value}>{label}</MenuItem>)}
                   </Select>
                 </FormControl>
                 <FormControl size="small" fullWidth>
@@ -188,7 +182,7 @@ export function HistoryDialog({ open, onClose, owner, initialTab = 0 }: {
           </Typography>
           {selected.kind === "assist" ?
             <Alert severity="info">
-              利用したモード：{assistLabels[selected.assistType!]}アシスト。
+              利用したモード：{assistLabels[selected.assistType!]}。
               この画面では、回答アシストの利用履歴と生成状態を確認できます。生成した回答候補の本文は表示されません。
               この生成に評価点は付きません。
             </Alert> :

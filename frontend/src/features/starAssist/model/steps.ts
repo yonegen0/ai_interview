@@ -144,13 +144,13 @@ const careerPlanSteps = [
 
 export const assistModes = {
   star: {
-    label: "STARアシスト", tag: "エピソードを整理",
-    description: "経験を4つのステップで整理し、A/B/Cの3案を生成します。",
+    label: "エピソード作成アシスト", tag: "経験・自己PR・成功体験などにおすすめ",
+    description: "経験や行動、成果を整理して、面接で伝わる3つの回答案を作成します。",
     steps: starSteps,
   },
   prep: {
-    label: "PREPアシスト", tag: "考えを分かりやすく",
-    description: "結論・理由・具体例・活かし方を整理し、1案を生成します。",
+    label: "簡潔回答アシスト", tag: "強み・弱み・自分の考えを伝えるときにおすすめ",
+    description: "結論・理由・具体例を整理して、わかりやすく伝わる回答案を作成します。",
     steps: prepSteps,
   },
   motivation: {
