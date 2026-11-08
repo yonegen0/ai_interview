@@ -4,8 +4,8 @@ import base64
 import json
 import re
 
-from interview_backend.api.handler import error, parse_body, reject_json_constant, response
 from interview_backend.api.admin_users import normalize_nickname
+from interview_backend.api.handler import error, parse_body, reject_json_constant, response
 from interview_backend.application.service import Application, request_model
 from interview_backend.models.internal import BusinessError, Reply
 from interview_backend.models.public import (
@@ -49,7 +49,9 @@ class AdminHandler:
                 return error(403, "FORBIDDEN")
             path = event.get("rawPath")
             method = (event.get("requestContext") or {}).get("http", {}).get("method")
-            if isinstance(path, str) and (path == "/admin/users" or path.startswith("/admin/users/")):
+            if isinstance(path, str) and (
+                path == "/admin/users" or path.startswith("/admin/users/")
+            ):
                 return self._users(event, path, method)
             if path != "/admin/question-bank":
                 return error(404, "NOT_FOUND")
@@ -117,7 +119,12 @@ class AdminHandler:
                 if not isinstance(query, dict) or set(query) - {"limit", "cursor"}:
                     raise BusinessError(400, "VALIDATION_ERROR")
                 value = query.get("limit", "60")
-                if not isinstance(value, str) or not value.isascii() or not value.isdecimal() or len(value) > 2:
+                if (
+                    not isinstance(value, str)
+                    or not value.isascii()
+                    or not value.isdecimal()
+                    or len(value) > 2
+                ):
                     raise BusinessError(400, "VALIDATION_ERROR")
                 limit = int(value)
                 cursor = query.get("cursor")
