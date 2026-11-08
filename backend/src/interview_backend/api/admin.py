@@ -4,7 +4,8 @@ import base64
 import json
 import re
 
-from interview_backend.api.handler import error, reject_json_constant, response
+from interview_backend.api.handler import error, parse_body, reject_json_constant, response
+from interview_backend.api.admin_users import normalize_nickname
 from interview_backend.application.service import Application, request_model
 from interview_backend.models.internal import BusinessError, Reply
 from interview_backend.models.public import (
@@ -33,8 +34,8 @@ def is_admin(groups):
 
 
 class AdminHandler:
-    def __init__(self, repository, defaults):
-        self.repository, self.defaults = repository, defaults
+    def __init__(self, repository, defaults, users=None):
+        self.repository, self.defaults, self.users = repository, defaults, users
 
     def __call__(self, event, context=None):
         try:
@@ -46,7 +47,11 @@ class AdminHandler:
                 return error(401, "UNAUTHORIZED")
             if not is_admin(claims.get("cognito:groups")):
                 return error(403, "FORBIDDEN")
-            if event.get("rawPath") != "/admin/question-bank":
+            path = event.get("rawPath")
+            method = (event.get("requestContext") or {}).get("http", {}).get("method")
+            if isinstance(path, str) and (path == "/admin/users" or path.startswith("/admin/users/")):
+                return self._users(event, path, method)
+            if path != "/admin/question-bank":
                 return error(404, "NOT_FOUND")
             method = (event["requestContext"].get("http") or {}).get("method")
             if method == "GET":
@@ -85,6 +90,73 @@ class AdminHandler:
                     self.defaults,
                 )
             )
+        except BusinessError as exc:
+            return error(exc.status, exc.code)
+        except InvalidIdentifier, ValueError, UnicodeError:
+            return error(400, "VALIDATION_ERROR")
+        except Exception:
+            return error(500, "INTERNAL_SERVER_ERROR")
+
+    def _users(self, event, path, method):
+        if self.users is None:
+            return error(500, "INTERNAL_SERVER_ERROR")
+        target = re.fullmatch(r"/admin/users/([^/]+)", path)
+        history = re.fullmatch(r"/admin/users/([^/]+)/history", path)
+        feedback = re.fullmatch(r"/admin/users/([^/]+)/attempts/([^/]+)/feedback", path)
+        nickname = re.fullmatch(r"/admin/users/([^/]+)/nickname", path)
+        expected = "PUT" if nickname else "GET"
+        if not (path == "/admin/users" or target or history or feedback or nickname):
+            return error(404, "NOT_FOUND")
+        if method != expected:
+            result = error(405, "METHOD_NOT_ALLOWED")
+            result["headers"]["Allow"] = expected
+            return result
+        try:
+            if path == "/admin/users":
+                query = event.get("queryStringParameters") or {}
+                if not isinstance(query, dict) or set(query) - {"limit", "cursor"}:
+                    raise BusinessError(400, "VALIDATION_ERROR")
+                value = query.get("limit", "60")
+                if not isinstance(value, str) or not value.isascii() or not value.isdecimal() or len(value) > 2:
+                    raise BusinessError(400, "VALIDATION_ERROR")
+                limit = int(value)
+                cursor = query.get("cursor")
+                if not 1 <= limit <= 60 or (cursor is not None and (
+                    not isinstance(cursor, str)
+                    or not 1 <= len(cursor) <= 256
+                    or any(char.isspace() for char in cursor)
+                )):
+                    raise BusinessError(400, "VALIDATION_ERROR")
+                return response(Reply(200, self.users.list_users(limit, cursor)))
+            user_id = validate_id((history or feedback or nickname or target).group(1))
+            if history:
+                query = event.get("queryStringParameters") or {}
+                if not isinstance(query, dict):
+                    raise BusinessError(400, "VALIDATION_ERROR")
+                return response(self.repository.history(user_id, query))
+            if feedback:
+                attempt_id = validate_id(feedback.group(2))
+                query = event.get("queryStringParameters") or {}
+                if not isinstance(query, dict) or set(query) - {
+                    "evaluationId", "includeFollowUpReviews"
+                } or query.get("includeFollowUpReviews") not in {None, "1"}:
+                    raise BusinessError(400, "VALIDATION_ERROR")
+                evaluation_id = query.get("evaluationId")
+                if evaluation_id is not None:
+                    evaluation_id = validate_id(evaluation_id)
+                return response(self.repository.get_feedback(
+                    user_id, attempt_id, evaluation_id,
+                    query.get("includeFollowUpReviews") == "1",
+                ))
+            if nickname:
+                payload = parse_body(event)
+                if set(payload) != {"nickname"}:
+                    raise BusinessError(400, "VALIDATION_ERROR")
+                return response(Reply(
+                    200,
+                    self.users.update_nickname(user_id, normalize_nickname(payload["nickname"])),
+                ))
+            return error(404, "NOT_FOUND")
         except BusinessError as exc:
             return error(exc.status, exc.code)
         except InvalidIdentifier, ValueError, UnicodeError:
