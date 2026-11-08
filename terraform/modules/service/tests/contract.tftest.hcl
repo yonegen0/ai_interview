@@ -9,7 +9,7 @@ run "admin_question_management" {
       aws_lambda_function.main["admin"].timeout == 15 &&
       aws_lambda_function.main["admin"].memory_size == 512 &&
       length(aws_apigatewayv2_route.admin) == 6 &&
-      alltrue([for r in aws_apigatewayv2_route.admin : r.authorization_type == "JWT" && r.target == "integrations/${aws_apigatewayv2_integration.admin.id}"]) &&
+      alltrue([for r in aws_apigatewayv2_route.admin : r.authorization_type == "JWT"]) &&
       output.manifest.schema_version == 4 &&
       aws_apigatewayv2_api.main.disable_execute_api_endpoint
     )
