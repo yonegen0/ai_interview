@@ -43,7 +43,7 @@ run "admin_question_management" {
   }
   assert {
     condition = (
-      toset(aws_apigatewayv2_route.admin) == toset(local.admin_routes) &&
+      toset(keys(aws_apigatewayv2_route.admin)) == local.admin_routes &&
       length(aws_lambda_permission.admin_users) == 4 &&
       length(aws_lambda_permission.admin) == 2 &&
       local.base_statements["admin"][5].Action == ["dynamodb:Query", "dynamodb:GetItem"] &&
@@ -63,8 +63,8 @@ run "admin_question_management" {
         !contains(s.Action, "dynamodb:UpdateItem")
       ]) &&
       alltrue([for s in local.base_statements["admin"] :
-        !contains(s.Action, "dynamodb:PutItem") ||
         s.Condition["ForAllValues:StringEquals"]["dynamodb:LeadingKeys"] == ["SYSTEM#QUESTION_BANK"]
+        if contains(s.Action, "dynamodb:PutItem")
       ])
     )
     error_message = "ADMIN can never edit user answer, evaluation or progress records."
