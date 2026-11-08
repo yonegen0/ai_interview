@@ -20,7 +20,7 @@ vi.mock("@/lib/api/history", () => ({ getHistory: vi.fn() }));
 vi.mock("@/lib/api/star", () => ({ getQuota: vi.fn() }));
 vi.mock("@/hooks/useAccountActions", () => ({ useAccountActions: vi.fn() }));
 import { AccountActionsView } from "@/components/molecules/AccountActionsView";
-import { HistoryList, formatHistoryDate } from "@/features/history/components/HistoryList";
+import { HistoryList, formatHistoryDate, historyStatus } from "@/features/history/components/HistoryList";
 import { historyResponseSchema, type HistoryItem } from "@/lib/api/schemas/history";
 import { theme } from "@/theme/theme";
 
@@ -55,6 +55,22 @@ it("displays a Japanese date, score scale, and detail action", () => {
   expect(screen.getByText("0/100点")).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "志望動機の詳細を見る" }));
   expect(select).toHaveBeenCalledWith(item);
+});
+
+it("uses new mode labels and preserves unknown outcome and internal assist types", () => {
+  const assistItem: HistoryItem = {
+    ...item, id: `assist:${id}`, kind: "assist", status: "OUTCOME_UNKNOWN",
+    attemptId: null, evaluationId: null, generationId: id,
+    assistType: "prep", score: null, scoreMax: null,
+  };
+  render(<HistoryList items={[item, assistItem]} loading={false} error={null}
+    loadingMore={false} hasMore={false} onLoadMore={vi.fn()}
+    onRetry={vi.fn()} onSelect={vi.fn()} />, { wrapper });
+  expect(screen.getByText(/AI回答チェック/)).toBeInTheDocument();
+  expect(screen.getByText(/簡潔回答アシスト/)).toBeInTheDocument();
+  expect(screen.getByText(/結果を確認できていません/)).toBeInTheDocument();
+  expect(historyStatus(assistItem)).toBe("結果を確認できていません");
+  expect(assistItem.assistType).toBe("prep");
 });
 
 it("opens account menu and runs history action without signing out", () => {
@@ -241,6 +257,11 @@ it("opens the requested history tab and keeps manual tab switching", async () =>
   const { unmount } = render(<HistoryDialog open owner="owner-a" initialTab={1}
     onClose={vi.fn()} />, { wrapper: allProviders });
   expect(screen.getByRole("tab", { name: "利用状況" })).toHaveAttribute("aria-selected", "true");
+  await waitFor(() => expect(screen.getByText("回答した回数")).toBeInTheDocument());
+  expect(screen.getByText("AIで回答を作成した回数")).toBeInTheDocument();
+  expect(screen.getByText("AI回答チェック平均（100点満点）")).toBeInTheDocument();
+  expect(screen.getByText("AI面接コーチ平均（30点満点）")).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText("処理待ちの回数")).toBeInTheDocument());
   fireEvent.click(screen.getByRole("tab", { name: "練習履歴" }));
   expect(screen.getByRole("tab", { name: "練習履歴" })).toHaveAttribute("aria-selected", "true");
   unmount();

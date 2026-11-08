@@ -62,10 +62,10 @@ describe("使い方ガイド", () => {
     expect(select).toHaveAttribute("aria-expanded", "false");
     await user.click(select);
     expect(select).toHaveAttribute("aria-expanded", "true");
-    for (const title of ["STAR", "PREP", "志望動機", "転職理由", "キャリアプラン", "深掘り回答"]) {
+    for (const title of ["エピソード作成アシスト", "簡潔回答アシスト", "志望動機アシスト", "転職理由アシスト", "キャリアプランアシスト", "深掘り回答アシスト"]) {
       expect(screen.getByRole("heading", { name: title })).toBeInTheDocument();
     }
-    expect(screen.getByText(/おすすめ：STAR/)).toBeInTheDocument();
+    expect(screen.getByText(/おすすめ：エピソード作成アシスト/)).toBeInTheDocument();
   });
 
   it("7カテゴリの見出しと領域は正しい対応・一意なIDを持つ", () => {

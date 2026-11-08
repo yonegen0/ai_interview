@@ -1,6 +1,7 @@
 /** @file QuestionEditorCard.tsx @description Presentation and composition for QuestionEditorCard. */
 "use client";
 import { countCodePoints } from "@/lib/textLimits";
+import { assistModes } from "@/features/starAssist/model/steps";
 import { Controller, type Control, type FieldErrors } from "react-hook-form";
 import { styled } from "@mui/material/styles";
 import { Panel } from "@/components/atoms/Panel";
@@ -15,11 +16,11 @@ import {
   type BankSave,
 } from "@/lib/api/schemas";
 const assistOptions = [
-  { value: "star", label: "STAR" },
-  { value: "prep", label: "PREP" },
-  { value: "motivation", label: "志望動機" },
-  { value: "career_change", label: "転職理由" },
-  { value: "career_plan", label: "キャリアプラン" },
+  { value: "star", label: assistModes.star.label },
+  { value: "prep", label: assistModes.prep.label },
+  { value: "motivation", label: assistModes.motivation.label },
+  { value: "career_change", label: assistModes.career_change.label },
+  { value: "career_plan", label: assistModes.career_plan.label },
   { value: "none", label: "アシストなし" },
 ];
 const options = activeCategoryIds.map((value) => ({

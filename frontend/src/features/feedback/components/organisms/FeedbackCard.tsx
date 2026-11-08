@@ -374,7 +374,7 @@ const suitabilityLabels = {
 function FollowUpReviewView({
   item, title, variant = "featured",
 }: { item?: FollowUpReviewItem; title: string; variant?: "featured" | "compact" }) {
-  if (!item?.review) return <ReviewText>専用評価データなし</ReviewText>;
+  if (!item?.review) return <ReviewText>この回答の評価はありません</ReviewText>;
   const review = item.review;
   const tone =
     review.suitability === "needs_revision" ? "caution" :

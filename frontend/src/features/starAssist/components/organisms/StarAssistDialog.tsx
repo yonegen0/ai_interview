@@ -177,7 +177,7 @@ export function StarAssistDialog({ open, onClose, workspace: w, onGenerationQueu
       {totalCount > inputLimit && (
         <Alert severity="error">
           {mode === "star"
-            ? "STARアシストは4項目の合計600文字まで入力できます。内容を短くしてください。"
+            ? "エピソード作成アシストは4項目の合計600文字まで入力できます。内容を短くしてください。"
             : mode === "follow_up" ? "回答のメモは1600文字までです。"
               : "入力は4項目の合計1600文字までです。内容を短くしてください。"}
         </Alert>
@@ -248,12 +248,12 @@ export function StarAssistDialog({ open, onClose, workspace: w, onGenerationQueu
       )}
       {last && w.quota && (
         <Text variant="body2">
-          {mode === "star" ? "STAR専用の生成枠" : "回答アシストの生成枠"}：あなた {w.quota.user.remaining} / 全体 {w.quota.global.remaining}（JST {w.quota.month}）
+          回答アシスト共通の生成枠：あなた {w.quota.user.remaining} / 全体 {w.quota.global.remaining}（JST {w.quota.month}）
         </Text>
       )}
       {last && (
         <Text variant="body2" color="text.secondary">
-          有料生成は通常評価・Coachingと共通の月間利用上限にも制限されます。この枠が残っていても生成できない場合があります。
+          回答アシストの生成は、AI回答チェック・AI面接コーチと共通の月間利用上限にも制限されます。この枠が残っていても生成できない場合があります。
         </Text>
       )}
       {last && w.resultWaiting && (

@@ -83,7 +83,7 @@ test("category defaults, manual overrides and explicit bulk apply are saved safe
   await page.goto("/admin/questions/");
   const category = page.getByRole("combobox", { name: "カテゴリ", exact: true }).first();
   const assist = page.getByRole("combobox", { name: "回答アシスト", exact: true }).first();
-  await expect(assist).toContainText("PREP");
+  await expect(assist).toContainText("簡潔回答アシスト");
   await assist.click();
   await page.getByRole("option", { name: "アシストなし", exact: true }).click();
   await expect(assist).toContainText("アシストなし");
@@ -91,15 +91,15 @@ test("category defaults, manual overrides and explicit bulk apply are saved safe
   await page.getByRole("option", { name: "転職理由", exact: true }).click();
   await expect(assist).toContainText("転職理由");
   await assist.click();
-  await page.getByRole("option", { name: "STAR", exact: true }).click();
-  await expect(assist).toContainText("STAR");
+  await page.getByRole("option", { name: "エピソード作成アシスト", exact: true }).click();
+  await expect(assist).toContainText("エピソード作成アシスト");
   await page.getByRole("button", { name: "カテゴリ別の初期設定を一括適用" }).click();
   await expect(assist).toContainText("転職理由");
 
   await page.getByRole("button", { name: "質問を追加", exact: true }).click();
   const lastCategory = page.getByRole("combobox", { name: "カテゴリ", exact: true }).last();
   const lastAssist = page.getByRole("combobox", { name: "回答アシスト", exact: true }).last();
-  await expect(lastAssist).toContainText("PREP");
+  await expect(lastAssist).toContainText("簡潔回答アシスト");
   await lastCategory.click();
   await page.getByRole("option", { name: "逆質問", exact: true }).click();
   await expect(lastAssist).toContainText("アシストなし");

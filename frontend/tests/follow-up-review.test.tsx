@@ -83,7 +83,7 @@ it("shows separate current and historical reviews without hiding original overal
 
 it("keeps old feedback and rounds visible with missing dedicated review", () => {
   render(<ThemeProvider theme={theme}><FeedbackCard feedback={feedback} /></ThemeProvider>);
-  expect(screen.getAllByText("専用評価データなし").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("この回答の評価はありません").length).toBeGreaterThan(0);
   expect(screen.getByRole("heading", { name: "総合評価" })).toBeInTheDocument();
   expect(screen.getAllByText(initial).length).toBeGreaterThan(0);
   expect(feedbackWithReviewsSchema.parse({

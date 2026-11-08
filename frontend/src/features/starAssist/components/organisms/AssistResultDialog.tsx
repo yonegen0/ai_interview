@@ -172,7 +172,7 @@ const styleLabels = {
 } as const;
 const titles = {
   star: "生成した3案の回答",
-  prep: "生成したPREP回答",
+  prep: "簡潔回答アシストで生成した回答",
   motivation: "生成した志望動機",
   career_change: "生成した転職理由",
   career_plan: "生成したキャリアプラン",

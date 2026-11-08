@@ -8,7 +8,7 @@ const messages: Record<string, string> = {
   DRAFT_CLOSED: "この回答段階は終了しています。現在の練習を確認してください。",
   STAR_GENERATION_IN_PROGRESS: "この回答段階の生成結果を確認してください。",
   STAR_QUOTA_EXCEEDED:
-    "今月のSTAR生成上限に達しました。編集・保存は利用できます。",
+    "今月の回答アシスト利用上限に達しました。編集・保存は利用できます。",
   STAR_DRAFT_NOT_FOUND: "下書きを確認できません。入力は保持しています。",
   STAR_REQUEST_NOT_FOUND:
     "保存要求はまだ確認できません。同じ要求で再確認してください。",

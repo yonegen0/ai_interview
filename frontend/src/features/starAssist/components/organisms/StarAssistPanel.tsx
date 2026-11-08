@@ -176,7 +176,7 @@ export function StarAssistPanel({
       </Trigger>
       <Status role="status" aria-live="polite">
         <Text component="span" variant="caption">
-          {meta.label}下書き：{w.status}{w.loading ? "（保存版を確認中）" : ""}
+          {meta.label}の下書き：{w.status}{w.loading ? "（保存版を確認中）" : ""}
         </Text>
       </Status>
       {w.error && <Alert severity="error">{w.error}</Alert>}
