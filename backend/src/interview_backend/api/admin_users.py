@@ -44,7 +44,8 @@ class CognitoUsers:
         return {
             row["Name"]: row["Value"]
             for row in attributes
-            if isinstance(row, dict) and isinstance(row.get("Name"), str)
+            if isinstance(row, dict)
+            and isinstance(row.get("Name"), str)
             and isinstance(row.get("Value"), str)
         }
 
