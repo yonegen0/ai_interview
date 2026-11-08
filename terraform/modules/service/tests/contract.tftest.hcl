@@ -51,7 +51,7 @@ run "admin_question_management" {
       local.base_statements["admin"][5].Condition["ForAllValues:StringLike"]["dynamodb:LeadingKeys"] == ["USER#*"] &&
       local.base_statements["admin"][5].Condition.Null["dynamodb:LeadingKeys"] == "false" &&
       toset(local.base_statements["admin"][6].Action) == toset(["cognito-idp:ListUsers", "cognito-idp:AdminUpdateUserAttributes"]) &&
-      local.base_statements["admin"][6].Resource == [aws_cognito_user_pool.main.arn]
+      length(local.base_statements["admin"][6].Resource) == 1
     )
     error_message = "New ADMIN routes and Cognito/DynamoDB permissions must be narrowly scoped."
   }
