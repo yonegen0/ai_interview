@@ -44,6 +44,8 @@ resource "aws_iam_policy" "runtime_boundary" {
   policy = jsonencode({ Version = "2012-10-17", Statement = [
     { Effect = "Allow", Action = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:ConditionCheckItem", "dynamodb:Query", "dynamodb:DescribeStream", "dynamodb:GetRecords", "dynamodb:GetShardIterator"], Resource = [local.table_arn, "${local.table_arn}/index/WorkIndex", "${local.table_arn}/stream/*"] },
     { Effect = "Allow", Action = ["dynamodb:ListStreams"], Resource = ["*"] },
+    # Only the generation ADMIN role may use these actions on the existing pool.
+    { Effect = "Allow", Action = ["cognito-idp:ListUsers", "cognito-idp:AdminUpdateUserAttributes"], Resource = [module.service.cognito_user_pool_arn], Condition = { ArnEquals = { "aws:PrincipalArn" = "arn:aws:iam::${var.account_id}:role/${local.prefix}-admin-runtime" } } },
     { Effect = "Allow", Action = ["sqs:SendMessage", "sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"], Resource = local.queue_arns },
     { Effect = "Allow", Action = ["logs:CreateLogStream", "logs:PutLogEvents"], Resource = ["arn:aws:logs:${local.region}:${var.account_id}:log-group:/aws/lambda/${local.prefix}-*:*"] },
     { Effect = "Allow", Action = ["lambda:InvokeFunction"], Resource = ["arn:aws:lambda:${local.region}:${var.account_id}:function:${local.prefix}-dispatcher:recovery"] },
