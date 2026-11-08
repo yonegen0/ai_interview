@@ -135,8 +135,14 @@ def test_cursor_bound_to_target_owner(runtime):
     second = Attempt(OWNER, OTHER, OTHER, OWNER, question, 1, "回答", now - 20)
     second_evaluation = SimpleNamespace(**{**vars(evaluation), "id": OWNER, "attempt_id": OTHER})
     page = build_history(
-        OWNER, {"limit": "1"}, now, [attempt, second],
-        [evaluation, second_evaluation], [], [], [],
+        OWNER,
+        {"limit": "1"},
+        now,
+        [attempt, second],
+        [evaluation, second_evaluation],
+        [],
+        [],
+        [],
     ).body
     cursor = page["nextCursor"]
     assert cursor is not None
@@ -169,11 +175,11 @@ def test_nickname_set_and_delete(runtime):
     users = FakeUsers()
     path = f"/admin/users/{OWNER}/nickname"
     assert invoke(runtime.repository, users, "PUT", path, body={"nickname": " かずき "})[:2] == (
-        200, {"userId": OWNER, "nickname": "かずき"}
+        200,
+        {"userId": OWNER, "nickname": "かずき"},
     )
     assert (
-        invoke(runtime.repository, users, "PUT", path, body={"nickname": ""})[1]["nickname"]
-        is None
+        invoke(runtime.repository, users, "PUT", path, body={"nickname": ""})[1]["nickname"] is None
     )
     assert (
         invoke(runtime.repository, users, "PUT", path, body={"nickname": "a", "email": "other"})[0]
@@ -193,15 +199,18 @@ class FakeCognitoClient:
     def list_users(self, **kwargs):
         self.requests.append(kwargs)
         return {
-            "Users": [{
-                "Attributes": [
-                    {"Name": "sub", "Value": OWNER},
-                    {"Name": "email", "Value": "sample@example.invalid"},
-                ],
-                "Enabled": True,
-            }],
+            "Users": [
+                {
+                    "Attributes": [
+                        {"Name": "sub", "Value": OWNER},
+                        {"Name": "email", "Value": "sample@example.invalid"},
+                    ],
+                    "Enabled": True,
+                }
+            ],
             "PaginationToken": "next",
         }
+
     def admin_update_user_attributes(self, **kwargs):
         self.requests.append(kwargs)
         if kwargs["Username"] == OTHER:
