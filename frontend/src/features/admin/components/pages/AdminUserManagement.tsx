@@ -15,7 +15,7 @@ import { HistoryList, assistLabels, formatHistoryDate, historyStatus } from "@/f
 import { getAdminUsers, getAdminUserFeedback, putAdminNickname } from "@/lib/api/adminUsers";
 import type { AdminUser } from "@/lib/api/schemas/adminUsers";
 import type { HistoryItem, HistoryMode, HistoryPeriod } from "@/lib/api/schemas/history";
-import { useAdminUserHistory } from "../../../hooks/useAdminUserHistory";
+import { useAdminUserHistory } from "../../hooks/useAdminUserHistory";
 
 const Layout = styled("div")(({ theme }) => ({
   display: "grid", gap: theme.spacing(2.5), minWidth: 0,
