@@ -8,8 +8,8 @@ run "admin_question_management" {
       aws_lambda_function.main["admin"].handler == "interview_backend.aws_runtime.admin_handler" &&
       aws_lambda_function.main["admin"].timeout == 15 &&
       aws_lambda_function.main["admin"].memory_size == 512 &&
-      length(aws_apigatewayv2_route.admin) == 2 &&
-      alltrue([for r in aws_apigatewayv2_route.admin : r.authorization_type == "JWT"]) &&
+      length(aws_apigatewayv2_route.admin) == 6 &&
+      alltrue([for r in aws_apigatewayv2_route.admin : r.authorization_type == "JWT" && r.target == "integrations/${aws_apigatewayv2_integration.admin.id}"]) &&
       output.manifest.schema_version == 4 &&
       aws_apigatewayv2_api.main.disable_execute_api_endpoint
     )
@@ -18,9 +18,9 @@ run "admin_question_management" {
   assert {
     condition = alltrue([
       for statement in local.base_statements["admin"] :
-      alltrue([for action in statement.Action : startswith(action, "logs:") || contains(["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:ConditionCheckItem"], action)])
+      alltrue([for action in statement.Action : startswith(action, "logs:") || contains(["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:ConditionCheckItem", "dynamodb:Query", "cognito-idp:ListUsers", "cognito-idp:AdminUpdateUserAttributes"], action)])
     ])
-    error_message = "ADMIN has no queue, recovery, scan, query or delete permissions."
+    error_message = "ADMIN grants only scoped read and nickname management permissions."
   }
   assert {
     condition = (
@@ -37,9 +37,37 @@ run "admin_question_management" {
       local.base_statements["api"][5].Resource == [local.table_arn] &&
       local.base_statements["api"][5].Condition["ForAllValues:StringLike"]["dynamodb:LeadingKeys"] == ["USER#*"] &&
       local.base_statements["api"][5].Condition.Null["dynamodb:LeadingKeys"] == "false" &&
-      length([for s in local.base_statements["admin"] : s if contains(s.Action, "dynamodb:Query")]) == 0
+      length([for s in local.base_statements["admin"] : s if contains(s.Action, "dynamodb:Query")]) == 1
     )
-    error_message = "Only the general API can Query owner partitions for accepted answer history."
+    error_message = "General API and ADMIN Query are scoped to owner partitions."
+  }
+  assert {
+    condition = (
+      toset(aws_apigatewayv2_route.admin) == toset(local.admin_routes) &&
+      length(aws_lambda_permission.admin_users) == 4 &&
+      length(aws_lambda_permission.admin) == 2 &&
+      local.base_statements["admin"][5].Action == ["dynamodb:Query", "dynamodb:GetItem"] &&
+      local.base_statements["admin"][5].Resource == [local.table_arn] &&
+      local.base_statements["admin"][5].Condition["ForAllValues:StringLike"]["dynamodb:LeadingKeys"] == ["USER#*"] &&
+      local.base_statements["admin"][5].Condition.Null["dynamodb:LeadingKeys"] == "false" &&
+      toset(local.base_statements["admin"][6].Action) == toset(["cognito-idp:ListUsers", "cognito-idp:AdminUpdateUserAttributes"]) &&
+      local.base_statements["admin"][6].Resource == [aws_cognito_user_pool.main.arn]
+    )
+    error_message = "New ADMIN routes and Cognito/DynamoDB permissions must be narrowly scoped."
+  }
+  assert {
+    condition = (
+      alltrue([for s in local.base_statements["admin"] :
+        !contains(s.Action, "dynamodb:Scan") &&
+        !contains(s.Action, "dynamodb:DeleteItem") &&
+        !contains(s.Action, "dynamodb:UpdateItem")
+      ]) &&
+      alltrue([for s in local.base_statements["admin"] :
+        !contains(s.Action, "dynamodb:PutItem") ||
+        s.Condition["ForAllValues:StringEquals"]["dynamodb:LeadingKeys"] == ["SYSTEM#QUESTION_BANK"]
+      ])
+    )
+    error_message = "ADMIN can never edit user answer, evaluation or progress records."
   }
   assert {
     condition = (
