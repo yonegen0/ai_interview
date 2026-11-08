@@ -88,6 +88,7 @@ export function createHandlers(
   let activeRepository: Repository;
   const bodies = new WeakMap<Request, unknown>();
   let pumping = false;
+  const adminNicknames = new Map<string, string>();
   const schedule = () => {
     if (pumping) return;
     pumping = true;
@@ -313,6 +314,101 @@ export function createHandlers(
     ),
   );
   return [
+
+    http.get(`${base}/admin/users`, ({ request }) => {
+      const identity = actor(request);
+      if (!identity) return error("UNAUTHORIZED", 401);
+      if (!identity.admin) return error("FORBIDDEN", 403);
+      const url = new URL(request.url);
+      const limit = Number(url.searchParams.get("limit") ?? "60");
+      if (!Number.isInteger(limit) || limit < 1 || limit > 60 ||
+        Array.from(url.searchParams.keys()).some((key) => !["limit", "cursor"].includes(key)))
+        return error("VALIDATION_ERROR", 400);
+      const list = [
+        { userId: "10000000-0000-4000-8000-000000000001", email: "user@example.invalid", enabled: true },
+        { userId: "10000000-0000-4000-8000-000000000002", email: "admin@example.invalid", enabled: true },
+      ];
+      const first = url.searchParams.get("cursor") === "page2" ? 1 : 0;
+      return HttpResponse.json({
+        users: list.slice(first, first + limit).map((u) => ({
+          ...u, nickname: adminNicknames.get(u.userId) ?? null,
+        })),
+        nextCursor: first + limit < list.length ? "page2" : null,
+      }, { headers: { "Cache-Control": "no-store" } });
+    }),
+    http.get(`${base}/admin/users/:userId/history`, ({ request, params }) => {
+      const identity = actor(request);
+      if (!identity) return error("UNAUTHORIZED", 401);
+      if (!identity.admin) return error("FORBIDDEN", 403);
+      if (!idSchema.safeParse(String(params.userId)).success)
+        return error("VALIDATION_ERROR", 400);
+      const owner = String(params.userId) === "10000000-0000-4000-8000-000000000001"
+        ? "mock-user" : "mock-admin";
+      try {
+        return HttpResponse.json(mockHistory(activeRepository.read(), owner,
+          Object.fromEntries(new URL(request.url).searchParams), Date.now()), {
+          headers: { "Cache-Control": "no-store" },
+        });
+      } catch {
+        return error("VALIDATION_ERROR", 400);
+      }
+    }),
+    http.get(`${base}/admin/users/:userId/attempts/:attemptId/feedback`, ({ request, params }) => {
+      const identity = actor(request);
+      if (!identity) return error("UNAUTHORIZED", 401);
+      if (!identity.admin) return error("FORBIDDEN", 403);
+      if (!idSchema.safeParse(String(params.userId)).success ||
+        !idSchema.safeParse(String(params.attemptId)).success)
+        return error("VALIDATION_ERROR", 400);
+      const url = new URL(request.url);
+      const evaluationId = url.searchParams.get("evaluationId");
+      if ((evaluationId && !idSchema.safeParse(evaluationId).success) ||
+        (url.searchParams.has("includeFollowUpReviews") &&
+          url.searchParams.get("includeFollowUpReviews") !== "1") ||
+        Array.from(url.searchParams.keys()).some((key) =>
+          !["evaluationId", "includeFollowUpReviews"].includes(key)))
+        return error("VALIDATION_ERROR", 400);
+      const state = activeRepository.read();
+      const attemptId = String(params.attemptId);
+      const owner = String(params.userId) === "10000000-0000-4000-8000-000000000001"
+        ? "mock-user" : "mock-admin";
+      const attempt = state.attempts[attemptId];
+      const record = evaluationId ? state.evaluations[evaluationId] : attempt;
+      if (!attempt || !record || record.feedback.attemptId !== attemptId ||
+        sessionOwner(state, attempt.feedback.sessionId) !== owner)
+        return error("ATTEMPT_NOT_FOUND", 404);
+      if (record.evaluation.status !== "completed")
+        return error("EVALUATION_NOT_COMPLETED", 409);
+      const feedback = record.feedback;
+      const followUpReviews = isFeedbackV2(feedback)
+        ? feedback.coachingHistory.map((turn, index) => ({
+          roundIndex: index + 1, evaluationId: feedback.evaluationId,
+          question: turn.question, answer: turn.answer, review: null,
+        })) : [];
+      return HttpResponse.json(url.searchParams.get("includeFollowUpReviews") === "1"
+        ? { feedback, followUpReviews } : feedback, {
+        headers: { "Cache-Control": "no-store" },
+      });
+    }),
+    http.put(`${base}/admin/users/:userId/nickname`, ({ request, params }) => {
+      const identity = actor(request);
+      if (!identity) return error("UNAUTHORIZED", 401);
+      if (!identity.admin) return error("FORBIDDEN", 403);
+      if (!idSchema.safeParse(String(params.userId)).success)
+        return error("VALIDATION_ERROR", 400);
+      const payload = bodies.get(request);
+      if (!payload || typeof payload !== "object" ||
+        Object.keys(payload).length !== 1 || !("nickname" in payload) ||
+        typeof payload.nickname !== "string") return error("VALIDATION_ERROR", 400);
+      const nickname = payload.nickname.normalize("NFC").trim();
+      if (Array.from(nickname).length > 24 || /\p{Cc}/u.test(nickname))
+        return error("VALIDATION_ERROR", 400);
+      if (nickname) adminNicknames.set(String(params.userId), nickname);
+      else adminNicknames.delete(String(params.userId));
+      return HttpResponse.json({ userId: params.userId, nickname: nickname || null }, {
+        headers: { "Cache-Control": "no-store" },
+      });
+    }),
     ...helperHandlers,
     http.get(`${base}/me/practice-progress`, ({ request }) => {
       const identity = actor(request);

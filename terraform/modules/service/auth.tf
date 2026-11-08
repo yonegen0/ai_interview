@@ -129,8 +129,20 @@ resource "aws_apigatewayv2_integration" "admin" {
   payload_format_version = "2.0"
   timeout_milliseconds   = 15000
 }
+locals {
+  admin_user_routes = [
+    "GET /admin/users",
+    "GET /admin/users/{userId}/history",
+    "GET /admin/users/{userId}/attempts/{attemptId}/feedback",
+    "PUT /admin/users/{userId}/nickname",
+  ]
+  admin_routes = toset(concat(
+    ["GET /admin/question-bank", "POST /admin/question-bank"],
+    local.admin_user_routes,
+  ))
+}
 resource "aws_apigatewayv2_route" "admin" {
-  for_each           = toset(["GET /admin/question-bank", "POST /admin/question-bank"])
+  for_each           = local.admin_routes
   api_id             = aws_apigatewayv2_api.main.id
   route_key          = each.value
   authorization_type = "JWT"
@@ -146,4 +158,15 @@ resource "aws_lambda_permission" "admin" {
   principal      = "apigateway.amazonaws.com"
   source_account = var.account_id
   source_arn     = "${aws_apigatewayv2_api.main.execution_arn}/dev/${each.value}/admin/question-bank"
+}
+
+resource "aws_lambda_permission" "admin_users" {
+  for_each       = toset(local.admin_user_routes)
+  statement_id   = "OnlyAdminUsers${substr(sha1(each.value), 0, 12)}"
+  action         = "lambda:InvokeFunction"
+  function_name  = aws_lambda_function.main["admin"].function_name
+  qualifier      = aws_lambda_alias.entry["admin"].name
+  principal      = "apigateway.amazonaws.com"
+  source_account = var.account_id
+  source_arn     = "${aws_apigatewayv2_api.main.execution_arn}/dev/${replace(replace(replace(each.value, " ", "/"), "{userId}", "*"), "{attemptId}", "*")}"
 }

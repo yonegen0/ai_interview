@@ -16,6 +16,9 @@ import { Alert, Avatar, Button as MuiButton, Dialog as MuiDialog,
   IconButton, Snackbar, Typography } from "@mui/material";
 import { alpha, styled } from "@mui/material/styles";
 import { scaledRadius } from "@/theme/tokens";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { auth } from "@/lib/auth/session";
+import { NicknameEditor } from "./NicknameEditor";
 
 export type AccountManagementDialogProps = {
   open: boolean;
@@ -232,6 +235,12 @@ export function AccountManagementDialog({
   open, admin, sub, phase, onClose, onHistory, onLogout, onExited,
 }: AccountManagementDialogProps) {
   const headingId = useId();
+  const queryClient = useQueryClient();
+  const profile = useQuery({
+    queryKey: [sub, "cognito-profile"],
+    queryFn: () => auth.profile(),
+    enabled: open && Boolean(sub) && phase === "authenticated",
+  });
   const [copyResult, setCopyResult] = useState<"success" | "error" | null>(null);
   const ownerRef = useRef(sub);
   useEffect(() => {
@@ -280,6 +289,20 @@ export function AccountManagementDialog({
                 {verified ? "認証済み" : "確認中"}
               </AuthBadge>
             </IdentityRow>
+            {profile.isPending && <Typography role="status">プロフィールを読み込み中…</Typography>}
+            {profile.error && <Alert severity="error">
+              プロフィールを取得できませんでした。
+              <MuiButton onClick={() => { void profile.refetch(); }}>再試行</MuiButton>
+            </Alert>}
+            {profile.data && sub && <NicknameEditor resetKey={sub} nickname={profile.data.nickname}
+              onSave={async (value) => {
+                await auth.updateNickname(value);
+                await queryClient.invalidateQueries({ queryKey: [sub, "cognito-profile"] });
+                await queryClient.invalidateQueries({ queryKey: [sub, "admin-users"] });
+              }} />}
+            {profile.data?.email && <Typography variant="body2" color="text.secondary">
+              メールアドレス：{profile.data.email}
+            </Typography>}
             <IdRow>
               <BadgeOutlinedIcon fontSize="small" color="primary" aria-hidden="true" />
               <IdText>

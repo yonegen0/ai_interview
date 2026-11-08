@@ -210,9 +210,11 @@ def build_entry(component):
         return ApiEntry(settings, Handler(application), metrics)
     if component == "admin":
         from interview_backend.api.admin import AdminHandler
+        from interview_backend.api.admin_users import CognitoUsers
         from interview_backend.assets import load_questions
 
-        return ApiEntry(settings, AdminHandler(repository, load_questions()), metrics)
+        users = CognitoUsers(settings.region, settings.user_pool)
+        return ApiEntry(settings, AdminHandler(repository, load_questions(), users), metrics)
     if component == "worker":
         from interview_backend.star_assist.live_provider import select_star_provider
 
