@@ -8,6 +8,7 @@ import ManageAccountsOutlinedIcon from "@mui/icons-material/ManageAccountsOutlin
 import HistoryRoundedIcon from "@mui/icons-material/HistoryRounded";
 import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
 import LayersOutlinedIcon from "@mui/icons-material/LayersOutlined";
+import PeopleOutlineRoundedIcon from "@mui/icons-material/PeopleOutlineRounded";
 import {
   Avatar, Button, Divider, IconButton, ListItemIcon, ListItemText, Menu, MenuItem,
   Typography,
@@ -125,6 +126,12 @@ export const AccountActionsView = ({
                 <ListItemIcon><HistoryRoundedIcon color="primary" fontSize="small" /></ListItemIcon>
                 <ListItemText>利用履歴</ListItemText>
               </HighlightItem>
+            )}
+            {admin && (
+              <MenuAction component="a" href="/admin/users/" onClick={close}>
+                <ListItemIcon><PeopleOutlineRoundedIcon fontSize="small" /></ListItemIcon>
+                <ListItemText>ユーザー管理</ListItemText>
+              </MenuAction>
             )}
             <Divider />
             <MenuAction onClick={logout}>
