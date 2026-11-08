@@ -401,7 +401,7 @@ export function createHandlers(
         Object.keys(payload).length !== 1 || !("nickname" in payload) ||
         typeof payload.nickname !== "string") return error("VALIDATION_ERROR", 400);
       const nickname = payload.nickname.normalize("NFC").trim();
-      if (Array.from(nickname).length > 24 || /\\p{Cc}/u.test(nickname))
+      if (Array.from(nickname).length > 24 || /\p{Cc}/u.test(nickname))
         return error("VALIDATION_ERROR", 400);
       if (nickname) adminNicknames.set(String(params.userId), nickname);
       else adminNicknames.delete(String(params.userId));
