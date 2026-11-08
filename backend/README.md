@@ -9,20 +9,20 @@ runtimeはapi／worker／dispatcher／adminの4責務、配備manifestはv3で�
 
 質問管理の実装はAWS未配備です。既存devの閉鎖状態と性能レビュー待ちは維持しています。
 通常suiteはAWS非接続、実DynamoDB／認証・IAM試験は明示的な後続工程です。
-[実装・検証記録](../docs/QUESTION_MANAGEMENT_VERIFICATION_20261006.md)と
+実装・検証記録と
 [API契約](../docs/FRONTEND_API_CONTRACT.md)を参照してください。
 
 2026-10-07のレビュー指摘4件を修正しました。認可groupの形式、Session更新容量、管理APIと練習APIの
-冪等キー、JSON整数表記の修正と検証は[Backendレビュー修正記録](../docs/BACKEND_REVIEW_FIXES_20261007.md)を参照。
+冪等キー、JSON整数表記の修正と検証はBackendレビュー修正記録を参照。
 
 以下はP3〜P4初期段階の履歴です。
 
 2026-09-13のレビュー修正、通常344件・Frontend契約102件、実DB57件の収集結果は
-[最新検証記録](../docs/P3_VERIFICATION.md)を参照。AWS試験は未実行で、P4には自動移行しません。
+最新検証記録を参照。AWS試験は未実行で、P4には自動移行しません。
 
 ユーザー指示によりP4のローカル実装を継続中です。P4完了ではありません。
-[P4計画・Terraform手順](../docs/BACKEND_P4_PLAN.md)と
-[P4検証記録・残作業](../docs/P4_VERIFICATION.md)を参照してください。
+P4計画・Terraform手順と
+P4検証記録・残作業を参照してください。
 bootstrap State移行は`skills/p4/bootstrap_state.py`の専用実行口だけを使います。
 初回閉鎖配備向けのinspect/replan、移行再開、manifest v2、CI保存planの検証を追加しています。
 [初回実行・失敗再開手順](../docs/P4_TERRAFORM_RUNBOOK.md)を参照してください。
@@ -34,7 +34,7 @@ AWS・Docker・OpenAI Credentialなしで6 APIと業務遷移を検証できま�
 初回の依存取得にはパッケージレジストリへの通信が必要です。
 
 回答はFrontend・BackendともUTF-16単位で1〜500文字（100〜300文字推奨）へ統一しました。
-本文は加工せず、通常の絵文字は2単位と数えます。選択・最新結果は[検証記録](../docs/BACKEND_P1_VERIFICATION.md)を参照。
+本文は加工せず、通常の絵文字は2単位と数えます。選択・最新結果は検証記録を参照。
 旧501〜2000文字の未確定要求・Mock結果は移行対象外です。保存レコード全体が復元されない場合があります。
 通常の長い下書きは保持し、送信前に500文字以下へ編集します。保存version・復旧手順は変更しません。
 
@@ -134,7 +134,7 @@ Memoryはプロセス終了で全データを失い、本番永続化を保証�
 DynamoDB実装の原子性・競合・永続化、実Streams/SQS/Scheduler/IAMはP4検証待ちです。
 通常pytestはdynamodbマーカーを除外します。明示的なAWS dev設定で `pytest -m dynamodb` を実行すると
 run専用Tableを作成し、そのTableだけを後片付けします。設定不足・疎通失敗は失敗です。
-[P3検証記録とP4手順](../docs/P3_VERIFICATION.md)、[環境選定](../docs/P3_ENVIRONMENT.md)を参照してください。
+P3検証記録とP4手順、環境選定を参照してください。
 
 `build_runtime(mode="aws", region="...", table="...")`は既存Tableへの明示接続です。
 起動時にTableを作成しません。既定はMemoryで、CLIにはAWS自動接続がありません。

@@ -2,7 +2,7 @@
 
 ## 2026-10-07 回答採点・コーチングV2
 
-現行V2契約は[コーチングV2実装](COACHING_V2_IMPLEMENTATION.md)を参照。
+現行V2契約はコーチングV2実装を参照。
 新規・本文編集する質問は200コードポイント、V2本人回答/exampleは400コードポイント。
 V1の500 UTF-16単位/100点結果、保存済み未変更質問、成功済み同キー元応答を保持する。
 後段の質問1〜1,000 UTF-16単位は旧読取/構造検証の互換性を表し、新しい本文変更の上限ではない。
@@ -76,7 +76,7 @@ token・OTP・回答・raw Stateをログに出さない。
 元のversion1を削除せず、不整合時は元データを保持して復旧を拒否する。
 所有者のない旧Mockデータを実API利用者へ移さない。
 
-更新日: 2026-09-12。設計書v2.3／[ADR-002](ADR-002-frontend-contract-alignment.md)に対応。
+更新日: 2026-09-12。設計書v2.3／ADR-002に対応。
 
 ## 対象と正本
 
@@ -188,7 +188,7 @@ Storyはparameters.mockで同じWorkerを起動でき、parameters.handlersで�
 
 [P1 Backend](../backend/README.md)は本契約をメモリ＋Fakeで検証するローカル実装です。
 202前の永続化、分散排他、JWT署名検証、非同期起動・停止回復は未実装で、Frontendは未接続です。
-[ADR-003](ADR-003-local-backend-foundation.md)と[検証記録](BACKEND_P1_VERIFICATION.md)を参照してください。
+ADR-003と検証記録を参照してください。
 
 本契約のエンドポイント、冪等性、評価状態に対応したBackendと認証方式が必要です。MSWを無効にしBase URLを設定しただけでは旧APIと接続できません。
 認証トークンの付与・更新、認証切れ、ログアウト時のQuery Cache／保存情報の分離・破棄を次工程で決定・実装します。
@@ -199,5 +199,5 @@ CORSは許可Originを明示し、Authorization／Content-Type／Idempotency-Key
 ## STAR Assist Ver.1.4 追加契約
 
 既存回答Body・V1/V2復旧を維持し、任意`X-Star-Application-Id`だけを補助使用記録に追加する。
-STARのAPI/期限/CAS/quota/新version3復旧envelopeは[STAR_V14_DESIGN.md](STAR_V14_DESIGN.md)を参照。
+STARのAPI/期限/CAS/quota/新version3復旧envelopeはSTAR_V14_DESIGN.mdを参照。
 Backend/Frontend/Mockの共有fixtureは`contracts/star-v14-fixtures.json`。

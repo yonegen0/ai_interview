@@ -1,7 +1,7 @@
 # ADR-004: 永続受付・独立Dispatch・処理権・回復
 
 状態: 採用（P2-206〜209設計確定、2026-09-12）。P3は2026-09-13にレビュー修正とPython検証完了、P4 AWS構築・実DB検証は未実施。
-[P3実装・Python試験記録](P3_VERIFICATION.md)を参照。以下の設計・数値は維持する。
+P3実装・Python試験記録を参照。以下の設計・数値は維持する。
 [依存方針](DEVELOPMENT_DEPENDENCY_POLICY.md)に従い、選定と構築の許可を分ける。
 P1の明示Workerは維持し、P3で以下の内部契約へ接続する。
 
@@ -77,7 +77,7 @@ Provider SDK/HTTPレイヤーにも自動再試行を許さない。P5で実際�
 
 同じstartedを読んだだけで呼出さず、生存中executionの開始保存応答消失のみ確認継続可能。
 terminalは既存結果を返す。lost_leaseは保存権喪失であり成功扱いにしない。
-詳細な期限境界・送信中のcommitは [Transaction](p2/transactions.md)。
+詳細な期限境界・送信中のcommitは Transaction。
 
 ## P2-208 DispatcherとRecovery
 
@@ -86,7 +86,7 @@ Dispatcherは送信権取得後にSQS SendMessageを1回だけ行う。
 WorkerはPENDINGから先着claimできるため、遅い確認でCLAIMED/DONEを上書きしない。
 送信成功か不明でもDB更新が失敗したら、権利切れ後に再送され得る。Provider重複はclaimで防ぐ。
 
-Recoveryは1分周期、[WorkIndexと走査位置](p2/dynamodb-design.md)に沿って全3 partitionを巡回する。
+Recoveryは1分周期、WorkIndexと走査位置に沿って全3 partitionを巡回する。
 
 | 判定順 | 状態 | 処理 |
 |---|---|---|
@@ -132,7 +132,7 @@ Workerの唯一のSQS event sourceを最大並列2に制限し、関数のReserv
 Reserved自体は無料であり、この変更による直接の料金削減はない。予約設定に必要な未予約枠100の
 制約を避けつつ、SQS経由の処理上限を維持する。API用の容量保証にはならないため、共有負荷と
 cold startを含むthrottle/滞留をP4で検証し、2での実AWS可用性を保証済みとしない。
-30人向けの負荷モデルと検証上の限界は[コスト・性能レビュー](P4_COST_PERFORMANCE.md)を参照。
+30人向けの負荷モデルと検証上の限界はコスト・性能レビューを参照。
 [Lambda SQS設定](https://docs.aws.amazon.com/lambda/latest/dg/services-sqs-configure.html)、
 [最大並列設定](https://docs.aws.amazon.com/lambda/latest/dg/services-sqs-scaling.html)
 
@@ -147,6 +147,6 @@ runningはRecoveryに任せる。未知versionをその場で自動変換しな�
 
 ## 確認と引継ぎ
 
-R04〜R19を [机上確認](p2/P2_VERIFICATION.md) で照合。
+R04〜R19を 机上確認 で照合。
 P3はFake時計・Publisher障害注入で同じ分岐を検証、P4はStreams/SQS/Alarm/IAMの実際の挙動を検証する。
 Streams障害時の回収、送信確認とWorker先着、結果不明時の課金方針はこのADRを変更せず実装者判断で変えない。
