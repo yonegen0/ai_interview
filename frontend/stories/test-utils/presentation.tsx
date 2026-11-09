@@ -152,6 +152,8 @@ export type LoginPresentationProps = {
   cooldown?: number;
   error?: string;
   invalid?: "email" | "code";
+  hasRememberedEmail?: boolean;
+  rememberedEmailError?: string;
 };
 export function LoginPresentation({
   template = false,
@@ -160,6 +162,8 @@ export function LoginPresentation({
   cooldown = 0,
   error,
   invalid,
+  hasRememberedEmail = false,
+  rememberedEmailError,
 }: LoginPresentationProps) {
   const form = useForm<LoginInput>({
     resolver: zodResolver(loginSchema),
@@ -178,10 +182,12 @@ export function LoginPresentation({
   const props = {
     control: form.control,
     errors: form.formState.errors,
-    view: { stage, pending, cooldown, error },
+    view: { stage, pending, cooldown, error, hasRememberedEmail, rememberedEmailError },
     onSubmit: form.handleSubmit(fn()),
     onResend: fn(),
     onChangeEmail: fn(),
+    onEmailEdited: fn(),
+    onClearSavedEmail: fn(),
   };
   return template ? <LoginTemplate {...props} /> : <EmailOtpForm {...props} />;
 }

@@ -20,6 +20,8 @@ export type EmailOtpFormProps = {
   onSubmit: FormEventHandler<HTMLFormElement>;
   onResend: () => void;
   onChangeEmail: () => void;
+  onEmailEdited: () => void;
+  onClearSavedEmail: () => void;
 };
 export function EmailOtpForm({
   control,
@@ -28,6 +30,8 @@ export function EmailOtpForm({
   onSubmit,
   onResend,
   onChangeEmail,
+  onEmailEdited,
+  onClearSavedEmail,
 }: EmailOtpFormProps) {
   return (
     <form onSubmit={onSubmit} noValidate>
@@ -38,6 +42,10 @@ export function EmailOtpForm({
           render={({ field: { ref, ...field } }) => (
             <Input
               {...field}
+              onChange={(event) => {
+                onEmailEdited();
+                field.onChange(event);
+              }}
               inputRef={ref}
               id="login-email"
               label="メールアドレス"
@@ -50,6 +58,18 @@ export function EmailOtpForm({
             />
           )}
         />
+        {view.stage === "email" && !view.pending && view.hasRememberedEmail && (
+          <Button
+            variant="text"
+            color="primary"
+            size="small"
+            type="button"
+            sx={{ justifySelf: "start", minWidth: 0, minHeight: 44, px: 1.5 }}
+            onClick={onClearSavedEmail}
+          >
+            保存したメールアドレスを削除
+          </Button>
+        )}
         {view.stage === "code" && (
           <Controller
             control={control}
@@ -111,6 +131,9 @@ export function EmailOtpForm({
           </>
         )}
       </Actions>
+      {view.rememberedEmailError && (
+        <Alert severity="error">{view.rememberedEmailError}</Alert>
+      )}
       {view.error && <Alert severity="error">{view.error}</Alert>}
     </form>
   );

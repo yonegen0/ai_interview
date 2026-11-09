@@ -75,6 +75,10 @@ const preview: Preview = {
       };
       resetNavigationMock();
       clearPocketStorage();
+      // Storybook is compiled with mock auth; seed this story only after clearing.
+      if (feature.rememberedEmail !== undefined) {
+        localStorage.setItem("pocket:login:last-email:mock", feature.rememberedEmail);
+      }
       if (feature.mockRole === "ADMIN")
         auth.setMockActor("mock-admin", ["ADMIN"]);
       if (feature.mockRole === "ANONYMOUS") await auth.logout();

@@ -29,4 +29,6 @@ export type LoginView = {
   cooldown: number;
   pending: boolean;
   error?: string;
+  hasRememberedEmail: boolean;
+  rememberedEmailError?: string;
 };
