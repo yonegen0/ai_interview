@@ -10,6 +10,7 @@ const meta = {
 } satisfies Meta<typeof LoginPage>;
 export default meta;
 type Story = StoryObj<typeof meta>;
+const rememberedKey = "pocket:login:last-email:mock";
 export const Initial: Story = {};
 export const CodeRequested: Story = {
   play: async ({ canvasElement }) => {
@@ -77,6 +78,42 @@ export const ChangeEmail: Story = {
     );
     await expect(canvas.getByLabelText("メールアドレス")).toBeEnabled();
     await expect(canvas.queryByLabelText("確認コード")).toBeNull();
+  },
+};
+export const RememberedEmail: Story = {
+  parameters: { rememberedEmail: "user@example.invalid" },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await waitFor(() =>
+      expect(canvas.getByLabelText("メールアドレス")).toHaveValue("user@example.invalid"),
+    );
+    await expect(
+      canvas.getByRole("button", { name: "保存したメールアドレスを削除" }),
+    ).toBeInTheDocument();
+    await expect(canvas.queryByLabelText("確認コード")).toBeNull();
+  },
+};
+export const ClearRememberedEmail: Story = {
+  parameters: { rememberedEmail: "user@example.invalid" },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(await canvas.findByRole("button", { name: "保存したメールアドレスを削除" }));
+    await expect(localStorage.getItem(rememberedKey)).toBeNull();
+    await expect(canvas.getByLabelText("メールアドレス")).toHaveValue("");
+    await expect(canvas.queryByRole("button", { name: "保存したメールアドレスを削除" })).toBeNull();
+  },
+};
+export const RememberAfterSuccessfulLogin: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.type(canvas.getByLabelText("メールアドレス"), "user@example.invalid");
+    await userEvent.click(canvas.getByRole("button", { name: "確認コードを送る" }));
+    await expect(await canvas.findByLabelText("確認コード")).toBeInTheDocument();
+    await expect(localStorage.getItem(rememberedKey)).toBeNull();
+    await userEvent.type(canvas.getByLabelText("確認コード"), "123456");
+    await userEvent.click(canvas.getByRole("button", { name: "ログインする" }));
+    await waitFor(() => expect(getRouter().replace).toHaveBeenCalledWith("/practice/"));
+    await expect(localStorage.getItem(rememberedKey)).toBe("user@example.invalid");
   },
 };
 export const Mobile: Story = { globals: { viewport: { value: "iphoneSe" } } };

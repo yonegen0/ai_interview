@@ -31,6 +31,7 @@ export type FeatureStoryParameters = {
   initialRoute?: string;
   seed?: MockState;
   storage?: Record<string, unknown>;
+  rememberedEmail?: string;
 };
 
 export const createStoryQueryClient = (): QueryClient =>
@@ -68,6 +69,7 @@ const pocketKeys = [
   "pocket:create",
 ];
 const pocketPrefixes = ["pocket:answer:", "pocket:next:", "pocket:v2:"];
+const rememberedEmailPrefix = "pocket:login:last-email:";
 
 export const clearPocketStorage = (): void => {
   resetRecoveryMemoryForTests();
@@ -80,6 +82,13 @@ export const clearPocketStorage = (): void => {
         pocketPrefixes.some((prefix) => key.startsWith(prefix)))
     ) {
       sessionStorage.removeItem(key);
+    }
+  }
+  // Only keys owned by remembered-email stories; never clear unrelated localStorage.
+  for (let index = localStorage.length - 1; index >= 0; index -= 1) {
+    const key = localStorage.key(index);
+    if (key?.startsWith(rememberedEmailPrefix)) {
+      localStorage.removeItem(key);
     }
   }
 };

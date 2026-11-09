@@ -13,6 +13,8 @@ export function LoginPage() {
       onSubmit={actions.submit}
       onResend={() => void actions.resend()}
       onChangeEmail={actions.changeEmail}
+      onEmailEdited={actions.emailEdited}
+      onClearSavedEmail={actions.clearSavedEmail}
     />
   );
 }

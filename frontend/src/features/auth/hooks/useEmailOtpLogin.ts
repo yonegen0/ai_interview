@@ -7,6 +7,11 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
 import { auth } from "@/lib/auth/session";
 import {
+  clearRememberedEmail,
+  getRememberedEmail,
+  saveRememberedEmail,
+} from "@/lib/auth/rememberedEmail";
+import {
   loginSchema,
   safeReturn,
   type LoginInput,
@@ -15,7 +20,7 @@ import {
 export function useEmailOtpLogin() {
   const router = useRouter();
   const params = useSearchParams();
-  const form = useForm({
+  const form = useForm<LoginInput>({
     resolver: zodResolver(loginSchema),
     defaultValues: { email: "", code: "" },
   });
@@ -25,6 +30,10 @@ export function useEmailOtpLogin() {
   );
   const session = useRef("");
   const sending = useRef(false);
+  const restorationAttempted = useRef(false);
+  const emailEdited = useRef(false);
+  const [hasRememberedEmail, setHasRememberedEmail] = useState(false);
+  const [rememberedEmailError, setRememberedEmailError] = useState<string>();
   const [cooldown, setCooldown] = useState(0);
   const begin = useMutation({
     mutationFn: (email: string) => auth.begin(email),
@@ -33,6 +42,23 @@ export function useEmailOtpLogin() {
     mutationFn: ({ email, code }: { email: string; code: string }) =>
       auth.complete(email, session.current, code),
   });
+  useEffect(() => {
+    if (restorationAttempted.current) return;
+    restorationAttempted.current = true;
+    const saved = getRememberedEmail();
+    if (!saved) return;
+    setHasRememberedEmail(true);
+    if (
+      stage !== "email" ||
+      sending.current ||
+      emailEdited.current ||
+      form.getValues("email") !== "" ||
+      form.formState.isDirty ||
+      form.getFieldState("email").isTouched
+    ) return;
+    // Treat the restored email as the pristine default, not a user edit.
+    form.reset({ email: saved, code: "" });
+  }, [form, stage]);
   useEffect(() => {
     if (cooldown <= 0) return;
     const timer = setTimeout(() => setCooldown((value) => value - 1), 1000);
@@ -71,6 +97,8 @@ export function useEmailOtpLogin() {
     sending.current = true;
     try {
       await complete.mutateAsync(values);
+      // This convenience write must never turn a successful OTP login into a failure.
+      saveRememberedEmail(values.email);
       router.replace(safeReturn(params.get("returnTo")));
     } catch {
       /* Never display SDK exception payloads. */
@@ -86,6 +114,8 @@ export function useEmailOtpLogin() {
       stage,
       cooldown,
       pending,
+      hasRememberedEmail,
+      rememberedEmailError,
       error: begin.error
         ? "コードを送信できませんでした。接続設定・登録状況を確認して再試行してください。"
         : complete.error
@@ -96,6 +126,20 @@ export function useEmailOtpLogin() {
       submit: (event?: FormEvent<HTMLFormElement>) =>
         form.handleSubmit(onValid)(event),
       resend: send,
+      emailEdited: () => {
+        emailEdited.current = true;
+        setRememberedEmailError(undefined);
+      },
+      clearSavedEmail: () => {
+        if (sending.current || pending || stage !== "email" || !hasRememberedEmail) return;
+        if (!clearRememberedEmail()) {
+          setRememberedEmailError("保存したメールアドレスを削除できませんでした。");
+          return;
+        }
+        setHasRememberedEmail(false);
+        setRememberedEmailError(undefined);
+        form.reset({ email: "", code: "" });
+      },
       changeEmail: () => {
         if (sending.current) return;
         session.current = "";
