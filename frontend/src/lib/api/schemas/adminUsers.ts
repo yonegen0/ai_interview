@@ -1,7 +1,9 @@
 /** @file adminUsers.ts @description ADMIN-only user listing and nickname API contracts. */
 import { z } from "zod";
+// Cognito sub is GUID-shaped but does not require an RFC UUID variant/version.
+export const cognitoSubSchema = z.guid();
 export const adminUserSchema = z.object({
-  userId: z.uuid(), nickname: z.string().nullable(), email: z.string().nullable(),
+  userId: cognitoSubSchema, nickname: z.string().nullable(), email: z.string().nullable(),
   enabled: z.boolean(),
 }).strict();
 export type AdminUser = z.infer<typeof adminUserSchema>;

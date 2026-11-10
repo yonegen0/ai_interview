@@ -8,6 +8,17 @@ from botocore.exceptions import ClientError
 from interview_backend.models.internal import BusinessError
 
 
+# Cognito sub is GUID-shaped, but its variant/version bits are not RFC UUIDs.
+COGNITO_SUB_PATTERN = re.compile(r"[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}")
+
+
+def validate_cognito_sub(value: object) -> str:
+    """Validate the existing Cognito sub wire shape without RFC UUID constraints."""
+    if not isinstance(value, str) or COGNITO_SUB_PATTERN.fullmatch(value) is None:
+        raise BusinessError(400, "VALIDATION_ERROR")
+    return value
+
+
 def normalize_nickname(value: object) -> str:
     """NFC and code-point semantics shared with the browser form."""
     if not isinstance(value, str):
@@ -58,9 +69,7 @@ class CognitoUsers:
         for record in result.get("Users", []):
             attributes = self._attributes(record.get("Attributes") or [])
             sub = attributes.get("sub")
-            if not isinstance(sub, str) or not re.fullmatch(
-                r"[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}", sub
-            ):
+            if not isinstance(sub, str) or COGNITO_SUB_PATTERN.fullmatch(sub) is None:
                 raise ValueError("missing_cognito_sub")
             users.append(
                 {

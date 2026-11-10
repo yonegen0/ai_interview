@@ -7,14 +7,15 @@ import pytest
 from botocore.exceptions import ClientError
 
 from interview_backend.api.admin import AdminHandler
-from interview_backend.api.admin_users import CognitoUsers, normalize_nickname
+from interview_backend.api.admin_users import CognitoUsers, normalize_nickname, validate_cognito_sub
 from interview_backend.assets import load_questions
 from interview_backend.models.internal import Attempt, BusinessError
-from interview_backend.models.public import Question
+from interview_backend.models.public import InvalidIdentifier, Question, validate_id
 from interview_backend.repositories.history import build_history, parse_history_query
 
 OWNER = "10000000-0000-4000-8000-000000000001"
 OTHER = "10000000-0000-4000-8000-000000000002"
+NON_RFC_SUB = "10000000-0000-4000-e000-000000000003"
 
 
 class FakeUsers:
@@ -202,6 +203,36 @@ def test_nickname_set_and_delete(runtime):
     assert invoke(runtime.repository, users, "GET", path)[0] == 405
 
 
+def test_cognito_sub_shape_without_rfc_variant(runtime):
+    """A Cognito sub may have a non-RFC variant; generated IDs remain strict."""
+    assert validate_cognito_sub(OWNER) == OWNER
+    assert validate_cognito_sub(NON_RFC_SUB) == NON_RFC_SUB
+    with pytest.raises(InvalidIdentifier):
+        validate_id(NON_RFC_SUB)
+    for invalid in (None, "", "invalid", "../admin", NON_RFC_SUB + "/history"):
+        with pytest.raises(BusinessError) as exc:
+            validate_cognito_sub(invalid)
+        assert exc.value.status == 400
+
+    users = FakeUsers()
+    history = f"/admin/users/{NON_RFC_SUB}/history"
+    status, result, _ = invoke(
+        runtime.repository, users, "GET", history, query={"mode": "all", "period": "all"}
+    )
+    assert status == 200 and result["items"] == []
+    assert invoke(runtime.repository, users, "GET", history, groups="USER")[0] == 403
+    feedback = f"/admin/users/{NON_RFC_SUB}/attempts/{OWNER}/feedback"
+    assert invoke(runtime.repository, users, "GET", feedback)[0] == 404
+    assert invoke(runtime.repository, users, "GET", f"/admin/users/{NON_RFC_SUB}/attempts/{NON_RFC_SUB}/feedback")[0] == 400
+    nickname = f"/admin/users/{NON_RFC_SUB}/nickname"
+    status, body, _ = invoke(
+        runtime.repository, users, "PUT", nickname, body={"nickname": "テスト"}
+    )
+    assert status == 200 and body == {"userId": NON_RFC_SUB, "nickname": "テスト"}
+    assert users.calls[-1] == (NON_RFC_SUB, "テスト")
+    assert invoke(runtime.repository, users, "GET", "/admin/users/not-a-sub/history")[0] == 400
+
+
 class FakeCognitoClient:
     def __init__(self):
         self.requests = []
@@ -216,7 +247,8 @@ class FakeCognitoClient:
                         {"Name": "email", "Value": "sample@example.invalid"},
                     ],
                     "Enabled": True,
-                }
+                },
+                {"Attributes": [{"Name": "sub", "Value": NON_RFC_SUB}], "Enabled": True},
             ],
             "PaginationToken": "next",
         }
@@ -235,6 +267,7 @@ def test_cognito_sdk_shape_and_missing_user():
     identity = CognitoUsers("ap-northeast-1", "ap-northeast-1_pool", client=fake)
     page = identity.list_users(60, "older")
     assert page["users"][0]["nickname"] is None
+    assert page["users"][1]["userId"] == NON_RFC_SUB
     assert page["nextCursor"] == "next"
     assert fake.requests[0]["PaginationToken"] == "older"
     assert identity.update_nickname(OWNER, "")["nickname"] is None

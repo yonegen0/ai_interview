@@ -2,9 +2,9 @@
 import { request } from "./client";
 import { feedbackSchema, feedbackWithReviewsSchema, idSchema } from "./schemas";
 import { historyResponseSchema, type HistoryMode, type HistoryPeriod } from "./schemas/history";
-import { adminUserListSchema, nicknameReceiptSchema } from "./schemas/adminUsers";
+import { adminUserListSchema, cognitoSubSchema, nicknameReceiptSchema } from "./schemas/adminUsers";
 
-const userPath = (userId: string) => `/admin/users/${idSchema.parse(userId)}`;
+const userPath = (userId: string) => `/admin/users/${cognitoSubSchema.parse(userId)}`;
 export const getAdminUsers = (cursor?: string | null, signal?: AbortSignal) => {
   const params = new URLSearchParams({ limit: "60" });
   if (cursor) params.set("cursor", cursor);

@@ -4,7 +4,7 @@ import base64
 import json
 import re
 
-from interview_backend.api.admin_users import normalize_nickname
+from interview_backend.api.admin_users import normalize_nickname, validate_cognito_sub
 from interview_backend.api.handler import error, parse_body, reject_json_constant, response
 from interview_backend.application.service import Application, request_model
 from interview_backend.models.internal import BusinessError, Reply
@@ -138,7 +138,7 @@ class AdminHandler:
                 ):
                     raise BusinessError(400, "VALIDATION_ERROR")
                 return response(Reply(200, self.users.list_users(limit, cursor)))
-            user_id = validate_id((history or feedback or nickname or target).group(1))
+            user_id = validate_cognito_sub((history or feedback or nickname or target).group(1))
             if history:
                 query = event.get("queryStringParameters") or {}
                 if not isinstance(query, dict):
