@@ -223,7 +223,8 @@ def test_cognito_sub_shape_without_rfc_variant(runtime):
     assert invoke(runtime.repository, users, "GET", history, groups="USER")[0] == 403
     feedback = f"/admin/users/{NON_RFC_SUB}/attempts/{OWNER}/feedback"
     assert invoke(runtime.repository, users, "GET", feedback)[0] == 404
-    assert invoke(runtime.repository, users, "GET", f"/admin/users/{NON_RFC_SUB}/attempts/{NON_RFC_SUB}/feedback")[0] == 400
+    invalid_attempt = f"/admin/users/{NON_RFC_SUB}/attempts/{NON_RFC_SUB}/feedback"
+    assert invoke(runtime.repository, users, "GET", invalid_attempt)[0] == 400
     nickname = f"/admin/users/{NON_RFC_SUB}/nickname"
     status, body, _ = invoke(
         runtime.repository, users, "PUT", nickname, body={"nickname": "テスト"}

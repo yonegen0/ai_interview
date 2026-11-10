@@ -7,7 +7,6 @@ from botocore.exceptions import ClientError
 
 from interview_backend.models.internal import BusinessError
 
-
 # Cognito sub is GUID-shaped, but its variant/version bits are not RFC UUIDs.
 COGNITO_SUB_PATTERN = re.compile(r"[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}")
 
