@@ -14,7 +14,7 @@ import { theme } from "@/theme/theme";
 const setup = () => {
   const onClose = vi.fn();
   render(<ThemeProvider theme={theme}><StarAssistTutorial onClose={onClose} /></ThemeProvider>);
-  const dialog = screen.getByRole("dialog", { name: "STARアシストの使い方を体験" });
+  const dialog = screen.getByRole("dialog", { name: "エピソード作成アシストの使い方を体験" });
   const next = () => fireEvent.click(within(dialog).getByRole("button", { name: "次へ" }));
   const back = () => fireEvent.click(within(dialog).getByRole("button", { name: "戻る" }));
   return { dialog, next, back, onClose };
@@ -53,6 +53,10 @@ describe("STAR tutorial fixed data", () => {
     expect(getTutorialView(2).notes.S).toBe(TUTORIAL_NOTES.S);
     expect(getTutorialView(3).notes).toEqual({ ...TUTORIAL_NOTES, A: "", R: "" });
     expect(getTutorialView(4).notes.R).toBe("");
+    expect(getTutorialView(2).highlight).toBe("S");
+    expect(getTutorialView(3).highlight).toBe("T");
+    expect(getTutorialView(4).highlight).toBe("A");
+    expect(getTutorialView(5).highlight).toBe("R");
     expect(getTutorialView(5).notes).toEqual(TUTORIAL_NOTES);
     expect(getTutorialView(5).targetCategory).toBeNull();
     expect(getTutorialView(6).targetCategory).toBe(TUTORIAL_CATEGORY);
@@ -109,20 +113,22 @@ describe("STAR tutorial dialog", () => {
     expect(within(dialog).getByText(/表示中：A案/)).toBeInTheDocument();
     next();
     expect(within(dialog).getByText("A案の回答を編集（体験用）")).toBeInTheDocument();
-    expect(within(dialog).getByLabelText("編集画面の文章")).toHaveTextContent(TUTORIAL_CANDIDATES[0].text);
+    expect(within(dialog).getByLabelText("編集画面の文章")).toHaveValue(TUTORIAL_CANDIDATES[0].text);
     next();
-    expect(within(dialog).getByLabelText("編集画面の文章")).toHaveTextContent(TUTORIAL_EDITED_A);
+    expect(within(dialog).getByLabelText("編集画面の文章")).toHaveValue(TUTORIAL_EDITED_A);
     back();
-    expect(within(dialog).getByLabelText("編集画面の文章")).toHaveTextContent(TUTORIAL_CANDIDATES[0].text);
+    expect(within(dialog).getByLabelText("編集画面の文章")).toHaveValue(TUTORIAL_CANDIDATES[0].text);
     next();
-    expect(within(dialog).getByLabelText("編集画面の文章")).toHaveTextContent(TUTORIAL_EDITED_A);
+    expect(within(dialog).getByLabelText("編集画面の文章")).toHaveValue(TUTORIAL_EDITED_A);
     expect(TUTORIAL_CANDIDATES[0].text).toContain(TUTORIAL_EDIT_BEFORE);
   });
 
   it("keeps presentation-only buttons inert and never exposes an editable field", () => {
     const { dialog, next, onClose } = setup();
     for (let i = 0; i < 5; i++) next();
-    expect(within(dialog).queryByRole("textbox")).not.toBeInTheDocument();
+    const notes = within(dialog).getAllByRole("textbox");
+    expect(notes).toHaveLength(4);
+    notes.forEach((field) => expect(field).toHaveAttribute("readonly"));
     expect(within(dialog).queryByRole("tab")).not.toBeInTheDocument();
     const fakeGenerate = within(dialog).getByText("3案を生成（1回）");
     fireEvent.click(fakeGenerate);
