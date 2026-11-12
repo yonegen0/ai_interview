@@ -401,11 +401,11 @@ describe("answer assist failure messaging", () => {
 describe("answer-assist reference tips", () => {
   it("provides 12 coherent STAR tips and preserves the other 48 tips", () => {
     expect(starSteps.map((step) => step.tips.length)).toEqual([3, 3, 3, 3]);
-    expect(starSteps[0].tips[0]).toContain("申請内容");
-    expect(starSteps[2].tips[0]).toContain("確認表");
-    expect(starSteps[3].tips[0]).toContain("確認漏れ");
-    expect(starSteps[1].tips[1]).toContain("待ち時間");
-    expect(starSteps[2].tips[2]).toContain("各担当者");
+    expect(starSteps[0].tips[0]).toContain("商品やサービスの案内");
+    expect(starSteps[2].tips[0]).toContain("提案内容と説明の順番");
+    expect(starSteps[3].tips[0]).toContain("説明のやり直しが減り");
+    expect(starSteps[1].tips[1]).toContain("確認漏れを防ぎ");
+    expect(starSteps[2].tips[2]).toContain("共有メモ");
     const modes = ["prep", "motivation", "career_change", "career_plan"] as const;
     expect(modes.flatMap((mode) => assistModes[mode].steps.flatMap((step) => step.tips))).toHaveLength(48);
     expect(Object.values(assistModes).flatMap((mode) => mode.steps.flatMap((step) => step.tips))).toHaveLength(60);

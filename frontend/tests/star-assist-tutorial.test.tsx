@@ -6,10 +6,12 @@ import { StarAssistTutorial } from "@/features/starAssist/tutorial/StarAssistTut
 import { getTutorialView, TUTORIAL_COMPLETE_STEP } from "@/features/starAssist/tutorial/useStarAssistTutorial";
 import {
   TUTORIAL_CANDIDATES, TUTORIAL_CATEGORY, TUTORIAL_EDIT_AFTER,
-  TUTORIAL_EDIT_BEFORE, TUTORIAL_EDITED_A, TUTORIAL_NOTES,
+  TUTORIAL_EDIT_BEFORE, TUTORIAL_EDITED_A, TUTORIAL_NOTES, TUTORIAL_QUESTION,
+  TUTORIAL_CANDIDATE_DESCRIPTIONS, TUTORIAL_STEP_DESCRIPTIONS,
 } from "@/features/starAssist/tutorial/tutorialData";
-import { countStarNotes, starCandidateSchema, starResultSchema, targetCategories } from "@/lib/api/schemas/star";
+import { countStarNotes, countStarText, starCandidateSchema, starResultSchema, targetCategories } from "@/lib/api/schemas/star";
 import { theme } from "@/theme/theme";
+import { starSteps, assistModes } from "@/features/starAssist/model/steps";
 
 const setup = () => {
   const onClose = vi.fn();
@@ -22,10 +24,10 @@ const setup = () => {
 
 describe("STAR tutorial fixed data", () => {
   it("fits source contracts and preserves the exact ordered candidates", () => {
-    expect(countStarNotes(TUTORIAL_NOTES)).toBe(209);
+    expect(countStarNotes(TUTORIAL_NOTES)).toBe(195);
     expect(countStarNotes(TUTORIAL_NOTES)).toBeLessThanOrEqual(600);
-    expect(TUTORIAL_CATEGORY).toBe("office_reception");
-    expect(targetCategories[TUTORIAL_CATEGORY]).toBe("事務・受付");
+    expect(TUTORIAL_CATEGORY).toBe("retail_service");
+    expect(targetCategories[TUTORIAL_CATEGORY]).toBe("接客・販売・サービス");
     expect(TUTORIAL_CANDIDATES.map(({ id, style }) => [id, style])).toEqual([
       ["A", "conclusion"], ["B", "action"], ["C", "conversational"],
     ]);
@@ -34,18 +36,69 @@ describe("STAR tutorial fixed data", () => {
     }).success).toBe(true);
     for (const candidate of TUTORIAL_CANDIDATES) {
       expect(starCandidateSchema.safeParse(candidate).success).toBe(true);
-      expect(Array.from(candidate.text).length).toBeLessThanOrEqual(400);
+      expect(countStarText(candidate.text)).toBeLessThanOrEqual(400);
+      expect(countStarText(candidate.text)).toBeLessThanOrEqual(600);
     }
-    expect(TUTORIAL_CANDIDATES.map((candidate) => Array.from(candidate.text).length))
-      .toEqual([276, 284, 285]);
+    expect(TUTORIAL_CANDIDATES.map((candidate) => countStarText(candidate.text)))
+      .toEqual([261, 264, 285]);
     expect(TUTORIAL_CANDIDATES[0].text.split(TUTORIAL_EDIT_BEFORE)).toHaveLength(2);
     expect(TUTORIAL_EDITED_A).toBe(
       TUTORIAL_CANDIDATES[0].text.replace(TUTORIAL_EDIT_BEFORE, TUTORIAL_EDIT_AFTER),
     );
-    expect(Array.from(TUTORIAL_EDITED_A).length).toBe(291);
-    expect(TUTORIAL_EDITED_A.length).toBeLessThanOrEqual(400);
+    expect(countStarText(TUTORIAL_EDITED_A)).toBe(263);
+    expect(countStarText(TUTORIAL_EDITED_A)).toBeLessThanOrEqual(400);
     expect(getTutorialView(8).selectedCandidate).toBe("B");
     expect(getTutorialView(9).selectedCandidate).toBe("C");
+  });
+
+  it("keeps the 12 STAR examples aligned while leaving other assist modes intact", () => {
+    expect(starSteps.map(({ key, tips }) => [key, tips.length])).toEqual([
+      ["S", 3], ["T", 3], ["A", 3], ["R", 3],
+    ]);
+    expect(starSteps.map(({ tips }) => [...tips])).toEqual([
+      [
+        "商品やサービスの案内で、お客様ごとに使用目的や困りごとが異なっていた",
+        "日々の業務で、確認漏れによる作業のやり直しが発生していた",
+        "複数人で進める業務で、担当者間の認識にずれがあった"
+      ],
+      [
+        "お客様の要望を把握し、相手に合った提案をする必要があった",
+        "確認漏れを防ぎ、作業を正確に進める必要があった",
+        "担当範囲と期限を明確にし、手戻りを防ぐ必要があった"
+      ],
+      [
+        "使用目的や困りごとを聞き、提案内容と説明の順番を変えた",
+        "確認漏れが起きやすい項目を整理し、確認リストを作った",
+        "担当者と作業内容や期限を確認し、共有メモにまとめた"
+      ],
+      [
+        "提案後の説明のやり直しが減り、事前の聞き取りの大切さを学んだ",
+        "確認漏れが減り、作業手順を見直す大切さを学んだ",
+        "確認の行き違いが減り、早めの情報共有の大切さを学んだ"
+      ]
+    ]);
+    expect(starSteps.every(({ tips }) => tips.every((tip) => tip.trim().length > 0))).toBe(true);
+    expect([
+      assistModes.prep.steps[0].tips[0],
+      assistModes.motivation.steps[0].tips[0],
+      assistModes.career_change.steps[0].tips[0],
+      assistModes.career_plan.steps[0].tips[0],
+    ]).toEqual([
+      "私の強みは、課題に気づいたら自分から行動できること",
+      "相手の困りごとを理解し、解決につなげる仕事がしたい",
+      "現在の仕事で〇〇にやりがいを感じ、その仕事を中心に取り組みたいと思った",
+      "3年後には、担当業務を一人で進められるようになりたい",
+    ]);
+  });
+
+  it("reuses descriptions for the three candidate steps", () => {
+    expect(TUTORIAL_QUESTION).toBe("あなたの強みは何ですか？具体的な経験を交えて教えてください。");
+    expect(TUTORIAL_STEP_DESCRIPTIONS).toHaveLength(12);
+    expect(TUTORIAL_STEP_DESCRIPTIONS.slice(6, 9)).toEqual([
+      TUTORIAL_CANDIDATE_DESCRIPTIONS.A,
+      TUTORIAL_CANDIDATE_DESCRIPTIONS.B,
+      TUTORIAL_CANDIDATE_DESCRIPTIONS.C,
+    ]);
   });
 
   it("derives every backward/forward state from the step alone", () => {
@@ -85,6 +138,9 @@ describe("STAR tutorial dialog", () => {
     try {
       const { dialog, next } = setup();
       expect(within(dialog).getAllByText("未入力", { exact: true })).toHaveLength(4);
+      expect(within(dialog).getByRole("heading", { name: "体験用の質問" })).toBeInTheDocument();
+      expect(within(dialog).getByText(TUTORIAL_QUESTION)).toBeInTheDocument();
+      expect(within(dialog).getByText("この質問はチュートリアル専用です。実際の練習中の質問や回答は変更されません。")).toBeInTheDocument();
       for (let step = 1; step <= 12; step++) {
         expect(within(dialog).getByText("STEP " + step + " / 12")).toBeInTheDocument();
         next();
@@ -116,6 +172,7 @@ describe("STAR tutorial dialog", () => {
     expect(within(dialog).getByLabelText("編集画面の文章")).toHaveValue(TUTORIAL_CANDIDATES[0].text);
     next();
     expect(within(dialog).getByLabelText("編集画面の文章")).toHaveValue(TUTORIAL_EDITED_A);
+    expect(within(dialog).getByText("文章の一部分を、自分の言葉に近い表現へ修正しました。")).toBeInTheDocument();
     back();
     expect(within(dialog).getByLabelText("編集画面の文章")).toHaveValue(TUTORIAL_CANDIDATES[0].text);
     next();
