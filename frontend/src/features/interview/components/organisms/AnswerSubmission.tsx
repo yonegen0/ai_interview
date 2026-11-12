@@ -100,6 +100,8 @@ export function AnswerSubmission({
   const [unsupportedOpen, setUnsupportedOpen] = useState(false);
   const [launchUnavailable, setLaunchUnavailable] = useState(false);
   const requestSerial = useRef(0);
+  const tutorialTriggerRef = useRef<HTMLButtonElement>(null);
+  const returnFocusAfterExit = useRef(false);
   const pendingLaunch = useRef<{
     id: number;
     sessionId: string;
@@ -119,7 +121,16 @@ export function AnswerSubmission({
     setTutorialOpen(false);
     setUnsupportedOpen(false);
     goToCategoryAfterExit.current = false;
+    returnFocusAfterExit.current = false;
   }, [phase, tutorialContextKey]);
+
+  // Wait until the trigger is enabled again after MUI's exit transition.
+  useEffect(() => {
+    if (tutorialMounted || !returnFocusAfterExit.current) return;
+    if (nativeDialogOpen || unsupportedOpen || externalOpenRequest !== null) return;
+    returnFocusAfterExit.current = false;
+    tutorialTriggerRef.current?.focus();
+  }, [tutorialMounted, nativeDialogOpen, unsupportedOpen, externalOpenRequest]);
 
   const productionAvailable = assistType !== "none" && workspace?.available === true;
   const tutorialEligible = phase === "answering" && answerKind === "initial" &&
@@ -133,10 +144,12 @@ export function AnswerSubmission({
     setTutorialOpen(true);
   };
   const closeTutorial = () => {
+    returnFocusAfterExit.current = true;
     pendingLaunch.current = null;
     setTutorialOpen(false);
   };
   const tryProductionAssist = () => {
+    returnFocusAfterExit.current = false;
     if (!tutorialOpen || pendingLaunch.current || !tutorialContextKey ||
       !tutorialSessionId || !tutorialQuestionId) return;
     pendingLaunch.current = {
@@ -245,7 +258,7 @@ export function AnswerSubmission({
           )}
           {tutorialEligible && (
             <div>
-              <Button type="button" variant="outlined" sx={{ minHeight: 44 }}
+              <Button ref={tutorialTriggerRef} type="button" variant="outlined" sx={{ minHeight: 44 }}
                 aria-haspopup="dialog" aria-expanded={tutorialOpen}
                 disabled={tutorialMounted || nativeDialogOpen || unsupportedOpen ||
                   externalOpenRequest !== null || confirmCopy || exitConfirm}
