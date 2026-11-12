@@ -99,7 +99,7 @@ it("automatically shows only the newly requested generation once", async () => {
 
 it("does not automatically pop up a restored draft", () => {
   render(<Harness restored />);
-  fireEvent.click(screen.getByRole("button", { name: /エピソード作成アシスト/ }));
+  fireEvent.click(normalTrigger);
   expect(screen.getByRole("dialog", { name: "入力画面" })).toBeInTheDocument();
   expect(screen.queryByRole("dialog", { name: "成果物" })).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "生成した回答を見る" }));
@@ -132,11 +132,12 @@ it("keeps the result open when applying B fails", async () => {
 
 it("offers the independent tutorial only in a safe STAR state and keeps normal dialogs exclusive", () => {
   render(<Harness hasAnswer />);
+  const normalTrigger = screen.getByRole("button", { name: /エピソード作成アシスト/ });
   const launch = screen.getByRole("button", { name: "使い方を体験する" });
   fireEvent.click(launch);
   expect(screen.getByRole("dialog", { name: "STARアシストの使い方を体験" })).toBeInTheDocument();
   // Clicking the background trigger programmatically must not open a second dialog.
-  fireEvent.click(screen.getByRole("button", { name: /エピソード作成アシスト/ }));
+  fireEvent.click(normalTrigger);
   expect(screen.queryByRole("dialog", { name: "入力画面" })).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "チュートリアルを閉じる" }));
   expect(screen.queryByRole("dialog", { name: "STARアシストの使い方を体験" })).not.toBeInTheDocument();

@@ -44,8 +44,8 @@ describe("STAR tutorial fixed data", () => {
     );
     expect(Array.from(TUTORIAL_EDITED_A).length).toBe(291);
     expect(TUTORIAL_EDITED_A.length).toBeLessThanOrEqual(400);
-    expect(TUTORIAL_CANDIDATES[1].text).not.toContain(TUTORIAL_EDIT_BEFORE);
-    expect(TUTORIAL_CANDIDATES[2].text).not.toContain(TUTORIAL_EDIT_BEFORE);
+    expect(getTutorialView(8).selectedCandidate).toBe("B");
+    expect(getTutorialView(9).selectedCandidate).toBe("C");
   });
 
   it("derives every backward/forward state from the step alone", () => {
@@ -121,7 +121,7 @@ describe("STAR tutorial dialog", () => {
 
   it("keeps presentation-only buttons inert and never exposes an editable field", () => {
     const { dialog, next, onClose } = setup();
-    for (let i = 0; i < 6; i++) next();
+    for (let i = 0; i < 5; i++) next();
     expect(within(dialog).queryByRole("textbox")).not.toBeInTheDocument();
     expect(within(dialog).queryByRole("tab")).not.toBeInTheDocument();
     const fakeGenerate = within(dialog).getByText("3案を生成（1回）");
