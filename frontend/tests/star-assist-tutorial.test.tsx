@@ -144,12 +144,26 @@ describe("STAR tutorial dialog", () => {
       Promise.reject(new Error("No tutorial network access allowed")));
     try {
       const { dialog, next } = setup();
-      expect(within(dialog).getAllByText("未入力", { exact: true })).toHaveLength(4);
+      expect(within(dialog).getByRole("textbox", { name: "S 状況" })).toHaveValue("");
+      expect(within(dialog).getAllByRole("textbox")).toHaveLength(1);
+      expect(within(dialog).getByLabelText("状況の記入例")).toBeInTheDocument();
+      expect(within(dialog).getByText(assistModes.star.description)).toBeInTheDocument();
       expect(within(dialog).getByRole("heading", { name: "体験用の質問" })).toBeInTheDocument();
       expect(within(dialog).getByText(TUTORIAL_QUESTION)).toBeInTheDocument();
-      expect(within(dialog).getByText("この質問はチュートリアル専用です。実際の練習中の質問や回答は変更されません。")).toBeInTheDocument();
+      expect(within(dialog).getByText("実際の回答・下書きには保存されません。")).toBeInTheDocument();
       for (let step = 1; step <= 12; step++) {
         expect(within(dialog).getByText("STEP " + step + " / 12")).toBeInTheDocument();
+        if (step <= 6) {
+          const selected = step <= 2 ? 0 : Math.min(step - 2, 3);
+          const current = starSteps[selected];
+          expect(within(dialog).getAllByRole("textbox")).toHaveLength(step === 6 ? 3 : 1);
+          expect(within(dialog).getByLabelText(current.label + "の入力")).toBeInTheDocument();
+          expect(within(dialog).getByLabelText(current.label + "の記入例")).toBeInTheDocument();
+          const key = current.key;
+          expect(within(dialog).getByRole("textbox", {
+            name: key === "A" ? "A 本人の行動" : key + " " + current.label,
+          })).toHaveValue(getTutorialView(step).notes[key]);
+        }
         next();
       }
       expect(within(dialog).getByRole("heading", { name: "チュートリアル完了！" })).toBeInTheDocument();
@@ -175,7 +189,7 @@ describe("STAR tutorial dialog", () => {
     next();
     expect(within(dialog).getByText(/表示中：A案/)).toBeInTheDocument();
     next();
-    expect(within(dialog).getByText("A案の回答を編集（体験用）")).toBeInTheDocument();
+    expect(within(dialog).getByText("案Aの回答（結論重視）")).toBeInTheDocument();
     expect(within(dialog).getByLabelText("編集画面の文章")).toHaveValue(TUTORIAL_CANDIDATES[0].text);
     expect(within(dialog).queryByLabelText("修正前後の比較")).not.toBeInTheDocument();
     expect(within(dialog).getByText(/修正する箇所は最後の一文/)).toBeInTheDocument();
@@ -199,17 +213,22 @@ describe("STAR tutorial dialog", () => {
     const { dialog, next, onClose } = setup();
     for (let i = 0; i < 5; i++) next();
     const notes = within(dialog).getAllByRole("textbox");
-    expect(notes).toHaveLength(4);
+    expect(notes).toHaveLength(3);
     notes.forEach((field) => expect(field).toHaveAttribute("readonly"));
     expect(within(dialog).queryByRole("tab")).not.toBeInTheDocument();
     const fakeGenerate = within(dialog).getByText("3案を生成（1回）");
+    expect(fakeGenerate.closest("button")).toBeDisabled();
     fireEvent.click(fakeGenerate);
     expect(within(dialog).getByText("STEP 6 / 12")).toBeInTheDocument();
     next();
+    expect(within(dialog).getByRole("tab", { name: "B 行動重視" })).toBeDisabled();
     fireEvent.click(within(dialog).getByText("B 行動重視"));
     expect(within(dialog).getByText(/表示中：A案/)).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "この回答を使う" })).toBeDisabled();
     fireEvent.click(within(dialog).getByText("この回答を使う"));
     expect(within(dialog).getByText("STEP 7 / 12")).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "前の案" })).toBeDisabled();
+    expect(within(dialog).getByRole("button", { name: "次の案" })).toBeDisabled();
     fireEvent.click(within(dialog).getByRole("button", { name: "チュートリアルを閉じる" }));
     expect(onClose).toHaveBeenCalledOnce();
   });
