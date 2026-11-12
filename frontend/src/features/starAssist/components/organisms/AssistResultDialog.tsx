@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import EmojiEventsOutlinedIcon from "@mui/icons-material/EmojiEventsOutlined";
 import { Alert, Dialog as MuiDialog, DialogContent, DialogTitle } from "@mui/material";
 import { alpha, styled } from "@mui/material/styles";
 import { Button } from "@/components/atoms/Button";
@@ -13,7 +14,7 @@ import {
   type StarInput,
 } from "@/lib/api/schemas/star";
 import type { StarWorkspace } from "../../hooks/useStarWorkspace";
-import { CandidateTabs, CandidateTab, AnswerCard, CardHeading, AnswerText, ActionBar, AssistResultHeading, AssistCandidateActions, AssistCandidateNavigation, STAR_RESULT_DESCRIPTION } from "../molecules/AssistResultPresentation";
+import { CandidateTabs, CandidateTab, AnswerCard, CardHeading, AnswerText, AssistResultHeading, AssistCandidateActions, AssistCandidateNavigation, STAR_RESULT_DESCRIPTION } from "../molecules/AssistResultPresentation";
 
 type CandidateId = NonNullable<StarInput["selectedCandidateId"]>;
 type Props = {
@@ -157,7 +158,8 @@ export function AssistResultDialog({ open, workspace: w, applying, onClose, onBa
               onCopy={() => void copy()}
               onEdit={() => setEditingId(editingId === candidate.id ? null : candidate.id)}
               onApply={() => onApply(candidate.id)}
-              disabled={disabled} />
+              copyDisabled={applying} editDisabled={applying || w.busy || w.pending}
+              applyDisabled={disabled} />
             {copyNotice && (
               <Alert severity={copyNotice === "success" ? "success" : "error"} role="status">
                 {copyNotice === "success" ? "回答をコピーしました。" : "コピーできませんでした。"}

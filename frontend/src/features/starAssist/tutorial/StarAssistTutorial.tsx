@@ -27,7 +27,7 @@ import {
 } from "../components/molecules/AssistResultPresentation";
 import EmojiEventsOutlinedIcon from "@mui/icons-material/EmojiEventsOutlined";
 import {
-  TUTORIAL_CANDIDATES, TUTORIAL_COMPANY, TUTORIAL_CATEGORY, TUTORIAL_NOTES,
+  TUTORIAL_CANDIDATES, TUTORIAL_COMPANY, TUTORIAL_CATEGORY,
   TUTORIAL_EDITED_A, TUTORIAL_EDIT_BEFORE, TUTORIAL_EDIT_AFTER,
   TUTORIAL_INDUSTRY, TUTORIAL_QUESTION,
 } from "./tutorialData";

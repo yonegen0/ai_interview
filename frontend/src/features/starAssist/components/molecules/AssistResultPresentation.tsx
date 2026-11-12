@@ -1,7 +1,6 @@
 /** @file AssistResultPresentation.tsx @description 実成果物と体験版で同じ見た目を利用する表示部品。 */
 "use client";
 
-import type { ReactNode } from "react";
 import AutoAwesomeOutlinedIcon from "@mui/icons-material/AutoAwesomeOutlined";
 import ArrowBackIosNewIcon from "@mui/icons-material/ArrowBackIosNew";
 import ArrowForwardIosIcon from "@mui/icons-material/ArrowForwardIos";
@@ -13,7 +12,6 @@ import EmojiEventsOutlinedIcon from "@mui/icons-material/EmojiEventsOutlined";
 import { IconButton, Tab, Tabs } from "@mui/material";
 import { alpha, styled } from "@mui/material/styles";
 import { Button } from "@/components/atoms/Button";
-import { Input } from "@/components/atoms/Input";
 import { Text } from "@/components/atoms/Text";
 
 export const CandidateTabs = styled(Tabs)(({ theme }) => ({
@@ -111,31 +109,6 @@ export function AssistResultHeading({ title, description, onClose, titleId, desc
   );
 }
 
-export function AssistCandidateCard({ id, label, text, editing, length, maximum,
-  editLabel, readOnly, helperText, children, target }: {
-  id: string; label: string; text: string; editing: boolean; length: number; maximum: number;
-  editLabel: string; readOnly?: boolean; helperText?: string; children?: ReactNode; target?: boolean;
-}) {
-  return (
-    <AnswerCard aria-label="生成した回答アシスト" data-tutorial-target={target ? "true" : undefined}>
-      <CardHeading>
-        <EmojiEventsOutlinedIcon color="warning" aria-hidden="true" />
-        <Text variant="h3" component="h3">{label}</Text>
-      </CardHeading>
-      {children}
-      {editing ? (
-        <Input label={editLabel} value={text} multiline minRows={5}
-          slotProps={{ input: { readOnly: readOnly ?? false },
-            htmlInput: readOnly ? { tabIndex: -1, "aria-label": "編集画面の文章" } : undefined }}
-          helperText={helperText} error={length > maximum} />
-      ) : <AnswerText aria-label="回答案の文章">{text}</AnswerText>}
-      <Text variant="caption" color={length > maximum ? "error.main" : "text.secondary"}>
-        {length} / {maximum}文字
-      </Text>
-    </AnswerCard>
-  );
-}
-
 const Navigation = styled("div")(({ theme }) => ({
   display: "flex", alignItems: "center", justifyContent: "space-between", gap: theme.spacing(1),
 }));
@@ -183,20 +156,22 @@ export function AssistCandidateNavigation({ ids, selected, onSelect, onBack, dis
 }
 
 /** Preview controls are visibly disabled: they do not copy, mutate candidates, or adopt an answer. */
-export function AssistCandidateActions({ editing, onCopy, onEdit, onApply, disabled = false, preview = false }: {
+/** Shared action appearance; preview is explicitly disabled and has no handlers. */
+export function AssistCandidateActions({ editing, onCopy, onEdit, onApply,
+  copyDisabled = false, editDisabled = false, applyDisabled = false, preview = false }: {
   editing: boolean; onCopy?: () => void; onEdit?: () => void; onApply?: () => void;
-  disabled?: boolean; preview?: boolean;
+  copyDisabled?: boolean; editDisabled?: boolean; applyDisabled?: boolean; preview?: boolean;
 }) {
   return (
     <ActionBar>
       <Button type="button" variant="outlined" startIcon={<ContentCopyOutlinedIcon />}
-        onClick={onCopy} disabled={disabled || preview}>コピー</Button>
+        onClick={onCopy} disabled={copyDisabled || preview}>コピー</Button>
       <Button type="button" variant="outlined" startIcon={<EditOutlinedIcon />}
-        onClick={onEdit} disabled={disabled || preview}>
+        onClick={onEdit} disabled={editDisabled || preview}>
         {editing ? "編集を終える" : "編集する"}
       </Button>
       <Button type="button" variant="contained" startIcon={<CheckIcon />}
-        disabled={disabled || preview} onClick={onApply}>この回答を使う</Button>
+        disabled={applyDisabled || preview} onClick={onApply}>この回答を使う</Button>
     </ActionBar>
   );
 }
