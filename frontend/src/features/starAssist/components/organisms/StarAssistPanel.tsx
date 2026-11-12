@@ -14,6 +14,7 @@ import type { StarWorkspace } from "../../hooks/useStarWorkspace";
 import { assistModes } from "../../model/steps";
 import { StarAssistDialog } from "./StarAssistDialog";
 import { AssistResultDialog } from "./AssistResultDialog";
+import { StarAssistTutorial } from "../../tutorial/StarAssistTutorial";
 
 type View = "closed" | "input" | "result" | "confirm";
 type ReturnView = Exclude<View, "confirm">;
@@ -77,6 +78,7 @@ export function StarAssistPanel({
   hasAnswer: boolean;
 }) {
   const [view, setView] = useState<View>("closed");
+  const [tutorialOpen, setTutorialOpen] = useState(false);
   const viewRef = useRef<View>("closed");
   const setScreen = (next: View) => {
     viewRef.current = next;
@@ -90,6 +92,17 @@ export function StarAssistPanel({
   const applyLock = useRef(false);
   const meta = assistModes[w.mode];
   const modeMismatch = (w.input.assistType ?? "star") !== w.mode;
+  const canStartTutorial = w.available && w.mode === "star" && !modeMismatch &&
+    !w.loading && !w.busy && !w.pending && !w.generating && !w.resultWaiting &&
+    w.status !== "保存中" && view === "closed";
+
+  // Exit when the active practice/context changes or a conflicting operation begins.
+  useEffect(() => {
+    if (!canStartTutorial) setTutorialOpen(false);
+  }, [canStartTutorial]);
+  useEffect(() => {
+    setTutorialOpen(false);
+  }, [w.contextId]);
 
   useEffect(() => {
     if (view !== "input" || !requestedGenerationId ||
@@ -165,7 +178,9 @@ export function StarAssistPanel({
 
   return (
     <Area aria-label={"回答の保存と" + meta.label}>
-      <Trigger type="button" onClick={() => setScreen("input")}
+      <Trigger type="button" onClick={() => {
+        if (!tutorialOpen) setScreen("input");
+      }}
         aria-haspopup="dialog" aria-expanded={view !== "closed"}>
         <Icon aria-hidden="true" />
         <TriggerCopy>
@@ -174,6 +189,23 @@ export function StarAssistPanel({
         </TriggerCopy>
         <ChevronRightIcon color="primary" aria-hidden="true" />
       </Trigger>
+      {canStartTutorial && (
+        <div>
+          <Button type="button" variant="outlined"
+            aria-haspopup="dialog" aria-expanded={tutorialOpen}
+            onClick={() => {
+              if (viewRef.current === "closed" && !tutorialOpen) setTutorialOpen(true);
+            }}>
+            使い方を体験する
+          </Button>
+          <Text component="p" variant="caption" color="text.secondary">
+            入力不要で、回答アシストの使い方を体験できます。
+          </Text>
+        </div>
+      )}
+      {tutorialOpen && canStartTutorial && (
+        <StarAssistTutorial onClose={() => setTutorialOpen(false)} />
+      )}
       <Status role="status" aria-live="polite">
         <Text component="span" variant="caption">
           {meta.label}の下書き：{w.status}{w.loading ? "（保存版を確認中）" : ""}
