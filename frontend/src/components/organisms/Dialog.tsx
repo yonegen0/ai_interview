@@ -24,6 +24,8 @@ export type DialogProps = {
   fullScreen?: boolean;
   /** 長いフォームの時のみスクロール可能な本文を利用する。 */
   scrollContent?: boolean;
+  /** Called after the existing close transition finishes. */
+  onExited?: () => void;
 };
 
 const StyledDialogContent = styled(MuiDialogContent, {
@@ -41,6 +43,7 @@ export const Dialog = (props: DialogProps) => (
     maxWidth={props.maxWidth ?? "sm"}
     fullWidth={props.fullWidth ?? true}
     fullScreen={props.fullScreen ?? false}
+    slotProps={{ transition: { onExited: props.onExited } }}
   >
     <MuiDialogTitle component={typeof props.title === "string" ? "h2" : "div"}>
       {props.title}
