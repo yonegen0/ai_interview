@@ -34,6 +34,7 @@ export function usePracticeController(
     previousAnswer,
   );
   const [confirm, setConfirm] = useState(false);
+  const [exitDestination, setExitDestination] = useState("/practice/");
   const navigated = useRef<string | null>(null);
   useEffect(() => {
     if (!isActive()) return;
@@ -48,16 +49,23 @@ export function usePracticeController(
       );
     }
   }, [state.evaluation.data, router, isActive]);
-  const exit = () => {
+  const leave = (destination: string) => {
     if (!isActive()) return;
     state.discard();
-    router.push("/practice/");
+    router.push(destination);
+  };
+  const exit = () => leave(exitDestination);
+  const requestExit = (destination: string) => {
+    setExitDestination(destination);
+    if (state.answer || state.phase !== "answering") setConfirm(true);
+    else leave(destination);
   };
   return {
     view: {
       session,
       phase: state.phase,
       confirm,
+      exitDestination,
       elapsed: state.evaluation.elapsed,
       paused: state.evaluation.paused,
       evaluationError: state.evaluation.error,
@@ -65,6 +73,11 @@ export function usePracticeController(
     } satisfies PracticeView,
     form: {
       workspace: state.workspace,
+      tutorialContextKey: [
+        session.sessionId, session.question.id, retryFrom ?? "initial",
+        session.activeAttempt?.evaluationId ?? "new",
+      ].join(":"),
+      assistType: session.question.assistType ?? "star",
       previousAnswer: retryFrom
         ? (previousAnswer ?? session.activeCoaching?.initialAnswer)
         : previousAnswer,
@@ -89,10 +102,8 @@ export function usePracticeController(
       refreshEvaluation: () => {
         if (isActive()) void state.evaluation.refetch();
       },
-      requestExit: () => {
-        if (state.answer || state.phase !== "answering") setConfirm(true);
-        else exit();
-      },
+      requestExit: () => requestExit("/practice/"),
+      requestCategoryExit: () => requestExit("/practice/category/"),
       closeExit: () => setConfirm(false),
       exit,
     } satisfies PracticeActions,
