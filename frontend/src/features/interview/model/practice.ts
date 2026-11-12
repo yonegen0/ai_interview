@@ -1,7 +1,7 @@
 /** @file practice.ts @description Typed view models and validation for practice. */
 import type { FormEventHandler } from "react";
 import type { UseFormRegisterReturn } from "react-hook-form";
-import type { Session } from "@/lib/api/schemas";
+import type { AssistType, Session } from "@/lib/api/schemas";
 import type { AnswerKind } from "@/lib/textLimits";
 import type { Phase } from "./machine";
 /** Explain the existing exit behavior without changing storage or navigation. */
@@ -17,6 +17,10 @@ export function exitNotice(phase: Phase): string {
 }
 export type AnswerSubmissionProps = {
   workspace?: import("@/features/starAssist/hooks/useStarWorkspace").StarWorkspace;
+  tutorialContextKey: string;
+  assistType: AssistType;
+  exitConfirm?: boolean;
+  onChooseOtherQuestion?: () => void;
   previousAnswer?: string;
   currentAnswer?: string;
   draftStatus?: "saving" | "saved" | "unavailable";
@@ -36,6 +40,7 @@ export type PracticeView = {
   session: Session;
   phase: Phase;
   confirm: boolean;
+  exitDestination: string;
   elapsed: number;
   paused: boolean;
   evaluationError: Error | null;
@@ -45,6 +50,7 @@ export type PracticeActions = {
   retry: () => void;
   refreshEvaluation: () => void;
   requestExit: () => void;
+  requestCategoryExit: () => void;
   closeExit: () => void;
   exit: () => void;
 };
