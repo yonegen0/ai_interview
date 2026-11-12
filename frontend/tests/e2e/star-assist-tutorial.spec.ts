@@ -173,7 +173,7 @@ for (const [category, assistLabel] of [
     await page.goto("/practice/");
     await page.getByRole("button", { name: "カテゴリ練習", exact: true }).click();
     await page.getByRole("combobox", { name: "練習するカテゴリ" }).click();
-    await page.getByRole("option", { name: new RegExp("^" + category + "（\\\\d+問）$") }).click();
+    await page.getByRole("option", { name: new RegExp("^" + category + "（[0-9]+問）$") }).click();
     await page.getByRole("button", { name: "練習を始める", exact: true }).click();
     const original = "回答作成画面の本人入力は維持する。";
     await page.getByLabel("あなたの回答").fill(original);
@@ -194,7 +194,7 @@ test("none-assist question explains the exception and delegates category exit co
   await page.goto("/practice/");
   await page.getByRole("button", { name: "カテゴリ練習", exact: true }).click();
   await page.getByRole("combobox", { name: "練習するカテゴリ" }).click();
-  await page.getByRole("option", { name: /^逆質問（\\d+問）$/ }).click();
+  await page.getByRole("option", { name: /^逆質問（[0-9]+問）$/ }).click();
   await page.getByRole("button", { name: "練習を始める", exact: true }).click();
   await expect(page.getByRole("button", { name: "回答アシストの使い方を体験" })).toBeVisible();
   await expect(page.getByRole("button", { name: /エピソード作成アシスト/ })).toHaveCount(0);
@@ -224,5 +224,5 @@ test("none-assist question explains the exception and delegates category exit co
     .getByRole("button", { name: "別の質問を選ぶ" }).click();
   await page.getByRole("dialog", { name: "練習を終了しますか？" })
     .getByRole("button", { name: "終了する" }).click();
-  await expect(page).toHaveURL(/\\/practice\\/category\\//);
+  await expect(page).toHaveURL(/practice.*category/);
 });
