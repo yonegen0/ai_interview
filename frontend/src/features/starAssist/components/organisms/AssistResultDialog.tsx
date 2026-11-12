@@ -2,17 +2,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import AutoAwesomeOutlinedIcon from "@mui/icons-material/AutoAwesomeOutlined";
-import ArrowBackIosNewIcon from "@mui/icons-material/ArrowBackIosNew";
-import ArrowForwardIosIcon from "@mui/icons-material/ArrowForwardIos";
-import CheckIcon from "@mui/icons-material/Check";
-import CloseIcon from "@mui/icons-material/Close";
-import ContentCopyOutlinedIcon from "@mui/icons-material/ContentCopyOutlined";
-import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import EmojiEventsOutlinedIcon from "@mui/icons-material/EmojiEventsOutlined";
-import { Alert, Dialog as MuiDialog, DialogContent, DialogTitle, IconButton } from "@mui/material";
+import { Alert, Dialog as MuiDialog, DialogContent, DialogTitle } from "@mui/material";
 import { alpha, styled } from "@mui/material/styles";
-import { Button } from "@/components/atoms/Button";
 import { Input } from "@/components/atoms/Input";
 import { Text } from "@/components/atoms/Text";
 import { COACHING_ANSWER_MAX_LENGTH, countCodePoints } from "@/lib/textLimits";
@@ -21,7 +13,7 @@ import {
   type StarInput,
 } from "@/lib/api/schemas/star";
 import type { StarWorkspace } from "../../hooks/useStarWorkspace";
-import { CandidateTabs, CandidateTab, AnswerCard, CardHeading, AnswerText, ActionBar } from "../molecules/AssistResultPresentation";
+import { CandidateTabs, CandidateTab, AnswerCard, CardHeading, AnswerText, AssistResultHeading, AssistCandidateActions, AssistCandidateNavigation, STAR_RESULT_DESCRIPTION } from "../molecules/AssistResultPresentation";
 
 type CandidateId = NonNullable<StarInput["selectedCandidateId"]>;
 type Props = {
@@ -56,29 +48,6 @@ const ResultDialog = styled(MuiDialog)(({ theme }) => ({
     },
   },
 }));
-const Heading = styled("div")(({ theme }) => ({
-  display: "flex",
-  alignItems: "flex-start",
-  gap: theme.spacing(2),
-  [theme.breakpoints.down("sm")]: { gap: theme.spacing(1) },
-}));
-const HeadingIcon = styled(AutoAwesomeOutlinedIcon)(({ theme }) => ({
-  color: theme.palette.primary.main,
-  fontSize: 44,
-  flexShrink: 0,
-  [theme.breakpoints.down("sm")]: { fontSize: 32 },
-}));
-const HeadingCopy = styled("div")(({ theme }) => ({
-  minWidth: 0,
-  flex: 1,
-  display: "grid",
-  gap: theme.spacing(0.75),
-}));
-const CloseButton = styled(IconButton)(({ theme }) => ({
-  backgroundColor: alpha(theme.palette.background.paper, 0.8),
-  boxShadow: `0 3px 14px ${alpha(theme.palette.common.black, 0.12)}`,
-  "&:hover": { backgroundColor: theme.palette.background.paper },
-}));
 const Body = styled(DialogContent)(({ theme }) => ({
   display: "grid",
   alignContent: "start",
@@ -89,28 +58,6 @@ const Body = styled(DialogContent)(({ theme }) => ({
   paddingBottom: `max(${theme.spacing(2.5)}, env(safe-area-inset-bottom))`,
   [theme.breakpoints.down("sm")]: { paddingInline: theme.spacing(2) },
 }));
-const Navigation = styled("div")(({ theme }) => ({
-  display: "flex", alignItems: "center", justifyContent: "space-between",
-  gap: theme.spacing(1),
-}));
-const Dots = styled("div")(({ theme }) => ({
-  display: "flex", alignItems: "center", gap: theme.spacing(1.25),
-}));
-const Dot = styled("button", {
-  shouldForwardProp: (prop) => prop !== "$active",
-})<{ $active: boolean }>(({ theme, $active }) => ({
-  width: 12, height: 12, borderRadius: "50%",
-  border: 0,
-  padding: 0,
-  backgroundColor: $active ? theme.palette.primary.dark : theme.palette.grey[400],
-  cursor: "pointer",
-  "&:focus-visible": { outline: `3px solid ${theme.palette.primary.main}`, outlineOffset: 3 },
-}));
-const NavButton = styled(IconButton)(({ theme }) => ({
-  border: `1px solid ${theme.palette.divider}`,
-  backgroundColor: alpha(theme.palette.background.paper, 0.8),
-}));
-
 const styleLabels = {
   conclusion: "結論重視",
   action: "行動重視",
@@ -164,20 +111,10 @@ export function AssistResultDialog({ open, workspace: w, applying, onClose, onBa
     <ResultDialog open={open} onClose={onClose} aria-labelledby="assist-result-title"
       aria-describedby="assist-result-description" fullWidth>
       <DialogTitle component="div">
-        <Heading>
-          <HeadingIcon aria-hidden="true" />
-          <HeadingCopy>
-            <Text component="h2" variant="h2" id="assist-result-title">{titles[w.mode]}</Text>
-            <Text variant="body2" id="assist-result-description" color="text.secondary">
-              {star
-                ? "入力したエピソードをもとに、A/B/Cの3案を作成しました。ご自身の事実に合うものを選び、必要に応じて編集してください。"
-                : "入力した内容をもとに回答案を作成しました。ご自身の事実に合うよう確認し、必要に応じて編集してください。"}
-            </Text>
-          </HeadingCopy>
-          <CloseButton size="small" onClick={onClose} aria-label="成果物を閉じる">
-            <CloseIcon />
-          </CloseButton>
-        </Heading>
+        <AssistResultHeading title={titles[w.mode]} onClose={onClose}
+          titleId="assist-result-title" descriptionId="assist-result-description"
+          description={star ? STAR_RESULT_DESCRIPTION :
+            "入力した内容をもとに回答案を作成しました。ご自身の事実に合うよう確認し、必要に応じて編集してください。"} />
       </DialogTitle>
       <Body>
         {star && candidates.length === 3 && (
@@ -216,19 +153,12 @@ export function AssistResultDialog({ open, workspace: w, applying, onClose, onBa
                 自動では切り捨てません。
               </Alert>
             )}
-            <ActionBar>
-              <Button type="button" variant="outlined" startIcon={<ContentCopyOutlinedIcon />}
-                onClick={() => void copy()} disabled={applying}>コピー</Button>
-              <Button type="button" variant="outlined" startIcon={<EditOutlinedIcon />}
-                onClick={() => setEditingId(editingId === candidate.id ? null : candidate.id)}
-                disabled={applying || w.busy || w.pending}>
-                {editingId === candidate.id ? "編集を終える" : "編集する"}
-              </Button>
-              <Button type="button" variant="contained" startIcon={<CheckIcon />}
-                disabled={disabled} onClick={() => onApply(candidate.id)}>
-                この回答を使う
-              </Button>
-            </ActionBar>
+            <AssistCandidateActions editing={editingId === candidate.id}
+              onCopy={() => void copy()}
+              onEdit={() => setEditingId(editingId === candidate.id ? null : candidate.id)}
+              onApply={() => onApply(candidate.id)}
+              copyDisabled={applying} editDisabled={applying || w.busy || w.pending}
+              applyDisabled={disabled} />
             {copyNotice && (
               <Alert severity={copyNotice === "success" ? "success" : "error"} role="status">
                 {copyNotice === "success" ? "回答をコピーしました。" : "コピーできませんでした。"}
@@ -237,31 +167,9 @@ export function AssistResultDialog({ open, workspace: w, applying, onClose, onBa
           </AnswerCard>
         )}
         {w.error && <Alert severity="error">{w.error}</Alert>}
-        <Navigation>
-          <Button type="button" variant="text" onClick={onBack} disabled={applying}>
-            入力画面に戻る
-          </Button>
-          {star && candidates.length === 3 && (
-            <>
-              <NavButton aria-label="前の案" disabled={index === 0 || applying}
-                onClick={() => choose(candidates[index - 1].id)}>
-                <ArrowBackIosNewIcon />
-              </NavButton>
-              <Dots aria-label="案のページ切り替え">
-                {candidates.map((item) => (
-                  <Dot key={item.id} type="button" $active={item.id === candidate?.id}
-                    aria-label={`案${item.id}を表示`}
-                    aria-current={item.id === candidate?.id ? "page" : undefined}
-                    onClick={() => choose(item.id)} disabled={applying} />
-                ))}
-              </Dots>
-              <NavButton aria-label="次の案" disabled={index === candidates.length - 1 || applying}
-                onClick={() => choose(candidates[index + 1].id)}>
-                <ArrowForwardIosIcon />
-              </NavButton>
-            </>
-          )}
-        </Navigation>
+        <AssistCandidateNavigation ids={star && candidates.length === 3 ? candidates.map((c) => c.id) : []}
+          selected={candidate?.id ?? "A"} onSelect={(id) => choose(id as CandidateId)}
+          onBack={onBack} disabled={applying} />
       </Body>
     </ResultDialog>
   );

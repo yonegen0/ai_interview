@@ -17,7 +17,7 @@ async function begin(page: Page) {
     .toContainText("保存済");
 }
 
-for (const [width, height] of [[375, 667], [390, 844], [1440, 844]]) {
+for (const [width, height] of [[375, 667], [390, 844], [430, 932], [1440, 900]]) {
   test("STAR tutorial " + width + "px: only Next, reversibility, no API writes, real answer preserved", async ({
     page,
   }) => {
@@ -41,10 +41,10 @@ for (const [width, height] of [[375, 667], [390, 844], [1440, 844]]) {
     await expect(dialog).toBeVisible();
     await expect(dialog.getByRole("heading", { name: "体験用の質問" })).toBeVisible();
     await expect(dialog.getByText(TUTORIAL_QUESTION)).toBeVisible();
-    await expect(dialog.getByText("この質問はチュートリアル専用です。実際の練習中の質問や回答は変更されません。")).toBeVisible();
+    await expect(dialog.getByText("実際の回答・下書きには保存されません。")).toBeVisible();
     await expect(page.getByRole("dialog")).toHaveCount(1);
     const next = dialog.getByRole("button", { name: "次へ" });
-    const back = dialog.getByRole("button", { name: "戻る" });
+    const back = dialog.getByRole("button", { name: "戻る", exact: true });
     await expect(back).toBeDisabled();
     await next.click();
     await expect(dialog.getByRole("textbox", { name: "S 状況" })).toHaveValue(TUTORIAL_NOTES.S);
@@ -58,18 +58,25 @@ for (const [width, height] of [[375, 667], [390, 844], [1440, 844]]) {
     await next.click();
     await expect(dialog.getByRole("textbox", { name: "R 結果・学び" })).toHaveValue(TUTORIAL_NOTES.R);
     await expect(dialog.getByRole("textbox", { name: "R 結果・学び" })).toBeInViewport();
-    await expect(dialog.getByRole("textbox", { name: "S 状況" })).toHaveAttribute("readonly");
+    await expect(dialog.getByRole("textbox", { name: "R 結果・学び" })).toHaveAttribute("readonly");
+    await expect(dialog.getByLabel("結果・学びの記入例")).toBeVisible();
+    await expect(dialog.getByRole("textbox")).toHaveCount(1);
     await back.click();
-    await expect(dialog.getByText("未入力", { exact: true })).toHaveCount(1);
+    await expect(dialog.getByRole("textbox", { name: "A 本人の行動" })).toHaveValue(TUTORIAL_NOTES.A);
     await next.click();
     await next.click();
-    await expect(dialog.getByText("応募先カテゴリ：接客・販売・サービス")).toBeVisible();
-    await expect(dialog.getByText("3案を生成（1回）")).toBeVisible();
+    await expect(dialog.getByText("接客・販売・サービス", { exact: true })).toBeVisible();
+    await expect(dialog.getByRole("textbox")).toHaveCount(3);
+    await expect(dialog.getByRole("button", { name: "このカテゴリを14日保存" })).toBeDisabled();
+    await expect(dialog.getByRole("button", { name: "3案を生成（1回）" })).toBeDisabled();
+    await expect(dialog.getByText("本番の生成ボタンの見本です。体験では「次へ」を押してください。")).toBeVisible();
     await expect(dialog.getByText("STEP 6 / 12")).toBeVisible();
     await next.click();
     await expect(dialog.getByText(TUTORIAL_CANDIDATES[0].text)).toBeVisible();
     await expect(dialog.getByText(TUTORIAL_CANDIDATE_DESCRIPTIONS.A)).toBeVisible();
     await expect(dialog.getByText("B 行動重視")).toBeVisible();
+    await expect(dialog.getByRole("tab", { name: "B 行動重視" })).toBeDisabled();
+    await expect(dialog.getByRole("button", { name: "この回答を使う" })).toBeDisabled();
     await expect(dialog.getByText(/表示中：A案/)).toBeVisible();
     await next.click();
     await expect(dialog.getByText(TUTORIAL_CANDIDATES[1].text)).toBeVisible();
@@ -119,5 +126,37 @@ for (const [width, height] of [[375, 667], [390, 844], [1440, 844]]) {
     await page.getByRole("button", { name: /エピソード作成アシスト/ }).click();
     await expect(page.getByRole("dialog", { name: /エピソード作成アシスト/ }))
       .toBeVisible();
+  });
+}
+
+
+for (const width of [375, 1440]) {
+  test("tutorial shares STAR input card styles with production at " + width + "px", async ({ page }) => {
+    await page.setViewportSize({ width, height: width === 375 ? 667 : 900 });
+    await begin(page);
+    await page.getByRole("button", { name: /エピソード作成アシスト/ }).click();
+    const production = page.getByRole("dialog", { name: /エピソード作成アシスト/ });
+    await expect(production).toBeVisible();
+
+    // Compare common presentation properties; the tutorial dialog itself may be a different width.
+    const cardStyle = async (locator: ReturnType<typeof production.getByLabel>) => locator.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return {
+        padding: style.padding, border: style.border, radius: style.borderRadius,
+        display: style.display, gap: style.gap, background: style.backgroundColor,
+      };
+    });
+    const productionCard = await cardStyle(production.getByLabel("状況の入力"));
+    const productionTips = await cardStyle(production.getByLabel("状況の記入例"));
+    await production.getByRole("button", { name: "エピソード作成アシストを閉じる" }).click();
+    await page.getByRole("button", { name: "使い方を体験する" }).click();
+
+    const tutorial = page.getByRole("dialog", { name: "エピソード作成アシストの使い方を体験" });
+    await expect(tutorial.getByLabel("状況の入力")).toBeVisible();
+    expect(await cardStyle(tutorial.getByLabel("状況の入力"))).toEqual(productionCard);
+    expect(await cardStyle(tutorial.getByLabel("状況の記入例"))).toEqual(productionTips);
+    await expect(tutorial.getByRole("textbox", { name: "S 状況" })).toHaveAttribute("readonly");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth))
+      .toBe(true);
   });
 }
