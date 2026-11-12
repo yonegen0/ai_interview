@@ -1,33 +1,14 @@
 /** @file StarAssistStepForm.tsx @description 選択中のSTARメモ入力とSchema由来のエラー表示。 */
 "use client";
 
-import FlagOutlinedIcon from "@mui/icons-material/FlagOutlined";
-import { styled } from "@mui/material/styles";
 import { useRef, useState } from "react";
 import { Controller, type UseFormReturn } from "react-hook-form";
 import { Input } from "@/components/atoms/Input";
 import { Text } from "@/components/atoms/Text";
 import { STAR_INPUT_LIMIT, countStarText, countStarNotes, starNotesSchema, type StarInput } from "@/lib/api/schemas/star";
 import { starSteps, type AssistStep } from "../../model/steps";
+import { StarAssistStepCard } from "./StarAssistPresentation";
 import type { AssistMode } from "@/lib/api/schemas/star";
-
-const FormCard = styled("section")(({ theme }) => ({
-  minWidth: 0,
-  border: "1px solid " + theme.palette.divider,
-  borderRadius: theme.shape.borderRadius,
-  padding: theme.spacing(3),
-  display: "grid",
-  alignContent: "start",
-  gap: theme.spacing(2),
-  [theme.breakpoints.down("sm")]: { padding: theme.spacing(2) },
-}));
-const Heading = styled("div")(({ theme }) => ({
-  display: "flex",
-  alignItems: "center",
-  gap: theme.spacing(1.5),
-  "& svg": { color: theme.palette.primary.main, flexShrink: 0 },
-}));
-const Count = styled("div")(() => ({ textAlign: "right" }));
 
 export function StarAssistStepForm({
   step,
@@ -56,19 +37,12 @@ export function StarAssistStepForm({
     ? current.key === "A" ? "A 本人の行動" : current.key + " " + current.label
     : current.label;
   return (
-    <FormCard aria-label={current.label + "の入力"}>
-      <Heading>
-        <FlagOutlinedIcon fontSize="large" aria-hidden="true" />
-        <Text variant="h2" component="h2">
-          {current.label}（{current.english}）
-        </Text>
-      </Heading>
-      <Text variant="body2" color="text.secondary">{current.description}</Text>
-      {mode !== "star" && (
+    <StarAssistStepCard step={current} count={count} error={!!error}
+      detail={mode !== "star" ? (
         <Text variant="body2" color="text.secondary">
           文章にまとめる必要はありません。要点を箇条書きで入力してください。入力した要点をもとにAIが自然な面接回答にまとめます。
         </Text>
-      )}
+      ) : undefined}>
       <Controller
         key={current.key}
         name={`notes.${current.key}`}
@@ -112,11 +86,6 @@ export function StarAssistStepForm({
           />
         )}
       />
-      <Count>
-        <Text variant="caption" color={error ? "error.main" : "text.secondary"}>
-          {count}文字入力
-        </Text>
-      </Count>
-    </FormCard>
+    </StarAssistStepCard>
   );
 }

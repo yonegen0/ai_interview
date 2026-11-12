@@ -4,11 +4,10 @@
 import { useState } from "react";
 import { Controller } from "react-hook-form";
 import AutoAwesomeOutlinedIcon from "@mui/icons-material/AutoAwesomeOutlined";
-import CloseIcon from "@mui/icons-material/Close";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import { Alert, IconButton, useMediaQuery } from "@mui/material";
-import { alpha, styled, useTheme } from "@mui/material/styles";
+import { Alert, useMediaQuery } from "@mui/material";
+import { styled, useTheme } from "@mui/material/styles";
 import { Button } from "@/components/atoms/Button";
 import { Input } from "@/components/atoms/Input";
 import { Select } from "@/components/atoms/Select";
@@ -20,57 +19,13 @@ import { assistModes } from "../../model/steps";
 import { StarAssistStepper } from "../molecules/StarAssistStepper";
 import { StarAssistTips } from "../molecules/StarAssistTips";
 import { StarAssistStepForm } from "../molecules/StarAssistStepForm";
+import { StarAssistHeader, StarAssistColumns, StarAssistSettings, StarAssistSettingFields, StarAssistSettingActions } from "../molecules/StarAssistPresentation";
 import { AssistGeneratingOverlay } from "../molecules/AssistGeneratingOverlay";
 
-const Header = styled("div")(({ theme }) => ({
-  display: "grid",
-  gap: theme.spacing(1),
-}));
-const HeaderRow = styled("div")(({ theme }) => ({
-  display: "flex",
-  alignItems: "center",
-  flexWrap: "wrap",
-  gap: theme.spacing(1),
-}));
-const HeaderIcon = styled(AutoAwesomeOutlinedIcon)(({ theme }) => ({
-  color: theme.palette.primary.main,
-}));
-const Tag = styled("span")(({ theme }) => ({
-  borderRadius: theme.shape.borderRadius,
-  background: alpha(theme.palette.primary.main, 0.09),
-  color: theme.palette.primary.dark,
-  padding: theme.spacing(0.5, 1.5),
-  ...theme.typography.body2,
-  fontWeight: 600,
-}));
-const Close = styled(IconButton)(({ theme }) => ({
-  marginLeft: "auto",
-  color: theme.palette.text.secondary,
-}));
 const Content = styled("div")(({ theme }) => ({
   display: "grid",
   gap: theme.spacing(2),
   paddingBottom: theme.spacing(1),
-}));
-const Columns = styled("div")(({ theme }) => ({
-  display: "grid",
-  gridTemplateColumns: "minmax(0, 1.5fr) minmax(0, 1fr)",
-  gap: theme.spacing(2),
-  alignItems: "stretch",
-  [theme.breakpoints.down("md")]: { gridTemplateColumns: "minmax(0, 1fr)" },
-}));
-const Settings = styled("section")(({ theme }) => ({
-  display: "grid",
-  gap: theme.spacing(2),
-  padding: theme.spacing(2),
-  border: "1px solid " + theme.palette.divider,
-  borderRadius: theme.shape.borderRadius,
-}));
-const SettingFields = styled("div")(({ theme }) => ({
-  display: "grid",
-  gap: theme.spacing(2),
-  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-  [theme.breakpoints.down("sm")]: { gridTemplateColumns: "minmax(0, 1fr)" },
 }));
 const Result = styled("section")(({ theme }) => ({
   display: "grid",
@@ -91,13 +46,6 @@ const Footer = styled("div")(({ theme }) => ({
     "& .MuiButton-root": { minWidth: 0, paddingInline: theme.spacing(1.25) },
   },
 }));
-const NextActions = styled("div")(({ theme }) => ({
-  display: "flex",
-  flexWrap: "wrap",
-  alignItems: "center",
-  gap: theme.spacing(1),
-}));
-
 type Props = {
   open: boolean;
   onClose: () => void;
@@ -142,21 +90,7 @@ export function StarAssistDialog({ open, onClose, workspace: w, onGenerationQueu
     }
   };
 
-  const title = (
-    <Header>
-      <HeaderRow>
-        <HeaderIcon fontSize="large" aria-hidden="true" />
-        <Text variant="h2" component="h2">{meta.label}</Text>
-        <Tag>{meta.tag}</Tag>
-        <Close aria-label={meta.label + "を閉じる"} onClick={onClose} size="small">
-          <CloseIcon />
-        </Close>
-      </HeaderRow>
-      <Text variant="body2" color="text.secondary">
-        {meta.description}
-      </Text>
-    </Header>
-  );
+  const title = <StarAssistHeader mode={mode} onClose={onClose} />;
 
   const content = (
     <Content>
@@ -183,7 +117,7 @@ export function StarAssistDialog({ open, onClose, workspace: w, onGenerationQueu
         </Alert>
       )}
       {mode === "follow_up" ? (
-        <Settings aria-label="回答のメモ">
+        <StarAssistSettings aria-label="回答のメモ">
           <Controller name="notes.S" control={w.form.control} render={({ field }) => (
             <Input {...field} label="回答のメモ" multiline minRows={6}
               placeholder={"例：送り状を見た\n自分から声をかけた\n3社が新しく利用した"}
@@ -192,18 +126,18 @@ export function StarAssistDialog({ open, onClose, workspace: w, onGenerationQueu
               helperText="思いついたことを箇条書きで入力してください"
             />
           )} />
-        </Settings>
+        </StarAssistSettings>
       ) : (
         <>
           <StarAssistStepper activeStep={step} steps={steps} label={meta.label} />
-          <Columns>
+          <StarAssistColumns>
             <StarAssistStepForm step={step} steps={steps} mode={mode} form={w.form} input={w.input} disabled={false} />
             <StarAssistTips step={step} steps={steps} />
-          </Columns>
+          </StarAssistColumns>
         </>
       )}
       {last && mode === "star" && (
-        <Settings aria-label="応募先の設定">
+        <StarAssistSettings aria-label="応募先の設定">
           <Text variant="h3" component="h3">応募先の設定</Text>
           <Select
             label="応募先カテゴリ"
@@ -218,7 +152,7 @@ export function StarAssistDialog({ open, onClose, workspace: w, onGenerationQueu
               w.selectCategory((value || null) as StarInput["targetCategory"])
             }
           />
-          <SettingFields>
+          <StarAssistSettingFields>
             <Input
               {...w.form.register("industry")}
               label="志望業界（任意）"
@@ -233,8 +167,8 @@ export function StarAssistDialog({ open, onClose, workspace: w, onGenerationQueu
               error={!!w.form.formState.errors.company}
               helperText={w.form.formState.errors.company?.message}
             />
-          </SettingFields>
-          <NextActions>
+          </StarAssistSettingFields>
+          <StarAssistSettingActions>
             <Button type="button" size="small" onClick={() => void w.savePreferences(true)}
               disabled={w.busy || w.pending || !w.input.targetCategory}>
               このカテゴリを14日保存
@@ -243,8 +177,8 @@ export function StarAssistDialog({ open, onClose, workspace: w, onGenerationQueu
               disabled={w.busy || w.pending}>
               業界・企業名を14日保存
             </Button>
-          </NextActions>
-        </Settings>
+          </StarAssistSettingActions>
+        </StarAssistSettings>
       )}
       {last && w.quota && (
         <Text variant="body2">
@@ -293,7 +227,7 @@ export function StarAssistDialog({ open, onClose, workspace: w, onGenerationQueu
   const actions = (
     <Footer>
       <Button type="button" variant="outlined" onClick={onClose}>キャンセル</Button>
-      <NextActions>
+      <StarAssistSettingActions>
         {mode !== "follow_up" && (
           <Button type="button" variant="outlined" startIcon={<ArrowBackIcon />}
             disabled={step === 0} onClick={() => setStep((value) => Math.max(0, value - 1))}>
@@ -316,7 +250,7 @@ export function StarAssistDialog({ open, onClose, workspace: w, onGenerationQueu
             次へ
           </Button>
         )}
-      </NextActions>
+      </StarAssistSettingActions>
     </Footer>
   );
 
