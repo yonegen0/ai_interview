@@ -4,19 +4,22 @@
 import { useEffect, useRef } from "react";
 import CloseIcon from "@mui/icons-material/Close";
 import AutoAwesomeOutlinedIcon from "@mui/icons-material/AutoAwesomeOutlined";
+import EmojiEventsOutlinedIcon from "@mui/icons-material/EmojiEventsOutlined";
 import {
   Dialog as MuiDialog, DialogActions, DialogContent, IconButton,
   LinearProgress, useMediaQuery,
 } from "@mui/material";
 import { alpha, styled, useTheme } from "@mui/material/styles";
 import { Button } from "@/components/atoms/Button";
+import { Input } from "@/components/atoms/Input";
 import { Text } from "@/components/atoms/Text";
-import { countStarNotes, targetCategories } from "@/lib/api/schemas/star";
+import { countStarNotes, targetCategories, STAR_OUTPUT_LIMIT, countStarText } from "@/lib/api/schemas/star";
 import { starSteps } from "../model/steps";
 import { StarAssistStepper } from "../components/molecules/StarAssistStepper";
+import { CandidateTabs, CandidateTab, AnswerCard, CardHeading, AnswerText, ActionBar } from "../components/molecules/AssistResultPresentation";
 import {
   TUTORIAL_CANDIDATES, TUTORIAL_COMPANY,
-  TUTORIAL_EDIT_AFTER, TUTORIAL_EDIT_BEFORE, TUTORIAL_EDITED_A,
+  TUTORIAL_EDITED_A,
   TUTORIAL_INDUSTRY, TUTORIAL_QUESTION,
 } from "./tutorialData";
 import { TUTORIAL_STEP_COUNT, useStarAssistTutorial } from "./useStarAssistTutorial";
@@ -121,45 +124,6 @@ const ReadingText = styled("p")(({ theme }) => ({
   lineHeight: 1.9,
   ...theme.typography.body1,
 }));
-const FauxButtons = styled("div")(({ theme }) => ({
-  display: "flex",
-  flexWrap: "wrap",
-  gap: theme.spacing(1),
-  minWidth: 0,
-}));
-const FauxButton = styled("span", {
-  shouldForwardProp: (prop) => prop !== "$emphasized",
-})<{ $emphasized?: boolean }>(({ theme, $emphasized }) => ({
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  minHeight: 44,
-  minWidth: 0,
-  padding: theme.spacing(1, 1.5),
-  borderRadius: theme.shape.borderRadius,
-  border: "1px solid " + theme.palette.primary.main,
-  backgroundColor: $emphasized ? theme.palette.primary.dark : theme.palette.background.paper,
-  color: $emphasized ? theme.palette.primary.contrastText : theme.palette.primary.dark,
-  fontWeight: 700,
-  ...theme.typography.body2,
-}));
-const TabsPreview = styled("div")(({ theme }) => ({
-  display: "grid",
-  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-  gap: theme.spacing(1),
-}));
-const AnswerTitle = styled("div")(({ theme }) => ({
-  display: "flex",
-  flexWrap: "wrap",
-  gap: theme.spacing(1),
-  alignItems: "center",
-}));
-const ChangedText = styled("mark")(({ theme }) => ({
-  backgroundColor: alpha(theme.palette.primary.light, 0.42),
-  color: theme.palette.text.primary,
-  boxDecorationBreak: "clone",
-  WebkitBoxDecorationBreak: "clone",
-}));
 const StepDescription = styled("div")(({ theme }) => ({
   padding: theme.spacing(1, 0),
   color: theme.palette.text.primary,
@@ -179,14 +143,16 @@ export function StarAssistTutorial({ onClose }: { onClose: () => void }) {
     const content = contentRef.current;
     if (!content) return;
     const target = content.querySelector<HTMLElement>('[data-tutorial-target="true"]');
-    if (target) target.scrollIntoView?.({ block: "nearest" });
-    else content.scrollTop = 0;
+    // Keep scrolling inside the dialog; scrollIntoView can also move the underlying page.
+    if (target) {
+      const offset = target.getBoundingClientRect().top - content.getBoundingClientRect().top;
+      content.scrollTop += offset - 12;
+    } else content.scrollTop = 0;
   }, [step]);
 
   const candidate = view.selectedCandidate
     ? TUTORIAL_CANDIDATES.find((item) => item.id === view.selectedCandidate)
     : undefined;
-  const changedParts = TUTORIAL_CANDIDATES[0].text.split(TUTORIAL_EDIT_BEFORE);
   const answer = view.edited && view.selectedCandidate === "A"
     ? TUTORIAL_EDITED_A : candidate?.text ?? "";
   return (
@@ -196,7 +162,7 @@ export function StarAssistTutorial({ onClose }: { onClose: () => void }) {
         <AutoAwesomeOutlinedIcon color="primary" aria-hidden="true" />
         <div>
           <Text component="h2" variant="h2" id="star-tutorial-title">
-            STARアシストの使い方を体験
+            エピソード作成アシストの使い方を体験
           </Text>
           <Text variant="caption" color="text.secondary">体験用表示・入力不要</Text>
         </div>
@@ -229,7 +195,7 @@ export function StarAssistTutorial({ onClose }: { onClose: () => void }) {
         ) : !view.candidatesVisible ? (
           <>
             <Text component="h3" variant="h3">エピソード作成アシスト</Text>
-            <StarAssistStepper activeStep={Math.min(step - 1, 4)}
+            <StarAssistStepper activeStep={Math.min(Math.max(0, step - 2), 3)}
               steps={starSteps} label="体験用STAR入力" />
             <FieldList aria-label="体験用STAR入力">
               {starSteps.map(({ key, label, english }) => (
@@ -239,7 +205,14 @@ export function StarAssistTutorial({ onClose }: { onClose: () => void }) {
                   <Text component="h4" variant="h3">
                     {key} {label}（{english}）
                   </Text>
-                  <ReadingText>{view.notes[key] || "未入力"}</ReadingText>
+                  <Input
+                    label={key === "A" ? "A 本人の行動" : key + " " + label}
+                    value={view.notes[key]}
+                    placeholder="未入力"
+                    multiline minRows={3}
+                    slotProps={{ input: { readOnly: true }, htmlInput: { tabIndex: -1 } }}
+                  />
+                  {!view.notes[key] && <Text variant="caption" color="text.secondary">未入力</Text>}
                 </ViewCard>
               ))}
             </FieldList>
@@ -263,9 +236,11 @@ export function StarAssistTutorial({ onClose }: { onClose: () => void }) {
             {step === 6 && (
               <ViewCard aria-label="体験用生成操作" data-tutorial-target="true" $emphasized>
                 <Text component="h3" variant="h3">回答案の生成</Text>
-                <FauxButtons aria-hidden="true">
-                  <FauxButton $emphasized>3案を生成（1回）</FauxButton>
-                </FauxButtons>
+                <div aria-hidden="true">
+                  <Button variant="contained" type="button" tabIndex={-1} sx={{ pointerEvents: "none" }}>
+                    3案を生成（1回）
+                  </Button>
+                </div>
                 <Text variant="caption" color="text.secondary">
                   実際のAIは使用せず、決まった3案を表示します。
                 </Text>
@@ -275,43 +250,58 @@ export function StarAssistTutorial({ onClose }: { onClose: () => void }) {
         ) : (
           <>
             <Text component="h3" variant="h3">生成した3案の回答（体験用）</Text>
-            <TabsPreview aria-hidden="true">
-              {TUTORIAL_CANDIDATES.map((item) => (
-                <FauxButton key={item.id} $emphasized={candidate?.id === item.id}>
-                  {item.id} {candidateLabels[item.id]}
-                </FauxButton>
-              ))}
-            </TabsPreview>
+            <div aria-hidden="true">
+              <CandidateTabs value={candidate?.id ?? "A"} onChange={() => {}}
+                aria-label="体験用回答案の表示" variant="fullWidth">
+                {TUTORIAL_CANDIDATES.map((item) => (
+                  <CandidateTab key={item.id} value={item.id} tabIndex={-1}
+                    label={item.id + " " + candidateLabels[item.id]} />
+                ))}
+              </CandidateTabs>
+            </div>
             <Text role="status" variant="body2" color="text.secondary">
               表示中：{candidate?.id}案（{candidate ? candidateLabels[candidate.id] : ""}）
+              ・切り替え操作は下の「次へ」で体験します。
             </Text>
-            <ViewCard aria-label="体験用候補の表示" data-tutorial-target="true"
-              $emphasized={view.highlight === candidate?.id || view.highlight === "edit" || view.highlight === "apply"}>
-              <AnswerTitle>
+            <AnswerCard aria-label="体験用候補の表示" data-tutorial-target="true"
+              sx={{ outline: "2px solid", outlineColor: "primary.main" }}>
+              <CardHeading>
+                <EmojiEventsOutlinedIcon color="warning" aria-hidden="true" />
                 <Text component="h4" variant="h3">
                   {view.editing ? "A案の回答を編集（体験用）" :
-                    candidate ? candidate.id + "案の回答（" + candidateLabels[candidate.id] + "）" : ""}
+                    candidate ? "案" + candidate.id + "の回答（" + candidateLabels[candidate.id] + "）" : ""}
                 </Text>
-              </AnswerTitle>
-              <ReadingText aria-label={view.editing ? "編集画面の文章" : "回答案の文章"}>
-                {view.edited && view.selectedCandidate === "A"
-                  ? <>{changedParts[0]}<ChangedText>{TUTORIAL_EDIT_AFTER}</ChangedText>{changedParts[1]}</>
-                  : answer}
-              </ReadingText>
+              </CardHeading>
+              {view.editing ? (
+                <Input label="案Aの回答を編集" aria-label="編集画面の文章" value={answer}
+                  multiline minRows={5}
+                  slotProps={{ input: { readOnly: true }, htmlInput: { tabIndex: -1 } }} />
+              ) : (
+                <AnswerText aria-label="回答案の文章">{answer}</AnswerText>
+              )}
+              {view.edited && <Text variant="body2" color="text.secondary">
+                編集例：説明することも心掛けました → 問い合わせを待たずに、こちらから状況を説明するようにしました
+              </Text>}
               <Text variant="caption" color="text.secondary">
-                {Array.from(answer).length} / 600文字
+                {countStarText(answer)} / {STAR_OUTPUT_LIMIT}文字
               </Text>
-              <FauxButtons aria-hidden="true">
-                <FauxButton>コピー</FauxButton>
-                <FauxButton $emphasized={view.highlight === "edit"}>編集する</FauxButton>
-                <FauxButton $emphasized={view.highlight === "apply"}>この回答を使う</FauxButton>
-              </FauxButtons>
+              <ActionBar aria-hidden="true">
+                <Button type="button" variant="outlined" tabIndex={-1} sx={{ pointerEvents: "none" }}>
+                  コピー
+                </Button>
+                <Button type="button" variant="outlined" tabIndex={-1} sx={{ pointerEvents: "none" }}>
+                  {view.editing ? "編集を終える" : "編集する"}
+                </Button>
+                <Button type="button" variant="contained" tabIndex={-1} sx={{ pointerEvents: "none" }}>
+                  この回答を使う
+                </Button>
+              </ActionBar>
               {view.editing && (
                 <Text variant="caption" color="text.secondary">
                   文章の編集を体験中（キーボード入力は必要ありません）
                 </Text>
               )}
-            </ViewCard>
+            </AnswerCard>
           </>
         )}
       </Content>
