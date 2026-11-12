@@ -109,7 +109,7 @@ export const PracticeForm = ({ view, form, actions }: PracticeFormProps) => (
             続ける
           </Button>
           {view.phase === "recovery_required" || view.phase === "submitting" ? (
-            <Link href={view.exitDestination}>未確定の送信を保持して終了</Link>
+            <Link href={view.exitDestination ?? "/practice/"}>未確定の送信を保持して終了</Link>
           ) : (
             <Button variant="contained" color="error" onClick={actions.exit}>
               終了する
