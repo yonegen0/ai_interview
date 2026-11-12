@@ -128,3 +128,35 @@ for (const [width, height] of [[375, 667], [390, 844], [430, 932], [1440, 900]])
       .toBeVisible();
   });
 }
+
+
+for (const width of [375, 1440]) {
+  test("tutorial shares STAR input card styles with production at " + width + "px", async ({ page }) => {
+    await page.setViewportSize({ width, height: width === 375 ? 667 : 900 });
+    await begin(page);
+    await page.getByRole("button", { name: /エピソード作成アシスト/ }).click();
+    const production = page.getByRole("dialog", { name: /エピソード作成アシスト/ });
+    await expect(production).toBeVisible();
+
+    // Compare common presentation properties; the tutorial dialog itself may be a different width.
+    const cardStyle = async (locator: ReturnType<typeof production.getByLabel>) => locator.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return {
+        padding: style.padding, border: style.border, radius: style.borderRadius,
+        display: style.display, gap: style.gap, background: style.backgroundColor,
+      };
+    });
+    const productionCard = await cardStyle(production.getByLabel("状況の入力"));
+    const productionTips = await cardStyle(production.getByLabel("状況の記入例"));
+    await production.getByRole("button", { name: "エピソード作成アシストを閉じる" }).click();
+    await page.getByRole("button", { name: "使い方を体験する" }).click();
+
+    const tutorial = page.getByRole("dialog", { name: "エピソード作成アシストの使い方を体験" });
+    await expect(tutorial.getByLabel("状況の入力")).toBeVisible();
+    expect(await cardStyle(tutorial.getByLabel("状況の入力"))).toEqual(productionCard);
+    expect(await cardStyle(tutorial.getByLabel("状況の記入例"))).toEqual(productionTips);
+    await expect(tutorial.getByRole("textbox", { name: "S 状況" })).toHaveAttribute("readonly");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth))
+      .toBe(true);
+  });
+}
