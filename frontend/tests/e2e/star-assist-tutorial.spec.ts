@@ -3,6 +3,7 @@ import { expect, test, type Page } from "@playwright/test";
 import {
   TUTORIAL_CANDIDATES, TUTORIAL_EDITED_A, TUTORIAL_NOTES,
   TUTORIAL_QUESTION, TUTORIAL_CANDIDATE_DESCRIPTIONS,
+  TUTORIAL_EDIT_BEFORE, TUTORIAL_EDIT_AFTER,
 } from "../../src/features/starAssist/tutorial/tutorialData";
 
 async function begin(page: Page) {
@@ -83,10 +84,21 @@ for (const [width, height] of [[375, 667], [390, 844], [1440, 844]]) {
     await expect(dialog.getByText(TUTORIAL_CANDIDATES[0].text)).toBeVisible();
     await next.click();
     await expect(dialog.getByRole("textbox", { name: "編集画面の文章" })).toHaveValue(TUTORIAL_CANDIDATES[0].text);
+    await expect(dialog.getByText(/修正する箇所は最後の一文/)).toBeVisible();
+    await expect(dialog.getByLabel("修正前後の比較")).toHaveCount(0);
     await next.click();
+    const comparison = dialog.getByLabel("修正前後の比較");
+    await expect(comparison).toBeInViewport();
+    await expect(comparison.getByLabel("修正前")).toContainText(TUTORIAL_EDIT_BEFORE);
+    await expect(comparison.getByLabel("修正後")).toContainText(TUTORIAL_EDIT_AFTER);
+    await expect(comparison.getByText("抽象的な表現を、学んだことが伝わる具体的な言葉に整えました。")).toBeVisible();
     await expect(dialog.getByRole("textbox", { name: "編集画面の文章" })).toHaveValue(TUTORIAL_EDITED_A);
-    await expect(dialog.getByText("文章の一部分を、自分の言葉に近い表現へ修正しました。")).toBeVisible();
+    await expect(dialog.getByRole("textbox", { name: "編集画面の文章" })).toHaveAttribute("readonly");
+    await expect(dialog.getByRole("textbox", { name: "編集画面の文章" })).toHaveCount(1);
+    await expect(dialog.getByText("274 / 600文字")).toBeVisible();
+    expect(await comparison.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
     await back.click();
+    await expect(dialog.getByLabel("修正前後の比較")).toHaveCount(0);
     await expect(dialog.getByRole("textbox", { name: "編集画面の文章" })).toHaveValue(TUTORIAL_CANDIDATES[0].text);
     await next.click();
     await next.click();
