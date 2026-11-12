@@ -43,10 +43,10 @@ export function getTutorialView(step: number): TutorialView {
   };
   const selectedCandidate = current < 7 ? null
     : current === 8 ? "B" : current === 9 ? "C" : "A";
-  const highlight: TutorialHighlight = current <= 4
-    ? (["S", "T", "A", "R"] as const)[current - 1]
-    : current === 5 ? "category"
-      : current === 6 ? "generate"
+  // Highlight the value that *just* appeared, not the next empty field.
+  const highlight: TutorialHighlight = current <= 5
+    ? (["S", "S", "T", "A", "R"] as const)[current - 1]
+    : current === 6 ? "category"
         : current <= 9 ? selectedCandidate
           : current <= 11 ? "edit"
             : current === 12 ? "apply" : null;

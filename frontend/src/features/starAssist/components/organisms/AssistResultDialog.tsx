@@ -10,7 +10,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import ContentCopyOutlinedIcon from "@mui/icons-material/ContentCopyOutlined";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import EmojiEventsOutlinedIcon from "@mui/icons-material/EmojiEventsOutlined";
-import { Alert, Dialog as MuiDialog, DialogContent, DialogTitle, IconButton, Tab, Tabs } from "@mui/material";
+import { Alert, Dialog as MuiDialog, DialogContent, DialogTitle, IconButton } from "@mui/material";
 import { alpha, styled } from "@mui/material/styles";
 import { Button } from "@/components/atoms/Button";
 import { Input } from "@/components/atoms/Input";
@@ -21,6 +21,7 @@ import {
   type StarInput,
 } from "@/lib/api/schemas/star";
 import type { StarWorkspace } from "../../hooks/useStarWorkspace";
+import { CandidateTabs, CandidateTab, AnswerCard, CardHeading, AnswerText, ActionBar } from "../molecules/AssistResultPresentation";
 
 type CandidateId = NonNullable<StarInput["selectedCandidateId"]>;
 type Props = {
@@ -87,61 +88,6 @@ const Body = styled(DialogContent)(({ theme }) => ({
   padding: theme.spacing(1.5, 3, 2.5),
   paddingBottom: `max(${theme.spacing(2.5)}, env(safe-area-inset-bottom))`,
   [theme.breakpoints.down("sm")]: { paddingInline: theme.spacing(2) },
-}));
-const CandidateTabs = styled(Tabs)(({ theme }) => ({
-  minHeight: 0,
-  "& .MuiTabs-indicator": { display: "none" },
-  "& .MuiTabs-flexContainer": { gap: theme.spacing(1) },
-}));
-const CandidateTab = styled(Tab)(({ theme }) => ({
-  flex: 1,
-  minWidth: 0,
-  minHeight: 54,
-  padding: theme.spacing(1, 0.5),
-  border: `1px solid ${theme.palette.divider}`,
-  borderRadius: 12,
-  background: alpha(theme.palette.background.paper, 0.82),
-  color: theme.palette.text.primary,
-  fontWeight: 700,
-  textTransform: "none",
-  "&.Mui-selected": {
-    color: theme.palette.primary.contrastText,
-    background: theme.palette.primary.dark,
-    borderColor: theme.palette.primary.dark,
-    boxShadow: `0 5px 14px ${alpha(theme.palette.primary.main, 0.2)}`,
-  },
-  "&.Mui-focusVisible": { outline: `3px solid ${theme.palette.primary.main}`, outlineOffset: 2 },
-  [theme.breakpoints.down("sm")]: { fontSize: "0.78rem", minHeight: 48 },
-}));
-const AnswerCard = styled("section")(({ theme }) => ({
-  display: "grid",
-  gap: theme.spacing(1.75),
-  padding: theme.spacing(2.5),
-  minWidth: 0,
-  border: `1px solid ${alpha(theme.palette.primary.main, 0.36)}`,
-  borderRadius: 20,
-  background: `linear-gradient(145deg, ${alpha(theme.palette.primary.light, 0.12)}, ${alpha(theme.palette.background.paper, 0.93)})`,
-  [theme.breakpoints.down("sm")]: { padding: theme.spacing(1.75), borderRadius: 16 },
-}));
-const CardHeading = styled("div")(({ theme }) => ({
-  display: "flex", alignItems: "center", gap: theme.spacing(1),
-  color: theme.palette.primary.dark, fontWeight: 700,
-}));
-const AnswerText = styled("p")(({ theme }) => ({
-  margin: 0,
-  whiteSpace: "pre-wrap",
-  overflowWrap: "anywhere",
-  ...theme.typography.body1,
-  lineHeight: 1.9,
-  color: theme.palette.text.primary,
-}));
-const ActionBar = styled("div")(({ theme }) => ({
-  display: "flex", flexWrap: "wrap", alignItems: "center", gap: theme.spacing(1),
-  "& > :last-child": { marginLeft: "auto" },
-  [theme.breakpoints.down("sm")]: {
-    "& > :last-child": { marginLeft: 0, width: "100%" },
-    "& > :not(:last-child)": { flex: 1 },
-  },
 }));
 const Navigation = styled("div")(({ theme }) => ({
   display: "flex", alignItems: "center", justifyContent: "space-between",
