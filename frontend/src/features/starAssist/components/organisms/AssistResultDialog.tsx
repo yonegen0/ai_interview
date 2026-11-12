@@ -5,7 +5,6 @@ import { useEffect, useState } from "react";
 import EmojiEventsOutlinedIcon from "@mui/icons-material/EmojiEventsOutlined";
 import { Alert, Dialog as MuiDialog, DialogContent, DialogTitle } from "@mui/material";
 import { alpha, styled } from "@mui/material/styles";
-import { Button } from "@/components/atoms/Button";
 import { Input } from "@/components/atoms/Input";
 import { Text } from "@/components/atoms/Text";
 import { COACHING_ANSWER_MAX_LENGTH, countCodePoints } from "@/lib/textLimits";
