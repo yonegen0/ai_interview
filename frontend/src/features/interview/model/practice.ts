@@ -17,8 +17,10 @@ export function exitNotice(phase: Phase): string {
 }
 export type AnswerSubmissionProps = {
   workspace?: import("@/features/starAssist/hooks/useStarWorkspace").StarWorkspace;
-  tutorialContextKey: string;
-  assistType: AssistType;
+  tutorialContextKey?: string;
+  tutorialSessionId?: string;
+  tutorialQuestionId?: string;
+  assistType?: AssistType;
   exitConfirm?: boolean;
   onChooseOtherQuestion?: () => void;
   previousAnswer?: string;
@@ -40,7 +42,7 @@ export type PracticeView = {
   session: Session;
   phase: Phase;
   confirm: boolean;
-  exitDestination: string;
+  exitDestination?: string;
   elapsed: number;
   paused: boolean;
   evaluationError: Error | null;
@@ -50,7 +52,7 @@ export type PracticeActions = {
   retry: () => void;
   refreshEvaluation: () => void;
   requestExit: () => void;
-  requestCategoryExit: () => void;
+  requestCategoryExit?: () => void;
   closeExit: () => void;
   exit: () => void;
 };
