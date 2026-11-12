@@ -5,7 +5,7 @@ import { useEffect, useRef } from "react";
 import CloseIcon from "@mui/icons-material/Close";
 import AutoAwesomeOutlinedIcon from "@mui/icons-material/AutoAwesomeOutlined";
 import {
-  Dialog as MuiDialog, DialogActions, DialogContent, DialogTitle, IconButton,
+  Dialog as MuiDialog, DialogActions, DialogContent, IconButton,
   LinearProgress, useMediaQuery,
 } from "@mui/material";
 import { alpha, styled, useTheme } from "@mui/material/styles";
@@ -39,7 +39,7 @@ const TutorialDialog = styled(MuiDialog)(({ theme }) => ({
     },
   },
 }));
-const Header = styled(DialogTitle)(({ theme }) => ({
+const Header = styled("div")(({ theme }) => ({
   display: "flex",
   alignItems: "center",
   gap: theme.spacing(1),
@@ -192,7 +192,7 @@ export function StarAssistTutorial({ onClose }: { onClose: () => void }) {
   return (
     <TutorialDialog open onClose={close} fullWidth maxWidth="md" fullScreen={fullScreen}
       aria-labelledby="star-tutorial-title" aria-describedby="star-tutorial-description">
-      <Header component="div">
+      <Header>
         <AutoAwesomeOutlinedIcon color="primary" aria-hidden="true" />
         <div>
           <Text component="h2" variant="h2" id="star-tutorial-title">

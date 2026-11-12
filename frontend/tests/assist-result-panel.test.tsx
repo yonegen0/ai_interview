@@ -45,10 +45,17 @@ vi.mock("@/features/starAssist/components/organisms/AssistResultDialog", () => (
   ) : null,
 }));
 
-function Harness({ restored = false, hasAnswer = false, waiting = false }: {
+function Harness({
+  restored = false, hasAnswer = false, waiting = false,
+  mode = "star", busy = false, pending = false, loading = false,
+}: {
   restored?: boolean;
   hasAnswer?: boolean;
   waiting?: boolean;
+  mode?: AssistMode;
+  busy?: boolean;
+  pending?: boolean;
+  loading?: boolean;
 }) {
   const form = useForm<StarInput>({
     defaultValues: restored
