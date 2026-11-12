@@ -99,7 +99,7 @@ it("automatically shows only the newly requested generation once", async () => {
 
 it("does not automatically pop up a restored draft", () => {
   render(<Harness restored />);
-  fireEvent.click(normalTrigger);
+  fireEvent.click(screen.getByRole("button", { name: /エピソード作成アシスト/ }));
   expect(screen.getByRole("dialog", { name: "入力画面" })).toBeInTheDocument();
   expect(screen.queryByRole("dialog", { name: "成果物" })).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "生成した回答を見る" }));
