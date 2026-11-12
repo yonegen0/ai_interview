@@ -128,7 +128,14 @@ const candidateLabels = {
   A: "結論重視", B: "行動重視", C: "会話重視",
 } as const;
 
-export function StarAssistTutorial({ onClose }: { onClose: () => void }) {
+export function StarAssistTutorial({
+  onClose, onTryAssist, open = true, onExited,
+}: {
+  onClose: () => void;
+  onTryAssist?: () => void;
+  open?: boolean;
+  onExited?: () => void;
+}) {
   const { step, next, back, reset, close, view } = useStarAssistTutorial(onClose);
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
@@ -153,7 +160,8 @@ export function StarAssistTutorial({ onClose }: { onClose: () => void }) {
     ? TUTORIAL_EDITED_A : candidate?.text ?? "";
 
   return (
-    <TutorialDialog open onClose={close} fullWidth maxWidth="md" fullScreen={fullScreen}
+    <TutorialDialog open={open} onClose={close} fullWidth maxWidth="md" fullScreen={fullScreen}
+      slotProps={{ transition: { onExited } }}
       aria-labelledby="star-tutorial-accessible-title"
       aria-describedby="star-tutorial-description">
       <Header>
@@ -337,8 +345,8 @@ export function StarAssistTutorial({ onClose }: { onClose: () => void }) {
               <Button type="button" variant="outlined" onClick={reset}>
                 もう一度体験する
               </Button>
-              <Button type="button" variant="contained" onClick={close} autoFocus>
-                終了して練習に戻る
+              <Button type="button" variant="contained" onClick={onTryAssist ?? close} autoFocus>
+                アシスト機能を試してみる
               </Button>
             </>
           ) : (

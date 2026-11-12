@@ -15,11 +15,12 @@ import { starSteps, assistModes } from "@/features/starAssist/model/steps";
 
 const setup = () => {
   const onClose = vi.fn();
-  render(<ThemeProvider theme={theme}><StarAssistTutorial onClose={onClose} /></ThemeProvider>);
+  const onTryAssist = vi.fn();
+  render(<ThemeProvider theme={theme}><StarAssistTutorial onClose={onClose} onTryAssist={onTryAssist} /></ThemeProvider>);
   const dialog = screen.getByRole("dialog", { name: "エピソード作成アシストの使い方を体験" });
   const next = () => fireEvent.click(within(dialog).getByRole("button", { name: "次へ" }));
   const back = () => fireEvent.click(within(dialog).getByRole("button", { name: "戻る" }));
-  return { dialog, next, back, onClose };
+  return { dialog, next, back, onClose, onTryAssist };
 };
 
 describe("STAR tutorial fixed data", () => {
@@ -143,7 +144,7 @@ describe("STAR tutorial dialog", () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(() =>
       Promise.reject(new Error("No tutorial network access allowed")));
     try {
-      const { dialog, next } = setup();
+      const { dialog, next, onTryAssist } = setup();
       expect(within(dialog).getByRole("textbox", { name: "S 状況" })).toHaveValue("");
       expect(within(dialog).getAllByRole("textbox")).toHaveLength(1);
       expect(within(dialog).getByLabelText("状況の記入例")).toBeInTheDocument();
@@ -168,6 +169,8 @@ describe("STAR tutorial dialog", () => {
       }
       expect(within(dialog).getByRole("heading", { name: "チュートリアル完了！" })).toBeInTheDocument();
       expect(within(dialog).getByLabelText("体験用回答欄")).toHaveTextContent(TUTORIAL_EDITED_A);
+      fireEvent.click(within(dialog).getByRole("button", { name: "アシスト機能を試してみる" }));
+      expect(onTryAssist).toHaveBeenCalledOnce();
       fireEvent.click(within(dialog).getByRole("button", { name: "もう一度体験する" }));
       expect(within(dialog).getByText("STEP 1 / 12")).toBeInTheDocument();
       expect(within(dialog).queryByLabelText("体験用回答欄")).not.toBeInTheDocument();

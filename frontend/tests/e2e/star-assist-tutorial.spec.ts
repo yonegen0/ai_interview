@@ -160,3 +160,69 @@ for (const width of [375, 1440]) {
       .toBe(true);
   });
 }
+
+/** One fixed lesson is reused by every assist mode; production dialogs are mode-specific. */
+for (const [category, assistLabel] of [
+  ["仕事経験", "エピソード作成アシスト"],
+  ["自己紹介", "簡潔回答アシスト"],
+  ["転職理由", "転職理由アシスト"],
+  ["志望動機", "志望動機アシスト"],
+  ["キャリア", "キャリアプランアシスト"],
+] as const) {
+  test(`completion launches production ${assistLabel} from ${category}`, async ({ page }) => {
+    await page.goto("/practice/");
+    await page.getByRole("button", { name: "カテゴリ練習", exact: true }).click();
+    await page.getByRole("combobox", { name: "練習するカテゴリ" }).click();
+    await page.getByRole("option", { name: new RegExp("^" + category + "（[0-9]+問）$") }).click();
+    await page.getByRole("button", { name: "練習を始める", exact: true }).click();
+    const original = "回答作成画面の本人入力は維持する。";
+    await page.getByLabel("あなたの回答").fill(original);
+    await page.getByRole("button", { name: "使い方を体験する" }).click();
+    const tutorial = page.getByRole("dialog", { name: "エピソード作成アシストの使い方を体験" });
+    for (let i = 0; i < 12; i++) {
+      await tutorial.getByRole("button", { name: "次へ", exact: true }).click();
+    }
+    await tutorial.getByRole("button", { name: "アシスト機能を試してみる" }).click();
+    await expect(tutorial).not.toBeVisible();
+    await expect(page.getByRole("dialog", { name: new RegExp(assistLabel) })).toBeVisible();
+    await expect(page.getByRole("dialog")).toHaveCount(1);
+    await expect(page.getByLabel("あなたの回答")).toHaveValue(original);
+  });
+}
+
+test("none-assist question explains the exception and delegates category exit confirmation", async ({ page }) => {
+  await page.goto("/practice/");
+  await page.getByRole("button", { name: "カテゴリ練習", exact: true }).click();
+  await page.getByRole("combobox", { name: "練習するカテゴリ" }).click();
+  await page.getByRole("option", { name: /^逆質問（[0-9]+問）$/ }).click();
+  await page.getByRole("button", { name: "練習を始める", exact: true }).click();
+  await expect(page.getByRole("button", { name: "回答アシストの使い方を体験" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /エピソード作成アシスト/ })).toHaveCount(0);
+  await page.getByLabel("あなたの回答").fill("回答を維持する入力");
+  await page.getByRole("button", { name: "回答アシストの使い方を体験" }).click();
+  const tutorial = page.getByRole("dialog", { name: "エピソード作成アシストの使い方を体験" });
+  for (let i = 0; i < 12; i++) {
+    await tutorial.getByRole("button", { name: "次へ", exact: true }).click();
+  }
+  await tutorial.getByRole("button", { name: "アシスト機能を試してみる" }).click();
+  await expect(tutorial).not.toBeVisible();
+  const unsupported = page.getByRole("dialog", { name: "この質問では回答アシストを使用できません" });
+  await expect(unsupported).toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(1);
+  await unsupported.getByRole("button", { name: "別の質問を選ぶ" }).click();
+  const confirm = page.getByRole("dialog", { name: "練習を終了しますか？" });
+  await expect(confirm).toBeVisible();
+  await confirm.getByRole("button", { name: "続ける" }).click();
+  await expect(page.getByLabel("あなたの回答")).toHaveValue("回答を維持する入力");
+  await page.getByRole("button", { name: "回答アシストの使い方を体験" }).click();
+  const again = page.getByRole("dialog", { name: "エピソード作成アシストの使い方を体験" });
+  for (let i = 0; i < 12; i++) {
+    await again.getByRole("button", { name: "次へ", exact: true }).click();
+  }
+  await again.getByRole("button", { name: "アシスト機能を試してみる" }).click();
+  await page.getByRole("dialog", { name: "この質問では回答アシストを使用できません" })
+    .getByRole("button", { name: "別の質問を選ぶ" }).click();
+  await page.getByRole("dialog", { name: "練習を終了しますか？" })
+    .getByRole("button", { name: "終了する" }).click();
+  await expect(page).toHaveURL(/practice.*category/);
+});
