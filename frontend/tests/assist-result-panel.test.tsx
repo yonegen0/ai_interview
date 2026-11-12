@@ -135,12 +135,12 @@ it("offers the independent tutorial only in a safe STAR state and keeps normal d
   const normalTrigger = screen.getByRole("button", { name: /エピソード作成アシスト/ });
   const launch = screen.getByRole("button", { name: "使い方を体験する" });
   fireEvent.click(launch);
-  expect(screen.getByRole("dialog", { name: "STARアシストの使い方を体験" })).toBeInTheDocument();
+  expect(screen.getByRole("dialog", { name: "エピソード作成アシストの使い方を体験" })).toBeInTheDocument();
   // Clicking the background trigger programmatically must not open a second dialog.
   fireEvent.click(normalTrigger);
   expect(screen.queryByRole("dialog", { name: "入力画面" })).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "チュートリアルを閉じる" }));
-  expect(screen.queryByRole("dialog", { name: "STARアシストの使い方を体験" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("dialog", { name: "エピソード作成アシストの使い方を体験" })).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: /エピソード作成アシスト/ }));
   expect(screen.getByRole("dialog", { name: "入力画面" })).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "使い方を体験する" })).not.toBeInTheDocument();
