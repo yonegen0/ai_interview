@@ -8,7 +8,6 @@ import CheckIcon from "@mui/icons-material/Check";
 import CloseIcon from "@mui/icons-material/Close";
 import ContentCopyOutlinedIcon from "@mui/icons-material/ContentCopyOutlined";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
-import EmojiEventsOutlinedIcon from "@mui/icons-material/EmojiEventsOutlined";
 import { IconButton, Tab, Tabs } from "@mui/material";
 import { alpha, styled } from "@mui/material/styles";
 import { Button } from "@/components/atoms/Button";
