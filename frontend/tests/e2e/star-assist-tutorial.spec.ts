@@ -2,6 +2,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import {
   TUTORIAL_CANDIDATES, TUTORIAL_EDITED_A, TUTORIAL_NOTES,
+  TUTORIAL_QUESTION, TUTORIAL_CANDIDATE_DESCRIPTIONS,
 } from "../../src/features/starAssist/tutorial/tutorialData";
 
 async function begin(page: Page) {
@@ -37,6 +38,9 @@ for (const [width, height] of [[375, 667], [390, 844], [1440, 844]]) {
     await launch.click();
     const dialog = page.getByRole("dialog", { name: "エピソード作成アシストの使い方を体験" });
     await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole("heading", { name: "体験用の質問" })).toBeVisible();
+    await expect(dialog.getByText(TUTORIAL_QUESTION)).toBeVisible();
+    await expect(dialog.getByText("この質問はチュートリアル専用です。実際の練習中の質問や回答は変更されません。")).toBeVisible();
     await expect(page.getByRole("dialog")).toHaveCount(1);
     const next = dialog.getByRole("button", { name: "次へ" });
     const back = dialog.getByRole("button", { name: "戻る" });
@@ -58,17 +62,20 @@ for (const [width, height] of [[375, 667], [390, 844], [1440, 844]]) {
     await expect(dialog.getByText("未入力", { exact: true })).toHaveCount(1);
     await next.click();
     await next.click();
-    await expect(dialog.getByText("応募先カテゴリ：事務・受付")).toBeVisible();
+    await expect(dialog.getByText("応募先カテゴリ：接客・販売・サービス")).toBeVisible();
     await expect(dialog.getByText("3案を生成（1回）")).toBeVisible();
     await expect(dialog.getByText("STEP 6 / 12")).toBeVisible();
     await next.click();
     await expect(dialog.getByText(TUTORIAL_CANDIDATES[0].text)).toBeVisible();
+    await expect(dialog.getByText(TUTORIAL_CANDIDATE_DESCRIPTIONS.A)).toBeVisible();
     await expect(dialog.getByText("B 行動重視")).toBeVisible();
     await expect(dialog.getByText(/表示中：A案/)).toBeVisible();
     await next.click();
     await expect(dialog.getByText(TUTORIAL_CANDIDATES[1].text)).toBeVisible();
+    await expect(dialog.getByText(TUTORIAL_CANDIDATE_DESCRIPTIONS.B)).toBeVisible();
     await next.click();
     await expect(dialog.getByText(TUTORIAL_CANDIDATES[2].text)).toBeVisible();
+    await expect(dialog.getByText(TUTORIAL_CANDIDATE_DESCRIPTIONS.C)).toBeVisible();
     await back.click();
     await expect(dialog.getByText(TUTORIAL_CANDIDATES[1].text)).toBeVisible();
     await next.click();
@@ -78,6 +85,7 @@ for (const [width, height] of [[375, 667], [390, 844], [1440, 844]]) {
     await expect(dialog.getByRole("textbox", { name: "編集画面の文章" })).toHaveValue(TUTORIAL_CANDIDATES[0].text);
     await next.click();
     await expect(dialog.getByRole("textbox", { name: "編集画面の文章" })).toHaveValue(TUTORIAL_EDITED_A);
+    await expect(dialog.getByText("文章の一部分を、自分の言葉に近い表現へ修正しました。")).toBeVisible();
     await back.click();
     await expect(dialog.getByRole("textbox", { name: "編集画面の文章" })).toHaveValue(TUTORIAL_CANDIDATES[0].text);
     await next.click();
