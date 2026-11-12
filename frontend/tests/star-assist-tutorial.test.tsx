@@ -229,7 +229,7 @@ describe("STAR tutorial dialog", () => {
     expect(within(dialog).getByText("STEP 7 / 12")).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: "前の案" })).toBeDisabled();
     expect(within(dialog).getByRole("button", { name: "次の案" })).toBeDisabled();
-    fireEvent.click(within(dialog).getByRole("button", { name: "チュートリアルを閉じる" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "成果物を閉じる" }));
     expect(onClose).toHaveBeenCalledOnce();
   });
 });
