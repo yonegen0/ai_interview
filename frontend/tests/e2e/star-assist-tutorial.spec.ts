@@ -44,7 +44,7 @@ for (const [width, height] of [[375, 667], [390, 844], [430, 932], [1440, 900]])
     await expect(dialog.getByText("実際の回答・下書きには保存されません。")).toBeVisible();
     await expect(page.getByRole("dialog")).toHaveCount(1);
     const next = dialog.getByRole("button", { name: "次へ" });
-    const back = dialog.getByRole("button", { name: "戻る" });
+    const back = dialog.getByRole("button", { name: "戻る", exact: true });
     await expect(back).toBeDisabled();
     await next.click();
     await expect(dialog.getByRole("textbox", { name: "S 状況" })).toHaveValue(TUTORIAL_NOTES.S);
