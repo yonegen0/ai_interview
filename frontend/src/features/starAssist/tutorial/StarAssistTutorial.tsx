@@ -172,8 +172,11 @@ export function StarAssistTutorial({ onClose }: { onClose: () => void }) {
       </Header>
       <Content ref={contentRef}>
         <Question aria-label="体験用の質問">
-          <Text component="h3" variant="h3">今回の質問</Text>
+          <Text component="h3" variant="h3">体験用の質問</Text>
           <Text>{TUTORIAL_QUESTION}</Text>
+          <Text variant="caption" color="text.secondary">
+            この質問はチュートリアル専用です。実際の練習中の質問や回答は変更されません。
+          </Text>
         </Question>
         {view.completed ? (
           <>
@@ -280,7 +283,7 @@ export function StarAssistTutorial({ onClose }: { onClose: () => void }) {
                 <AnswerText aria-label="回答案の文章">{answer}</AnswerText>
               )}
               {view.edited && <Text variant="body2" color="text.secondary">
-                編集例：説明することも心掛けました → 問い合わせを待たずに、こちらから状況を説明するようにしました
+                文章の一部分を、自分の言葉に近い表現へ修正しました。
               </Text>}
               <Text variant="caption" color="text.secondary">
                 {countStarText(answer)} / {STAR_OUTPUT_LIMIT}文字
