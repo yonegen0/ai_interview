@@ -154,9 +154,15 @@ export function StarAssistTutorial({ onClose }: { onClose: () => void }) {
 
   return (
     <TutorialDialog open onClose={close} fullWidth maxWidth="md" fullScreen={fullScreen}
-      aria-label="エピソード作成アシストの使い方を体験"
+      aria-labelledby="star-tutorial-accessible-title"
       aria-describedby="star-tutorial-description">
       <Header>
+        <span id="star-tutorial-accessible-title" style={{
+          position: "absolute", width: 1, height: 1,
+          overflow: "hidden", clipPath: "inset(50%)", whiteSpace: "nowrap",
+        }}>
+          エピソード作成アシストの使い方を体験
+        </span>
         {view.candidatesVisible ? (
           <AssistResultHeading title="生成した3案の回答" description={STAR_RESULT_DESCRIPTION}
             onClose={close} titleId="star-tutorial-result-title" />
