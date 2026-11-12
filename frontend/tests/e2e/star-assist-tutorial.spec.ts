@@ -15,11 +15,11 @@ async function begin(page: Page) {
     .toContainText("保存済");
 }
 
-for (const width of [390, 1440]) {
+for (const [width, height] of [[375, 667], [390, 844], [1440, 844]]) {
   test("STAR tutorial " + width + "px: only Next, reversibility, no API writes, real answer preserved", async ({
     page,
   }) => {
-    await page.setViewportSize({ width, height: 844 });
+    await page.setViewportSize({ width, height });
     await begin(page);
     const realAnswer = "本人が入力していた回答です。体験によって上書きされません。";
     await page.getByLabel("あなたの回答").fill(realAnswer);
@@ -35,30 +35,35 @@ for (const width of [390, 1440]) {
     const launch = page.getByRole("button", { name: "使い方を体験する" });
     await expect(launch).toBeVisible();
     await launch.click();
-    const dialog = page.getByRole("dialog", { name: "STARアシストの使い方を体験" });
+    const dialog = page.getByRole("dialog", { name: "エピソード作成アシストの使い方を体験" });
     await expect(dialog).toBeVisible();
     await expect(page.getByRole("dialog")).toHaveCount(1);
     const next = dialog.getByRole("button", { name: "次へ" });
     const back = dialog.getByRole("button", { name: "戻る" });
     await expect(back).toBeDisabled();
     await next.click();
-    await expect(dialog.getByText(TUTORIAL_NOTES.S)).toBeVisible();
+    await expect(dialog.getByRole("textbox", { name: "S 状況" })).toHaveValue(TUTORIAL_NOTES.S);
+    await expect(dialog.getByRole("textbox", { name: "S 状況" })).toBeInViewport();
     await next.click();
-    await expect(dialog.getByText(TUTORIAL_NOTES.T)).toBeVisible();
+    await expect(dialog.getByRole("textbox", { name: "T 課題" })).toHaveValue(TUTORIAL_NOTES.T);
+    await expect(dialog.getByRole("textbox", { name: "T 課題" })).toBeInViewport();
     await next.click();
-    await expect(dialog.getByText(TUTORIAL_NOTES.A)).toBeVisible();
+    await expect(dialog.getByRole("textbox", { name: "A 本人の行動" })).toHaveValue(TUTORIAL_NOTES.A);
+    await expect(dialog.getByRole("textbox", { name: "A 本人の行動" })).toBeInViewport();
     await next.click();
-    await expect(dialog.getByText(TUTORIAL_NOTES.R)).toBeVisible();
+    await expect(dialog.getByRole("textbox", { name: "R 結果・学び" })).toHaveValue(TUTORIAL_NOTES.R);
+    await expect(dialog.getByRole("textbox", { name: "R 結果・学び" })).toBeInViewport();
+    await expect(dialog.getByRole("textbox", { name: "S 状況" })).toHaveAttribute("readonly");
     await back.click();
     await expect(dialog.getByText("未入力", { exact: true })).toHaveCount(1);
     await next.click();
     await next.click();
     await expect(dialog.getByText("応募先カテゴリ：事務・受付")).toBeVisible();
-    await dialog.getByText("3案を生成（1回）").click();
+    await expect(dialog.getByText("3案を生成（1回）")).toBeVisible();
     await expect(dialog.getByText("STEP 6 / 12")).toBeVisible();
     await next.click();
     await expect(dialog.getByText(TUTORIAL_CANDIDATES[0].text)).toBeVisible();
-    await dialog.getByText("B 行動重視").click();
+    await expect(dialog.getByText("B 行動重視")).toBeVisible();
     await expect(dialog.getByText(/表示中：A案/)).toBeVisible();
     await next.click();
     await expect(dialog.getByText(TUTORIAL_CANDIDATES[1].text)).toBeVisible();
@@ -70,11 +75,11 @@ for (const width of [390, 1440]) {
     await next.click();
     await expect(dialog.getByText(TUTORIAL_CANDIDATES[0].text)).toBeVisible();
     await next.click();
-    await expect(dialog.getByLabel("編集画面の文章")).toContainText(TUTORIAL_CANDIDATES[0].text);
+    await expect(dialog.getByRole("textbox", { name: "編集画面の文章" })).toHaveValue(TUTORIAL_CANDIDATES[0].text);
     await next.click();
-    await expect(dialog.getByLabel("編集画面の文章")).toContainText(TUTORIAL_EDITED_A);
+    await expect(dialog.getByRole("textbox", { name: "編集画面の文章" })).toHaveValue(TUTORIAL_EDITED_A);
     await back.click();
-    await expect(dialog.getByLabel("編集画面の文章")).toContainText(TUTORIAL_CANDIDATES[0].text);
+    await expect(dialog.getByRole("textbox", { name: "編集画面の文章" })).toHaveValue(TUTORIAL_CANDIDATES[0].text);
     await next.click();
     await next.click();
     await expect(dialog.getByLabel("体験用回答欄")).toContainText(TUTORIAL_EDITED_A);
