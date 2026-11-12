@@ -287,6 +287,7 @@ export function StarAssistTutorial({ onClose }: { onClose: () => void }) {
               )}
               {view.editing ? (
                 <Input label="案Aの回答を編集" value={answer} multiline minRows={5}
+                  helperText={`${countStarText(answer)} / ${STAR_OUTPUT_LIMIT} 文字`}
                   slotProps={{ input: { readOnly: true },
                     htmlInput: { tabIndex: -1, "aria-label": "編集画面の文章" } }} />
               ) : <AnswerText aria-label="回答案の文章">{answer}</AnswerText>}
