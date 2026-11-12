@@ -15,6 +15,7 @@ const candidates: StarInput["candidates"] = [
   { id: "C", style: "conversational", text: "案C" },
 ];
 const apply = vi.fn();
+const externalHandled = vi.fn();
 
 vi.mock("@/features/starAssist/components/organisms/StarAssistDialog", () => ({
   StarAssistDialog: ({ open, onGenerationQueued, onAdopt, onViewResult }: {
@@ -48,6 +49,7 @@ vi.mock("@/features/starAssist/components/organisms/AssistResultDialog", () => (
 function Harness({
   restored = false, hasAnswer = false, waiting = false,
   mode = "star", busy = false, pending = false, loading = false,
+  externalOpenRequest = null, tutorialActive = false,
 }: {
   restored?: boolean;
   hasAnswer?: boolean;
@@ -56,6 +58,8 @@ function Harness({
   busy?: boolean;
   pending?: boolean;
   loading?: boolean;
+  externalOpenRequest?: number | null;
+  tutorialActive?: boolean;
 }) {
   const form = useForm<StarInput>({
     defaultValues: restored
@@ -75,7 +79,9 @@ function Harness({
         form.setValue("generationId", generatedId, { shouldDirty: true });
         form.setValue("candidates", candidates, { shouldDirty: true });
       }}>モック生成完了</button>
-      <StarAssistPanel workspace={workspace} hasAnswer={hasAnswer} />
+      <StarAssistPanel workspace={workspace} hasAnswer={hasAnswer}
+        externalOpenRequest={externalOpenRequest} tutorialActive={tutorialActive}
+        onExternalRequestHandled={externalHandled} />
     </ThemeProvider>
   );
 }
@@ -130,21 +136,23 @@ it("keeps the result open when applying B fails", async () => {
   expect(screen.getByRole("dialog", { name: "成果物" })).toBeInTheDocument();
 });
 
-it("offers the independent tutorial only in a safe STAR state and keeps normal dialogs exclusive", () => {
-  render(<Harness hasAnswer />);
-  const normalTrigger = screen.getByRole("button", { name: /エピソード作成アシスト/ });
-  const launch = screen.getByRole("button", { name: "使い方を体験する" });
-  fireEvent.click(launch);
-  expect(screen.getByRole("dialog", { name: "エピソード作成アシストの使い方を体験" })).toBeInTheDocument();
-  // Clicking the background trigger programmatically must not open a second dialog.
-  fireEvent.click(normalTrigger);
-  expect(screen.queryByRole("dialog", { name: "入力画面" })).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: "チュートリアルを閉じる" }));
-  expect(screen.queryByRole("dialog", { name: "エピソード作成アシストの使い方を体験" })).not.toBeInTheDocument();
+it("accepts one external launch and keeps the production input dialog single", async () => {
+  render(<Harness hasAnswer externalOpenRequest={42} />);
+  await waitFor(() => expect(screen.getByRole("dialog", { name: "入力画面" })).toBeInTheDocument());
+  expect(externalHandled).toHaveBeenCalledWith(42);
+  expect(screen.getAllByRole("dialog")).toHaveLength(1);
+  // Reusing the existing trigger must not reopen or duplicate an already-open dialog.
   fireEvent.click(screen.getByRole("button", { name: /エピソード作成アシスト/ }));
-  expect(screen.getByRole("dialog", { name: "入力画面" })).toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: "使い方を体験する" })).not.toBeInTheDocument();
+  expect(screen.getAllByRole("dialog")).toHaveLength(1);
   expect(apply).not.toHaveBeenCalled();
+});
+
+it("disables production opening while the shared tutorial owns the foreground", () => {
+  render(<Harness tutorialActive />);
+  const trigger = screen.getByRole("button", { name: /エピソード作成アシスト/ });
+  expect(trigger).toBeDisabled();
+  fireEvent.click(trigger);
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 });
 
 it.each([
@@ -152,7 +160,7 @@ it.each([
   { busy: true },
   { pending: true },
   { loading: true },
-])("hides the tutorial while another mode or operation is active: %o", (props) => {
+])("does not embed tutorial controls in the production panel: %o", (props) => {
   render(<Harness {...props} />);
   expect(screen.queryByRole("button", { name: "使い方を体験する" })).not.toBeInTheDocument();
 });
