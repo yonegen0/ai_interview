@@ -73,6 +73,8 @@ export function usePracticeController(
     } satisfies PracticeView,
     form: {
       workspace: state.workspace,
+      tutorialSessionId: session.sessionId,
+      tutorialQuestionId: session.question.id,
       tutorialContextKey: [
         session.sessionId, session.question.id, retryFrom ?? "initial",
         session.activeAttempt?.evaluationId ?? "new",
