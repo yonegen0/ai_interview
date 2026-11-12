@@ -5,7 +5,7 @@ import { useForm, useWatch } from "react-hook-form";
 import { beforeEach, expect, it, vi } from "vitest";
 import { StarAssistPanel } from "@/features/starAssist/components/organisms/StarAssistPanel";
 import type { StarWorkspace } from "@/features/starAssist/hooks/useStarWorkspace";
-import { emptyStarInput, type StarInput } from "@/lib/api/schemas/star";
+import { emptyStarInput, type AssistMode, type StarInput } from "@/lib/api/schemas/star";
 import { theme } from "@/theme/theme";
 
 const generatedId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -53,11 +53,11 @@ function Harness({ restored = false, hasAnswer = false, waiting = false }: {
   const form = useForm<StarInput>({
     defaultValues: restored
       ? { ...emptyStarInput(), generationId: generatedId, candidates }
-      : emptyStarInput(),
+      : emptyStarInput(mode),
   });
   const input = useWatch({ control: form.control }) as StarInput;
   const workspace = {
-    input, form, mode: "star", loading: false, busy: false, pending: false,
+    input, form, mode, available: true, contextId: null, loading, busy, pending,
     status: "保存済", error: null, migrationWarning: null, savedPreview: null,
     resultWaiting: waiting, generating: false, apply,
     adopt: vi.fn().mockReturnValue(true),
@@ -121,4 +121,30 @@ it("keeps the result open when applying B fails", async () => {
   fireEvent.click(screen.getByRole("button", { name: "案Bを使う" }));
   await waitFor(() => expect(apply).toHaveBeenCalledWith("B"));
   expect(screen.getByRole("dialog", { name: "成果物" })).toBeInTheDocument();
+});
+
+it("offers the independent tutorial only in a safe STAR state and keeps normal dialogs exclusive", () => {
+  render(<Harness hasAnswer />);
+  const launch = screen.getByRole("button", { name: "使い方を体験する" });
+  fireEvent.click(launch);
+  expect(screen.getByRole("dialog", { name: "STARアシストの使い方を体験" })).toBeInTheDocument();
+  // Clicking the background trigger programmatically must not open a second dialog.
+  fireEvent.click(screen.getByRole("button", { name: /エピソード作成アシスト/ }));
+  expect(screen.queryByRole("dialog", { name: "入力画面" })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "チュートリアルを閉じる" }));
+  expect(screen.queryByRole("dialog", { name: "STARアシストの使い方を体験" })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: /エピソード作成アシスト/ }));
+  expect(screen.getByRole("dialog", { name: "入力画面" })).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "使い方を体験する" })).not.toBeInTheDocument();
+  expect(apply).not.toHaveBeenCalled();
+});
+
+it.each([
+  { mode: "prep" as const },
+  { busy: true },
+  { pending: true },
+  { loading: true },
+])("hides the tutorial while another mode or operation is active: %o", (props) => {
+  render(<Harness {...props} />);
+  expect(screen.queryByRole("button", { name: "使い方を体験する" })).not.toBeInTheDocument();
 });
