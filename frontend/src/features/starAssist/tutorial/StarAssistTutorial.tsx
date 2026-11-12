@@ -319,7 +319,7 @@ export function StarAssistTutorial({ onClose }: { onClose: () => void }) {
           <div aria-label="体験用生成操作" style={{ display: "grid", gap: 4 }}>
             <Button type="button" variant="contained" endIcon={<AutoAwesomeOutlinedIcon />}
               disabled fullWidth>3案を生成（1回）</Button>
-            <Text variant="caption" color="text.secondary" textAlign="center">
+            <Text variant="caption" color="text.secondary" align="center">
               本番の生成ボタンの見本です。体験では「次へ」を押してください。
             </Text>
           </div>
