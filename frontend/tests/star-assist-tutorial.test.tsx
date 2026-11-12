@@ -24,7 +24,9 @@ const setup = () => {
 
 describe("STAR tutorial fixed data", () => {
   it("fits source contracts and preserves the exact ordered candidates", () => {
-    expect(countStarNotes(TUTORIAL_NOTES)).toBe(195);
+    expect(countStarNotes(TUTORIAL_NOTES)).toBe(203);
+    expect([TUTORIAL_NOTES.S, TUTORIAL_NOTES.T, TUTORIAL_NOTES.A, TUTORIAL_NOTES.R].map(countStarText))
+      .toEqual([63, 35, 59, 46]);
     expect(countStarNotes(TUTORIAL_NOTES)).toBeLessThanOrEqual(600);
     expect(TUTORIAL_CATEGORY).toBe("retail_service");
     expect(targetCategories[TUTORIAL_CATEGORY]).toBe("接客・販売・サービス");
@@ -40,12 +42,17 @@ describe("STAR tutorial fixed data", () => {
       expect(countStarText(candidate.text)).toBeLessThanOrEqual(600);
     }
     expect(TUTORIAL_CANDIDATES.map((candidate) => countStarText(candidate.text)))
-      .toEqual([261, 264, 285]);
+      .toEqual([269, 272, 272]);
     expect(TUTORIAL_CANDIDATES[0].text.split(TUTORIAL_EDIT_BEFORE)).toHaveLength(2);
+    expect(TUTORIAL_CANDIDATES[0].text.endsWith(TUTORIAL_EDIT_BEFORE)).toBe(true);
+    expect([countStarText(TUTORIAL_EDIT_BEFORE), countStarText(TUTORIAL_EDIT_AFTER)])
+      .toEqual([39, 44]);
     expect(TUTORIAL_EDITED_A).toBe(
       TUTORIAL_CANDIDATES[0].text.replace(TUTORIAL_EDIT_BEFORE, TUTORIAL_EDIT_AFTER),
     );
-    expect(countStarText(TUTORIAL_EDITED_A)).toBe(263);
+    expect(countStarText(TUTORIAL_EDITED_A)).toBe(274);
+    expect(TUTORIAL_EDITED_A.slice(0, -TUTORIAL_EDIT_AFTER.length))
+      .toBe(TUTORIAL_CANDIDATES[0].text.slice(0, -TUTORIAL_EDIT_BEFORE.length));
     expect(countStarText(TUTORIAL_EDITED_A)).toBeLessThanOrEqual(400);
     expect(getTutorialView(8).selectedCandidate).toBe("B");
     expect(getTutorialView(9).selectedCandidate).toBe("C");
@@ -72,7 +79,7 @@ describe("STAR tutorial fixed data", () => {
         "担当者と作業内容や期限を確認し、共有メモにまとめた"
       ],
       [
-        "提案後の説明のやり直しが減り、事前の聞き取りの大切さを学んだ",
+        "お客様への提案後に説明をやり直す場面が減り、事前に聞き取る大切さを学んだ",
         "確認漏れが減り、作業手順を見直す大切さを学んだ",
         "確認の行き違いが減り、早めの情報共有の大切さを学んだ"
       ]
@@ -170,10 +177,18 @@ describe("STAR tutorial dialog", () => {
     next();
     expect(within(dialog).getByText("A案の回答を編集（体験用）")).toBeInTheDocument();
     expect(within(dialog).getByLabelText("編集画面の文章")).toHaveValue(TUTORIAL_CANDIDATES[0].text);
+    expect(within(dialog).queryByLabelText("修正前後の比較")).not.toBeInTheDocument();
+    expect(within(dialog).getByText(/修正する箇所は最後の一文/)).toBeInTheDocument();
     next();
     expect(within(dialog).getByLabelText("編集画面の文章")).toHaveValue(TUTORIAL_EDITED_A);
-    expect(within(dialog).getByText("文章の一部分を、自分の言葉に近い表現へ修正しました。")).toBeInTheDocument();
+    const comparison = within(dialog).getByLabelText("修正前後の比較");
+    expect(within(comparison).getByLabelText("修正前")).toHaveTextContent(TUTORIAL_EDIT_BEFORE);
+    expect(within(comparison).getByLabelText("修正後")).toHaveTextContent(TUTORIAL_EDIT_AFTER);
+    expect(within(comparison).getByText("抽象的な表現を、学んだことが伝わる具体的な言葉に整えました。")).toBeInTheDocument();
+    expect(within(dialog).getAllByRole("textbox", { name: "編集画面の文章" })).toHaveLength(1);
+    expect(within(dialog).getByText("274 / 600文字")).toBeInTheDocument();
     back();
+    expect(within(dialog).queryByLabelText("修正前後の比較")).not.toBeInTheDocument();
     expect(within(dialog).getByLabelText("編集画面の文章")).toHaveValue(TUTORIAL_CANDIDATES[0].text);
     next();
     expect(within(dialog).getByLabelText("編集画面の文章")).toHaveValue(TUTORIAL_EDITED_A);

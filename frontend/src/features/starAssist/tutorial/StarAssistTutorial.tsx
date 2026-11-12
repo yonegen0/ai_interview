@@ -5,6 +5,7 @@ import { useEffect, useRef } from "react";
 import CloseIcon from "@mui/icons-material/Close";
 import AutoAwesomeOutlinedIcon from "@mui/icons-material/AutoAwesomeOutlined";
 import EmojiEventsOutlinedIcon from "@mui/icons-material/EmojiEventsOutlined";
+import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import {
   Dialog as MuiDialog, DialogActions, DialogContent, IconButton,
   LinearProgress, useMediaQuery,
@@ -19,7 +20,7 @@ import { StarAssistStepper } from "../components/molecules/StarAssistStepper";
 import { CandidateTabs, CandidateTab, AnswerCard, CardHeading, AnswerText, ActionBar } from "../components/molecules/AssistResultPresentation";
 import {
   TUTORIAL_CANDIDATES, TUTORIAL_COMPANY,
-  TUTORIAL_EDITED_A,
+  TUTORIAL_EDITED_A, TUTORIAL_EDIT_BEFORE, TUTORIAL_EDIT_AFTER,
   TUTORIAL_INDUSTRY, TUTORIAL_QUESTION,
 } from "./tutorialData";
 import { TUTORIAL_STEP_COUNT, useStarAssistTutorial } from "./useStarAssistTutorial";
@@ -130,6 +131,26 @@ const StepDescription = styled("div")(({ theme }) => ({
   overflowWrap: "anywhere",
 }));
 
+
+const EditComparison = styled("div")(({ theme }) => ({
+  display: "grid",
+  gap: theme.spacing(1),
+  minWidth: 0,
+}));
+const ComparisonPanel = styled("div", {
+  shouldForwardProp: (prop) => prop !== "$after",
+})<{ $after?: boolean }>(({ theme, $after }) => ({
+  display: "grid",
+  gap: theme.spacing(0.75),
+  padding: theme.spacing(1.5),
+  minWidth: 0,
+  borderRadius: theme.shape.borderRadius,
+  border: "1px solid " + ($after ? alpha(theme.palette.primary.main, 0.5) : theme.palette.divider),
+  backgroundColor: $after
+    ? alpha(theme.palette.primary.light, 0.12) : theme.palette.grey[100],
+  overflowWrap: "anywhere",
+}));
+
 const candidateLabels = {
   A: "結論重視", B: "行動重視", C: "会話重視",
 } as const;
@@ -182,10 +203,10 @@ export function StarAssistTutorial({ onClose }: { onClose: () => void }) {
           <>
             <Text component="h3" variant="h2">チュートリアル完了！</Text>
             <Text>
-              回答を作成して、回答欄に反映するところまで体験できました。
+              3つの回答案を比較し、自然な言葉に修正して、回答欄に反映するところまで体験できました。
             </Text>
             <Text>
-              実際の練習でも、3つの回答案から好きなものを選び、自分の言葉に修正して使うことができます。
+              実際の練習では、自分の経験と合っているかを確認し、必要に応じて文章を編集してから使いましょう。
             </Text>
             <ViewCard aria-label="体験用回答欄">
               <Text component="h3" variant="h3">あなたの回答（体験用）</Text>
@@ -266,7 +287,7 @@ export function StarAssistTutorial({ onClose }: { onClose: () => void }) {
               表示中：{candidate?.id}案（{candidate ? candidateLabels[candidate.id] : ""}）
               ・切り替え操作は下の「次へ」で体験します。
             </Text>
-            <AnswerCard aria-label="体験用候補の表示" data-tutorial-target="true"
+            <AnswerCard aria-label="体験用候補の表示" data-tutorial-target={view.edited ? undefined : "true"}
               sx={{ outline: "2px solid", outlineColor: "primary.main" }}>
               <CardHeading>
                 <EmojiEventsOutlinedIcon color="warning" aria-hidden="true" />
@@ -275,6 +296,28 @@ export function StarAssistTutorial({ onClose }: { onClose: () => void }) {
                     candidate ? "案" + candidate.id + "の回答（" + candidateLabels[candidate.id] + "）" : ""}
                 </Text>
               </CardHeading>
+              {view.editing && !view.edited && (
+                <Text variant="body2" color="text.secondary">
+                  修正する箇所は最後の一文です。「次へ」で話しやすい表現に整えます。
+                </Text>
+              )}
+              {view.edited && (
+                <EditComparison aria-label="修正前後の比較" data-tutorial-target="true">
+                  <ComparisonPanel aria-label="修正前">
+                    <Text variant="subtitle2" color="text.secondary">修正前</Text>
+                    <AnswerText>{TUTORIAL_EDIT_BEFORE}</AnswerText>
+                  </ComparisonPanel>
+                  <ArrowDownwardIcon fontSize="small" color="action" aria-hidden="true"
+                    sx={{ justifySelf: "center" }} />
+                  <ComparisonPanel $after aria-label="修正後">
+                    <Text variant="subtitle2">修正後</Text>
+                    <AnswerText>{TUTORIAL_EDIT_AFTER}</AnswerText>
+                  </ComparisonPanel>
+                  <Text variant="body2" color="text.secondary">
+                    抽象的な表現を、学んだことが伝わる具体的な言葉に整えました。
+                  </Text>
+                </EditComparison>
+              )}
               {view.editing ? (
                 <Input label="案Aの回答を編集" value={answer}
                   multiline minRows={5}
@@ -282,9 +325,6 @@ export function StarAssistTutorial({ onClose }: { onClose: () => void }) {
               ) : (
                 <AnswerText aria-label="回答案の文章">{answer}</AnswerText>
               )}
-              {view.edited && <Text variant="body2" color="text.secondary">
-                文章の一部分を、自分の言葉に近い表現へ修正しました。
-              </Text>}
               <Text variant="caption" color="text.secondary">
                 {countStarText(answer)} / {STAR_OUTPUT_LIMIT}文字
               </Text>

@@ -403,7 +403,7 @@ describe("answer-assist reference tips", () => {
     expect(starSteps.map((step) => step.tips.length)).toEqual([3, 3, 3, 3]);
     expect(starSteps[0].tips[0]).toContain("商品やサービスの案内");
     expect(starSteps[2].tips[0]).toContain("提案内容と説明の順番");
-    expect(starSteps[3].tips[0]).toContain("説明のやり直しが減り");
+    expect(starSteps[3].tips[0]).toContain("説明をやり直す場面が減り");
     expect(starSteps[1].tips[1]).toContain("確認漏れを防ぎ");
     expect(starSteps[2].tips[2]).toContain("共有メモ");
     const modes = ["prep", "motivation", "career_change", "career_plan"] as const;
