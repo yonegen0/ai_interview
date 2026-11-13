@@ -31,7 +31,7 @@ import {
   TUTORIAL_EDITED_A, TUTORIAL_EDIT_BEFORE, TUTORIAL_EDIT_AFTER,
   TUTORIAL_INDUSTRY, TUTORIAL_QUESTION,
 } from "./tutorialData";
-import { TUTORIAL_STEP_COUNT, useStarAssistTutorial } from "./useStarAssistTutorial";
+import { useStarAssistTutorial } from "./useStarAssistTutorial";
 import { TutorialSpotlight } from "./TutorialSpotlight";
 
 const TutorialDialog = styled(MuiDialog)(({ theme }) => ({
