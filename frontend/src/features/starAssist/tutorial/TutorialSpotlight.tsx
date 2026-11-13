@@ -26,6 +26,9 @@ type Geometry = {
   popoverLeft: number;
   popoverTop: number;
   popoverWidth: number;
+  maxGuideHeight: number;
+  compactBottom: number;
+  compactTop: boolean;
 };
 
 const Layer = styled("div")({
@@ -45,17 +48,14 @@ const Outline = styled("div")(({ theme }) => ({
 }));
 const Guide = styled("section")(({ theme }) => ({
   position: "absolute", display: "flex", flexDirection: "column",
-  gap: theme.spacing(1), boxSizing: "border-box", maxHeight: "min(50dvh, 315px)",
+  gap: theme.spacing(1), boxSizing: "border-box",
+  width: "min(344px, calc(100% - 24px))", maxHeight: "min(315px, calc(100dvh - 24px))",
   minWidth: 0, padding: theme.spacing(2), borderRadius: 18,
   border: "1px solid " + alpha(theme.palette.primary.main, 0.4),
   backgroundColor: theme.palette.background.paper,
   color: theme.palette.text.primary,
   boxShadow: theme.shadows[8], pointerEvents: "auto",
   transition: "opacity 180ms ease",
-  "&[data-placement='compact']": {
-    left: 12, right: 12, bottom: "max(12px, env(safe-area-inset-bottom))",
-    width: "auto", maxHeight: "min(52dvh, 300px)",
-  },
   "&[data-placement='below']::before, &[data-placement='above']::before": {
     content: '""', position: "absolute", left: "calc(50% - 7px)",
     width: 14, height: 14, backgroundColor: theme.palette.background.paper,
@@ -92,6 +92,8 @@ function sameGeometry(a: Geometry | null, b: Geometry) {
     a.height === b.height && a.placement === b.placement &&
     a.popoverLeft === b.popoverLeft && a.popoverTop === b.popoverTop &&
     a.popoverWidth === b.popoverWidth &&
+    a.maxGuideHeight === b.maxGuideHeight &&
+    a.compactBottom === b.compactBottom && a.compactTop === b.compactTop &&
     JSON.stringify(a.hole) === JSON.stringify(b.hole);
 }
 
@@ -107,38 +109,59 @@ function measure(content: HTMLElement, guide: HTMLElement | null, step: number):
     right: (vv?.offsetLeft ?? 0) + (vv?.width ?? window.innerWidth),
     bottom: (vv?.offsetTop ?? 0) + (vv?.height ?? window.innerHeight),
   };
+  // Dialog coordinates and the Safari visual viewport can have different edges.
+  const visibleLeft = Math.max(p.left, visible.left);
+  const visibleTop = Math.max(p.top, visible.top);
+  const visibleRight = Math.min(p.right, visible.right);
+  const visibleBottom = Math.min(p.bottom, visible.bottom);
   const width = p.width;
   const height = p.height;
-  const popoverWidth = Math.min(344, Math.max(0, width - 24));
+  const popoverWidth = Math.min(344, Math.max(0, visibleRight - visibleLeft - 24));
+  const maxGuideHeight = Math.min(315, Math.max(0, visibleBottom - visibleTop - 24));
+  const compactBottom = Math.max(12, p.bottom - visibleBottom + 12);
+  const minLeft = visibleLeft - p.left + 12;
+  const maxLeft = visibleRight - p.left - popoverWidth - 12;
+  const centeredLeft = clamp(visibleLeft - p.left + (visibleRight - visibleLeft - popoverWidth) / 2,
+    minLeft, maxLeft);
   const base: Geometry = {
     step, width, height, hole: null, placement: "compact",
-    popoverLeft: 12, popoverTop: 0, popoverWidth,
+    popoverLeft: centeredLeft, popoverTop: visibleTop - p.top + 12,
+    popoverWidth, maxGuideHeight, compactBottom, compactTop: false,
   };
   const anchor = TUTORIAL_ANCHORS[step - 1];
   const target = content.querySelector<HTMLElement>(`[data-tutorial-anchor="${anchor}"]`);
   if (!target) return base;
   const t = target.getBoundingClientRect();
-  // The spotlight must be within the actually visible content and visual viewport.
-  const left = Math.max(t.left - 6, c.left, p.left, visible.left);
-  const top = Math.max(t.top - 6, c.top, p.top, visible.top);
-  const right = Math.min(t.right + 6, c.right, p.right, visible.right);
-  const bottom = Math.min(t.bottom + 6, c.bottom, p.bottom, visible.bottom);
+  const left = Math.max(t.left - 6, c.left, visibleLeft);
+  const top = Math.max(t.top - 6, c.top, visibleTop);
+  const right = Math.min(t.right + 6, c.right, visibleRight);
+  const bottom = Math.min(t.bottom + 6, c.bottom, visibleBottom);
   if (![left, top, right, bottom].every(Number.isFinite) ||
     right - left < 12 || bottom - top < 12) return base;
   const hole = {
     left: left - p.left, top: top - p.top,
     width: right - left, height: bottom - top,
   };
-  const guideHeight = Math.max(190, guide?.offsetHeight ?? 220);
-  const lowerRoom = Math.min(c.bottom, visible.bottom, p.bottom) - bottom;
-  const upperRoom = top - Math.max(c.top, visible.top, p.top);
+  // Identical width/height limits for all placements prevent compact/above oscillation.
+  // A resize of the guide is observed separately and measured in the next animation frame.
+  const guideHeight = Math.max(190, guide?.offsetHeight || 220);
+  const lowerRoom = Math.min(c.bottom, visibleBottom - 32) - bottom;
+  const upperRoom = top - Math.max(c.top, visibleTop);
   const placement: Placement = lowerRoom >= guideHeight + 16 ? "below"
     : upperRoom >= guideHeight + 16 ? "above" : "compact";
   const popoverLeft = clamp((left + right) / 2 - p.left - popoverWidth / 2,
-    12, width - popoverWidth - 12);
+    minLeft, maxLeft);
+  const bottomGuideTop = visibleBottom - 12 - guideHeight;
+  const topGuideTop = Math.max(c.top, visibleTop) + 12;
+  const compactTop = placement === "compact" &&
+    bottomGuideTop < bottom + 12 && topGuideTop + guideHeight + 12 <= top;
   const popoverTop = placement === "below"
-    ? bottom - p.top + 12 : top - p.top - guideHeight - 12;
-  return { ...base, hole, placement, popoverLeft, popoverTop };
+    ? bottom - p.top + 12 : placement === "above"
+      ? top - p.top - guideHeight - 12 : topGuideTop - p.top;
+  return {
+    ...base, hole, placement, popoverLeft, popoverTop,
+    compactTop,
+  };
 }
 
 export function TutorialSpotlight({
@@ -189,6 +212,7 @@ export function TutorialSpotlight({
     observer?.observe(content);
     observer?.observe(paper);
     if (target) observer?.observe(target);
+    if (guideRef.current) observer?.observe(guideRef.current);
     content.addEventListener("scroll", schedule, { passive: true });
     window.addEventListener("resize", schedule);
     window.visualViewport?.addEventListener("resize", schedule);
@@ -227,9 +251,14 @@ export function TutorialSpotlight({
       ) : <Shade aria-hidden="true" data-tutorial-shade="fallback"
         style={{ inset: 0 }} />}
       <Guide ref={guideRef} data-testid="tutorial-guide" data-placement={placement}
-        style={placement === "compact" ? undefined : {
-          left: current?.popoverLeft ?? 12, top: current?.popoverTop ?? 12,
-          width: current?.popoverWidth ?? 320,
+        style={{
+          left: current?.popoverLeft ?? 12,
+          width: current?.popoverWidth || "min(344px, calc(100% - 24px))",
+          maxHeight: current
+            ? `calc(${current.maxGuideHeight}px - env(safe-area-inset-bottom))` : undefined,
+          ...(placement === "compact" && !current?.compactTop
+            ? { bottom: `calc(${current?.compactBottom ?? 12}px + env(safe-area-inset-bottom))` }
+            : { top: current?.popoverTop ?? 12 }),
         }}>
         <ProgressHeading>
           <Text variant="caption" color="text.secondary">STEP {step} / {TUTORIAL_STEP_COUNT}</Text>
