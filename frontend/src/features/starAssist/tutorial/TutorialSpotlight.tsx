@@ -1,7 +1,7 @@
 /** @file TutorialSpotlight.tsx @description 既存Dialog内の対象を暗転から切り抜き、スクロール可能な吹き出しで案内する。 */
 "use client";
 
-import { useCallback, useLayoutEffect, useRef, useState, type RefObject } from "react";
+import { useCallback, useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
 import { LinearProgress } from "@mui/material";
 import { alpha, styled } from "@mui/material/styles";
 import { Button } from "@/components/atoms/Button";
@@ -164,6 +164,10 @@ export function TutorialSpotlight({
     let frame = 0;
     const schedule = () => {
       if (frame) return;
+      if (typeof requestAnimationFrame !== "function") {
+        update();
+        return;
+      }
       frame = requestAnimationFrame(() => {
         frame = 0;
         update();
@@ -180,17 +184,17 @@ export function TutorialSpotlight({
       }
     }
     schedule();
-    const observer = new ResizeObserver(schedule);
-    observer.observe(content);
-    observer.observe(paper);
-    if (target) observer.observe(target);
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(schedule);
+    observer?.observe(content);
+    observer?.observe(paper);
+    if (target) observer?.observe(target);
     content.addEventListener("scroll", schedule, { passive: true });
     window.addEventListener("resize", schedule);
     window.visualViewport?.addEventListener("resize", schedule);
     window.visualViewport?.addEventListener("scroll", schedule);
     return () => {
-      if (frame) cancelAnimationFrame(frame);
-      observer.disconnect();
+      if (frame && typeof cancelAnimationFrame === "function") cancelAnimationFrame(frame);
+      observer?.disconnect();
       content.removeEventListener("scroll", schedule);
       window.removeEventListener("resize", schedule);
       window.visualViewport?.removeEventListener("resize", schedule);
@@ -203,7 +207,7 @@ export function TutorialSpotlight({
   const width = current?.width ?? 0;
   const height = current?.height ?? 0;
   const placement = hole ? current?.placement ?? "compact" : "compact";
-  const shade = (style: React.CSSProperties, key: string) =>
+  const shade = (style: CSSProperties, key: string) =>
     <Shade key={key} data-tutorial-shade={key} style={style} aria-hidden="true" />;
 
   return (
