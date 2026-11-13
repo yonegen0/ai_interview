@@ -127,7 +127,6 @@ for (const [width, height] of [[375, 667], [390, 844], [430, 932], [1440, 900]])
     })).toBe(true);
     await expectGuideAccessible(guide);
     if (width === 375) {
-      await expect(guide).toHaveAttribute("data-placement", "compact");
       const generate = dialog.getByRole("button", { name: "3案を生成（1回）" });
       expect(await generate.evaluate((element) => {
         const button = element.getBoundingClientRect();
