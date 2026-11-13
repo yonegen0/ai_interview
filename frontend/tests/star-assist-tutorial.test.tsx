@@ -4,10 +4,11 @@ import { ThemeProvider } from "@mui/material/styles";
 import { describe, expect, it, vi } from "vitest";
 import { StarAssistTutorial } from "@/features/starAssist/tutorial/StarAssistTutorial";
 import { getTutorialView, TUTORIAL_COMPLETE_STEP } from "@/features/starAssist/tutorial/useStarAssistTutorial";
+import { TUTORIAL_ANCHORS } from "@/features/starAssist/tutorial/TutorialSpotlight";
 import {
   TUTORIAL_CANDIDATES, TUTORIAL_CATEGORY, TUTORIAL_EDIT_AFTER,
   TUTORIAL_EDIT_BEFORE, TUTORIAL_EDITED_A, TUTORIAL_NOTES, TUTORIAL_QUESTION,
-  TUTORIAL_CANDIDATE_DESCRIPTIONS, TUTORIAL_STEP_DESCRIPTIONS,
+  TUTORIAL_CANDIDATE_DESCRIPTIONS, TUTORIAL_STEP_DESCRIPTIONS, TUTORIAL_STEP_TITLES,
 } from "@/features/starAssist/tutorial/tutorialData";
 import { countStarNotes, countStarText, starCandidateSchema, starResultSchema, targetCategories } from "@/lib/api/schemas/star";
 import { theme } from "@/theme/theme";
@@ -136,6 +137,30 @@ describe("STAR tutorial fixed data", () => {
     expect(getTutorialView(-10)).toEqual(getTutorialView(1));
     expect(getTutorialView(12).selectedCandidate).toBe("A");
     expect(getTutorialView(12).edited).toBe(true);
+  });
+});
+
+describe("STAR tutorial spotlight", () => {
+  it("maps each existing step to its corresponding real UI anchor", () => {
+    expect(TUTORIAL_ANCHORS).toEqual([
+      "star-s", "star-s", "star-t", "star-a", "star-r", "target-category",
+      "candidate-a", "candidate-b", "candidate-c", "candidate-a",
+      "candidate-edit", "edit-comparison",
+    ]);
+    expect(TUTORIAL_STEP_TITLES).toHaveLength(12);
+    expect(TUTORIAL_STEP_DESCRIPTIONS).toHaveLength(12);
+  });
+
+  it("keeps navigation usable when the target cannot be measured", () => {
+    const { dialog, next, back } = setup();
+    const guide = within(dialog).getByTestId("tutorial-guide");
+    expect(guide).toHaveAttribute("data-placement", "compact");
+    expect(within(dialog).queryByTestId("tutorial-highlight")).not.toBeInTheDocument();
+    expect(within(dialog).getByText(TUTORIAL_STEP_TITLES[0])).toBeInTheDocument();
+    next();
+    expect(within(dialog).getByText(TUTORIAL_STEP_TITLES[1])).toBeInTheDocument();
+    back();
+    expect(within(dialog).getByText(TUTORIAL_STEP_TITLES[0])).toBeInTheDocument();
   });
 });
 
