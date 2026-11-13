@@ -59,6 +59,7 @@ const Content = styled(DialogContent)(({ theme }) => ({
   display: "grid", alignContent: "start", gap: theme.spacing(2),
   flex: 1, minHeight: 0,
   overflowY: "auto", overflowX: "hidden", overscrollBehavior: "contain",
+  "&[data-tutorial-active='true']": { paddingBottom: "min(52dvh, 320px)" },
   padding: theme.spacing(2.5),
   "&.MuiDialogContent-root": { paddingTop: theme.spacing(2.5) },
   [theme.breakpoints.down("sm")]: {
@@ -169,7 +170,7 @@ export function StarAssistTutorial({
             </Text>} />
         )}
       </Header>
-      <Content ref={contentRef}>
+      <Content ref={contentRef} data-tutorial-active={!view.completed ? "true" : undefined}>
         <Question aria-label="体験用の質問">
           <Text component="h3" variant="subtitle2">体験用の質問</Text>
           <Text variant="body2">{TUTORIAL_QUESTION}</Text>
