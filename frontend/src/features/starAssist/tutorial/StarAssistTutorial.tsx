@@ -212,15 +212,16 @@ export function StarAssistTutorial({
               <StarAssistTips step={inputStep} steps={starSteps} />
             </StarAssistColumns>
             {step === 6 && (
-              <StarAssistSettings aria-label="体験用応募先設定"
-                data-tutorial-anchor="target-category">
+              <StarAssistSettings aria-label="体験用応募先設定">
                 <Text variant="h3" component="h3">応募先の設定</Text>
-                <Select label="応募先カテゴリ" value={TUTORIAL_CATEGORY} fullWidth
-                  disabled onChange={() => {}}
-                  options={[
-                    { value: "", label: "選択してください" },
-                    ...Object.entries(targetCategories).map(([value, label]) => ({ value, label })),
-                  ]} />
+                <div data-tutorial-anchor="target-category" style={{ minWidth: 0 }}>
+                  <Select label="応募先カテゴリ" value={TUTORIAL_CATEGORY} fullWidth
+                    disabled onChange={() => {}}
+                    options={[
+                      { value: "", label: "選択してください" },
+                      ...Object.entries(targetCategories).map(([value, label]) => ({ value, label })),
+                    ]} />
+                </div>
               <div aria-label="体験用生成操作" style={{ display: "grid", gap: 4 }}>
                 <Button type="button" variant="contained" endIcon={<AutoAwesomeOutlinedIcon />}
                   disabled fullWidth>3案を生成（1回）</Button>
