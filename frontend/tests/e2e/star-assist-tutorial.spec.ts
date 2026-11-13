@@ -43,6 +43,22 @@ for (const [width, height] of [[375, 667], [390, 844], [430, 932], [1440, 900]])
     await expect(dialog.getByText(TUTORIAL_QUESTION)).toBeVisible();
     await expect(dialog.getByText("実際の回答・下書きには保存されません。")).toBeVisible();
     await expect(page.getByRole("dialog")).toHaveCount(1);
+    const guide = dialog.getByTestId("tutorial-guide");
+    await expect(guide).toBeInViewport();
+    const highlight = dialog.getByTestId("tutorial-highlight");
+    await expect(highlight).toBeVisible();
+    // The bright hole follows the original card rather than a detached copy.
+    await expect.poll(async () => highlight.evaluate((element) => {
+      const target = element.closest(".MuiDialog-paper")?.querySelector<HTMLElement>(
+        '[data-tutorial-anchor="star-s"]',
+      );
+      const content = element.closest(".MuiDialog-paper")?.querySelector<HTMLElement>(
+        ".MuiDialogContent-root",
+      );
+      if (!target || !content) return 999;
+      return Math.abs(element.getBoundingClientRect().top -
+        Math.max(target.getBoundingClientRect().top - 6, content.getBoundingClientRect().top));
+    })).toBeLessThan(4);
     const next = dialog.getByRole("button", { name: "次へ" });
     const back = dialog.getByRole("button", { name: "戻る", exact: true });
     await expect(back).toBeDisabled();
@@ -71,6 +87,17 @@ for (const [width, height] of [[375, 667], [390, 844], [430, 932], [1440, 900]])
     await expect(dialog.getByRole("button", { name: "3案を生成（1回）" })).toBeDisabled();
     await expect(dialog.getByText("本番の生成ボタンの見本です。体験では「次へ」を押してください。")).toBeVisible();
     await expect(dialog.getByText("STEP 6 / 12")).toBeVisible();
+    if (width === 375) {
+      await expect(guide).toHaveAttribute("data-placement", "compact");
+      const generate = dialog.getByRole("button", { name: "3案を生成（1回）" });
+      expect(await generate.evaluate((element) => {
+        const button = element.getBoundingClientRect();
+        const bubble = element.closest(".MuiDialog-paper")?.querySelector<HTMLElement>(
+          '[data-testid="tutorial-guide"]',
+        )?.getBoundingClientRect();
+        return !bubble || button.bottom <= bubble.top || button.top >= bubble.bottom;
+      })).toBe(true);
+    }
     await next.click();
     await expect(dialog.getByText(TUTORIAL_CANDIDATES[0].text)).toBeVisible();
     await expect(dialog.getByText(TUTORIAL_CANDIDATE_DESCRIPTIONS.A)).toBeVisible();
@@ -78,6 +105,13 @@ for (const [width, height] of [[375, 667], [390, 844], [430, 932], [1440, 900]])
     await expect(dialog.getByRole("tab", { name: "B 行動重視" })).toBeDisabled();
     await expect(dialog.getByRole("button", { name: "この回答を使う" })).toBeDisabled();
     await expect(dialog.getByText(/表示中：A案/)).toBeVisible();
+    // Touch scrolling remains available through the dimmed region.
+    const tutorialContent = dialog.locator(".MuiDialogContent-root");
+    const beforeScroll = await tutorialContent.evaluate((element) => element.scrollTop);
+    await tutorialContent.evaluate((element) => { element.scrollTop += 60; });
+    await expect.poll(() => tutorialContent.evaluate((element) => element.scrollTop))
+      .toBeGreaterThan(beforeScroll + 10);
+    await expect(guide).toBeInViewport();
     await next.click();
     await expect(dialog.getByText(TUTORIAL_CANDIDATES[1].text)).toBeVisible();
     await expect(dialog.getByText(TUTORIAL_CANDIDATE_DESCRIPTIONS.B)).toBeVisible();

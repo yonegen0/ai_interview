@@ -91,13 +91,14 @@ const Heading = styled("div")(({ theme }) => ({
 }));
 const Count = styled("div")({ textAlign: "right" });
 
-export function StarAssistStepCard({ step, count, error, detail, children, tutorialTarget }: {
+export function StarAssistStepCard({ step, count, error, detail, children, tutorialTarget, tutorialAnchor }: {
   step: AssistStep; count: number; error?: boolean; detail?: ReactNode;
-  children: ReactNode; tutorialTarget?: boolean;
+  children: ReactNode; tutorialTarget?: boolean; tutorialAnchor?: string;
 }) {
   return (
     <FormCard aria-label={step.label + "の入力"}
-      data-tutorial-target={tutorialTarget ? "true" : undefined}>
+      data-tutorial-target={tutorialTarget ? "true" : undefined}
+      data-tutorial-anchor={tutorialAnchor}>
       <Heading>
         <FlagOutlinedIcon fontSize="large" aria-hidden="true" />
         <Text variant="h2" component="h2">{step.label}（{step.english}）</Text>

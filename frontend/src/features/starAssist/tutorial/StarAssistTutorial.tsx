@@ -1,7 +1,7 @@
 /** @file StarAssistTutorial.tsx @description 単一Dialog内に本番STARアシストの表示部品を使った固定12ステップ体験を描画する。 */
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 import AutoAwesomeOutlinedIcon from "@mui/icons-material/AutoAwesomeOutlined";
 import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import {
@@ -31,7 +31,8 @@ import {
   TUTORIAL_EDITED_A, TUTORIAL_EDIT_BEFORE, TUTORIAL_EDIT_AFTER,
   TUTORIAL_INDUSTRY, TUTORIAL_QUESTION,
 } from "./tutorialData";
-import { TUTORIAL_STEP_COUNT, useStarAssistTutorial } from "./useStarAssistTutorial";
+import { useStarAssistTutorial } from "./useStarAssistTutorial";
+import { TutorialSpotlight } from "./TutorialSpotlight";
 
 const TutorialDialog = styled(MuiDialog)(({ theme }) => ({
   "& .MuiDialog-paper": {
@@ -42,6 +43,7 @@ const TutorialDialog = styled(MuiDialog)(({ theme }) => ({
     borderRadius: 24,
     boxShadow: theme.shadows[8],
     overflow: "hidden",
+    position: "relative",
     [theme.breakpoints.down("sm")]: {
       height: "100dvh", maxHeight: "100dvh", width: "100%", margin: 0, borderRadius: 0,
     },
@@ -50,12 +52,14 @@ const TutorialDialog = styled(MuiDialog)(({ theme }) => ({
 const Header = styled("div")(({ theme }) => ({
   borderBottom: "1px solid " + theme.palette.divider,
   padding: theme.spacing(2, 2.5),
+  "& .MuiIconButton-root": { position: "relative", zIndex: 12 },
   [theme.breakpoints.down("sm")]: { padding: theme.spacing(1.25, 2) },
 }));
 const Content = styled(DialogContent)(({ theme }) => ({
   display: "grid", alignContent: "start", gap: theme.spacing(2),
   flex: 1, minHeight: 0,
   overflowY: "auto", overflowX: "hidden", overscrollBehavior: "contain",
+  "&[data-tutorial-active='true']": { paddingBottom: "min(52dvh, 320px)" },
   padding: theme.spacing(2.5),
   "&.MuiDialogContent-root": { paddingTop: theme.spacing(2.5) },
   [theme.breakpoints.down("sm")]: {
@@ -99,11 +103,6 @@ const ReadingText = styled("p")(({ theme }) => ({
   margin: 0, whiteSpace: "pre-wrap", overflowWrap: "anywhere",
   lineHeight: 1.9, ...theme.typography.body1,
 }));
-const StepDescription = styled("div")(({ theme }) => ({
-  padding: theme.spacing(0.75, 0), color: theme.palette.text.primary,
-  overflowWrap: "anywhere",
-}));
-
 const EditComparison = styled("div")(({ theme }) => ({
   display: "grid",
   gap: theme.spacing(1),
@@ -140,17 +139,6 @@ export function StarAssistTutorial({
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
   const contentRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const content = contentRef.current;
-    if (!content) return;
-    const target = content.querySelector<HTMLElement>('[data-tutorial-target="true"]');
-    // scrollIntoView could also move the background page; only scroll the dialog content.
-    if (target) {
-      const offset = target.getBoundingClientRect().top - content.getBoundingClientRect().top;
-      content.scrollTop += offset - 12;
-    } else content.scrollTop = 0;
-  }, [step]);
-
   const inputStep = step <= 2 ? 0 : step === 3 ? 1 : step === 4 ? 2 : 3;
   const current = starSteps[inputStep];
   const candidate = view.selectedCandidate
@@ -182,7 +170,7 @@ export function StarAssistTutorial({
             </Text>} />
         )}
       </Header>
-      <Content ref={contentRef}>
+      <Content ref={contentRef} data-tutorial-active={!view.completed ? "true" : undefined}>
         <Question aria-label="体験用の質問">
           <Text component="h3" variant="subtitle2">体験用の質問</Text>
           <Text variant="body2">{TUTORIAL_QUESTION}</Text>
@@ -190,12 +178,6 @@ export function StarAssistTutorial({
             実際の回答・下書きには保存されません。
           </Text>
         </Question>
-        {!view.completed && (
-          <StepDescription id="star-tutorial-description" role="status"
-            aria-live="polite" aria-atomic="true">
-            <Text variant="body2">{view.description}</Text>
-          </StepDescription>
-        )}
         {view.completed ? (
           <>
             <Text id="star-tutorial-description" component="h3" variant="h2"
@@ -220,7 +202,7 @@ export function StarAssistTutorial({
               label={assistModes.star.label} />
             <StarAssistColumns>
               <StarAssistStepCard step={current} count={countStarText(view.notes[current.key])}
-                tutorialTarget={step !== 6}>
+                tutorialAnchor={step <= 5 ? "star-" + current.key.toLowerCase() : undefined}>
                 <Input label={current.key === "A" ? "A 本人の行動" : current.key + " " + current.label}
                   value={view.notes[current.key]}
                   placeholder={current.placeholder} multiline minRows={5}
@@ -231,7 +213,7 @@ export function StarAssistTutorial({
             </StarAssistColumns>
             {step === 6 && (
               <StarAssistSettings aria-label="体験用応募先設定"
-                data-tutorial-target="true">
+                data-tutorial-anchor="target-category">
                 <Text variant="h3" component="h3">応募先の設定</Text>
                 <Select label="応募先カテゴリ" value={TUTORIAL_CATEGORY} fullWidth
                   disabled onChange={() => {}}
@@ -239,6 +221,13 @@ export function StarAssistTutorial({
                     { value: "", label: "選択してください" },
                     ...Object.entries(targetCategories).map(([value, label]) => ({ value, label })),
                   ]} />
+              <div aria-label="体験用生成操作" style={{ display: "grid", gap: 4 }}>
+                <Button type="button" variant="contained" endIcon={<AutoAwesomeOutlinedIcon />}
+                  disabled fullWidth>3案を生成（1回）</Button>
+                <Text variant="caption" color="text.secondary" align="center">
+                  本番の生成ボタンの見本です。体験では「次へ」を押してください。
+                </Text>
+              </div>
                 <StarAssistSettingFields>
                   <Input label="志望業界（任意）" value={TUTORIAL_INDUSTRY}
                     slotProps={{ input: { readOnly: true }, htmlInput: { tabIndex: -1 } }} />
@@ -270,7 +259,7 @@ export function StarAssistTutorial({
               ・切り替えは「次へ」で体験します。
             </Text>
             <AnswerCard aria-label="生成した回答アシスト"
-              data-tutorial-target={view.edited ? undefined : "true"}>
+              data-tutorial-anchor={step <= 10 ? "candidate-" + (candidate?.id ?? "A").toLowerCase() : undefined}>
               <CardHeading>
                 <EmojiEventsOutlinedIcon color="warning" aria-hidden="true" />
                 <Text component="h3" variant="h3">
@@ -283,7 +272,7 @@ export function StarAssistTutorial({
                 </Text>
               )}
               {view.edited && (
-                <EditComparison aria-label="修正前後の比較" data-tutorial-target="true">
+                <EditComparison aria-label="修正前後の比較" data-tutorial-anchor="edit-comparison">
                   <ComparisonPanel aria-label="修正前">
                     <Text variant="subtitle2" color="text.secondary">修正前</Text>
                     <AnswerText>{TUTORIAL_EDIT_BEFORE}</AnswerText>
@@ -301,6 +290,7 @@ export function StarAssistTutorial({
               )}
               {view.editing ? (
                 <Input label="案Aの回答を編集" value={answer} multiline minRows={5}
+                  data-tutorial-anchor="candidate-edit"
                   helperText={`${countStarText(answer)} / ${STAR_OUTPUT_LIMIT} 文字`}
                   slotProps={{ input: { readOnly: true },
                     htmlInput: { tabIndex: -1, "aria-label": "編集画面の文章" } }} />
@@ -319,45 +309,27 @@ export function StarAssistTutorial({
           </>
         )}
       </Content>
-      <Footer>
-        <FooterHeading>
-          <Text component="span" variant="caption" color="text.secondary">
-            {view.completed ? "完了" : "STEP " + step + " / " + TUTORIAL_STEP_COUNT}
-          </Text>
-          <Text component="span" variant="caption" color="text.secondary">体験用・保存されません</Text>
-        </FooterHeading>
-        <LinearProgress variant="determinate"
-          value={(view.completed ? TUTORIAL_STEP_COUNT : step - 1) / TUTORIAL_STEP_COUNT * 100}
-          aria-label="チュートリアルの進捗"
-          sx={{ height: 3, borderRadius: 2 }} />
-        {step === 6 && (
-          <div aria-label="体験用生成操作" style={{ display: "grid", gap: 4 }}>
-            <Button type="button" variant="contained" endIcon={<AutoAwesomeOutlinedIcon />}
-              disabled fullWidth>3案を生成（1回）</Button>
-            <Text variant="caption" color="text.secondary" align="center">
-              本番の生成ボタンの見本です。体験では「次へ」を押してください。
-            </Text>
-          </div>
-        )}
-        <FooterButtons>
-          {view.completed ? (
-            <>
-              <Button type="button" variant="outlined" onClick={reset}>
-                もう一度体験する
-              </Button>
-              <Button type="button" variant="contained" onClick={onTryAssist ?? close} autoFocus>
-                アシスト機能を試してみる
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button type="button" variant="outlined" disabled={step === 1} onClick={back}>戻る</Button>
-              <Button type="button" variant="contained" onClick={next}>次へ</Button>
-              <Button type="button" variant="text" onClick={close}>終了</Button>
-            </>
-          )}
-        </FooterButtons>
-      </Footer>
+      {!view.completed && (
+        <TutorialSpotlight contentRef={contentRef} step={step}
+          description={view.description} onNext={next} onBack={back} onClose={close} />
+      )}
+      {view.completed && (
+        <Footer>
+          <FooterHeading>
+            <Text component="span" variant="caption" color="text.secondary">完了</Text>
+            <Text component="span" variant="caption" color="text.secondary">体験用・保存されません</Text>
+          </FooterHeading>
+          <LinearProgress variant="determinate" value={100}
+            aria-label="チュートリアルの進捗"
+            sx={{ height: 3, borderRadius: 2 }} />
+          <FooterButtons>
+            <Button type="button" variant="outlined" onClick={reset}>もう一度体験する</Button>
+            <Button type="button" variant="contained" onClick={onTryAssist ?? close} autoFocus>
+              アシスト機能を試してみる
+            </Button>
+          </FooterButtons>
+        </Footer>
+      )}
     </TutorialDialog>
   );
 }
