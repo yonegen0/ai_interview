@@ -1,5 +1,5 @@
 /** @file star-assist-tutorial.spec.ts @description 実練習の回答を守る12ステップ疑似体験E2E。 */
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import {
   TUTORIAL_CANDIDATES, TUTORIAL_EDITED_A, TUTORIAL_NOTES,
   TUTORIAL_QUESTION, TUTORIAL_CANDIDATE_DESCRIPTIONS,
@@ -15,6 +15,28 @@ async function begin(page: Page) {
   await expect(page.getByLabel("あなたの回答")).toBeVisible();
   await expect(page.getByRole("status").filter({ hasText: "下書き：" }))
     .toContainText("保存済");
+}
+
+// Check the real visible area (not just the layout viewport) and all action buttons.
+async function expectGuideAccessible(guide: Locator) {
+  await expect.poll(() => guide.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const paper = element.closest(".MuiDialog-paper")?.getBoundingClientRect();
+    if (!paper) return false;
+    const vv = window.visualViewport;
+    const top = Math.max(paper.top, vv?.offsetTop ?? 0);
+    const bottom = Math.min(paper.bottom, (vv?.offsetTop ?? 0) + (vv?.height ?? window.innerHeight));
+    const left = Math.max(paper.left, vv?.offsetLeft ?? 0);
+    const right = Math.min(paper.right, (vv?.offsetLeft ?? 0) + (vv?.width ?? window.innerWidth));
+    const buttons = Array.from(element.querySelectorAll("button"));
+    return rect.top >= top - 3 && rect.bottom <= bottom + 3 &&
+      rect.left >= left - 3 && rect.right <= right + 3 &&
+      buttons.length === 3 && buttons.every((button) => {
+        const b = button.getBoundingClientRect();
+        return b.top >= top - 3 && b.bottom <= bottom + 3 &&
+          b.left >= left - 3 && b.right <= right + 3;
+      });
+  })).toBe(true);
 }
 
 for (const [width, height] of [[375, 667], [390, 844], [430, 932], [1440, 900]]) {
@@ -87,6 +109,23 @@ for (const [width, height] of [[375, 667], [390, 844], [430, 932], [1440, 900]])
     await expect(dialog.getByRole("button", { name: "3案を生成（1回）" })).toBeDisabled();
     await expect(dialog.getByText("本番の生成ボタンの見本です。体験では「次へ」を押してください。")).toBeVisible();
     await expect(dialog.getByText("STEP 6 / 12")).toBeVisible();
+    const categoryAnchor = dialog.locator('[data-tutorial-anchor="target-category"]');
+    await expect(categoryAnchor).toHaveCount(1);
+    await expect(categoryAnchor.getByRole("combobox", { name: "応募先カテゴリ" })).toBeDisabled();
+    await expect(dialog.getByLabel("体験用応募先設定"))
+      .not.toHaveAttribute("data-tutorial-anchor", "target-category");
+    await expect.poll(() => highlight.evaluate((element) => {
+      const category = element.closest(".MuiDialog-paper")?.querySelector<HTMLElement>(
+        '[data-tutorial-anchor="target-category"]',
+      );
+      const settings = category?.closest("section");
+      if (!category || !settings) return false;
+      const h = element.getBoundingClientRect();
+      const c = category.getBoundingClientRect();
+      return h.width <= c.width + 14 && h.height <= c.height + 14 &&
+        h.height < settings.getBoundingClientRect().height;
+    })).toBe(true);
+    await expectGuideAccessible(guide);
     if (width === 375) {
       await expect(guide).toHaveAttribute("data-placement", "compact");
       const generate = dialog.getByRole("button", { name: "3案を生成（1回）" });
@@ -127,6 +166,7 @@ for (const [width, height] of [[375, 667], [390, 844], [430, 932], [1440, 900]])
     await expect(dialog.getByRole("textbox", { name: "編集画面の文章" })).toHaveValue(TUTORIAL_CANDIDATES[0].text);
     await expect(dialog.getByText(/修正する箇所は最後の一文/)).toBeVisible();
     await expect(dialog.getByLabel("修正前後の比較")).toHaveCount(0);
+    await expectGuideAccessible(guide);
     await next.click();
     const comparison = dialog.getByLabel("修正前後の比較");
     await expect(comparison).toBeInViewport();
@@ -134,6 +174,7 @@ for (const [width, height] of [[375, 667], [390, 844], [430, 932], [1440, 900]])
     await expect(comparison.getByLabel("修正後")).toContainText(TUTORIAL_EDIT_AFTER);
     await expect(comparison.getByText("抽象的な表現を、学んだことが伝わる具体的な言葉に整えました。")).toBeVisible();
     await expect(dialog.getByRole("textbox", { name: "編集画面の文章" })).toHaveValue(TUTORIAL_EDITED_A);
+    await expectGuideAccessible(guide);
     await expect(dialog.getByRole("textbox", { name: "編集画面の文章" })).toHaveAttribute("readonly");
     await expect(dialog.getByRole("textbox", { name: "編集画面の文章" })).toHaveCount(1);
     await expect(dialog.getByText("274 / 600文字")).toBeVisible();
