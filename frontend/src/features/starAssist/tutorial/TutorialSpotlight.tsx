@@ -202,9 +202,14 @@ export function TutorialSpotlight({
     if (target) {
       const c = content.getBoundingClientRect();
       const t = target.getBoundingClientRect();
-      if (t.top > c.top + Math.min(140, c.height / 3) ||
+      // STEP 6 has a disabled generation-button preview immediately below the Select.
+      // Leave room above the Select for the guide rather than covering that preview.
+      const targetOffset = step === 6
+        ? Math.min(c.height - 80, Math.max(190, guideRef.current?.offsetHeight ?? 220) + 32)
+        : 12;
+      if (t.top > c.top + (step === 6 ? targetOffset + 8 : Math.min(140, c.height / 3)) ||
         t.bottom < c.top + 36 || t.top < c.top + 8) {
-        content.scrollTop += t.top - c.top - 12;
+        content.scrollTop += t.top - c.top - targetOffset;
       }
     }
     schedule();
