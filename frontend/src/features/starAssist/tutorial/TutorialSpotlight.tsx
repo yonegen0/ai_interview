@@ -179,7 +179,8 @@ export function TutorialSpotlight({
     if (target) {
       const c = content.getBoundingClientRect();
       const t = target.getBoundingClientRect();
-      if (t.top > c.bottom - 36 || t.bottom < c.top + 36 || t.top < c.top + 8) {
+      if (t.top > c.top + Math.min(140, c.height / 3) ||
+        t.bottom < c.top + 36 || t.top < c.top + 8) {
         content.scrollTop += t.top - c.top - 12;
       }
     }
