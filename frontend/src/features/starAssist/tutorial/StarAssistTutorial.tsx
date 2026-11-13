@@ -221,6 +221,13 @@ export function StarAssistTutorial({
                     { value: "", label: "選択してください" },
                     ...Object.entries(targetCategories).map(([value, label]) => ({ value, label })),
                   ]} />
+              <div aria-label="体験用生成操作" style={{ display: "grid", gap: 4 }}>
+                <Button type="button" variant="contained" endIcon={<AutoAwesomeOutlinedIcon />}
+                  disabled fullWidth>3案を生成（1回）</Button>
+                <Text variant="caption" color="text.secondary" align="center">
+                  本番の生成ボタンの見本です。体験では「次へ」を押してください。
+                </Text>
+              </div>
                 <StarAssistSettingFields>
                   <Input label="志望業界（任意）" value={TUTORIAL_INDUSTRY}
                     slotProps={{ input: { readOnly: true }, htmlInput: { tabIndex: -1 } }} />
@@ -235,15 +242,6 @@ export function StarAssistTutorial({
                   設定は体験用の表示です。実際には保存されません。
                 </Text>
               </StarAssistSettings>
-            )}
-            {step === 6 && (
-              <div aria-label="体験用生成操作" style={{ display: "grid", gap: 4 }}>
-                <Button type="button" variant="contained" endIcon={<AutoAwesomeOutlinedIcon />}
-                  disabled fullWidth>3案を生成（1回）</Button>
-                <Text variant="caption" color="text.secondary" align="center">
-                  本番の生成ボタンの見本です。体験では「次へ」を押してください。
-                </Text>
-              </div>
             )}
           </>
         ) : (
